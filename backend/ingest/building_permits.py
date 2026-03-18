@@ -1,204 +1,251 @@
 """
-Ingest Chicago building permits from the City of Chicago Data Portal (Socrata).
+backend/ingest/building_permits.py
+task: data-002
+lane: data
 
-Dataset: Building Permits
-Socrata endpoint: https://data.cityofchicago.org/resource/ydr8-5enu.json
+Ingests Chicago Building Permits from the City of Chicago Socrata API
+and writes raw records to a local JSON staging file.
 
-Usage
------
-# Full pull (first run or weekly re-sync):
-    python backend/ingest/building_permits.py
+Source:
+  https://data.cityofchicago.org/resource/ydr8-5enu.json
+  Dataset: Building Permits (Chicago OPA)
 
-# Incremental pull (daily delta, last N days):
-    python backend/ingest/building_permits.py --days 2
+Usage:
+  python backend/ingest/building_permits.py
+  python backend/ingest/building_permits.py --output data/raw/building_permits.json
+  python backend/ingest/building_permits.py --limit 500 --dry-run
 
-Environment variables
----------------------
-DATABASE_URL  PostgreSQL connection string (psycopg2 format).
-              Defaults to postgresql://localhost/livability if not set.
-SOCRATA_APP_TOKEN  Optional Socrata app token to raise rate limits.
+Environment variables (optional):
+  CHICAGO_SOCRATA_APP_TOKEN  — Socrata app token for higher rate limits.
+                               Register free at https://data.cityofchicago.org/profile/app_tokens
+
+Acceptance criteria (data-002):
+  - Script pulls permits from the Socrata API.
+  - Raw records are written to a JSON staging file.
+  - Source identifiers (permit_ field) are preserved for traceability.
+  - Script is idempotent: re-running overwrites the output file cleanly.
 """
 
 import argparse
-import logging
+import json
 import os
-from datetime import datetime, timedelta, timezone
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
-import psycopg2
-import psycopg2.extras
 import requests
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
 
-SOCRATA_BASE = "https://data.cityofchicago.org/resource/ydr8-5enu.json"
-PAGE_SIZE = 1000
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/livability")
-APP_TOKEN = os.environ.get("SOCRATA_APP_TOKEN", "")
+SOCRATA_BASE_URL = "https://data.cityofchicago.org/resource/ydr8-5enu.json"
 
+# Fields to retain from the raw permit record.
+# Keep only what the canonical project schema will need so the raw file
+# stays lean and auditable. Source identifiers are always preserved.
+FIELDS_TO_KEEP = [
+    "permit_",            # source identifier — never drop this
+    "permit_type",
+    "application_start_date",
+    "issue_date",
+    "expiration_date",
+    "work_description",
+    "street_number",
+    "street_direction",
+    "street_name",
+    "suffix",
+    "latitude",
+    "longitude",
+    "reported_cost",
+    "contact_1_name",
+    "_comments",
+]
 
-def fetch_pages(since_date: str | None = None) -> list[dict]:
-    """Fetch all permit records from the Socrata API, optionally filtered by updated_date."""
-    headers = {}
-    if APP_TOKEN:
-        headers["X-App-Token"] = APP_TOKEN
+# How many records to fetch per API page. Socrata max is 50000.
+PAGE_SIZE = 5000
 
-    where_clause = ""
-    if since_date:
-        where_clause = f"updated_date > '{since_date}'"
+# Default output path relative to repo root.
+DEFAULT_OUTPUT_PATH = "data/raw/building_permits.json"
 
-    records: list[dict] = []
-    offset = 0
-    while True:
-        params: dict = {
-            "$limit": PAGE_SIZE,
-            "$offset": offset,
-            "$order": "updated_date ASC",
-        }
-        if where_clause:
-            params["$where"] = where_clause
-
-        resp = requests.get(SOCRATA_BASE, params=params, headers=headers, timeout=30)
-        resp.raise_for_status()
-        page = resp.json()
-        if not page:
-            break
-        records.extend(page)
-        logger.info("Fetched %d records (offset=%d)", len(records), offset)
-        if len(page) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
-
-    return records
+# How many days back to fetch. Keeps the raw file focused on near-term MVP window.
+DAYS_BACK = 90
 
 
-def _float_or_none(value: str | None) -> float | None:
+# ---------------------------------------------------------------------------
+# Fetch logic
+# ---------------------------------------------------------------------------
+
+def build_params(
+    offset: int,
+    limit: int,
+    app_token: str | None,
+    days_back: int,
+) -> dict:
+    """Build Socrata query params for one page of results."""
+    # Filter to permits issued or updated within the lookback window so
+    # the raw file stays focused on the MVP near-term scoring window.
+    cutoff = datetime.now(timezone.utc)
+    cutoff_str = f"{cutoff.year - (days_back // 365)}-{cutoff.month:02d}-{cutoff.day:02d}T00:00:00"
+
+    params: dict = {
+        "$limit": limit,
+        "$offset": offset,
+        "$where": f"issue_date >= '{cutoff_str}'",
+        "$order": "issue_date DESC",
+    }
+
+    if app_token:
+        params["$$app_token"] = app_token
+
+    return params
+
+
+def fetch_page(session: requests.Session, offset: int, limit: int, app_token: str | None, days_back: int) -> list[dict]:
+    """Fetch one page of permit records from Socrata."""
+    params = build_params(offset, limit, app_token, days_back)
+
     try:
-        return float(value) if value is not None else None
-    except (ValueError, TypeError):
-        return None
+        response = session.get(SOCRATA_BASE_URL, params=params, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        print(f"  ERROR: Request timed out at offset {offset}.", file=sys.stderr)
+        raise
+    except requests.exceptions.HTTPError as exc:
+        print(f"  ERROR: HTTP {exc.response.status_code} at offset {offset}: {exc.response.text[:200]}", file=sys.stderr)
+        raise
+
+    return response.json()
 
 
-def _date_or_none(value: str | None) -> str | None:
-    if not value:
-        return None
-    # Socrata returns ISO 8601 timestamps; keep only the date portion for DATE columns.
-    return value[:10]
-
-
-def upsert_records(conn, records: list[dict]) -> int:
-    """Upsert permit records into raw_building_permits. Returns the count inserted/updated."""
-    sql = """
-        INSERT INTO raw_building_permits (
-            source_id, permit_type, work_description, status,
-            address, zip_code, community_area, ward,
-            latitude, longitude, location_geom,
-            issue_date, expiration_date, reported_cost,
-            source_updated_at, ingested_at
-        ) VALUES (
-            %(source_id)s, %(permit_type)s, %(work_description)s, %(status)s,
-            %(address)s, %(zip_code)s, %(community_area)s, %(ward)s,
-            %(latitude)s, %(longitude)s,
-            CASE
-                WHEN %(latitude)s IS NOT NULL AND %(longitude)s IS NOT NULL
-                THEN ST_SetSRID(ST_MakePoint(%(longitude)s, %(latitude)s), 4326)
-                ELSE NULL
-            END,
-            %(issue_date)s, %(expiration_date)s, %(reported_cost)s,
-            %(source_updated_at)s, NOW()
-        )
-        ON CONFLICT (source_id) DO UPDATE SET
-            permit_type        = EXCLUDED.permit_type,
-            work_description   = EXCLUDED.work_description,
-            status             = EXCLUDED.status,
-            address            = EXCLUDED.address,
-            zip_code           = EXCLUDED.zip_code,
-            community_area     = EXCLUDED.community_area,
-            ward               = EXCLUDED.ward,
-            latitude           = EXCLUDED.latitude,
-            longitude          = EXCLUDED.longitude,
-            location_geom      = EXCLUDED.location_geom,
-            issue_date         = EXCLUDED.issue_date,
-            expiration_date    = EXCLUDED.expiration_date,
-            reported_cost      = EXCLUDED.reported_cost,
-            source_updated_at  = EXCLUDED.source_updated_at,
-            ingested_at        = EXCLUDED.ingested_at
-        WHERE raw_building_permits.source_updated_at IS DISTINCT FROM EXCLUDED.source_updated_at
-           OR raw_building_permits.source_updated_at IS NULL
+def fetch_all_permits(app_token: str | None, days_back: int, dry_run: bool) -> list[dict]:
     """
+    Paginate through the Socrata API and return all raw permit records
+    within the lookback window.
+    """
+    session = requests.Session()
+    all_records: list[dict] = []
+    offset = 0
 
-    rows = []
-    for r in records:
-        lat = _float_or_none(r.get("latitude") or (r.get("location") or {}).get("latitude"))
-        lng = _float_or_none(r.get("longitude") or (r.get("location") or {}).get("longitude"))
-        try:
-            ward = int(r["ward"]) if r.get("ward") else None
-        except (ValueError, TypeError):
-            ward = None
-        try:
-            cost = float(r["reported_cost"]) if r.get("reported_cost") else None
-        except (ValueError, TypeError):
-            cost = None
+    print(f"Fetching Chicago building permits (last {days_back} days)...")
 
-        rows.append(
-            {
-                "source_id": r.get("id") or r.get("permit_"),
-                "permit_type": r.get("permit_type"),
-                "work_description": r.get("work_description"),
-                "status": r.get("current_status"),
-                "address": r.get("street_number", "").strip()
-                + " "
-                + r.get("street_direction", "").strip()
-                + " "
-                + r.get("street_name", "").strip()
-                + " "
-                + r.get("suffix", "").strip(),
-                "zip_code": r.get("zip_code"),
-                "community_area": r.get("community_area"),
-                "ward": ward,
-                "latitude": lat,
-                "longitude": lng,
-                "issue_date": _date_or_none(r.get("issue_date")),
-                "expiration_date": _date_or_none(r.get("expiration_date")),
-                "reported_cost": cost,
-                "source_updated_at": r.get("updated_date"),
-            }
-        )
+    while True:
+        print(f"  Fetching page at offset {offset}...", end=" ", flush=True)
+        records = fetch_page(session, offset, PAGE_SIZE, app_token, days_back)
+        print(f"{len(records)} records.")
 
-    with conn.cursor() as cur:
-        psycopg2.extras.execute_batch(cur, sql, rows, page_size=500)
-    conn.commit()
-    return len(rows)
+        if not records:
+            break
+
+        all_records.extend(records)
+        offset += len(records)
+
+        if dry_run and offset >= PAGE_SIZE:
+            print("  Dry-run: stopping after first page.")
+            break
+
+        if len(records) < PAGE_SIZE:
+            # Last page — no more data to fetch.
+            break
+
+    return all_records
+
+
+# ---------------------------------------------------------------------------
+# Filtering and staging
+# ---------------------------------------------------------------------------
+
+def filter_fields(record: dict) -> dict:
+    """
+    Retain only the fields needed for downstream normalization.
+    Always preserve the source identifier regardless of FIELDS_TO_KEEP.
+    """
+    filtered = {k: v for k, v in record.items() if k in FIELDS_TO_KEEP}
+
+    # Defensive: always keep permit_ even if not in FIELDS_TO_KEEP.
+    if "permit_" in record and "permit_" not in filtered:
+        filtered["permit_"] = record["permit_"]
+
+    return filtered
+
+
+def write_staging_file(records: list[dict], output_path: Path) -> None:
+    """Write raw permit records to a JSON staging file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    staging = {
+        "source": "chicago_building_permits",
+        "source_url": SOCRATA_BASE_URL,
+        "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "record_count": len(records),
+        "records": records,
+    }
+
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(staging, f, indent=2, ensure_ascii=False)
+
+    print(f"\nWrote {len(records)} records to {output_path}")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Ingest Chicago building permits from the Socrata API."
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(DEFAULT_OUTPUT_PATH),
+        help=f"Output JSON path (default: {DEFAULT_OUTPUT_PATH})",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Fetch at most this many records (for testing).",
+    )
+    parser.add_argument(
+        "--days-back",
+        type=int,
+        default=DAYS_BACK,
+        help=f"Number of days back to fetch (default: {DAYS_BACK}).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Fetch one page only; do not write output file.",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingest Chicago building permits")
-    parser.add_argument(
-        "--days",
-        type=int,
-        default=None,
-        help="Only pull records updated in the last N days (incremental). Omit for full pull.",
-    )
-    args = parser.parse_args()
+    args = parse_args()
+    app_token = os.environ.get("CHICAGO_SOCRATA_APP_TOKEN")
 
-    since_date: str | None = None
-    if args.days is not None:
-        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=args.days)
-        since_date = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
-        logger.info("Incremental pull: records updated since %s", since_date)
-    else:
-        logger.info("Full pull: fetching all records")
+    if not app_token:
+        print(
+            "Note: CHICAGO_SOCRATA_APP_TOKEN not set. "
+            "Requests will be rate-limited. "
+            "Register a free app token at https://data.cityofchicago.org/profile/app_tokens"
+        )
 
-    records = fetch_pages(since_date=since_date)
-    logger.info("Fetched %d total records from source", len(records))
+    records = fetch_all_permits(app_token, args.days_back, args.dry_run)
 
-    if not records:
-        logger.info("No new records to ingest.")
+    # Apply field filter to keep raw file lean.
+    filtered = [filter_fields(r) for r in records]
+
+    print(f"\nTotal records fetched: {len(filtered)}")
+
+    if args.dry_run:
+        print("Dry-run mode: skipping file write.")
+        print(f"Sample record:\n{json.dumps(filtered[0] if filtered else {}, indent=2)}")
         return
 
-    with psycopg2.connect(DATABASE_URL) as conn:
-        count = upsert_records(conn, records)
-    logger.info("Upserted %d records into raw_building_permits.", count)
+    write_staging_file(filtered, args.output)
+    print("Done.")
 
 
 if __name__ == "__main__":
