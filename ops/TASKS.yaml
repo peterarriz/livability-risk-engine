@@ -89,7 +89,7 @@ tasks:
     type: research
     title: Document Chicago data sources
     owner: data
-    status: in_progress
+    status: done
     priority: high
     files:
       - docs/05_data_sources_chicago.md
@@ -98,13 +98,13 @@ tasks:
     acceptance_criteria:
       - Priority 1, 2, and 3 sources defined.
       - Access method and refresh cadence captured.
-    notes_for_next_agent: Focus on sources usable within the MVP timeline.
+    notes_for_next_agent: Completed with access method and refresh cadence for all 6 sources in docs/05_data_sources_chicago.md. Priority 1 sources (building permits and street closures) use daily Socrata pulls. Priority 2 sources use weekly cadence. Priority 3 sources are ad hoc / manual for MVP. Data-002 and data-004 can now proceed.
   - id: data-002
     lane: data
     type: ingest
     title: Ingest building permits (raw)
     owner: data
-    status: ready
+    status: done
     priority: high
     files:
       - backend/ingest/building_permits.py
@@ -114,7 +114,7 @@ tasks:
     acceptance_criteria:
       - Script pulls permits.
       - Raw records stored in a source table.
-    notes_for_next_agent: Preserve original source identifiers for traceability.
+    notes_for_next_agent: Completed. backend/ingest/building_permits.py pulls from Socrata (dataset ydr8-5enu) with incremental --days flag support and upserts into raw_building_permits using source_id as the stable key. db/schema.sql defines raw_building_permits and raw_street_closures with PostGIS geometry and indexing. Run with DATABASE_URL env var pointing at a PostGIS-enabled Postgres instance. Next step is data-006 (normalize permits to canonical projects) once data-005 (canonical projects table) is done.
   - id: data-003
     lane: data
     type: ingest
@@ -135,7 +135,7 @@ tasks:
     type: ingest
     title: Ingest street closure permits
     owner: data
-    status: ready
+    status: done
     priority: high
     files:
       - backend/ingest/street_closures.py
@@ -144,7 +144,7 @@ tasks:
     acceptance_criteria:
       - Closure records stored in a raw table.
       - Source timestamps preserved.
-    notes_for_next_agent: Prioritize planned closures over speculative feeds.
+    notes_for_next_agent: Completed. backend/ingest/street_closures.py pulls from Socrata (dataset Ansr-8mav) filtered to recent/future close_date with incremental --days flag support. Upserts into raw_street_closures (defined in db/schema.sql) using source_id as the stable key. Source timestamps (source_updated_at, close_date, reopen_date) are preserved. Default full pull covers last 180 days forward to focus on planned closures. Next step is data-007 (normalize closures to canonical projects) once data-005 is done.
   - id: data-005
     lane: data
     type: schema
@@ -475,7 +475,7 @@ tasks:
     type: qa
     title: Review explanation copy against the 18 QA addresses
     owner: product
-    status: ready
+    status: done
     priority: high
     files:
       - docs/03_scoring_model.md
@@ -487,7 +487,7 @@ tasks:
     acceptance_criteria:
       - All 18 addresses have a plausible expected disruption tier.
       - Explanation copy reads naturally for high, medium, and low cases.
-    notes_for_next_agent: Focus on demo plausibility, not model perfection.
+    notes_for_next_agent: Completed. All 18 QA addresses now have a documented expected disruption tier, dominant signal, expected confidence, and tone check in the QA address review table in docs/03_scoring_model.md. Explanation templates produce naturally calibrated copy for each band. No blocking issues found. product-014 review ran concurrently and confirmed no mismatches. Next step is product-012 (approve final mocked score example) using the QA findings.
   - id: product-011
     lane: product
     type: definition
@@ -544,7 +544,7 @@ tasks:
     type: qa
     title: Review 18 QA addresses against the product trust checklist
     owner: product
-    status: ready
+    status: done
     priority: high
     files:
       - docs/03_scoring_model.md
@@ -555,7 +555,7 @@ tasks:
     acceptance_criteria:
       - Each QA address has a plausible score band expectation.
       - Any explanation-tone or confidence mismatches are documented for follow-up.
-    notes_for_next_agent: Focus on trust and plausibility, not perfect ground truth.
+    notes_for_next_agent: Completed. QA review table in docs/03_scoring_model.md documents expected band, dominant signal, confidence, and tone for all 18 addresses. QA findings section confirms no blocking tone, confidence, or category-consistency mismatches. All low addresses should use LOW confidence; moderate addresses LOW–MEDIUM; high addresses MEDIUM–HIGH. product-012 and product-016 are the remaining Product QA actions before the demo is fully approved.
   - id: product-015
     lane: product
     type: terminology
@@ -594,7 +594,7 @@ tasks:
     type: qa
     title: Create score review checklist for example addresses
     owner: product
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/03_scoring_model.md
@@ -605,4 +605,4 @@ tasks:
     acceptance_criteria:
       - Checklist covers score plausibility and explanation clarity.
       - Review steps are repeatable by humans and AI agents.
-    notes_for_next_agent: Tie the checklist to the Chicago example addresses instead of inventing new scope.
+    notes_for_next_agent: Completed with a 7-step repeatable checklist in docs/03_scoring_model.md covering score-band alignment, explanation tone, dominant-driver consistency, confidence calibration, and buyer-facing readability. Tied to the 18 Chicago QA addresses. product-010 and product-014 used this checklist to complete their QA pass.
