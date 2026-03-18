@@ -62,6 +62,7 @@ p {
   position: relative;
   min-height: 100vh;
   padding: 32px 18px 96px;
+  transition: padding 260ms ease;
 }
 
 .shell-container {
@@ -85,6 +86,14 @@ p {
   backdrop-filter: blur(18px);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.topbar--workspace {
+  position: sticky;
+  top: 16px;
+  z-index: 20;
+  margin-bottom: 28px;
+  background: rgba(7, 13, 26, 0.72);
 }
 
 .topbar:hover {
@@ -144,12 +153,33 @@ p {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.topnav-label {
+  color: rgba(221, 228, 240, 0.56);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
+
+.topnav-address {
+  color: #f5f7fb;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .shell-section {
   margin-bottom: 26px;
+  transition: margin 260ms ease;
 }
 
 .hero-section {
   margin-bottom: 34px;
+  transition: margin 260ms ease, transform 260ms ease, opacity 260ms ease;
+}
+
+.hero-section--workspace {
+  margin-bottom: 18px;
 }
 
 .section-heading {
@@ -207,11 +237,13 @@ p {
   display: grid;
   gap: 34px;
   text-align: center;
+  transition: gap 260ms ease, padding 260ms ease, transform 260ms ease;
 }
 
 .hero-copy {
   width: min(760px, 100%);
   margin: 0 auto;
+  transition: width 260ms ease, transform 260ms ease;
 }
 
 .hero-copy h1 {
@@ -219,6 +251,15 @@ p {
   font-size: clamp(2.8rem, 7vw, 5.25rem);
   line-height: 0.95;
   letter-spacing: -0.05em;
+}
+
+.hero-copy--workspace {
+  width: min(640px, 100%);
+  transform: translateY(-2px);
+}
+
+.hero-copy--workspace h1 {
+  font-size: clamp(2rem, 4.6vw, 3rem);
 }
 
 .lede {
@@ -233,6 +274,11 @@ p {
   margin: 0 auto;
   display: grid;
   gap: 16px;
+  transition: width 260ms ease;
+}
+
+.lookup-form--workspace {
+  width: 100%;
 }
 
 .input-label {
@@ -253,12 +299,26 @@ p {
   transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
+.search-shell--workspace {
+  border-radius: 20px;
+  padding: 10px;
+}
+
 .search-shell:focus-within {
   border-color: rgba(141, 165, 255, 0.34);
   box-shadow:
     0 0 0 1px rgba(141, 165, 255, 0.12),
     0 16px 40px rgba(19, 33, 69, 0.24);
   background: rgba(255, 255, 255, 0.055);
+}
+
+.hero-support {
+  display: grid;
+  gap: 16px;
+}
+
+.hero-support--workspace {
+  grid-template-columns: 1fr;
 }
 
 input {
@@ -381,6 +441,10 @@ button:disabled {
   letter-spacing: -0.03em;
 }
 
+.workspace-section .section-heading {
+  margin-bottom: 14px;
+}
+
 .results {
   display: grid;
   gap: 24px;
@@ -390,6 +454,22 @@ button:disabled {
 .results--loading,
 .results--loaded {
   animation: resultsEnter 360ms ease both;
+}
+
+.workspace-grid {
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  align-items: start;
+}
+
+.workspace-main,
+.workspace-sidebar {
+  display: grid;
+  gap: 24px;
+}
+
+.workspace-sidebar {
+  position: sticky;
+  top: 108px;
 }
 
 .score-card,
@@ -497,6 +577,10 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
+}
+
+.detail-grid--workspace {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .detail-card h2,
@@ -656,6 +740,133 @@ button:disabled {
   background:
     linear-gradient(135deg, rgba(95, 124, 255, 0.1), rgba(60, 229, 179, 0.05)),
     rgba(255, 255, 255, 0.03);
+}
+
+.map-card,
+.supporting-card {
+  overflow: hidden;
+}
+
+.map-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.map-card-head h2 {
+  margin: 6px 0 0;
+}
+
+.map-kicker,
+.supporting-kicker {
+  margin: 0;
+  color: #8da5ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.map-badge {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 238, 248, 0.88);
+  font-size: 0.8rem;
+}
+
+.map-placeholder {
+  position: relative;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(14, 25, 49, 0.92), rgba(9, 19, 39, 0.9)),
+    radial-gradient(circle at 20% 20%, rgba(95, 124, 255, 0.18), transparent 26%),
+    radial-gradient(circle at 78% 38%, rgba(60, 229, 179, 0.12), transparent 24%);
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(35deg, rgba(255, 255, 255, 0.08) 0, transparent 20%, rgba(255, 255, 255, 0.08) 40%, transparent 42%),
+    linear-gradient(145deg, transparent 0, rgba(255, 255, 255, 0.05) 35%, transparent 37%);
+  background-size: 34px 34px, 34px 34px, 180px 180px, 240px 240px;
+  opacity: 0.65;
+}
+
+.map-pin {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #84a6ff, #3ce5b3);
+  box-shadow: 0 0 0 10px rgba(95, 124, 255, 0.1);
+}
+
+.map-pin::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: inherit;
+  background: #07101d;
+}
+
+.map-pin--primary {
+  top: 30%;
+  left: 24%;
+}
+
+.map-pin--secondary {
+  right: 18%;
+  top: 46%;
+}
+
+.map-pin--tertiary {
+  left: 46%;
+  bottom: 24%;
+}
+
+.map-copy {
+  margin: 16px 0 0;
+  color: rgba(221, 228, 240, 0.72);
+  line-height: 1.7;
+}
+
+.supporting-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supporting-list li {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.supporting-list span {
+  color: rgba(220, 228, 240, 0.62);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.supporting-list strong {
+  color: #f5f7fb;
+  font-size: 0.98rem;
+  line-height: 1.5;
 }
 
 .explanation-copy {
@@ -844,6 +1055,14 @@ button:disabled {
   .risk-card-meta {
     grid-template-columns: 1fr;
   }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-sidebar {
+    position: static;
+  }
 }
 
 @media (max-width: 640px) {
@@ -864,6 +1083,10 @@ button:disabled {
 
   .hero-copy h1 {
     font-size: 2.7rem;
+  }
+
+  .topnav-address {
+    max-width: 100%;
   }
 
   .example-chip-group {

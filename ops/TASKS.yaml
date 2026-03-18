@@ -432,6 +432,25 @@ tasks:
       - Demo helper address chips improve presenter flow without changing scope.
       - The score experience feels polished on laptop and tablet layouts.
     notes_for_next_agent: Completed with tighter spacing, richer atmosphere, hover polish, example address chips, clearer intelligence labels, and more responsive layout behavior.
+  - id: app-013
+    lane: app
+    type: layout
+    title: Create workspace-style results mode
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-010
+      - app-011
+      - app-012
+    acceptance_criteria:
+      - Pre-search and post-search modes feel materially different.
+      - Results mode uses a structured multi-column workspace layout with a map placeholder.
+      - Transition from hero mode to results mode feels smoother than a simple content swap.
+    notes_for_next_agent: Completed with a persistent compact search bar, workspace grid, sticky sidebar, map placeholder, and stronger state transitions between exploration and analysis modes.
 
   - id: product-010
     lane: product
