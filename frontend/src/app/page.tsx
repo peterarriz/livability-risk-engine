@@ -2,9 +2,22 @@
 
 import { FormEvent, useState } from "react";
 
+import {
+  ExplanationPanel,
+  ScoreHero,
+  SeverityMeters,
+  TopRiskGrid,
+} from "@/components/score-experience";
+import { Card, Container, Header, Section } from "@/components/shell";
 import { ApiError, fetchScore, ScoreResponse } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
+const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
+const EXAMPLE_ADDRESSES = [
+  "1600 W Chicago Ave, Chicago, IL",
+  "700 W Grand Ave, Chicago, IL",
+  "233 S Wacker Dr, Chicago, IL",
+];
 
 export default function HomePage() {
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
@@ -34,72 +47,150 @@ export default function HomePage() {
 
   return (
     <main className="page">
-      <section className="panel">
-        <p className="eyebrow">Chicago MVP demo</p>
-        <h1>Disruption score lookup</h1>
-        <p className="lede">
-          Enter a Chicago address to fetch the demo-ready disruption score response.
-        </p>
-
-        <form className="lookup-form" onSubmit={handleSubmit}>
-          <label htmlFor="address">Address</label>
-          <div className="row">
-            <input
-              id="address"
-              name="address"
-              type="text"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              placeholder="1600 W Chicago Ave, Chicago, IL"
-              required
-            />
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? "Loading…" : "Get score"}
-            </button>
+      <Container>
+        <Header className="topbar">
+          <div className="brand-lockup">
+            <div className="brand-mark" aria-hidden="true">
+              LR
+            </div>
+            <div>
+              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-subtitle">Chicago disruption intelligence</p>
+            </div>
           </div>
-        </form>
 
-        {error ? <p className="error">{error}</p> : null}
+          <nav className="topnav" aria-label="Primary">
+            <span>Score</span>
+            <span>Signals</span>
+            <span>Demo</span>
+          </nav>
+        </Header>
 
-        {result ? (
-          <section className="results">
-            <div className="score-card">
-              <p className="score-label">Disruption score</p>
-              <div className="score-value">{result.disruption_score}</div>
-              <p className="score-meta">Confidence: {result.confidence}</p>
+        <Section className="hero-section">
+          <Card tone="highlighted" className="hero-card">
+            <div className="hero-copy">
+              <p className="eyebrow">Chicago MVP demo</p>
+              <h1>Know the disruption profile of an address before you commit.</h1>
+              <p className="lede">
+                A premium product shell for surfacing near-term construction friction with a
+                crisp score, interpretable severity, and decision-ready narrative.
+              </p>
             </div>
 
-            <div className="detail-grid">
-              <div className="detail-card">
-                <h2>Severity</h2>
-                <ul>
-                  <li>Noise: {result.severity.noise}</li>
-                  <li>Traffic: {result.severity.traffic}</li>
-                  <li>Dust: {result.severity.dust}</li>
-                </ul>
+            <form className="lookup-form" onSubmit={handleSubmit}>
+              <label htmlFor="address" className="input-label">
+                Chicago address
+              </label>
+              <div className="search-shell">
+                <input
+                  id="address"
+                  name="address"
+                  type="text"
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                  placeholder={PREMIUM_PLACEHOLDER}
+                  required
+                />
+                <button type="submit" disabled={isLoading}>
+                  {isLoading ? "Analyzing…" : "Analyze address"}
+                </button>
               </div>
+              <p className="form-hint">
+                Demo output includes disruption score, confidence, severity, top risks, and
+                explanation.
+              </p>
 
-              <div className="detail-card">
-                <h2>Top risks</h2>
-                <ul>
-                  {result.top_risks.map((risk) => (
-                    <li key={risk}>{risk}</li>
+              <div className="example-row">
+                <span className="example-label">Try an example</span>
+                <div className="example-chip-group">
+                  {EXAMPLE_ADDRESSES.map((example) => (
+                    <button
+                      key={example}
+                      type="button"
+                      className="example-chip"
+                      onClick={() => setAddress(example)}
+                    >
+                      {example}
+                    </button>
                   ))}
-                </ul>
+                </div>
               </div>
-            </div>
+            </form>
 
-            <div className="detail-card">
-              <h2>Explanation</h2>
-              <p>{result.explanation}</p>
-            </div>
-          </section>
-        ) : (
-          <section className="results empty-state">
-            <p>Submit an address to view the disruption score, severity snapshot, and top risks.</p>
-          </section>
-        )}
-      </section>
+            {error ? (
+              <div className="feedback-banner" role="alert">
+                {error}
+              </div>
+            ) : null}
+          </Card>
+        </Section>
+
+        <Section
+          eyebrow="Results"
+          title="Decision-ready output"
+          description="The layout below is designed to support a high-stakes demo even before richer data visualizations are added."
+        >
+          {isLoading ? (
+            <section className="results results--loading">
+              <Card className="score-card skeleton-card">
+                <div className="skeleton skeleton-label" />
+                <div className="skeleton skeleton-score" />
+                <div className="skeleton skeleton-meta" />
+              </Card>
+
+              <div className="detail-grid">
+                <Card className="detail-card skeleton-card">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-line" />
+                  <div className="skeleton skeleton-line" />
+                  <div className="skeleton skeleton-line short" />
+                </Card>
+
+                <Card className="detail-card skeleton-card">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-line" />
+                  <div className="skeleton skeleton-line" />
+                  <div className="skeleton skeleton-line short" />
+                </Card>
+              </div>
+            </section>
+          ) : result ? (
+            <section className="results results--loaded">
+              <Card className="score-card">
+                <ScoreHero result={result} />
+              </Card>
+
+              <div className="detail-grid">
+                <Card className="detail-card">
+                  <h2>Confidence Level & Severity</h2>
+                  <SeverityMeters severity={result.severity} />
+                </Card>
+
+                <Card className="detail-card">
+                  <h2>Primary Drivers</h2>
+                  <TopRiskGrid result={result} />
+                </Card>
+              </div>
+
+              <Card className="detail-card narrative-card">
+                <h2>Explanation</h2>
+                <ExplanationPanel explanation={result.explanation} />
+              </Card>
+            </section>
+          ) : (
+            <section className="results">
+              <Card className="empty-state">
+                <p className="empty-kicker">Ready for analysis</p>
+                <h3>Start with a Chicago address to generate a polished disruption brief.</h3>
+                <p>
+                  The empty state is intentionally designed to feel complete and presentation-ready,
+                  with space reserved for score, severity, top risks, and narrative context.
+                </p>
+              </Card>
+            </section>
+          )}
+        </Section>
+      </Container>
     </main>
   );
 }

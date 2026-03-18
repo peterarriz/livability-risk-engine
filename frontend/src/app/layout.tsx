@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Livability Risk Engine",
-  description: "Chicago disruption score demo",
+  description: "Premium Chicago disruption score demo shell",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

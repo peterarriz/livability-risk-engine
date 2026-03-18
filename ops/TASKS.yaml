@@ -373,6 +373,65 @@ tasks:
       - Mocked backend check steps are documented.
       - The task is small enough to complete before real data wiring.
     notes_for_next_agent: Completed with mocked backend/frontend smoke-check steps in README.md and docs/handoffs/app.md so App can validate `/score` before real data integration.
+  - id: app-010
+    lane: app
+    type: design
+    title: Establish premium frontend shell for demo
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/app/layout.tsx
+      - frontend/src/components/shell.tsx
+    dependencies:
+      - app-003
+      - app-004
+    acceptance_criteria:
+      - The demo has a premium visual foundation with a clear hero, input, and results layout.
+      - Empty and loading states feel intentional and presentation-ready.
+      - The work does not change the API contract or add advanced components.
+    notes_for_next_agent: Completed with reusable shell components, upgraded visual styling, and refined empty/loading states for the high-stakes demo shell.
+  - id: app-011
+    lane: app
+    type: feature
+    title: Create high-impact score visualization experience
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-005
+      - app-006
+      - app-010
+    acceptance_criteria:
+      - The score section feels like the core product moment.
+      - Severity is visualized clearly without changing the API contract.
+      - Top risks and explanation feel presentation-ready with smooth loading-to-result transitions.
+    notes_for_next_agent: Completed with a score hero, severity meters, derived top-risk cards built from existing top_risks strings, an insight-style explanation panel, and subtle motion.
+  - id: app-012
+    lane: app
+    type: polish
+    title: Refine investor-ready demo polish and flow
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-010
+      - app-011
+    acceptance_criteria:
+      - Spacing, hierarchy, and hover behavior feel cohesive across the page.
+      - Demo helper address chips improve presenter flow without changing scope.
+      - The score experience feels polished on laptop and tablet layouts.
+    notes_for_next_agent: Completed with tighter spacing, richer atmosphere, hover polish, example address chips, clearer intelligence labels, and more responsive layout behavior.
 
   - id: product-010
     lane: product
