@@ -15,7 +15,7 @@ Provide a reliable, repeatable risk score (0–100) for any Chicago address that
 - Early adopters in commercial real estate / mobility wanting a consistent disruption signal
 
 ## Output definition
-A single disruption score (0–100) and a minimal set of contributing factors (e.g., permit count, closure radius, duration) returned via a JSON API endpoint.
+A single disruption score (0–100) returned with confidence, severity, top risks, and a short explanation via a JSON API endpoint.
 
 ## Constraints
 - Team size: 3 core humans + AI agents
