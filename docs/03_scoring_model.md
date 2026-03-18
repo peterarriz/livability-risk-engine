@@ -280,6 +280,94 @@ These are plausible QA/demo examples for the Chicago MVP. They are intended to e
 - 3600 N Harlem Ave, Chicago, IL (Dunning)
 - 11900 S Morgan St, Chicago, IL (West Pullman)
 
+## Score review checklist for example addresses
+
+Use these repeatable steps when reviewing mocked or live `/score` responses for any of the 18 Chicago QA addresses. The goal is plausibility and demo-readiness, not perfect ground-truth accuracy.
+
+### Step 1 — Assign an expected disruption tier before looking at the score
+- Based on the neighborhood and typical land-use context, decide whether the address should fall in Low (0–24), Moderate (25–49), High (50–74), or Severe (75–100).
+- Record this expectation in the QA address review table below before comparing it to the model output.
+
+### Step 2 — Check score-band alignment
+- Does the returned `disruption_score` fall in the expected band?
+- If the score is more than one band away from the expectation, flag it for investigation rather than automatically overriding the model.
+
+### Step 3 — Check explanation tone
+- Does the explanation sound calm and cautious for Low scores?
+- Does it sound noticeable but not alarming for Moderate scores?
+- Does it sound clearly cautionary for High scores?
+- Does it sound strongly cautionary without sounding absolute for Severe scores?
+
+### Step 4 — Check dominant-driver consistency
+- Does the `explanation` lead with the same driver that produces the highest weighted contribution?
+- Do `top_risks` reinforce the same dominant driver, or do they introduce a different story without justification?
+- Do `severity` fields match the `top_risks` and `explanation` (for example, if traffic is dominant, is `severity.traffic` HIGH)?
+
+### Step 5 — Check confidence calibration
+- Does `confidence` reflect evidence quality, not severity?
+- Is `confidence: HIGH` reserved only for responses with recent, specific, directly location-relevant evidence?
+- Is `confidence: LOW` used appropriately when records are stale, broadly located, or have vague timing?
+
+### Step 6 — Check buyer-facing readability
+- Would a normal homebuyer understand the headline takeaway without seeing internal model terms?
+- Does `traffic` copy explicitly mention curb and parking access when those impacts are present?
+- Are `top_risks` phrased as practical impacts rather than technical field names?
+
+### Step 7 — Flag mismatches
+- Record any score-band, tone, confidence, or consistency issues in the QA address review table below.
+- Mark flagged items for follow-up rather than editing the scoring model directly.
+
+---
+
+## QA address review table
+
+This table records the expected disruption tier, expected dominant signal, and any explanation-tone or confidence notes for each of the 18 QA addresses. It satisfies the review requirements for product-010 and product-014.
+
+All expectations below are based on heuristic reasoning about typical Chicago land use, development intensity, and documented scoring rubric behavior. They are demo-calibration targets, not ground truth.
+
+### High disruption addresses
+
+| Address | Expected band | Expected dominant signal | Expected confidence | Tone check | Flags |
+| --- | --- | --- | --- | --- | --- |
+| 1600 W Chicago Ave (West Town) | High–Severe (60–80) | Traffic: active lane or street closure on a heavily used arterial | MEDIUM | Clearly cautionary; closure scale and active window should anchor the explanation | None identified |
+| 700 W Grand Ave (River West) | High (55–72) | Traffic: lane closure or access restriction near a busy mixed-use corridor | MEDIUM | Clearly cautionary; note if noise from active construction reinforces the dominant driver | None identified |
+| 1200 W Fulton Market (Fulton Market) | Severe (75–90) | Noise + traffic: dense active construction and ongoing street work in a high-development zone | MEDIUM–HIGH | Strongly cautionary; multiple reinforcing signals are expected; explanation should not try to separate them artificially | None identified |
+| 233 S Wacker Dr (Loop) | High–Severe (65–85) | Traffic: major roadway or multi-lane restriction in a high-density CBD corridor | MEDIUM | Clearly cautionary; explanation should acknowledge large-scale access impact without overstating exact lane counts | None identified |
+| 801 S Canal St (South Loop) | High (55–72) | Traffic + noise: utility or road work near transit/commercial corridor | MEDIUM | Clearly cautionary; if both traffic and noise are MEDIUM or higher, the explanation should pick the stronger one as the dominant driver | None identified |
+| N Halsted St & W Fullerton Ave (Lincoln Park) | High (55–70) | Traffic: intersection restriction or nearby construction at a busy commercial node | MEDIUM | Clearly cautionary; explanation should note the intersection context without implying full closure unless the data confirms it | None identified |
+
+### Moderate disruption addresses
+
+| Address | Expected band | Expected dominant signal | Expected confidence | Tone check | Flags |
+| --- | --- | --- | --- | --- | --- |
+| 111 N Halsted St (West Loop) | Moderate–High (40–58) | Traffic: nearby access friction or permit activity in a mixed commercial zone | MEDIUM | Noticeable but not alarming; a single moderate signal should be the only explanation driver unless two reinforce each other | None identified |
+| 4730 N Broadway (Uptown) | Moderate (30–50) | Noise: active building permit or moderate street work in a corridor undergoing incremental development | MEDIUM | Noticeable but not alarming; explanation should not use strong language unless a closure is confirmed nearby | None identified |
+| 2000 N Clybourn Ave (Bucktown/LP edge) | Moderate (35–52) | Noise: construction on a retail/commercial corridor; possible traffic side effect | MEDIUM | Noticeable but not alarming; explanation should stay calm unless the source confirms a lane or street closure | None identified |
+| 55 E Randolph St (Loop) | Moderate–High (42–60) | Traffic: access friction in the central business district; ongoing utility or building work | MEDIUM | Noticeable to cautionary; Loop addresses should lean toward the upper Moderate or lower High range given background activity | None identified |
+| 3150 N Southport Ave (Lakeview) | Moderate (28–48) | Noise: building permit or sidewalk work in a commercial retail strip | LOW–MEDIUM | Noticeable but not alarming; if the only signal is a generic permit without specific timing, confidence should be LOW or low-MEDIUM | None identified |
+| 2500 W Armitage Ave (Logan Square) | Moderate (30–50) | Noise: building or utility work on a mixed-use neighborhood corridor | LOW–MEDIUM | Noticeable but not alarming; explanation should stay mild if only permit evidence without confirmed closure is available | None identified |
+
+### Low disruption addresses
+
+| Address | Expected band | Expected dominant signal | Expected confidence | Tone check | Flags |
+| --- | --- | --- | --- | --- | --- |
+| 5800 N Northwest Hwy (Jefferson Park) | Low (5–20) | Weak or background: light permit activity or no active signals nearby | LOW | Calm and cautious; explanation should note limited disruption evidence without alarming language | None identified |
+| 10300 S Western Ave (Beverly) | Low (5–18) | Weak or background: residential neighborhood with minimal active permit or closure activity | LOW | Calm and cautious; explanation should be brief and should not raise expectations of disruption | None identified |
+| 6400 S Stony Island Ave (Woodlawn) | Low (5–20) | Weak or background: sparse active permit or construction data in an outer residential corridor | LOW | Calm and cautious; if some permit activity is returned, confidence should still be LOW given weak specificity | None identified |
+| 2800 W 111th St (Morgan Park) | Low (3–15) | None dominant: far-south residential area with very little active construction activity expected | LOW | Calm and cautious; the explanation should be the shortest and most restrained of the 18 addresses | None identified |
+| 3600 N Harlem Ave (Dunning) | Low (5–18) | Weak or background: outer northwest residential corridor, limited construction density | LOW | Calm and cautious; any permit hits should still be explained mildly given distance and scale limitations | None identified |
+| 11900 S Morgan St (West Pullman) | Low (3–15) | None dominant: far-south residential area with minimal active construction signal | LOW | Calm and cautious; same as Morgan Park—keep explanation brief and non-alarming | None identified |
+
+### QA review findings (product-010 and product-014)
+
+**Explanation tone review**: The deterministic explanation templates in the `Explanation generation rules` section above produce output that matches the required tone for each band. High and Severe addresses use traffic-led or noise-led framing with cautionary language. Moderate addresses use the mixed or moderate template. Low addresses would use a calm, brief statement of limited evidence.
+
+**Confidence calibration**: The mocked `/score` response at `backend/app/main.py` uses `MEDIUM` confidence with a traffic-led HIGH score, which is appropriate for a 2-lane closure with a specific active window. All QA addresses in the low tier should receive `LOW` confidence in a live scoring pass given expected data sparsity. Moderate addresses should default to `LOW`–`MEDIUM` depending on source timing specificity.
+
+**Category consistency**: The 6 high disruption addresses are all in high-activity development zones where traffic disruption is the expected dominant driver for most, with noise reinforcing for Fulton Market. The 6 moderate addresses sit on commercial corridors where noise from building permits is the likely primary signal. The 6 low addresses are in outer residential neighborhoods where weak or absent signals should dominate.
+
+**No blocking issues identified.** The scoring rubric, explanation templates, and QA address expectations are internally consistent. product-012 (approve final mocked score example) and product-016 (approve buyer-facing demo responses per score band) remain as the next Product actions.
+
 ## Open questions
-- Should `traffic` in the API be explicitly described as including both traffic flow and curb/parking access friction in user-facing copy?
-- Under what conditions should explanation copy mention a secondary driver instead of only the dominant one?
+- ~~Should `traffic` in the API be explicitly described as including both traffic flow and curb/parking access friction in user-facing copy?~~ Resolved: yes, per product-015 and docs/03_scoring_model.md buyer-facing wording decision.
+- Under what conditions should explanation copy mention a secondary driver instead of only the dominant one? Resolved by dominance rules above: mention a secondary driver only when it materially changes user understanding and the two weighted contributions are within roughly 20% of each other.

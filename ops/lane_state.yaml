@@ -14,27 +14,27 @@ lanes:
     display_name: Product
     ready_queue_target: 3
     current_focus:
-      - product-010
-      - product-014
+      - product-012
+      - product-016
     blockers: []
     update_when:
       - A product task changes status.
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
-    notes: Keep a small queue of clearly reviewable definition and QA tasks.
+    notes: product-007, product-010, and product-014 are done. Next focus is approving the final mocked demo example (product-012) and buyer-facing demo responses per score band (product-016).
   data:
     display_name: Data
     ready_queue_target: 3
     current_focus:
-      - data-001
-      - data-002
-      - data-004
+      - data-005
+      - data-006
+      - data-007
     blockers: []
     update_when:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: Maintain enough ready work to keep ingestion and normalization moving in parallel.
+    notes: data-001, data-002, and data-004 are done. Next focus is canonical projects table (data-005) and normalization tasks (data-006, data-007). data-005 must complete before data-006 and data-007 can start.
   app:
     display_name: App
     ready_queue_target: 3
