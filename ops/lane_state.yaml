@@ -1,0 +1,49 @@
+version: 1
+settings:
+  actionable_statuses:
+    - ready
+    - in_progress
+  dependency_ready_statuses:
+    - ready
+    - in_progress
+    - done
+  blocked_statuses:
+    - blocked
+lanes:
+  product:
+    display_name: Product
+    ready_queue_target: 3
+    current_focus:
+      - product-010
+      - product-014
+    blockers: []
+    update_when:
+      - A product task changes status.
+      - Product adds or removes acceptance criteria.
+      - Product changes lane priorities or blocks another lane.
+    notes: Keep a small queue of clearly reviewable definition and QA tasks.
+  data:
+    display_name: Data
+    ready_queue_target: 3
+    current_focus:
+      - data-001
+      - data-002
+      - data-004
+    blockers: []
+    update_when:
+      - A data ingestion or normalization task changes status.
+      - A dependency from Product or App blocks data delivery.
+      - Data decides the next source or schema checkpoint.
+    notes: Maintain enough ready work to keep ingestion and normalization moving in parallel.
+  app:
+    display_name: App
+    ready_queue_target: 3
+    current_focus:
+      - app-008
+    blockers:
+      - data-009: Implement radius query for nearby projects before App can wire the live score flow.
+    update_when:
+      - An app task changes status.
+      - App is waiting on Data output or Product contract decisions.
+      - The demo flow needs a different next-ready task.
+    notes: Keep the queue centered on the API and the minimal demo frontend.
