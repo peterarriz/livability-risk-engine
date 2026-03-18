@@ -18,6 +18,11 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Does it avoid turning the frontend demo into a broader product redesign?
 - Is the next App task specific enough to implement with a small, reviewable PR?
 
+## Current blocker
+- App has no remaining `ready` task in `ops/TASKS.yaml` as of 2026-03-18.
+- The next meaningful App task is `app-008` (connect frontend to real backend), but it is blocked on `data-009` delivering the nearby-project radius query needed for live scoring.
+- Until that Data dependency lands, preserve the polished mocked/demo fallback instead of inventing a parallel contract or speculative backend wiring.
+
 ## Mocked `/score` smoke-check handoff
 - Start the mocked backend with `cd backend && uvicorn app.main:app --reload`.
 - Verify the contract directly with `curl "http://127.0.0.1:8000/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL"`.

@@ -62,6 +62,14 @@ The MVP API keeps a narrower severity object than the full product taxonomy. For
 - `traffic` = combined view of **Traffic access** and **Parking curb** because both describe access friction around the address.
 - `dust` = combined view of **Dust vibration** and the most visibly physical site activity likely to accompany it.
 
+### Buyer-facing wording decision
+For buyer-facing copy, Product should treat `traffic` as shorthand for **traffic and curb access disruption**, not just moving-vehicle congestion.
+
+- On first mention in a response, top risk, or demo explainer, prefer phrasing like **traffic and curb access disruption** or **traffic access and parking friction** when curb effects are materially relevant.
+- Shorter follow-up mentions can use **traffic disruption** as long as the surrounding copy already makes clear that access, loading, parking, or pickup friction may be part of that signal.
+- Do not create a separate API field for curb or parking impacts in the MVP; keep those ideas folded into `severity.traffic` and related `top_risks`.
+- When the dominant issue is curb occupancy rather than lane throughput, avoid overstating citywide traffic language and prefer phrases such as **reduced curb access**, **pickup/dropoff friction**, or **parking disruption near the address**.
+
 Severity labels should be interpreted consistently:
 
 - **LOW**: present only weakly, indirectly, or not at a level likely to shape the near-term user experience.
@@ -108,6 +116,116 @@ These assumptions are meant to keep the MVP honest, lightweight, and implementat
 - A project with a current or imminent date window is treated as more decision-useful than a broad future permit.
 - If two signals conflict, the more concrete and active one should dominate the explanation.
 - The score is a practical disruption indicator, not a scientific forecast of exact noise levels, delay minutes, or project behavior.
+
+## Heuristic weighting rubric v1
+This rubric is intentionally simple so Data and App can implement it without inventing a more complex model. The MVP should score the address by summing the weighted contribution of nearby projects, prioritizing the strongest few signals instead of trying to model every possible interaction.
+
+### Base impact weights by project type
+Use one base weight per nearby project before distance and timing adjustments.
+
+| Project signal | Typical disruption pattern | Base weight |
+| --- | --- | ---: |
+| Full street closure or closure affecting both directions / most through movement | Strong traffic access disruption, likely visible work zone | 45 |
+| Multi-lane closure or major staged roadway work | High traffic friction with meaningful spillover | 38 |
+| Single-lane closure, long curb-lane occupation, or major pedestrian restriction | Noticeable but narrower access disruption | 28 |
+| Demolition, excavation, or heavy structural permit near the address | Strong noise/dust signal with moderate traffic side effects | 24 |
+| Active building permit with sustained exterior/site work | Moderate noise/visual disruption | 16 |
+| Light permit activity, weakly specified work, or minor nearby project | Mild supporting signal only | 8 |
+
+### Distance decay
+After assigning a base weight, apply a distance multiplier based on how far the project is from the queried address.
+
+| Distance from address | Multiplier | Product guidance |
+| --- | ---: | --- |
+| 0–75 meters | 1.00 | Treat as directly felt at the address. |
+| 76–150 meters | 0.80 | Still likely noticeable in daily use. |
+| 151–300 meters | 0.55 | Relevant, but no longer dominant on distance alone. |
+| 301–500 meters | 0.30 | Only stronger projects should still matter much. |
+| Beyond 500 meters | 0.10 | Usually only contributes as weak context; do not let these records dominate the score. |
+
+### Time weighting
+Apply a timing multiplier after distance. Timing should reflect whether the signal is active now or plausibly imminent in the MVP near-term window.
+
+| Timing status | Multiplier | Product guidance |
+| --- | ---: | --- |
+| Active now or ending within 7 days | 1.00 | Highest trust and relevance. |
+| Starts within 1–7 days | 0.90 | Very near-term and still decision-useful. |
+| Starts within 8–21 days | 0.65 | Relevant, but less immediate. |
+| Starts within 22–45 days | 0.35 | Future-looking context only; should rarely drive a high score alone. |
+| Ended within the last 7 days but status is ambiguous | 0.25 | Weak residual signal; confidence should not be HIGH. |
+| Older, stale, or undated timing | 0.15 | Only retain as faint supporting evidence. |
+
+### Simple aggregation rule
+- Score each nearby project as `base weight × distance multiplier × time multiplier`.
+- Sum the strongest 3 project contributions to produce the raw disruption score.
+- Cap the final `disruption_score` at `100`.
+- If all remaining signals are stale, distant, or weakly specified, the score should usually remain below `25`.
+- A single project can justify a high score on its own only when it is both close and active, especially for major closures.
+
+### Severity alignment guidance
+These weight ranges are meant to keep score generation and the API severity fields aligned without changing the response shape.
+
+- **Traffic severity**
+  - `HIGH` when a nearby active closure contributes roughly `25+` weighted points on its own.
+  - `MEDIUM` when access-related projects contribute roughly `12–24` weighted points.
+  - `LOW` when traffic-related evidence is weaker than that.
+- **Noise severity**
+  - `HIGH` when demolition/excavation or heavy active construction contributes roughly `18+` weighted points.
+  - `MEDIUM` when active site-work evidence contributes roughly `10–17` weighted points.
+  - `LOW` when noise evidence is present only weakly or indirectly.
+- **Dust severity**
+  - `HIGH` when demolition, excavation, or similarly physical work contributes roughly `18+` weighted points.
+  - `MEDIUM` when there is a plausible physical site-work signal without strong proof of intense dust/vibration.
+  - `LOW` when dust is not clearly supported by the available work type.
+
+### Guardrails
+- Do not stack many tiny signals to manufacture a severe score; the top 3 contributions are enough for MVP.
+- Street closures should usually outrank generic permits when both are similarly close and active because they provide more concrete evidence of near-term access disruption.
+- Generic permits with vague timing should not overpower a concrete active closure.
+- Keep the model reviewable: if a human cannot explain why a score is high using one or two dominant signals, the weighting is too complicated for MVP.
+
+## Score-band thresholds and dominance rules
+These thresholds keep the documented score bands tied to recognizable combinations of scale, distance, and timing without pretending the MVP is a scientific forecast.
+
+### Typical score-band outcomes
+
+| Typical pattern | Expected score band | Product interpretation |
+| --- | --- | --- |
+| Only weak, stale, distant, or vaguely described project signals remain after weighting | **Low (0–24)** | The address may have background activity nearby, but not enough concrete evidence to suggest meaningful near-term disruption. |
+| One moderate signal is present, but it is either not very close, not clearly active, or not severe in scale | **Moderate (25–49)** | A reviewer should expect noticeable inconvenience, but not a strongly disrupted address experience. |
+| One strong close-and-active signal is present, or two moderate signals reinforce each other | **High (50–74)** | The address likely feels materially affected in the near term and should be described with caution. |
+| A very strong close-and-active signal dominates, or multiple strong signals overlap near the address | **Severe (75–100)** | The address should feel actively disrupted rather than just occasionally inconvenienced. |
+
+### Rule-of-thumb scenarios by weighted contribution
+- **Low (0–24)**
+  - No single project contributes more than roughly `12` weighted points.
+  - Typical example: a light permit within 150 meters, or a moderate project more than 300 meters away, or stale/undated records with weak specificity.
+- **Moderate (25–49)**
+  - One project contributes roughly `13–24` weighted points, or several smaller signals combine without a clearly dominant severe driver.
+  - Typical example: an active building permit within 75–150 meters, or a single-lane closure that is nearby but not clearly current.
+- **High (50–74)**
+  - One project contributes roughly `25–39` weighted points, or two meaningful projects together push the address into a clearly affected state.
+  - Typical example: an active multi-lane closure within 150 meters, or a close active demolition plus a separate access restriction.
+- **Severe (75–100)**
+  - One project contributes `40+` weighted points near the address, or two strong close-and-active projects reinforce each other.
+  - Typical example: a full street closure within 75 meters, or a major closure plus heavy physical site work occurring together nearby.
+
+### Dominance rules for explanation and top risks
+- Treat the highest weighted project as the **dominant signal** unless the second-highest project is within roughly `20%` of it and points to the same disruption category.
+- If the top two projects are close in strength and support the same category, explain them as one reinforcing story rather than two competing stories.
+- If the top two projects are close in strength but point to different categories, use the more concrete and active project as the dominant explanation driver.
+- Street or lane closures should win explanation priority over generic permits when weighted contributions are similar because closures are easier for a user to interpret and more directly tied to access disruption.
+- Demolition or excavation should win over generic building permits when noise/dust evidence is materially stronger, even if both records are construction-related.
+- Do not mention a secondary driver in `explanation` unless it meaningfully changes user understanding; secondary context can still appear in `top_risks`.
+
+### Practical tie-breakers
+When two candidate drivers land in a similar weighted range, break ties in this order:
+1. More specific active timing
+2. More precise location / proximity
+3. More concrete user-facing impact type (closure > demolition/excavation > generic permit)
+4. More severe likely disruption category
+
+These tie-breakers are meant to keep explanations deterministic for Data and App while preserving Product's plain-English framing.
 
 ## Explanation generation rules
 - Generate exactly 1 short paragraph.
@@ -163,6 +281,5 @@ These are plausible QA/demo examples for the Chicago MVP. They are intended to e
 - 11900 S Morgan St, Chicago, IL (West Pullman)
 
 ## Open questions
-- What exact heuristic thresholds should convert raw inputs into numeric score bands without making the model look overfit?
 - Should `traffic` in the API be explicitly described as including both traffic flow and curb/parking access friction in user-facing copy?
 - Under what conditions should explanation copy mention a secondary driver instead of only the dominant one?

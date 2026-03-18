@@ -14,8 +14,7 @@ lanes:
     display_name: Product
     ready_queue_target: 3
     current_focus:
-      - product-003
-      - product-013
+      - product-010
       - product-014
     blockers: []
     update_when:
@@ -40,10 +39,9 @@ lanes:
     display_name: App
     ready_queue_target: 3
     current_focus:
-      - app-012
-      - app-013
-      - app-014
-    blockers: []
+      - app-008
+    blockers:
+      - data-009: Implement radius query for nearby projects before App can wire the live score flow.
     update_when:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
