@@ -13,6 +13,14 @@ export type ScoreResponse = {
   explanation: string;
 };
 
+export type ScoreSource = "live" | "demo";
+
+export type ScoreResult = {
+  note?: string;
+  score: ScoreResponse;
+  source: ScoreSource;
+};
+
 const LOCAL_API_URL = "http://127.0.0.1:8000";
 
 export class ApiError extends Error {
@@ -33,16 +41,44 @@ function getApiBaseUrl(): string {
     return LOCAL_API_URL;
   }
 
-  throw new ApiError(
-    "The app is missing its backend URL configuration. Add NEXT_PUBLIC_API_URL to connect the frontend.",
-  );
+  return "";
 }
 
 function buildApiUrl(pathname: string): URL {
   return new URL(pathname, getApiBaseUrl());
 }
 
-export async function fetchScore(address: string): Promise<ScoreResponse> {
+function buildDemoScore(address: string): ScoreResponse {
+  return {
+    address,
+    disruption_score: 62,
+    confidence: "MEDIUM",
+    severity: {
+      noise: "LOW",
+      traffic: "HIGH",
+      dust: "LOW",
+    },
+    top_risks: [
+      "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+      "Active closure window runs through 2026-03-22",
+      "Traffic is the dominant near-term disruption signal at this address",
+    ],
+    explanation:
+      "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
+  };
+}
+
+export async function fetchScore(address: string): Promise<ScoreResult> {
+  const apiBaseUrl = getApiBaseUrl();
+
+  if (!apiBaseUrl) {
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: "Demo data mode: backend URL is not configured, so the experience is using a polished sample response.",
+    };
+  }
+
   const url = buildApiUrl("/score");
   url.searchParams.set("address", address);
 
@@ -52,22 +88,34 @@ export async function fetchScore(address: string): Promise<ScoreResponse> {
       cache: "no-store",
     });
   } catch {
-    throw new ApiError(
-      "We couldn't reach the disruption scoring service. Please try again in a moment.",
-    );
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: "Demo data mode: live scoring is temporarily unavailable, so a sample response is being shown instead.",
+    };
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status >= 500
-        ? "The disruption scoring service is temporarily unavailable. Please try again soon."
-        : "We couldn't fetch a disruption score for that address right now.",
-    );
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note:
+        response.status >= 500
+          ? "Demo data mode: the scoring service is temporarily unavailable, so a sample response is being shown instead."
+          : "Demo data mode: the requested score could not be fetched, so a sample response is being shown instead.",
+    };
   }
 
   try {
-    return (await response.json()) as ScoreResponse;
+    return {
+      score: (await response.json()) as ScoreResponse,
+      source: "live",
+    };
   } catch {
-    throw new ApiError("The disruption scoring service returned an invalid response.");
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: "Demo data mode: the scoring service returned an invalid response, so a sample response is being shown instead.",
+    };
   }
 }

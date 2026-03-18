@@ -451,6 +451,25 @@ tasks:
       - Results mode uses a structured multi-column workspace layout with a map placeholder.
       - Transition from hero mode to results mode feels smoother than a simple content swap.
     notes_for_next_agent: Completed with a persistent compact search bar, workspace grid, sticky sidebar, map placeholder, and stronger state transitions between exploration and analysis modes.
+  - id: app-014
+    lane: app
+    type: polish
+    title: Make single-page navigation and demo fallback production-ready
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-008
+      - app-013
+    acceptance_criteria:
+      - Top navigation maps to real in-page Score, Signals, and Demo sections.
+      - Demo data fallback preserves a polished experience when live backend access is unavailable.
+      - The single-page app feels broader and more complete without adding routes.
+    notes_for_next_agent: Completed with anchored in-page navigation, explicit Score/Signals/Demo sections, and a graceful demo-data fallback that avoids a dead-end configuration error.
 
   - id: product-010
     lane: product

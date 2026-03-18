@@ -9,7 +9,7 @@ import {
   TopRiskGrid,
 } from "@/components/score-experience";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { ApiError, fetchScore, ScoreResponse } from "@/lib/api";
+import { fetchScore, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
@@ -22,6 +22,8 @@ const EXAMPLE_ADDRESSES = [
 export default function HomePage() {
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
   const [result, setResult] = useState<ScoreResponse | null>(null);
+  const [scoreSource, setScoreSource] = useState<ScoreSource>("live");
+  const [statusNote, setStatusNote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const workspaceMode = isLoading || result !== null;
@@ -32,15 +34,18 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const score = await fetchScore(address);
-      setResult(score);
+      const scoreResult = await fetchScore(address);
+      setResult(scoreResult.score);
+      setScoreSource(scoreResult.source);
+      setStatusNote(scoreResult.note ?? null);
     } catch (submissionError) {
       setError(
-        submissionError instanceof ApiError
+        submissionError instanceof Error
           ? submissionError.message
           : "Unable to fetch a disruption score right now.",
       );
       setResult(null);
+      setStatusNote(null);
     } finally {
       setIsLoading(false);
     }
@@ -61,18 +66,11 @@ export default function HomePage() {
           </div>
 
           <nav className="topnav" aria-label="Primary">
-            {workspaceMode ? (
-              <>
-                <span className="topnav-label">Viewing</span>
-                <span className="topnav-address">{result?.address ?? address}</span>
-              </>
-            ) : (
-              <>
-                <span>Score</span>
-                <span>Signals</span>
-                <span>Demo</span>
-              </>
-            )}
+            {workspaceMode ? <span className="topnav-label">Viewing</span> : null}
+            {workspaceMode ? <span className="topnav-address">{result?.address ?? address}</span> : null}
+            <a href="#score-section">Score</a>
+            <a href="#signals-section">Signals</a>
+            <a href="#demo-section">Demo</a>
           </nav>
         </Header>
 
@@ -137,6 +135,13 @@ export default function HomePage() {
               </div>
             </form>
 
+            {statusNote ? (
+              <div className="status-banner status-banner--demo" role="status">
+                <span className="status-badge">{scoreSource === "demo" ? "Demo data" : "Live data"}</span>
+                <span>{statusNote}</span>
+              </div>
+            ) : null}
+
             {error ? (
               <div className="feedback-banner" role="alert">
                 {error}
@@ -146,11 +151,16 @@ export default function HomePage() {
         </Section>
 
         <Section
-          eyebrow="Results"
-          title="Decision-ready output"
-          description="The layout below is designed to support a high-stakes demo even before richer data visualizations are added."
-          className={workspaceMode ? "workspace-section" : undefined}
+          className={workspaceMode ? "workspace-section workspace-section--score" : undefined}
+          eyebrow="Score"
+          title={workspaceMode ? "Score workspace" : "Decision-ready output"}
+          description={
+            workspaceMode
+              ? "The score section anchors the analysis workspace with the strongest signal, severity, and explanation."
+              : "The layout below is designed to support a high-stakes demo even before richer data visualizations are added."
+          }
         >
+          <div id="score-section" className="anchor-target" />
           {isLoading ? (
             <section className="results results--loading">
               <Card className="score-card skeleton-card">
@@ -196,48 +206,56 @@ export default function HomePage() {
               </div>
 
               <aside className="workspace-sidebar">
-                <Card className="detail-card map-card">
-                  <div className="map-card-head">
-                    <div>
-                      <p className="map-kicker">Spatial context</p>
-                      <h2>Map view</h2>
+                <div id="signals-section" className="anchor-target" />
+                <Section
+                  eyebrow="Signals"
+                  title="Evidence and supporting context"
+                  description="These sections expose the strongest drivers, spatial grounding, and supporting details that sit behind the score."
+                  className="sidebar-section"
+                >
+                  <Card className="detail-card map-card">
+                    <div className="map-card-head">
+                      <div>
+                        <p className="map-kicker">Spatial context</p>
+                        <h2>Map view</h2>
+                      </div>
+                      <span className="map-badge">Coming soon</span>
                     </div>
-                    <span className="map-badge">Coming soon</span>
-                  </div>
-                  <div className="map-placeholder" aria-hidden="true">
-                    <div className="map-grid" />
-                    <div className="map-pin map-pin--primary" />
-                    <div className="map-pin map-pin--secondary" />
-                    <div className="map-pin map-pin--tertiary" />
-                  </div>
-                  <p className="map-copy">
-                    Location-aware context will land here next. For now, this placeholder grounds
-                    the score in a real-world workspace layout.
-                  </p>
-                </Card>
+                    <div className="map-placeholder" aria-hidden="true">
+                      <div className="map-grid" />
+                      <div className="map-pin map-pin--primary" />
+                      <div className="map-pin map-pin--secondary" />
+                      <div className="map-pin map-pin--tertiary" />
+                    </div>
+                    <p className="map-copy">
+                      Location-aware context will land here next. For now, this placeholder grounds
+                      the score in a real-world workspace layout.
+                    </p>
+                  </Card>
 
-                <Card className="detail-card">
-                  <h2>Primary Drivers</h2>
-                  <TopRiskGrid result={result} />
-                </Card>
+                  <Card className="detail-card">
+                    <h2>Primary Drivers</h2>
+                    <TopRiskGrid result={result} />
+                  </Card>
 
-                <Card className="detail-card supporting-card">
-                  <p className="supporting-kicker">Supporting details</p>
-                  <ul className="supporting-list">
-                    <li>
-                      <span>Address</span>
-                      <strong>{result.address}</strong>
-                    </li>
-                    <li>
-                      <span>Confidence Level</span>
-                      <strong>{result.confidence}</strong>
-                    </li>
-                    <li>
-                      <span>Top risks surfaced</span>
-                      <strong>{result.top_risks.length}</strong>
-                    </li>
-                  </ul>
-                </Card>
+                  <Card className="detail-card supporting-card">
+                    <p className="supporting-kicker">Supporting details</p>
+                    <ul className="supporting-list">
+                      <li>
+                        <span>Address</span>
+                        <strong>{result.address}</strong>
+                      </li>
+                      <li>
+                        <span>Confidence Level</span>
+                        <strong>{result.confidence}</strong>
+                      </li>
+                      <li>
+                        <span>Top risks surfaced</span>
+                        <strong>{result.top_risks.length}</strong>
+                      </li>
+                    </ul>
+                  </Card>
+                </Section>
               </aside>
             </section>
           ) : (
@@ -252,6 +270,54 @@ export default function HomePage() {
               </Card>
             </section>
           )}
+        </Section>
+
+        <Section
+          id="demo-section"
+          eyebrow="Demo"
+          title="How this demo works"
+          description="A single-page investor-ready flow that shows the score, supporting signals, and product framing without requiring hidden routes or extra setup."
+          className="demo-section"
+        >
+          <div className="demo-grid">
+            <Card className="detail-card demo-card">
+              <p className="supporting-kicker">Examples</p>
+              <h2>Present three strong Chicago scenarios</h2>
+              <div className="example-chip-group example-chip-group--demo">
+                {EXAMPLE_ADDRESSES.map((example) => (
+                  <button
+                    key={`demo-${example}`}
+                    type="button"
+                    className="example-chip"
+                    onClick={() => {
+                      setAddress(example);
+                      window.location.hash = "#score-section";
+                    }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="detail-card demo-card">
+              <p className="supporting-kicker">How it works</p>
+              <ul className="supporting-list">
+                <li>
+                  <span>Score</span>
+                  <strong>Summarizes near-term disruption into one clear product moment.</strong>
+                </li>
+                <li>
+                  <span>Signals</span>
+                  <strong>Explains the evidence and why the score should be trusted.</strong>
+                </li>
+                <li>
+                  <span>Demo mode</span>
+                  <strong>Falls back to sample data gracefully when live backend access is unavailable.</strong>
+                </li>
+              </ul>
+            </Card>
+          </div>
         </Section>
       </Container>
     </main>

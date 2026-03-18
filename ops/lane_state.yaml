@@ -40,9 +40,9 @@ lanes:
     display_name: App
     ready_queue_target: 3
     current_focus:
-      - app-011
       - app-012
       - app-013
+      - app-014
     blockers: []
     update_when:
       - An app task changes status.
