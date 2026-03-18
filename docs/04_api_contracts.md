@@ -1,59 +1,39 @@
 # API Contracts
 
-## Canonical normalized project schema (example)
-```json
-{
-  "project_id": "string",          // stable unique id (source + source_id)
-  "source": "string",              // source system (e.g., "chicago_permits", "chicago_closures")
-  "title": "string",               // short human label
-  "description": "string",
-  "category": "permit" | "closure" | "utility",
-  "status": "active" | "pending" | "completed" | "unknown",
-  "start_date": "YYYY-MM-DD",
-  "end_date": "YYYY-MM-DD",
-  "geometry": {                      // GeoJSON Point/LineString/Polygon
-    "type": "Point",
-    "coordinates": [lng, lat]
-  },
-  "location_text": "string",       // original address/description
-  "impact_type": "noise" | "traffic" | "pedestrian" | "mixed",
-  "scale": {                         // normalized impact sizing
-    "length_m": number,
-    "lanes_closed": number | null,
-    "permits_count": number | null
-  },
-  "updated_at": "YYYY-MM-DDTHH:MM:SSZ"
-}
-```
+## `/score` endpoint
+- **Method**: `GET`
+- **Query param**: `address` (required, Chicago address string)
 
-## `/score` endpoint request
+### Response fields
+- `address`: normalized user input string echoed back in the response.
+- `disruption_score`: integer from `0` to `100`.
+- `confidence`: `HIGH` | `MEDIUM` | `LOW`.
+- `severity`: object with `noise`, `traffic`, and `dust`, each using `LOW` | `MEDIUM` | `HIGH`.
+- `top_risks`: ordered list of up to 3 short plain-English risk bullets.
+- `explanation`: 1 short paragraph explaining the dominant driver.
+
+### Example response
 ```json
 {
   "address": "1600 W Chicago Ave, Chicago, IL",
-  "as_of": "2026-03-18T00:00:00Z" // optional, defaults to now
-}
-```
-
-## `/score` endpoint response
-```json
-{
-  "address": "1600 W Chicago Ave, Chicago, IL",
-  "location": { "lat": 41.895, "lon": -87.655 },
-  "score": 62,
-  "confidence": "MEDIUM",         // HIGH | MEDIUM | LOW
-  "as_of": "2026-03-18T12:00:00Z",
-  "projects": [
-    {
-      "project_id": "chicago_closures:12345",
-      "title": "W Chicago Ave lane closure",
-      "impact_type": "traffic",
-      "distance_m": 120,
-      "severity": 70,
-      "start_date": "2026-03-18",
-      "end_date": "2026-03-22",
-      "notes": "2-lane closure, eastbound"
-    }
+  "disruption_score": 62,
+  "confidence": "MEDIUM",
+  "severity": {
+    "noise": "LOW",
+    "traffic": "HIGH",
+    "dust": "LOW"
+  },
+  "top_risks": [
+    "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+    "Active closure window runs through 2026-03-22",
+    "Traffic is the dominant near-term disruption signal at this address"
   ],
-  "explanation": "Top contributor is a 2-lane closure 120m away; permit status is active."
+  "explanation": "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited."
 }
 ```
+
+## Response conventions
+- Keep the response minimal and demo-ready.
+- `disruption_score` is the only numeric headline field returned to the frontend.
+- `top_risks` should be implementation-ready display strings; the frontend should not need to reconstruct them from lower-level project data.
+- `explanation` should be deterministic and consistent with the rules in `docs/03_scoring_model.md`.
