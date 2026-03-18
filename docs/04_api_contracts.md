@@ -6,11 +6,21 @@
 
 ### Response fields
 - `address`: normalized user input string echoed back in the response.
-- `disruption_score`: integer from `0` to `100`.
+- `disruption_score`: integer from `0` to `100`. This is a practical near-term disruption indicator, not a scientific forecast of exact delay, decibel level, or project duration.
 - `confidence`: `HIGH` | `MEDIUM` | `LOW`.
 - `severity`: object with `noise`, `traffic`, and `dust`, each using `LOW` | `MEDIUM` | `HIGH`.
 - `top_risks`: ordered list of up to 3 short plain-English risk bullets.
 - `explanation`: 1 short paragraph explaining the dominant driver.
+
+### Interpretation notes
+- `disruption_score` should align with the score bands in `docs/03_scoring_model.md`: low, moderate, high, and severe.
+- `confidence` should describe evidence quality and specificity, not severity. In the MVP, use:
+  - `LOW` for stale, incomplete, or weakly located/timed evidence
+  - `MEDIUM` for plausible but still somewhat ambiguous evidence
+  - `HIGH` for recent, specific, and directly relevant evidence
+- `severity.noise` reflects audible construction disruption.
+- `severity.traffic` reflects access friction, including lane/street impacts and related curb-access disruption.
+- `severity.dust` reflects demolition, excavation, or similarly physical site activity likely to create dust or vibration nuisance.
 
 ### Example response
 ```json
@@ -35,5 +45,6 @@
 ## Response conventions
 - Keep the response minimal and demo-ready.
 - `disruption_score` is the only numeric headline field returned to the frontend.
+- The score should be interpretable by a non-technical reviewer without exposing raw model internals.
 - `top_risks` should be implementation-ready display strings; the frontend should not need to reconstruct them from lower-level project data.
 - `explanation` should be deterministic and consistent with the rules in `docs/03_scoring_model.md`.

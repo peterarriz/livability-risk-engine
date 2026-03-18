@@ -4,23 +4,26 @@
 Keep Product work focused on scope clarity, scoring guidance, and demo-readiness without expanding the MVP.
 
 ## Completed in this handoff
-- Tightened the MVP `/score` response contract to a minimal demo-ready shape.
-- Added deterministic explanation generation rules for plain-English output.
-- Added a grouped set of 18 plausible Chicago QA/demo addresses.
+- Added score interpretation bands so the 0–100 output has practical user-facing meaning.
+- Added confidence language guidance, including evidence-quality drivers and API label mapping.
+- Added a fixed MVP disruption taxonomy and clarified how the narrower API severity fields map to it.
+- Added scoring assumptions v1 so Product, Data, and App can distinguish heuristics from known source facts.
+- Added a Product QA checklist for trust, calibration, explanation tone, and category consistency reviews.
+- Clarified the API contract so `disruption_score`, `confidence`, and `severity` are more interpretable without changing the response shape.
 
 ## Still open
-- Finalize scoring-weight guidance for v1 so severity and headline score thresholds are easier to defend.
-- Review the explanation copy across the QA addresses to catch awkward or repetitive phrasing.
-- Freeze the final severity label rules for noise, traffic, and dust before broader App/Data integration.
+- Finalize heuristic weighting guidance so score bands are supported by explicit v1 rules.
+- Decide whether `traffic` should always be described to users as including curb/parking access disruption.
+- Review explanation copy across the QA addresses to confirm tone matches the documented score bands.
 
 ## Next 3 product actions
-1. Review explanation copy against the 18 QA addresses and note any implausible cases.
-2. Freeze severity label rules so App and backend can render them without interpretation.
-3. Approve one final mocked example response for demo reviewers and smoke tests.
+1. Define heuristic weighting and threshold guidance that turns the documented interpretation bands into a more defensible v1 rubric.
+2. Review the 18 QA addresses against the new QA checklist and record any score-band or explanation-tone mismatches.
+3. Approve one final mocked example response whose score band, confidence, severity, top risks, and explanation all align.
 
 ## What to hand off to other lanes
-- To **Data**: keep the dominant-signal framing aligned with the minimal response fields and severity categories.
-- To **App**: implement only the fields in the tightened contract and keep explanation/top-risk rendering simple.
+- To **Data**: keep the dominant-signal framing aligned with the score-band interpretation, confidence drivers, and severity mapping notes.
+- To **App**: preserve the minimal response shape, but render score/confidence as user-facing trust signals rather than raw technical fields.
 
 ## Review checklist
 - Does the task stay inside the Chicago MVP scope?

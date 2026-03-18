@@ -15,7 +15,8 @@ lanes:
     ready_queue_target: 3
     current_focus:
       - product-003
-      - product-004
+      - product-013
+      - product-014
     blockers: []
     update_when:
       - A product task changes status.

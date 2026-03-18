@@ -53,7 +53,7 @@ tasks:
       - Weight per severity defined.
       - Distance decay defined.
       - Time weighting defined.
-    notes_for_next_agent: Do not over-optimize. Needs to be plausible, not perfect.
+    notes_for_next_agent: Interpretation bands, taxonomy, assumptions, and confidence guidance are now documented; next define the smallest defensible v1 weighting rubric without overfitting.
   - id: product-004
     lane: product
     type: qa
@@ -341,13 +341,13 @@ tasks:
     acceptance_criteria:
       - Real score endpoint used.
       - Error states handled for empty responses.
-    notes_for_next_agent: Keep mocked mode available until Data is stable.
+    notes_for_next_agent: Frontend now reads NEXT_PUBLIC_API_URL with a localhost-only development fallback and shows user-friendly fetch errors; keep mocked mode available until Data is stable.
   - id: product-006
     lane: product
     type: definition
     title: Define confidence rubric for score responses
     owner: product
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/04_api_contracts.md
@@ -356,7 +356,7 @@ tasks:
     acceptance_criteria:
       - HIGH, MEDIUM, and LOW confidence rules are documented.
       - Rubric can be applied without changing scoring logic.
-    notes_for_next_agent: Keep the rubric simple enough for App to render directly.
+    notes_for_next_agent: Completed with an MVP confidence ladder in docs/03_scoring_model.md and aligned API notes in docs/04_api_contracts.md.
   - id: app-009
     lane: app
     type: qa
@@ -398,7 +398,7 @@ tasks:
     type: definition
     title: Freeze severity label rules for noise traffic and dust
     owner: product
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/03_scoring_model.md
@@ -409,7 +409,7 @@ tasks:
     acceptance_criteria:
       - LOW, MEDIUM, and HIGH usage is documented for each severity category.
       - App and backend can render severity without extra interpretation.
-    notes_for_next_agent: Keep the labels simple enough for the mocked demo response.
+    notes_for_next_agent: Completed with explicit LOW/MEDIUM/HIGH severity meanings and clarified category mapping in docs/03_scoring_model.md and docs/04_api_contracts.md.
 
   - id: product-012
     lane: product
@@ -428,3 +428,70 @@ tasks:
       - One final example response is approved for demo walkthroughs.
       - Example wording matches backend and frontend behavior.
     notes_for_next_agent: Use the Chicago Ave example unless a better demo case emerges.
+  - id: product-013
+    lane: product
+    type: calibration
+    title: Define v1 heuristic score thresholds and dominance rules
+    owner: product
+    status: ready
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-003
+      - product-011
+    acceptance_criteria:
+      - The scoring model documents what combinations of distance, scale, and timing should typically land in each score band.
+      - Dominant-signal rules are explicit enough for Data and App to explain results consistently.
+    notes_for_next_agent: Keep this rubric heuristic and reviewable; do not turn it into a full scientific model.
+  - id: product-014
+    lane: product
+    type: qa
+    title: Review 18 QA addresses against the product trust checklist
+    owner: product
+    status: ready
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-010
+      - product-011
+    acceptance_criteria:
+      - Each QA address has a plausible score band expectation.
+      - Any explanation-tone or confidence mismatches are documented for follow-up.
+    notes_for_next_agent: Focus on trust and plausibility, not perfect ground truth.
+  - id: product-015
+    lane: product
+    type: terminology
+    title: Decide buyer-facing wording for traffic versus curb access impacts
+    owner: product
+    status: ready
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-011
+    acceptance_criteria:
+      - Product decides whether traffic copy should explicitly mention curb and parking access.
+      - Top-risk phrasing guidance stays simple enough for App rendering.
+    notes_for_next_agent: Resolve the terminology without adding new response fields.
+  - id: product-016
+    lane: product
+    type: qa
+    title: Approve one buyer-facing demo response per score band
+    owner: product
+    status: backlog
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-012
+      - product-014
+    acceptance_criteria:
+      - There is one approved example for low, moderate, high, and severe outputs.
+      - Example wording stays inside the MVP contract and tone rules.
+    notes_for_next_agent: Use this to make demos feel calibrated and trustworthy across score bands.

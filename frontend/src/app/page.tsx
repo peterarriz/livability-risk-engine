@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { fetchScore, ScoreResponse } from "@/lib/api";
+import { ApiError, fetchScore, ScoreResponse } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 
@@ -22,7 +22,7 @@ export default function HomePage() {
       setResult(score);
     } catch (submissionError) {
       setError(
-        submissionError instanceof Error
+        submissionError instanceof ApiError
           ? submissionError.message
           : "Unable to fetch a disruption score right now.",
       );

@@ -13,19 +13,61 @@ export type ScoreResponse = {
   explanation: string;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const LOCAL_API_URL = "http://127.0.0.1:8000";
 
-export async function fetchScore(address: string): Promise<ScoreResponse> {
-  const url = new URL("/score", API_BASE_URL);
-  url.searchParams.set("address", address);
+export class ApiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
-  const response = await fetch(url.toString(), {
-    cache: "no-store",
-  });
+function getApiBaseUrl(): string {
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
 
-  if (!response.ok) {
-    throw new Error(`Score request failed with status ${response.status}`);
+  if (configuredApiUrl) {
+    return configuredApiUrl;
   }
 
-  return (await response.json()) as ScoreResponse;
+  if (process.env.NODE_ENV !== "production") {
+    return LOCAL_API_URL;
+  }
+
+  throw new ApiError(
+    "The app is missing its backend URL configuration. Add NEXT_PUBLIC_API_URL to connect the frontend.",
+  );
+}
+
+function buildApiUrl(pathname: string): URL {
+  return new URL(pathname, getApiBaseUrl());
+}
+
+export async function fetchScore(address: string): Promise<ScoreResponse> {
+  const url = buildApiUrl("/score");
+  url.searchParams.set("address", address);
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(
+      "We couldn't reach the disruption scoring service. Please try again in a moment.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status >= 500
+        ? "The disruption scoring service is temporarily unavailable. Please try again soon."
+        : "We couldn't fetch a disruption score for that address right now.",
+    );
+  }
+
+  try {
+    return (await response.json()) as ScoreResponse;
+  } catch {
+    throw new ApiError("The disruption scoring service returned an invalid response.");
+  }
 }

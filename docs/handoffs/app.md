@@ -21,6 +21,6 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 ## Mocked `/score` smoke-check handoff
 - Start the mocked backend with `cd backend && uvicorn app.main:app --reload`.
 - Verify the contract directly with `curl "http://127.0.0.1:8000/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL"`.
-- Start the frontend with `cd frontend && NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npm run dev`.
+- Start the frontend with `cd frontend && NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev`.
 - Confirm the submitted default address renders the same score payload fields the backend returns.
 - If the smoke check fails, note the exact command, failing layer, and contract mismatch before handing off.

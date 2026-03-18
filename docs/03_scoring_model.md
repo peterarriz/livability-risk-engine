@@ -1,9 +1,25 @@
 # Scoring Model (MVP)
 
 ## Score structure
-- Output: single integer `disruption_score` in range **0–100** (higher = higher disruption risk).
+- Output: single integer `disruption_score` in range **0–100** (higher = higher near-term disruption risk).
 - Score is based on simple MVP heuristics using nearby active closures and permit activity.
 - For MVP, the response should emphasize the strongest near-term driver rather than a complex multi-factor breakdown.
+
+## Score interpretation
+These bands are meant to help a normal user understand what the headline score means in practical terms.
+
+- **0–24 = Low**
+  - Little evidence of meaningful near-term disruption close to the address.
+  - A user should expect mostly normal access and livability conditions.
+- **25–49 = Moderate**
+  - Some plausible disruption is nearby, but it is limited in scale, distance, timing precision, or duration.
+  - A user should expect noticeable inconvenience rather than major disruption.
+- **50–74 = High**
+  - Clear near-term disruption evidence is present and likely to affect daily experience at or near the address.
+  - A user should expect material inconvenience such as traffic friction, construction noise, or reduced curb access.
+- **75–100 = Severe**
+  - Strong, close, and time-relevant signals suggest substantial near-term disruption.
+  - A user should expect the address to feel actively affected rather than only occasionally inconvenienced.
 
 ## Key variables
 - **Distance**: how close the nearest relevant project is to the input address.
@@ -11,23 +27,89 @@
 - **Probability**: whether the project is plausibly active based on status and dates.
 - **Time**: whether the disruption is active now or imminent in the near-term window.
 
-## Severity categories (MVP)
-1. **Noise**: building activity, demolition, jackhammering, general construction nuisance.
-2. **Traffic**: lane closures, road work, detours, reduced vehicle throughput.
-3. **Dust**: excavation, demolition, heavy construction, visible site activity.
+## Risk taxonomy
+The MVP uses a small fixed disruption taxonomy so Product, Data, and App stay aligned on what the score is trying to represent.
 
-## Confidence model
-- `HIGH`: source is recent, specific, and clearly active.
-- `MEDIUM`: source is plausible and recent enough, but some details are broad or inferred.
-- `LOW`: source is stale, incomplete, or only weakly tied to active disruption.
+### Noise
+- **Definition**: audible disruption from construction, demolition, drilling, excavation, heavy equipment, or repeated work-zone activity.
+- **Common source examples**: building permits, demolition permits, excavation work, jackhammering, sustained site work near the address.
+- **Why a buyer would care**: noise can affect comfort, work-from-home usability, sleep quality, and perceived neighborhood livability.
 
-## Important assumptions
-- A project with a current or imminent date window is more important than a broad future permit.
-- Street closures should usually dominate traffic severity when they are close to the address.
-- Small permits can raise noise or dust but should not overwhelm the score unless there is a strong nearby signal.
-- The score is a relative disruption indicator, not a prediction of accidents or exact travel delay.
+### Traffic access
+- **Definition**: disruption to normal vehicle, delivery, pickup, or street access patterns caused by closures, reduced lanes, detours, or work-zone congestion.
+- **Common source examples**: lane closures, street closures, utility work occupying roadway space, major projects with staged traffic impacts.
+- **Why a buyer would care**: traffic access disruption affects commute reliability, guest access, delivery timing, and day-to-day convenience.
 
-## Explanation Generation Rules
+### Dust vibration
+- **Definition**: physical nuisance from excavation, demolition, earthmoving, cutting, pounding, or similar work that produces dust, shaking, or site residue.
+- **Common source examples**: demolition permits, excavation permits, foundation work, heavy equipment activity, concrete cutting.
+- **Why a buyer would care**: dust and vibration can reduce comfort, create maintenance concerns, and make a property feel more actively impacted.
+
+### Visual
+- **Definition**: disruption caused by visible work zones, scaffolding, barriers, fencing, equipment staging, or a generally active construction presence.
+- **Common source examples**: scaffolded building work, fenced demolition sites, street barricades, large active job sites.
+- **Why a buyer would care**: visual disruption affects curb appeal, perceived neighborhood quality, and confidence that the area feels stable and usable.
+
+### Parking curb
+- **Definition**: disruption to curbside parking, loading, pickup, or short-term stopping caused by work zones or temporary occupancy of curb space.
+- **Common source examples**: no-parking construction zones, curb lane closures, staging areas, permit-protected loading restrictions.
+- **Why a buyer would care**: parking and curb restrictions affect resident convenience, move-in logistics, deliveries, and visitor usability.
+
+## Severity categories used in the API
+The MVP API keeps a narrower severity object than the full product taxonomy. For now, the API returns `noise`, `traffic`, and `dust`, which map to the broader taxonomy as follows:
+
+- `noise` = direct view into the **Noise** category.
+- `traffic` = combined view of **Traffic access** and **Parking curb** because both describe access friction around the address.
+- `dust` = combined view of **Dust vibration** and the most visibly physical site activity likely to accompany it.
+
+Severity labels should be interpreted consistently:
+
+- **LOW**: present only weakly, indirectly, or not at a level likely to shape the near-term user experience.
+- **MEDIUM**: likely noticeable and relevant, but not the dominant reason to avoid or materially rethink the address.
+- **HIGH**: a major near-term disruption signal that should clearly influence how the address is described and understood.
+
+## Confidence language
+Confidence should communicate how trustworthy and specific the evidence is, not how severe the disruption is.
+
+### Product review ladder
+- **Low**
+  - Evidence is weak, stale, broad, or missing important timing/location detail.
+- **Medium**
+  - Evidence is plausible and recent enough to use, but still includes material ambiguity.
+- **Medium-High**
+  - Evidence is strong and fairly specific, with only limited ambiguity remaining.
+- **High**
+  - Evidence is recent, specific, and directly tied to the address-level disruption signal.
+
+### What drives confidence in the MVP
+- **Source quality**: official city source data is more trustworthy than inferred or weakly structured records.
+- **Recency**: a fresh record or active date window supports higher confidence than old or undated activity.
+- **Specificity of timing**: exact or narrow active dates support higher confidence than broad permit timing.
+- **Specificity of location**: precise street/location detail supports higher confidence than vague area-level information.
+
+### API label mapping
+The MVP API keeps confidence intentionally simple:
+
+- **LOW**: use when the evidence matches the **Low** review ladder.
+- **MEDIUM**: use when the evidence is between **Medium** and **Medium-High** review quality.
+- **HIGH**: use only when the evidence meets the **High** review ladder with recent and specific support.
+
+## Scoring assumptions v1
+These assumptions are meant to keep the MVP honest, lightweight, and implementation-ready.
+
+### Known directly from source data
+- Permit or closure records exist in official source systems.
+- Some records include dates, work types, status language, and location detail.
+- Street closures usually provide the strongest direct evidence of traffic-related disruption when they are nearby and active.
+
+### Heuristic in the MVP
+- Distance is treated as a proxy for felt disruption at the address.
+- Larger, more visible, or more access-constraining work is assumed to matter more than light permit activity.
+- A project with a current or imminent date window is treated as more decision-useful than a broad future permit.
+- If two signals conflict, the more concrete and active one should dominate the explanation.
+- The score is a practical disruption indicator, not a scientific forecast of exact noise levels, delay minutes, or project behavior.
+
+## Explanation generation rules
 - Generate exactly 1 short paragraph.
 - Start with the dominant signal first: traffic, noise, or dust.
 - Mention the most concrete reason available, using this priority order:
@@ -41,6 +123,11 @@
 - Keep wording simple and deterministic. Avoid technical schema terms such as `impact_type`, `geometry`, or `project_id`.
 - Do not mention more than 2 drivers in the paragraph.
 - If one category clearly dominates, say so explicitly.
+- The explanation tone should match the score band:
+  - **Low**: calm and cautious
+  - **Moderate**: noticeable but not alarming
+  - **High**: clearly cautionary
+  - **Severe**: strongly cautionary without sounding absolute
 
 ### Deterministic explanation patterns
 - **Traffic-led**: “A nearby lane or street closure is the main driver, so this address has elevated short-term traffic disruption. [supporting detail].”
@@ -48,7 +135,7 @@
 - **Dust-led**: “Nearby demolition or excavation activity is the main driver, so this address has elevated short-term dust disruption. [supporting detail].”
 - **Mixed but moderate**: “This address has moderate near-term disruption because of nearby planned work, with [dominant driver] contributing the most. [supporting detail].”
 
-## Test Addresses
+## Test addresses
 These are plausible QA/demo examples for the Chicago MVP. They are intended to exercise obvious high, medium, and low disruption scenarios rather than act as perfect ground truth.
 
 ### High disruption
@@ -76,6 +163,6 @@ These are plausible QA/demo examples for the Chicago MVP. They are intended to e
 - 11900 S Morgan St, Chicago, IL (West Pullman)
 
 ## Open questions
-- What exact thresholds should map raw heuristics to `LOW`, `MEDIUM`, and `HIGH` severity labels?
-- When both a closure and a permit are present, should the explanation ever mention both if the closure is clearly dominant?
-- How much date precision is required before confidence should move from `MEDIUM` to `HIGH`?
+- What exact heuristic thresholds should convert raw inputs into numeric score bands without making the model look overfit?
+- Should `traffic` in the API be explicitly described as including both traffic flow and curb/parking access friction in user-facing copy?
+- Under what conditions should explanation copy mention a secondary driver instead of only the dominant one?
