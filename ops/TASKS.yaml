@@ -1,108 +1,269 @@
-- id: TASK-001
-  title: Define MVP scope and success criteria
+# =========================
+# PRODUCT LANE
+# =========================
+
+- id: product-001
+  title: Finalize MVP scope
   owner: product
-  status: todo
-  files_affected:
+  status: done
+  files:
     - docs/01_mvp_scope.md
-    - docs/00_project_brief.md
   dependencies: []
   acceptance_criteria:
-    - MVP scope document exists and is reviewed by the team
-    - Success criteria are testable and referenced in weekly plan
-  notes_for_next_agent: Ensure the MVP scope aligns with available Chicago data sources.
+    - scope clearly defined
+    - in-scope and out-of-scope listed
+  notes_for_next_agent: >
+    Locked for MVP. Do not expand without discussion.
 
-- id: TASK-002
-  title: Draft API contract and schema
-  owner: app
-  status: todo
-  files_affected:
+- id: product-002
+  title: Define score response contract
+  owner: product
+  status: done
+  files:
     - docs/04_api_contracts.md
   dependencies:
-    - TASK-001
+    - product-001
   acceptance_criteria:
-    - `/score` request/response is defined in docs
-    - Schema is consistent with planned DB model
-  notes_for_next_agent: Use schema to scaffold FastAPI pydantic models.
+    - schema finalized
+    - severity buckets defined
 
-- id: TASK-003
-  title: Ingest Chicago permits into Postgres
-  owner: data
-  status: todo
-  files_affected:
-    - docs/05_data_sources_chicago.md
-  dependencies:
-    - TASK-001
-  acceptance_criteria:
-    - Permit data ingestion pipeline runs end-to-end and writes canonical rows to Postgres
-    - A sample SQL query returns permits near a given coordinate
-  notes_for_next_agent: Store raw source files under `data/raw/permits`.
-
-- id: TASK-004
-  title: Ingest Chicago street closures into Postgres
-  owner: data
-  status: todo
-  files_affected:
-    - docs/05_data_sources_chicago.md
-  dependencies:
-    - TASK-001
-  acceptance_criteria:
-    - Closure feed ingestion pipeline runs and writes normalized closure projects
-    - Closures include geometry for spatial queries
-  notes_for_next_agent: Align closure schema with canonical project schema in docs.
-
-- id: TASK-005
-  title: Scaffold FastAPI backend with `/score` endpoint (mocked)
-  owner: app
-  status: todo
-  files_affected:
-    - backend/
-    - docs/04_api_contracts.md
-  dependencies:
-    - TASK-002
-  acceptance_criteria:
-    - FastAPI app runs locally and serves `/score` returning static JSON matching contract
-    - README includes run instructions
-  notes_for_next_agent: Use dependency injection for future DB/session layer.
-
-- id: TASK-006
-  title: Build minimal Next.js frontend demo
-  owner: app
-  status: todo
-  files_affected:
-    - frontend/
-    - docs/02_architecture.md
-  dependencies:
-    - TASK-005
-  acceptance_criteria:
-    - Frontend calls `/score` and renders score + project list
-    - Can run locally with `npm run dev`
-  notes_for_next_agent: Keep UI minimal; focus on API integration.
-
-- id: TASK-007
-  title: Implement basic scoring engine
-  owner: data
-  status: todo
-  files_affected:
-    - backend/
-    - docs/03_scoring_model.md
-  dependencies:
-    - TASK-003
-    - TASK-004
-  acceptance_criteria:
-    - A function computes score from normalized projects
-    - `/score` endpoint returns non-mocked score produced by that function
-  notes_for_next_agent: Start with distance + duration weighting.
-
-- id: TASK-008
-  title: Document team working agreement and execution workflow
+- id: product-003
+  title: Define scoring weights v1
   owner: product
   status: todo
-  files_affected:
-    - docs/06_team_working_agreement.md
-    - ops/weekly_plan.md
+  files:
+    - docs/03_scoring_model.md
   dependencies:
-    - TASK-001
+    - product-002
   acceptance_criteria:
-    - Working agreement reviewed and accepted by all members
-    - Weekly plan outlines first week deliverables and risks
-  notes_for_next_agent: Include explicit handoff steps between lanes.
+    - weight per severity defined
+    - distance decay defined
+    - time weighting defined
+  notes_for_next_agent: >
+    Do not over-optimize. Needs to be plausible, not perfect.
+
+- id: product-004
+  title: Define 20 test addresses in Chicago
+  owner: product
+  status: todo
+  files:
+    - docs/03_scoring_model.md
+  dependencies:
+    - product-001
+  acceptance_criteria:
+    - mix of high/medium/low disruption areas
+    - used for QA later
+
+- id: product-005
+  title: Define explanation templates
+  owner: product
+  status: todo
+  files:
+    - docs/04_api_contracts.md
+  dependencies:
+    - product-002
+  acceptance_criteria:
+    - explanation string format defined
+    - supports top 3 drivers
+
+# =========================
+# DATA LANE
+# =========================
+
+- id: data-001
+  title: Document Chicago data sources
+  owner: data
+  status: in_progress
+  files:
+    - docs/05_data_sources_chicago.md
+  dependencies:
+    - product-001
+  acceptance_criteria:
+    - priority 1/2/3 sources defined
+
+- id: data-002
+  title: Ingest building permits (raw)
+  owner: data
+  status: todo
+  files:
+    - backend/ingest/building_permits.py
+    - db/schema.sql
+  dependencies:
+    - data-001
+  acceptance_criteria:
+    - script pulls permits
+    - stored in raw table
+
+- id: data-003
+  title: Ingest demolition permits (raw)
+  owner: data
+  status: todo
+  files:
+    - backend/ingest/demolition.py
+  dependencies:
+    - data-001
+  acceptance_criteria:
+    - raw ingestion working
+
+- id: data-004
+  title: Ingest street closure permits
+  owner: data
+  status: todo
+  files:
+    - backend/ingest/street_closures.py
+  dependencies:
+    - data-001
+  acceptance_criteria:
+    - closures stored in raw table
+
+- id: data-005
+  title: Create canonical projects table
+  owner: data
+  status: todo
+  files:
+    - db/schema.sql
+  dependencies:
+    - product-002
+  acceptance_criteria:
+    - schema matches API contract
+
+- id: data-006
+  title: Normalize building permits → projects
+  owner: data
+  status: todo
+  files:
+    - backend/models/project.py
+  dependencies:
+    - data-002
+    - data-005
+  acceptance_criteria:
+    - permits mapped to project schema
+
+- id: data-007
+  title: Normalize street closures → projects
+  owner: data
+  status: todo
+  files:
+    - backend/models/project.py
+  dependencies:
+    - data-004
+    - data-005
+  acceptance_criteria:
+    - closures mapped correctly
+
+- id: data-008
+  title: Add geocoding layer
+  owner: data
+  status: todo
+  files:
+    - backend/ingest/geocode.py
+  dependencies:
+    - data-002
+  acceptance_criteria:
+    - addresses converted to lat/lng
+
+- id: data-009
+  title: Implement radius query for nearby projects
+  owner: data
+  status: todo
+  files:
+    - backend/scoring/query.py
+  dependencies:
+    - data-005
+  acceptance_criteria:
+    - returns projects within radius
+
+# =========================
+# APP LANE
+# =========================
+
+- id: app-001
+  title: Scaffold FastAPI backend
+  owner: app
+  status: todo
+  files:
+    - backend/app/main.py
+  dependencies:
+    - product-002
+  acceptance_criteria:
+    - API runs locally
+    - health endpoint exists
+
+- id: app-002
+  title: Create mocked /score endpoint
+  owner: app
+  status: todo
+  files:
+    - backend/app/routes.py
+  dependencies:
+    - app-001
+  acceptance_criteria:
+    - returns static response matching contract
+
+- id: app-003
+  title: Scaffold Next.js frontend
+  owner: app
+  status: todo
+  files:
+    - frontend/
+  dependencies:
+    - product-002
+  acceptance_criteria:
+    - app runs locally
+
+- id: app-004
+  title: Build address input + submit flow
+  owner: app
+  status: todo
+  files:
+    - frontend/src/app/page.tsx
+  dependencies:
+    - app-003
+  acceptance_criteria:
+    - user can input address
+
+- id: app-005
+  title: Build score card component
+  owner: app
+  status: todo
+  files:
+    - frontend/src/components/ScoreCard.tsx
+  dependencies:
+    - app-002
+  acceptance_criteria:
+    - score renders
+    - severity renders
+
+- id: app-006
+  title: Render top risks + explanation
+  owner: app
+  status: todo
+  files:
+    - frontend/src/components/RiskList.tsx
+  dependencies:
+    - app-005
+  acceptance_criteria:
+    - risks displayed cleanly
+
+- id: app-007
+  title: Add map view (Mapbox or Leaflet)
+  owner: app
+  status: todo
+  files:
+    - frontend/src/components/Map.tsx
+  dependencies:
+    - app-004
+  acceptance_criteria:
+    - map renders
+    - projects plotted
+
+- id: app-008
+  title: Connect frontend to real backend
+  owner: app
+  status: todo
+  files:
+    - frontend/src/lib/api.ts
+  dependencies:
+    - data-009
+  acceptance_criteria:
+    - real score endpoint used
