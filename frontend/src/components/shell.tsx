@@ -1,11 +1,12 @@
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 type ContainerProps = {
   children: ReactNode;
   className?: string;
 };
 
-type SectionProps = ContainerProps & {
+type SectionProps = Omit<ComponentPropsWithoutRef<"section">, "children"> & {
+  children: ReactNode;
   eyebrow?: string;
   title?: string;
   description?: string;
@@ -27,9 +28,16 @@ export function Header({ children, className }: ContainerProps) {
   return <header className={joinClasses("shell-header", className)}>{children}</header>;
 }
 
-export function Section({ children, eyebrow, title, description, className }: SectionProps) {
+export function Section({
+  children,
+  eyebrow,
+  title,
+  description,
+  className,
+  ...sectionProps
+}: SectionProps) {
   return (
-    <section className={joinClasses("shell-section", className)}>
+    <section className={joinClasses("shell-section", className)} {...sectionProps}>
       {eyebrow || title || description ? (
         <div className="section-heading">
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
