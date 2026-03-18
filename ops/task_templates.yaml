@@ -1,0 +1,141 @@
+version: 1
+defaults:
+  owner_from_lane: true
+  status: ready
+  priority: medium
+  type: chore
+  files: []
+  dependencies: []
+  acceptance_criteria: []
+  notes_for_next_agent: Fill in the next concrete action before handoff.
+
+lanes:
+  product:
+    ready_queue_target: 3
+    templates:
+      - id: product-006
+        type: definition
+        title: Define confidence rubric for score responses
+        priority: medium
+        files:
+          - docs/04_api_contracts.md
+        dependencies:
+          - product-002
+        acceptance_criteria:
+          - HIGH, MEDIUM, and LOW confidence rules are documented.
+          - Rubric can be applied without changing scoring logic.
+        notes_for_next_agent: Keep the rubric simple enough for App to render directly.
+      - id: product-007
+        type: qa
+        title: Create score review checklist for example addresses
+        priority: medium
+        files:
+          - docs/03_scoring_model.md
+          - docs/06_team_working_agreement.md
+        dependencies:
+          - product-003
+          - product-004
+        acceptance_criteria:
+          - Checklist covers score plausibility and explanation clarity.
+          - Review steps are repeatable by humans and AI agents.
+        notes_for_next_agent: Tie the checklist to the Chicago example addresses instead of inventing new scope.
+      - id: product-008
+        type: handoff
+        title: Document launch-readiness questions for the MVP demo
+        priority: low
+        files:
+          - docs/handoffs/product.md
+        dependencies:
+          - product-005
+        acceptance_criteria:
+          - Open product questions listed.
+          - Demo sign-off inputs requested from Data and App.
+        notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
+
+  data:
+    ready_queue_target: 3
+    templates:
+      - id: data-010
+        type: quality
+        title: Add source freshness checks for permit and closure ingests
+        priority: medium
+        files:
+          - docs/05_data_sources_chicago.md
+          - docs/handoffs/data.md
+        dependencies:
+          - data-002
+          - data-004
+        acceptance_criteria:
+          - Freshness expectations documented.
+          - A repeatable check is defined for both core sources.
+        notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+      - id: data-011
+        type: ops
+        title: Document daily refresh steps for MVP data sources
+        priority: medium
+        files:
+          - docs/handoffs/data.md
+        dependencies:
+          - data-002
+          - data-004
+        acceptance_criteria:
+          - Refresh order documented.
+          - Failure cases and owner handoff notes listed.
+        notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+      - id: data-012
+        type: quality
+        title: Define normalization QA checks for canonical projects
+        priority: medium
+        files:
+          - docs/handoffs/data.md
+          - docs/04_api_contracts.md
+        dependencies:
+          - data-006
+          - data-007
+        acceptance_criteria:
+          - Required field checks listed.
+          - QA outputs can be shared with App without manual interpretation.
+        notes_for_next_agent: Reuse the canonical schema field names exactly.
+
+  app:
+    ready_queue_target: 3
+    templates:
+      - id: app-009
+        type: qa
+        title: Add mocked score endpoint smoke-check task
+        priority: medium
+        files:
+          - docs/handoffs/app.md
+          - README.md
+        dependencies:
+          - app-002
+        acceptance_criteria:
+          - Mocked backend check steps are documented.
+          - The task is small enough to complete before real data wiring.
+        notes_for_next_agent: Keep this focused on the mocked `/score` path so App can stay unblocked.
+      - id: app-010
+        type: integration
+        title: Add API smoke test instructions for local demo flow
+        priority: medium
+        files:
+          - README.md
+          - docs/handoffs/app.md
+        dependencies:
+          - app-002
+          - app-008
+        acceptance_criteria:
+          - Backend and frontend smoke test steps documented.
+          - Expected demo output described in one place.
+        notes_for_next_agent: Prefer commands that run from the repo root.
+      - id: app-011
+        type: qa
+        title: Capture frontend contract mismatches and follow-ups
+        priority: low
+        files:
+          - docs/handoffs/app.md
+        dependencies:
+          - app-008
+        acceptance_criteria:
+          - Known API/UI mismatches logged.
+          - Each mismatch points to the owning lane.
+        notes_for_next_agent: Use this only for contract gaps that affect the MVP demo.
