@@ -9,7 +9,6 @@ settings:
     - done
   blocked_statuses:
     - blocked
-
 lanes:
   product:
     display_name: Product
@@ -23,7 +22,6 @@ lanes:
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
     notes: Keep a small queue of clearly reviewable definition and QA tasks.
-
   data:
     display_name: Data
     ready_queue_target: 3
@@ -37,7 +35,6 @@ lanes:
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
     notes: Maintain enough ready work to keep ingestion and normalization moving in parallel.
-
   app:
     display_name: App
     ready_queue_target: 3

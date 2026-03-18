@@ -52,7 +52,7 @@ def main() -> int:
     )
 
     existing_ids = {task["id"] for task in tasks}
-    existing_titles = {(task["lane"], normalize_title(task["title"])) for task in tasks}
+    existing_titles = {normalize_title(task["title"]) for task in tasks}
     task_status_by_id = {task["id"]: task.get("status") for task in tasks}
     generated: list[dict[str, Any]] = []
 
@@ -70,7 +70,7 @@ def main() -> int:
                 break
 
             task_id = template["id"]
-            title_key = (lane, normalize_title(template["title"]))
+            title_key = normalize_title(template["title"])
             dependencies = template.get("dependencies", defaults.get("dependencies", []))
 
             if task_id in existing_ids or title_key in existing_titles:
@@ -90,7 +90,8 @@ def main() -> int:
     if args.dry_run:
         print(f"Would add {len(generated)} task(s).")
     else:
-        dump_yaml(TASKS_PATH, tasks_doc)
+        if generated:
+            dump_yaml(TASKS_PATH, tasks_doc)
         print(f"Added {len(generated)} task(s).")
 
     for task in generated:

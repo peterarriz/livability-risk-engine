@@ -65,7 +65,7 @@ def main() -> int:
         if task_id:
             ids[task_id] += 1
         if lane and title:
-            titles[(lane, normalize_title(title))] += 1
+            titles[normalize_title(title)] += 1
         if lane and lane not in VALID_LANES:
             errors.append(f"task {task_id}: invalid lane '{lane}'")
         if task.get("owner") and lane and task["owner"] != lane:
@@ -78,8 +78,13 @@ def main() -> int:
             errors.append(f"task {task_id}: files must be a list")
         if not isinstance(task.get("dependencies", []), list):
             errors.append(f"task {task_id}: dependencies must be a list")
-        if not isinstance(task.get("acceptance_criteria", []), list):
+        acceptance_criteria = task.get("acceptance_criteria", [])
+        if not isinstance(acceptance_criteria, list):
             errors.append(f"task {task_id}: acceptance_criteria must be a list")
+        elif not acceptance_criteria:
+            errors.append(f"task {task_id}: acceptance_criteria must not be empty")
+        if isinstance(task.get("files", []), list) and not task.get("files", []):
+            errors.append(f"task {task_id}: files must not be empty")
         if not isinstance(task.get("notes_for_next_agent", ""), str):
             errors.append(f"task {task_id}: notes_for_next_agent must be a string")
 
@@ -92,9 +97,9 @@ def main() -> int:
     for task_id, count in ids.items():
         if count > 1:
             errors.append(f"duplicate task id: {task_id}")
-    for (lane, title), count in titles.items():
+    for title, count in titles.items():
         if count > 1:
-            errors.append(f"duplicate task title in lane '{lane}': {title}")
+            errors.append(f"duplicate task title: {title}")
     for focus_id in sorted(focus_ids):
         if focus_id not in known_ids:
             errors.append(f"lane_state current_focus references unknown task '{focus_id}'")

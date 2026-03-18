@@ -8,7 +8,6 @@ defaults:
   dependencies: []
   acceptance_criteria: []
   notes_for_next_agent: Fill in the next concrete action before handoff.
-
 lanes:
   product:
     ready_queue_target: 3
@@ -51,7 +50,6 @@ lanes:
           - Open product questions listed.
           - Demo sign-off inputs requested from Data and App.
         notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
-
   data:
     ready_queue_target: 3
     templates:
@@ -96,7 +94,6 @@ lanes:
           - Required field checks listed.
           - QA outputs can be shared with App without manual interpretation.
         notes_for_next_agent: Reuse the canonical schema field names exactly.
-
   app:
     ready_queue_target: 3
     templates:

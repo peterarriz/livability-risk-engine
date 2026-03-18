@@ -3,15 +3,24 @@
 ## Mission
 Keep Product work focused on scope clarity, scoring guidance, and demo-readiness without expanding the MVP.
 
-## How Product maintains task flow
-1. Update the Product task in `ops/TASKS.yaml` as soon as status or acceptance criteria change.
-2. Refresh `notes_for_next_agent` with the next concrete question, decision, or artifact needed.
-3. If Product has fewer than three actionable items, run `python ops/generate_tasks.py` from the repo root.
-4. If the generated queue is not the right next work, adjust `ops/lane_state.yaml` or `ops/task_templates.yaml` and rerun the generator.
+## Completed in this handoff
+- Tightened the MVP `/score` response contract to a minimal demo-ready shape.
+- Added deterministic explanation generation rules for plain-English output.
+- Added a grouped set of 18 plausible Chicago QA/demo addresses.
+
+## Still open
+- Finalize scoring-weight guidance for v1 so severity and headline score thresholds are easier to defend.
+- Review the explanation copy across the QA addresses to catch awkward or repetitive phrasing.
+- Freeze the final severity label rules for noise, traffic, and dust before broader App/Data integration.
+
+## Next 3 product actions
+1. Review explanation copy against the 18 QA addresses and note any implausible cases.
+2. Freeze severity label rules so App and backend can render them without interpretation.
+3. Approve one final mocked example response for demo reviewers and smoke tests.
 
 ## What to hand off to other lanes
-- To **Data**: source priorities, scoring assumptions, and any confidence or explanation requirements that affect schema or ingest logic.
-- To **App**: response wording, demo acceptance expectations, and any user-facing explanation constraints.
+- To **Data**: keep the dominant-signal framing aligned with the minimal response fields and severity categories.
+- To **App**: implement only the fields in the tightened contract and keep explanation/top-risk rendering simple.
 
 ## Review checklist
 - Does the task stay inside the Chicago MVP scope?
