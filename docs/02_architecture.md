@@ -3,9 +3,9 @@
 ## End-to-end system flow
 1. **Ingestion**: Fetch raw permit & closure sources (CSV/API) -> raw storage (S3/`data/raw` folder) -> staging.
 2. **Normalization**: Parse raw records -> normalize into canonical `project` schema -> upsert into Postgres/PostGIS.
-3. **Scoring**: For a query address, find nearby active projects, apply rule-based score model, return score + factor breakdown.
+3. **Scoring**: For a query address, find nearby active projects, apply the rule-based model, and return a minimal disruption summary.
 4. **API**: FastAPI service exposes `/score` endpoint (JSON) and internal health/metrics endpoints.
-5. **Frontend**: Next.js app calls `/score`, renders score and project list; optional map view.
+5. **Frontend**: Next.js app calls `/score` and renders the disruption score, severity, top risks, and explanation; optional map view.
 
 ## Tech stack
 - **Backend API**: Python 3.11 + FastAPI
