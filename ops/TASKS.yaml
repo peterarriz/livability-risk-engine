@@ -120,7 +120,7 @@ tasks:
     type: ingest
     title: Ingest demolition permits (raw)
     owner: data
-    status: backlog
+    status: done
     priority: medium
     files:
       - backend/ingest/demolition.py
@@ -150,7 +150,7 @@ tasks:
     type: schema
     title: Create canonical projects table
     owner: data
-    status: backlog
+    status: done
     priority: high
     files:
       - db/schema.sql
@@ -165,7 +165,7 @@ tasks:
     type: normalize
     title: Normalize building permits to projects
     owner: data
-    status: backlog
+    status: done
     priority: high
     files:
       - backend/models/project.py
@@ -181,7 +181,7 @@ tasks:
     type: normalize
     title: Normalize street closures to projects
     owner: data
-    status: backlog
+    status: done
     priority: high
     files:
       - backend/models/project.py
@@ -197,7 +197,7 @@ tasks:
     type: geospatial
     title: Add geocoding layer
     owner: data
-    status: backlog
+    status: done
     priority: medium
     files:
       - backend/ingest/geocode.py
@@ -212,7 +212,7 @@ tasks:
     type: query
     title: Implement radius query for nearby projects
     owner: data
-    status: backlog
+    status: done
     priority: high
     files:
       - backend/scoring/query.py
@@ -332,7 +332,7 @@ tasks:
     type: integration
     title: Connect frontend to real backend
     owner: app
-    status: blocked
+    status: done
     priority: high
     files:
       - frontend/src/lib/api.ts
@@ -510,7 +510,7 @@ tasks:
     type: qa
     title: Approve final mocked score example for demo reviewers
     owner: product
-    status: backlog
+    status: done
     priority: medium
     files:
       - docs/04_api_contracts.md
@@ -577,7 +577,7 @@ tasks:
     type: qa
     title: Approve one buyer-facing demo response per score band
     owner: product
-    status: backlog
+    status: done
     priority: medium
     files:
       - docs/04_api_contracts.md
@@ -606,3 +606,24 @@ tasks:
       - Checklist covers score plausibility and explanation clarity.
       - Review steps are repeatable by humans and AI agents.
     notes_for_next_agent: Completed with a 7-step repeatable checklist in docs/03_scoring_model.md covering score-band alignment, explanation tone, dominant-driver consistency, confidence calibration, and buyer-facing readability. Tied to the 18 Chicago QA addresses. product-010 and product-014 used this checklist to complete their QA pass.
+- id: data-013
+    lane: data
+    type: ingest
+    title: Load normalized projects into canonical DB table
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/ingest/load_projects.py
+    dependencies:
+      - data-005
+      - data-006
+      - data-007
+    acceptance_criteria:
+      - Upserts into projects table idempotently.
+      - Populates geom column for ST_DWithin queries.
+    notes_for_next_agent: >
+      Completed. backend/ingest/load_projects.py reads staging JSON and
+      upserts into projects table. Full pipeline to get live scores:
+      (1) building_permits.py (2) street_closures.py (3) load_projects.py
+      then start API with POSTGRES_HOST set.
