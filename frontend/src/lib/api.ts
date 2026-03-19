@@ -123,24 +123,49 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   const known = KNOWN_COORDS[address];
   if (known) return known;
 
-  // Live geocoding via Nominatim (works in production; may be blocked in restricted envs).
+  // 1. Live geocoding via Nominatim.
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("q", address);
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
     url.searchParams.set("countrycodes", "us");
+    url.searchParams.set("bounded", "1");
+    url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     const resp = await fetch(url.toString(), {
       headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
       cache: "no-store",
     });
-    if (!resp.ok) return null;
-    const data = (await resp.json()) as Array<{ lat: string; lon: string }>;
-    if (!data.length) return null;
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-  } catch {
-    return null;
-  }
+    if (resp.ok) {
+      const data = (await resp.json()) as Array<{ lat: string; lon: string }>;
+      if (data.length) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (_inChicago(lat, lon)) return { lat, lon };
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 2. Photon fallback.
+  try {
+    const photonQ = address.toLowerCase().includes("chicago") ? address : `${address} Chicago`;
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", photonQ);
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("bbox", _PHOTON_BBOX);
+    url.searchParams.set("lang", "en");
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (resp.ok) {
+      const data = (await resp.json()) as { features: PhotonFeature[] };
+      const f = data.features?.[0];
+      if (f) {
+        const [lon, lat] = f.geometry.coordinates;
+        if (_inChicago(lat, lon)) return { lat, lon };
+      }
+    }
+  } catch { /* */ }
+
+  return null;
 }
 
 // Chicago bounding box constants shared by both geocoder calls below.
