@@ -1,269 +1,1078 @@
-# =========================
-# PRODUCT LANE
-# =========================
-
-- id: product-001
-  title: Finalize MVP scope
-  owner: product
-  status: done
-  files:
-    - docs/01_mvp_scope.md
-  dependencies: []
-  acceptance_criteria:
-    - scope clearly defined
-    - in-scope and out-of-scope listed
-  notes_for_next_agent: >
-    Locked for MVP. Do not expand without discussion.
-
-- id: product-002
-  title: Define score response contract
-  owner: product
-  status: done
-  files:
-    - docs/04_api_contracts.md
-  dependencies:
-    - product-001
-  acceptance_criteria:
-    - schema finalized
-    - severity buckets defined
-
-- id: product-003
-  title: Define scoring weights v1
-  owner: product
-  status: todo
-  files:
-    - docs/03_scoring_model.md
-  dependencies:
-    - product-002
-  acceptance_criteria:
-    - weight per severity defined
-    - distance decay defined
-    - time weighting defined
-  notes_for_next_agent: >
-    Do not over-optimize. Needs to be plausible, not perfect.
-
-- id: product-004
-  title: Define 20 test addresses in Chicago
-  owner: product
-  status: todo
-  files:
-    - docs/03_scoring_model.md
-  dependencies:
-    - product-001
-  acceptance_criteria:
-    - mix of high/medium/low disruption areas
-    - used for QA later
-
-- id: product-005
-  title: Define explanation templates
-  owner: product
-  status: todo
-  files:
-    - docs/04_api_contracts.md
-  dependencies:
-    - product-002
-  acceptance_criteria:
-    - explanation string format defined
-    - supports top 3 drivers
-
-# =========================
-# DATA LANE
-# =========================
-
-- id: data-001
-  title: Document Chicago data sources
-  owner: data
-  status: in_progress
-  files:
-    - docs/05_data_sources_chicago.md
-  dependencies:
-    - product-001
-  acceptance_criteria:
-    - priority 1/2/3 sources defined
-
-- id: data-002
-  title: Ingest building permits (raw)
-  owner: data
-  status: todo
-  files:
-    - backend/ingest/building_permits.py
-    - db/schema.sql
-  dependencies:
-    - data-001
-  acceptance_criteria:
-    - script pulls permits
-    - stored in raw table
-
-- id: data-003
-  title: Ingest demolition permits (raw)
-  owner: data
-  status: todo
-  files:
-    - backend/ingest/demolition.py
-  dependencies:
-    - data-001
-  acceptance_criteria:
-    - raw ingestion working
-
-- id: data-004
-  title: Ingest street closure permits
-  owner: data
-  status: todo
-  files:
-    - backend/ingest/street_closures.py
-  dependencies:
-    - data-001
-  acceptance_criteria:
-    - closures stored in raw table
-
-- id: data-005
-  title: Create canonical projects table
-  owner: data
-  status: todo
-  files:
-    - db/schema.sql
-  dependencies:
-    - product-002
-  acceptance_criteria:
-    - schema matches API contract
-
-- id: data-006
-  title: Normalize building permits → projects
-  owner: data
-  status: todo
-  files:
-    - backend/models/project.py
-  dependencies:
-    - data-002
-    - data-005
-  acceptance_criteria:
-    - permits mapped to project schema
-
-- id: data-007
-  title: Normalize street closures → projects
-  owner: data
-  status: todo
-  files:
-    - backend/models/project.py
-  dependencies:
-    - data-004
-    - data-005
-  acceptance_criteria:
-    - closures mapped correctly
-
-- id: data-008
-  title: Add geocoding layer
-  owner: data
-  status: todo
-  files:
-    - backend/ingest/geocode.py
-  dependencies:
-    - data-002
-  acceptance_criteria:
-    - addresses converted to lat/lng
-
-- id: data-009
-  title: Implement radius query for nearby projects
-  owner: data
-  status: todo
-  files:
-    - backend/scoring/query.py
-  dependencies:
-    - data-005
-  acceptance_criteria:
-    - returns projects within radius
-
-# =========================
-# APP LANE
-# =========================
-
-- id: app-001
-  title: Scaffold FastAPI backend
-  owner: app
-  status: todo
-  files:
-    - backend/app/main.py
-  dependencies:
-    - product-002
-  acceptance_criteria:
-    - API runs locally
-    - health endpoint exists
-
-- id: app-002
-  title: Create mocked /score endpoint
-  owner: app
-  status: todo
-  files:
-    - backend/app/routes.py
-  dependencies:
-    - app-001
-  acceptance_criteria:
-    - returns static response matching contract
-
-- id: app-003
-  title: Scaffold Next.js frontend
-  owner: app
-  status: todo
-  files:
-    - frontend/
-  dependencies:
-    - product-002
-  acceptance_criteria:
-    - app runs locally
-
-- id: app-004
-  title: Build address input + submit flow
-  owner: app
-  status: todo
-  files:
-    - frontend/src/app/page.tsx
-  dependencies:
-    - app-003
-  acceptance_criteria:
-    - user can input address
-
-- id: app-005
-  title: Build score card component
-  owner: app
-  status: todo
-  files:
-    - frontend/src/components/ScoreCard.tsx
-  dependencies:
-    - app-002
-  acceptance_criteria:
-    - score renders
-    - severity renders
-
-- id: app-006
-  title: Render top risks + explanation
-  owner: app
-  status: todo
-  files:
-    - frontend/src/components/RiskList.tsx
-  dependencies:
-    - app-005
-  acceptance_criteria:
-    - risks displayed cleanly
-
-- id: app-007
-  title: Add map view (Mapbox or Leaflet)
-  owner: app
-  status: todo
-  files:
-    - frontend/src/components/Map.tsx
-  dependencies:
-    - app-004
-  acceptance_criteria:
-    - map renders
-    - projects plotted
-
-- id: app-008
-  title: Connect frontend to real backend
-  owner: app
-  status: todo
-  files:
-    - frontend/src/lib/api.ts
-  dependencies:
-    - data-009
-  acceptance_criteria:
-    - real score endpoint used
+version: 2
+metadata:
+  description: Lane-aware task board for the Chicago MVP.
+  actionable_statuses:
+    - ready
+    - in_progress
+  backlog_statuses:
+    - backlog
+    - blocked
+    - done
+tasks:
+  - id: product-001
+    lane: product
+    type: definition
+    title: Finalize MVP scope
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/01_mvp_scope.md
+    dependencies: []
+    acceptance_criteria:
+      - Scope clearly defined.
+      - In-scope and out-of-scope listed.
+    notes_for_next_agent: Locked for MVP. Do not expand without discussion.
+  - id: product-002
+    lane: product
+    type: contract
+    title: Define score response contract
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-001
+    acceptance_criteria:
+      - Schema finalized.
+      - Severity buckets defined.
+    notes_for_next_agent: Keep field names aligned with the API contract.
+  - id: product-003
+    lane: product
+    type: design
+    title: Define scoring weights v1
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - Weight per severity defined.
+      - Distance decay defined.
+      - Time weighting defined.
+    notes_for_next_agent: Completed with a compact v1 rubric in docs/03_scoring_model.md covering base project weights, distance decay, timing multipliers, aggregation limits, and severity-alignment guardrails.
+  - id: product-004
+    lane: product
+    type: qa
+    title: Define 20 test addresses in Chicago
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+    dependencies:
+      - product-001
+    acceptance_criteria:
+      - Mix of high, medium, and low disruption areas.
+      - Usable by Data and App for QA later.
+    notes_for_next_agent: Completed with a plausible grouped QA/demo address set in docs/03_scoring_model.md.
+  - id: product-005
+    lane: product
+    type: content
+    title: Define explanation templates
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - Explanation string format defined.
+      - Supports top 3 drivers.
+    notes_for_next_agent: Completed via deterministic explanation rules and demo-ready response copy.
+  - id: data-001
+    lane: data
+    type: research
+    title: Document Chicago data sources
+    owner: data
+    status: done
+    priority: high
+    files:
+      - docs/05_data_sources_chicago.md
+    dependencies:
+      - product-001
+    acceptance_criteria:
+      - Priority 1, 2, and 3 sources defined.
+      - Access method and refresh cadence captured.
+    notes_for_next_agent: Completed with access method and refresh cadence for all 6 sources in docs/05_data_sources_chicago.md. Priority 1 sources (building permits and street closures) use daily Socrata pulls. Priority 2 sources use weekly cadence. Priority 3 sources are ad hoc / manual for MVP. Data-002 and data-004 can now proceed.
+  - id: data-002
+    lane: data
+    type: ingest
+    title: Ingest building permits (raw)
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/ingest/building_permits.py
+      - db/schema.sql
+    dependencies:
+      - data-001
+    acceptance_criteria:
+      - Script pulls permits.
+      - Raw records stored in a source table.
+    notes_for_next_agent: Completed. backend/ingest/building_permits.py pulls from Socrata (dataset ydr8-5enu) with incremental --days flag support and upserts into raw_building_permits using source_id as the stable key. db/schema.sql defines raw_building_permits and raw_street_closures with PostGIS geometry and indexing. Run with DATABASE_URL env var pointing at a PostGIS-enabled Postgres instance. Next step is data-006 (normalize permits to canonical projects) once data-005 (canonical projects table) is done.
+  - id: data-003
+    lane: data
+    type: ingest
+    title: Ingest demolition permits (raw)
+    owner: data
+    status: done
+    priority: medium
+    files:
+      - backend/ingest/demolition.py
+    dependencies:
+      - data-001
+    acceptance_criteria:
+      - Raw ingestion working.
+      - Shared raw schema reused where possible.
+    notes_for_next_agent: Only pull fields needed for the canonical project model.
+  - id: data-004
+    lane: data
+    type: ingest
+    title: Ingest street closure permits
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/ingest/street_closures.py
+    dependencies:
+      - data-001
+    acceptance_criteria:
+      - Closure records stored in a raw table.
+      - Source timestamps preserved.
+    notes_for_next_agent: Completed. backend/ingest/street_closures.py pulls from Socrata (dataset Ansr-8mav) filtered to recent/future close_date with incremental --days flag support. Upserts into raw_street_closures (defined in db/schema.sql) using source_id as the stable key. Source timestamps (source_updated_at, close_date, reopen_date) are preserved. Default full pull covers last 180 days forward to focus on planned closures. Next step is data-007 (normalize closures to canonical projects) once data-005 is done.
+  - id: data-005
+    lane: data
+    type: schema
+    title: Create canonical projects table
+    owner: data
+    status: done
+    priority: high
+    files:
+      - db/schema.sql
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - Schema matches the API contract.
+      - Project IDs are stable across ingests.
+    notes_for_next_agent: Do not redesign the normalized project schema without App review.
+  - id: data-006
+    lane: data
+    type: normalize
+    title: Normalize building permits to projects
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/models/project.py
+    dependencies:
+      - data-002
+      - data-005
+    acceptance_criteria:
+      - Permits mapped to the canonical project schema.
+      - Missing fields handled deterministically.
+    notes_for_next_agent: Keep source-to-project mapping easy to audit.
+  - id: data-007
+    lane: data
+    type: normalize
+    title: Normalize street closures to projects
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/models/project.py
+    dependencies:
+      - data-004
+      - data-005
+    acceptance_criteria:
+      - Closures mapped correctly.
+      - Impact type and scale fields populated consistently.
+    notes_for_next_agent: Reuse the same normalization conventions as permits.
+  - id: data-008
+    lane: data
+    type: geospatial
+    title: Add geocoding layer
+    owner: data
+    status: done
+    priority: medium
+    files:
+      - backend/ingest/geocode.py
+    dependencies:
+      - data-002
+    acceptance_criteria:
+      - Addresses converted to lat/lng.
+      - Failed geocodes can be retried.
+    notes_for_next_agent: Geocoding can be daily batch work for MVP.
+  - id: data-009
+    lane: data
+    type: query
+    title: Implement radius query for nearby projects
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/scoring/query.py
+    dependencies:
+      - data-005
+    acceptance_criteria:
+      - Returns projects within radius.
+      - Query shape is usable by the score endpoint.
+    notes_for_next_agent: Favor simple distance filtering over premature optimization.
+  - id: app-001
+    lane: app
+    type: scaffold
+    title: Scaffold FastAPI backend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - API runs locally.
+      - Health endpoint exists.
+    notes_for_next_agent: Completed with a minimal FastAPI app entrypoint in backend/app/main.py.
+  - id: app-002
+    lane: app
+    type: endpoint
+    title: Create mocked /score endpoint
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-001
+    acceptance_criteria:
+      - Returns a static response matching the contract.
+      - Supports the documented request fields.
+    notes_for_next_agent: Completed with the tightened minimal contract in backend/app/main.py.
+  - id: app-003
+    lane: app
+    type: scaffold
+    title: Scaffold Next.js frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - App runs locally.
+      - Basic page shell exists.
+    notes_for_next_agent: Completed with a minimal Next.js app-router scaffold in frontend/.
+  - id: app-004
+    lane: app
+    type: feature
+    title: Build address input and submit flow
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-003
+    acceptance_criteria:
+      - User can input an address.
+      - Request is submitted to the score endpoint.
+    notes_for_next_agent: Completed in frontend/src/app/page.tsx with a default Chicago address.
+  - id: app-005
+    lane: app
+    type: feature
+    title: Build score card component
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-002
+    acceptance_criteria:
+      - Score renders.
+      - Confidence or severity renders.
+    notes_for_next_agent: Completed directly in the single-page demo to keep the UI minimal.
+  - id: app-006
+    lane: app
+    type: feature
+    title: Render top risks and explanation
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-005
+    acceptance_criteria:
+      - Risks displayed cleanly.
+      - Explanation text visible near the score.
+    notes_for_next_agent: Completed directly in the single-page demo using ordered top_risks strings.
+  - id: app-007
+    lane: app
+    type: feature
+    title: Add map view (Mapbox or Leaflet)
+    owner: app
+    status: backlog
+    priority: low
+    files:
+      - frontend/src/components/Map.tsx
+    dependencies:
+      - app-004
+    acceptance_criteria:
+      - Map renders.
+      - Projects plotted.
+    notes_for_next_agent: This is demo polish; defer if it slows core API work.
+  - id: app-008
+    lane: app
+    type: integration
+    title: Connect frontend to real backend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+    dependencies:
+      - data-009
+    acceptance_criteria:
+      - Real score endpoint used.
+      - Error states handled for empty responses.
+    notes_for_next_agent: Blocked on data-009 (radius query for nearby projects); once Data exposes the query shape the frontend can swap from demo fallback to live score fetches without changing the API contract.
+  - id: product-006
+    lane: product
+    type: definition
+    title: Define confidence rubric for score responses
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-002
+    acceptance_criteria:
+      - HIGH, MEDIUM, and LOW confidence rules are documented.
+      - Rubric can be applied without changing scoring logic.
+    notes_for_next_agent: Completed with an MVP confidence ladder in docs/03_scoring_model.md and aligned API notes in docs/04_api_contracts.md.
+  - id: app-009
+    lane: app
+    type: qa
+    title: Add mocked score endpoint smoke-check task
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - docs/handoffs/app.md
+      - README.md
+    dependencies:
+      - app-002
+    acceptance_criteria:
+      - Mocked backend check steps are documented.
+      - The task is small enough to complete before real data wiring.
+    notes_for_next_agent: Completed with mocked backend/frontend smoke-check steps in README.md and docs/handoffs/app.md so App can validate `/score` before real data integration.
+  - id: app-010
+    lane: app
+    type: design
+    title: Establish premium frontend shell for demo
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/app/layout.tsx
+      - frontend/src/components/shell.tsx
+    dependencies:
+      - app-003
+      - app-004
+    acceptance_criteria:
+      - The demo has a premium visual foundation with a clear hero, input, and results layout.
+      - Empty and loading states feel intentional and presentation-ready.
+      - The work does not change the API contract or add advanced components.
+    notes_for_next_agent: Completed with reusable shell components, upgraded visual styling, and refined empty/loading states for the high-stakes demo shell.
+  - id: app-011
+    lane: app
+    type: feature
+    title: Create high-impact score visualization experience
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-005
+      - app-006
+      - app-010
+    acceptance_criteria:
+      - The score section feels like the core product moment.
+      - Severity is visualized clearly without changing the API contract.
+      - Top risks and explanation feel presentation-ready with smooth loading-to-result transitions.
+    notes_for_next_agent: Completed with a score hero, severity meters, derived top-risk cards built from existing top_risks strings, an insight-style explanation panel, and subtle motion.
+  - id: app-012
+    lane: app
+    type: polish
+    title: Refine investor-ready demo polish and flow
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-010
+      - app-011
+    acceptance_criteria:
+      - Spacing, hierarchy, and hover behavior feel cohesive across the page.
+      - Demo helper address chips improve presenter flow without changing scope.
+      - The score experience feels polished on laptop and tablet layouts.
+    notes_for_next_agent: Completed with tighter spacing, richer atmosphere, hover polish, example address chips, clearer intelligence labels, and more responsive layout behavior.
+  - id: app-013
+    lane: app
+    type: layout
+    title: Create workspace-style results mode
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-010
+      - app-011
+      - app-012
+    acceptance_criteria:
+      - Pre-search and post-search modes feel materially different.
+      - Results mode uses a structured multi-column workspace layout with a map placeholder.
+      - Transition from hero mode to results mode feels smoother than a simple content swap.
+    notes_for_next_agent: Completed with a persistent compact search bar, workspace grid, sticky sidebar, map placeholder, and stronger state transitions between exploration and analysis modes.
+  - id: app-014
+    lane: app
+    type: polish
+    title: Make single-page navigation and demo fallback production-ready
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-008
+      - app-013
+    acceptance_criteria:
+      - Top navigation maps to real in-page Score, Signals, and Demo sections.
+      - Demo data fallback preserves a polished experience when live backend access is unavailable.
+      - The single-page app feels broader and more complete without adding routes.
+    notes_for_next_agent: Completed with anchored in-page navigation, explicit Score/Signals/Demo sections, and a graceful demo-data fallback that avoids a dead-end configuration error.
+  - id: app-015
+    lane: app
+    type: polish
+    title: Fix placeholder kicker copy in ScoreHero component
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-011
+    acceptance_criteria:
+      - The "Score hero" placeholder kicker is replaced with meaningful copy.
+      - The replacement copy is consistent with the product framing in the demo.
+    notes_for_next_agent: Replaced "Score hero" with "Disruption analysis" in the ScoreHero kicker.
+  - id: app-016
+    lane: app
+    type: ops
+    title: Populate .env.example with documented frontend env vars
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - .env.example
+    dependencies:
+      - app-008
+    acceptance_criteria:
+      - NEXT_PUBLIC_API_URL is listed with a comment explaining its purpose.
+      - The file is safe to commit (no real secrets).
+    notes_for_next_agent: Populated with NEXT_PUBLIC_API_URL, all POSTGRES_* vars, and FRONTEND_ORIGIN with inline comments. No secrets committed.
+  - id: app-017
+    lane: app
+    type: ops
+    title: Add backend/requirements.txt for Python dependencies
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/requirements.txt
+    dependencies:
+      - app-001
+    acceptance_criteria:
+      - All packages imported in backend/ are listed with minimal pinned versions.
+      - A developer can run pip install -r backend/requirements.txt to get a working environment.
+    notes_for_next_agent: Created backend/requirements.txt with fastapi, uvicorn[standard], psycopg2-binary, and requests, each with a minimal lower-bound pin.
+  - id: app-018
+    lane: app
+    type: docs
+    title: Update README smoke-check to cover /health endpoint and live mode
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - README.md
+    dependencies:
+      - app-009
+    acceptance_criteria:
+      - A curl step for GET /health is included in the smoke-check section.
+      - Live mode activation via POSTGRES_HOST is documented alongside the demo fallback.
+    notes_for_next_agent: Updated README smoke-check with pip install step, /health curl step, live mode note, and .env.local setup instruction. All within the existing section.
+  - id: product-010
+    lane: product
+    type: qa
+    title: Review explanation copy against the 18 QA addresses
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-003
+      - product-004
+      - product-005
+    acceptance_criteria:
+      - All 18 addresses have a plausible expected disruption tier.
+      - Explanation copy reads naturally for high, medium, and low cases.
+    notes_for_next_agent: Completed. All 18 QA addresses now have a documented expected disruption tier, dominant signal, expected confidence, and tone check in the QA address review table in docs/03_scoring_model.md. Explanation templates produce naturally calibrated copy for each band. No blocking issues found. product-014 review ran concurrently and confirmed no mismatches. Next step is product-012 (approve final mocked score example) using the QA findings.
+  - id: product-011
+    lane: product
+    type: definition
+    title: Freeze severity label rules for noise traffic and dust
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-003
+      - product-005
+    acceptance_criteria:
+      - LOW, MEDIUM, and HIGH usage is documented for each severity category.
+      - App and backend can render severity without extra interpretation.
+    notes_for_next_agent: Completed with explicit LOW/MEDIUM/HIGH severity meanings and clarified category mapping in docs/03_scoring_model.md and docs/04_api_contracts.md.
+  - id: product-013
+    lane: product
+    type: calibration
+    title: Define v1 heuristic score thresholds and dominance rules
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-003
+      - product-011
+    acceptance_criteria:
+      - The scoring model documents what combinations of distance, scale, and timing should typically land in each score band.
+      - Dominant-signal rules are explicit enough for Data and App to explain results consistently.
+    notes_for_next_agent: Completed with score-band threshold guidance, weighted-contribution examples, dominant-signal rules, and deterministic tie-breakers in docs/03_scoring_model.md plus matching API interpretation notes in docs/04_api_contracts.md.
+  - id: product-014
+    lane: product
+    type: qa
+    title: Review 18 QA addresses against the product trust checklist
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/03_scoring_model.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-010
+      - product-011
+    acceptance_criteria:
+      - Each QA address has a plausible score band expectation.
+      - Any explanation-tone or confidence mismatches are documented for follow-up.
+    notes_for_next_agent: Completed. QA review table in docs/03_scoring_model.md documents expected band, dominant signal, confidence, and tone for all 18 addresses. QA findings section confirms no blocking tone, confidence, or category-consistency mismatches. All low addresses should use LOW confidence; moderate addresses LOW–MEDIUM; high addresses MEDIUM–HIGH. product-012 and product-016 are the remaining Product QA actions before the demo is fully approved.
+  - id: product-015
+    lane: product
+    type: terminology
+    title: Decide buyer-facing wording for traffic versus curb access impacts
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - product-011
+    acceptance_criteria:
+      - Product decides whether traffic copy should explicitly mention curb and parking access.
+      - Top-risk phrasing guidance stays simple enough for App rendering.
+    notes_for_next_agent: Completed by defining buyer-facing guidance that `traffic` should explicitly cover curb and parking access when materially relevant, while keeping those impacts folded into the existing MVP API field.
+  - id: product-016
+    lane: product
+    type: qa
+    title: Approve one buyer-facing demo response per score band
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-012
+      - product-014
+    acceptance_criteria:
+      - There is one approved example for low, moderate, high, and severe outputs.
+      - Example wording stays inside the MVP contract and tone rules.
+    notes_for_next_agent: Completed. Four approved buyer-facing demo responses (Low, Moderate, High, Severe) added to docs/04_api_contracts.md under "Approved buyer-facing demo responses per score band." All examples use traffic-wording aligned with product-015 and tone calibrated to the score-band rules. Use these verbatim in demos, pitch decks, and stakeholder presentations.
+  - id: product-012
+    lane: product
+    type: qa
+    title: Approve final mocked score example for demo reviewers
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-010
+      - product-011
+    acceptance_criteria:
+      - One final example response is approved for demo walkthroughs.
+      - Example wording matches backend and frontend behavior.
+    notes_for_next_agent: Completed. The 1600 W Chicago Ave (West Town) High-band example is the approved canonical demo response. It is documented with a rationale note in docs/04_api_contracts.md. Traffic wording updated to explicitly say "traffic and curb access disruption" per product-015. product-016 approved all four score bands using this example as the High-band anchor.
+  - id: product-017
+    lane: product
+    type: definition
+    title: Define buyer personas and monetization targets
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/buyer_personas.md
+    dependencies:
+      - product-001
+      - product-002
+    acceptance_criteria:
+      - At least 3 buyer personas documented with pain point, trigger, and estimated willingness to pay.
+      - Each persona tied to at least one MVP output field that directly addresses their pain.
+      - Personas stay within the Chicago MVP scope and do not invent non-MVP features.
+    notes_for_next_agent: Completed. docs/buyer_personas.md defines 3 personas — CRE Analyst ($200–$800/mo WTP), Logistics Ops Manager ($150–$3,000/mo), and Proptech/Mobility Builder ($500–$2,000/mo) — each with pain, trigger, MVP field mapping, and WTP. Prioritization note recommends CRE analysts as fastest path to first revenue. Use this doc to anchor all pitch and pricing decisions.
+  - id: product-018
+    lane: product
+    type: definition
+    title: Write investor-facing pitch narrative
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pitch_narrative.md
+    dependencies:
+      - product-017
+    acceptance_criteria:
+      - Problem, solution, and market opportunity stated concisely.
+      - Why-now argument grounded in the Chicago permit and closure data already in the MVP.
+      - Narrative stays within MVP scope and does not promise non-MVP features.
+    notes_for_next_agent: Completed. docs/pitch_narrative.md covers problem, solution, why now, market opportunity ($15K–$60K+ MRR scenarios), and ask. Written for a non-technical investor. Introduces the category label "disruption intelligence." Use as the basis for any deck, email, or one-pager for fundraising or design-partner outreach.
+  - id: product-019
+    lane: product
+    type: content
+    title: Create demo script for investor and stakeholder walkthroughs
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/demo_script.md
+    dependencies:
+      - product-012
+      - product-016
+    acceptance_criteria:
+      - Step-by-step demo walkthrough covers the full address-to-score flow.
+      - Each step has a suggested talking point tied to buyer value, not implementation detail.
+      - Script references the approved demo responses from docs/04_api_contracts.md.
+    notes_for_next_agent: Completed. docs/demo_script.md is a full 8–12 minute walkthrough with persona-specific talking points, all four approved score band examples, objection handling, and the ask. Usable by any team member without prior context. Anchored to the approved demo responses in docs/04_api_contracts.md.
+  - id: product-020
+    lane: product
+    type: definition
+    title: Define MVP pricing model concept and go-to-market packaging
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pricing_model.md
+    dependencies:
+      - product-017
+      - product-018
+    acceptance_criteria:
+      - At least 2 pricing tiers defined with rationale tied to buyer personas.
+      - Go-to-market motion identified (direct sales, API self-serve, or partnership).
+      - Model stays consistent with the MVP API output and does not depend on unbuilt features.
+    notes_for_next_agent: Completed. docs/pricing_model.md defines 3 tiers (Spot at $0.10/call, Professional at $299/mo, Enterprise from $1,500/mo), a 3-phase GTM motion (design partner → self-serve → enterprise), and a revenue model summary with Conservative/Base/Aggressive scenarios ($48K–$576K ARR by month 12). All tiers are anchored to the existing /score API. Self-serve and billing infrastructure are correctly flagged as post-MVP.
+  - id: product-007
+    lane: product
+    type: qa
+    title: Create score review checklist for example addresses
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/06_team_working_agreement.md
+    dependencies:
+      - product-003
+      - product-004
+    acceptance_criteria:
+      - Checklist covers score plausibility and explanation clarity.
+      - Review steps are repeatable by humans and AI agents.
+    notes_for_next_agent: Completed with a 7-step repeatable checklist in docs/03_scoring_model.md covering score-band alignment, explanation tone, dominant-driver consistency, confidence calibration, and buyer-facing readability. Tied to the 18 Chicago QA addresses. product-010 and product-014 used this checklist to complete their QA pass.
+  - id: product-008
+    lane: product
+    type: handoff
+    title: Document launch-readiness questions for the MVP demo
+    owner: product
+    status: done
+    priority: low
+    files:
+      - docs/handoffs/product.md
+    dependencies:
+      - product-005
+    acceptance_criteria:
+      - Open product questions listed.
+      - Demo sign-off inputs requested from Data and App.
+    notes_for_next_agent: Completed. docs/handoffs/product.md now includes a "Launch-readiness questions" section with 10 open questions across Data (ingestion, geometry, freshness, normalization status), App (smoke check, fallback, contract alignment), and Product (design-partner timeline, demo address rotation, pricing sign-off). Known accepted risks also documented. Use this as the checklist before any live investor or design-partner demo.
+  - id: product-021
+    lane: product
+    type: content
+    title: Write design-partner outreach email templates
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/outreach_templates.md
+    dependencies:
+      - product-017
+      - product-020
+    acceptance_criteria:
+      - One email template per buyer persona (CRE, logistics, proptech).
+      - Each template has a subject line, two-paragraph body, and a clear next-step ask.
+      - Templates stay grounded in the MVP output and do not oversell unbuilt features.
+    notes_for_next_agent: Completed. docs/outreach_templates.md has 3 cold outreach templates (CRE Analyst, Logistics Ops Manager, Proptech Builder) plus a 5-day follow-up template. Each has a subject line, 2-paragraph body, and a clear call to action. Outreach notes included to prevent overselling. Use these as starting points — always personalize before sending.
+  - id: product-022
+    lane: product
+    type: definition
+    title: Define 90-day post-launch success metrics
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/success_metrics.md
+    dependencies:
+      - product-017
+      - product-020
+    acceptance_criteria:
+      - KPIs defined for customer, revenue, and product dimensions.
+      - Leading indicators identified so the team can course-correct before 90 days.
+      - Metrics tie to the buyer personas and pricing tiers already documented.
+    notes_for_next_agent: Completed. docs/success_metrics.md defines 5 primary KPIs (paying customers, MRR, design-partner sessions, API call volume per customer, accuracy complaints) with day-30 checkpoints and course-correction triggers. Secondary metrics table also included. Review weekly after launch.
+  - id: product-023
+    lane: product
+    type: definition
+    title: Write competitive positioning brief
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/competitive_positioning.md
+    dependencies:
+      - product-017
+      - product-018
+    acceptance_criteria:
+      - At least 3 competitive alternatives described (city portals, GIS tools, manual research).
+      - Clear differentiation statement for each alternative.
+      - Objection-handling notes for the most common comparisons a buyer will raise.
+    notes_for_next_agent: Completed. docs/competitive_positioning.md covers 4 alternatives (city portal, GIS platforms, manual research, proptech aggregators) with differentiation statements, objection-handling language, and a summary win/no-win table. Use when preparing for sales calls or investor Q&A.
+  - id: product-024
+    lane: product
+    type: definition
+    title: Define design-partner pilot terms
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pilot_terms.md
+    dependencies:
+      - product-020
+      - product-021
+    acceptance_criteria:
+      - Pilot duration, call volume, pricing, and success criteria are specified.
+      - Mutual commitments from both sides are listed.
+      - Terms are simple enough to agree on via email without a formal contract.
+    notes_for_next_agent: Completed. docs/pilot_terms.md defines 30-day pilot with 500 included API calls, 1 midpoint session, 1 written summary. Mutual commitments, scope boundaries, conversion offers (20% discount first month), a sample confirmation email, and a pilot-tracking log format are all included. Confirmable via email — no contract required.
+  - id: product-025
+    lane: product
+    type: content
+    title: Write FAQ for investor and buyer questions
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/faq.md
+    dependencies:
+      - product-018
+      - product-019
+      - product-023
+    acceptance_criteria:
+      - At least 10 questions answered covering data quality, accuracy, coverage, pricing, and roadmap.
+      - Answers are consistent with the approved demo script and pitch narrative.
+      - No answer promises features outside the Chicago MVP scope.
+    notes_for_next_agent: Completed. docs/faq.md has 16 questions across data sourcing, score interpretation, product scope, integration, and pricing. All answers are consistent with the demo script and pitch narrative. No unbuilt features promised. Use as a leave-behind after investor meetings or design-partner intros.
+  - id: data-010
+    lane: data
+    type: quality
+    title: Add source freshness checks for permit and closure ingests
+    owner: data
+    status: ready
+    priority: medium
+    files:
+      - docs/05_data_sources_chicago.md
+      - docs/handoffs/data.md
+    dependencies:
+      - data-002
+      - data-004
+    acceptance_criteria:
+      - Freshness expectations documented.
+      - A repeatable check is defined for both core sources.
+    notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+  - id: data-011
+    lane: data
+    type: ops
+    title: Document daily refresh steps for MVP data sources
+    owner: data
+    status: ready
+    priority: medium
+    files:
+      - docs/handoffs/data.md
+    dependencies:
+      - data-002
+      - data-004
+    acceptance_criteria:
+      - Refresh order documented.
+      - Failure cases and owner handoff notes listed.
+    notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+  - id: app-019
+    lane: app
+    type: feature
+    title: Add mode and fallback_reason to score response
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - docs/04_api_contracts.md
+    dependencies:
+      - app-002
+      - app-008
+    acceptance_criteria:
+      - /score response includes a top-level mode field with value "live" or "demo".
+      - /score response includes a top-level fallback_reason field (null when mode is live).
+      - All existing contract fields remain unchanged — backward-compatible addition only.
+      - docs/04_api_contracts.md is updated to document both new fields.
+    notes_for_next_agent: Completed. backend/app/main.py now returns mode and fallback_reason on every /score response. fallback_reason values are "db_not_configured", "geocode_failed", or "query_error". docs/04_api_contracts.md documents both new fields with a backward-compatibility note. app-021 and app-022 depend on this field — both are also done.
+  - id: app-020
+    lane: app
+    type: feature
+    title: Upgrade /health to a real backend readiness check
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-001
+      - data-009
+    acceptance_criteria:
+      - /health returns db_configured (bool) reflecting whether POSTGRES_HOST is set.
+      - /health returns db_connection (bool) reflecting whether a live DB ping succeeded.
+      - /health returns last_ingest_status if available from a lightweight state check; null if not tracked.
+      - /health never raises a 500 — DB unavailability should return a 200 with db_connection false and a reason string.
+      - Existing status and mode fields are preserved.
+    notes_for_next_agent: Completed. /health now returns db_configured, db_connection, db_error (when connection fails), and last_ingest_status (null for MVP). Never raises 5xx — DB errors are reflected in db_connection false and db_error string. Use this as the first check in any pre-demo readiness workflow. Runbook in docs/handoffs/app.md.
+  - id: app-021
+    lane: app
+    type: feature
+    title: Add internal debug score endpoint
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+      - app-020
+    acceptance_criteria:
+      - GET /debug/score?address=... returns a structured response containing address, mode, lat/lon (when available), nearby_projects_count, nearby_projects_sample (up to 3 records), score_result, and fallback_reason.
+      - Endpoint is clearly labeled as internal — not part of the public API contract.
+      - Endpoint does not require auth for MVP but should be noted as ops-only in comments.
+      - Returns a useful partial response even when geocoding fails or DB is unavailable.
+    notes_for_next_agent: Completed. GET /debug/score returns address, mode, lat, lon, nearby_projects_count, nearby_projects_sample (up to 3 project records with key fields only), score_result, and fallback_reason. Returns partial response on geocode/DB failure. Documented in docs/handoffs/app.md validation runbook.
+  - id: app-022
+    lane: app
+    type: feature
+    title: Surface live vs demo mode indicator in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-019
+      - app-014
+    acceptance_criteria:
+      - Frontend reads the mode field from the /score response.
+      - Live mode is indicated subtly in the results area (e.g. a small badge or label).
+      - Demo mode is indicated subtly with distinct copy that does not alarm the user.
+      - fallback_reason is logged to the browser console for debugging but not displayed to end users.
+      - Visual treatment stays consistent with the existing premium shell — no new components required.
+    notes_for_next_agent: Completed. ScoreResponse type in api.ts now includes optional mode and fallback_reason fields. fetchScore logs fallback_reason to console when present. page.tsx shows the mode badge (Live data / Demo data) whenever a result is available, using result.mode when present and falling back to scoreSource. No new components or CSS changes.
+  - id: app-023
+    lane: app
+    type: ops
+    title: Add structured request logging to the score path
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+    acceptance_criteria:
+      - Every /score request logs the input address, resolved mode, and fallback_reason (if any).
+      - Unexpected scoring failures are logged at ERROR level with the exception message.
+      - Log output is structured enough to grep during manual testing sessions.
+      - No PII beyond the submitted address string is logged.
+    notes_for_next_agent: Completed. All /score requests log address, mode, and fallback_reason via Python stdlib logging at INFO level. Unexpected errors log at ERROR level with exception message. Uses log = logging.getLogger(__name__) — no new dependency. /debug/score also logs errors.
+  - id: app-024
+    lane: app
+    type: docs
+    title: Write internal validation runbook for app and backend testing
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - docs/handoffs/app.md
+    dependencies:
+      - app-020
+      - app-021
+    acceptance_criteria:
+      - Runbook documents the exact curl commands for /health, /score, and /debug/score.
+      - Documents expected response shape for live mode and demo mode separately.
+      - Documents what a healthy vs unhealthy /health response looks like.
+      - Runbook is written so a non-author can validate the full backend path in under 10 minutes.
+      - Stored in docs/handoffs/app.md alongside existing app handoff notes.
+    notes_for_next_agent: Completed. docs/handoffs/app.md now contains a full operator validation runbook with curl commands for /health, /score, and /debug/score; expected response shapes for demo and live modes; a healthy vs unhealthy /health example; and a failure triage table (symptom → likely cause → fix path). README smoke-check steps remain for developer onboarding.
+  - id: product-026
+    lane: product
+    type: qa
+    title: Define live-output trust review process
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/product_qa_checklist.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-016
+      - product-014
+    acceptance_criteria:
+      - A repeatable review process is documented for evaluating whether live /score outputs are believable.
+      - Review steps cover score plausibility, explanation tone, and confidence alignment against the approved score bands.
+      - A clear escalation path is defined for suspicious outputs (e.g. extreme scores for benign addresses, mismatched severity and explanation).
+      - Review can be run by any team member using only docs/product_qa_checklist.md and the /debug/score endpoint.
+    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a new "Live-output trust review process" section covering /health pre-check, four-address plausibility review, per-address checks, escalation path (count=0 → data lane, count>0 wrong score → scoring rubric, wrong tone → post-launch fix), and recommended cadence (before every demo, after each ingest). docs/handoffs/product.md updated to reference it.
+  - id: product-027
+    lane: product
+    type: definition
+    title: Approve first design-partner persona for outbound testing
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/buyer_personas.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-017
+      - product-024
+    acceptance_criteria:
+      - One primary persona is explicitly selected from docs/buyer_personas.md as the first outbound target.
+      - Selection rationale is documented (e.g. fastest time to feedback, strongest MVP fit, easiest to reach).
+      - The selected persona is tied to at least one specific current MVP output that directly addresses their pain.
+      - Selection is recorded in docs/buyer_personas.md under a new "Active outbound persona" section.
+    notes_for_next_agent: Completed. CRE Analyst selected as the active outbound persona. Selection rationale, MVP field mapping (disruption_score + explanation + severity.traffic), and next steps documented in docs/buyer_personas.md under "Active outbound persona." product-028 list spec is also done.
+  - id: product-028
+    lane: product
+    type: definition
+    title: Build first 25-target design-partner list spec
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/handoffs/product.md
+    dependencies:
+      - product-027
+    acceptance_criteria:
+      - Ideal target profile is defined using the selected persona from product-027 (title, company type, Chicago footprint indicators).
+      - List-building criteria are documented so any team member can populate the list without guessing.
+      - A clear next-step ask is specified (e.g. demo call, pilot agreement, data feedback session).
+      - Owner of list-building and outreach sequence is identified.
+      - Spec is stored in docs/handoffs/product.md under a "Design-partner list spec" section.
+    notes_for_next_agent: Completed. docs/handoffs/product.md has a "Design-partner list spec" section with selected persona (CRE Analyst), ideal target profile (title/company type/Chicago footprint), list-building criteria for LinkedIn/CoStar prospecting, next-step ask (20-min discovery call, do not pitch pricing), and owner (product lane). Tied to docs/pilot_terms.md for interested contacts.
+  - id: product-029
+    lane: product
+    type: definition
+    title: Define launch-readiness checklist for live demos
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/handoffs/product.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-008
+      - app-020
+    acceptance_criteria:
+      - Checklist covers backend mode visibility — presenter must confirm /health shows db_connection true before any live demo.
+      - Checklist covers /health and /debug/score readiness checks with expected output.
+      - Checklist covers approved fallback messaging to use if demo mode is active during a presentation.
+      - Checklist is short enough to run in under 5 minutes before a meeting.
+      - Stored in docs/product_qa_checklist.md under a "Pre-demo launch-readiness checklist" section.
+    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a "Pre-demo launch-readiness checklist" covering /health db_connection check, /score mode check, /debug/score nearby count check, frontend badge check, demo content readiness, and approved fallback messaging script for when demo mode is active. Also includes a weekly cadence recommendation.
+  - id: product-030
+    lane: product
+    type: qa
+    title: Define score review workflow for golden addresses
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/product_qa_review.md
+    dependencies:
+      - product-004
+      - product-007
+      - product-010
+    acceptance_criteria:
+      - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
+      - Expected output bands for each golden address are documented as the acceptance baseline.
+      - A review cadence is defined (suggested: run after each data ingest or backend change).
+      - Review steps are clear enough for app or product to run without data engineering involvement.
+      - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
+    notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.

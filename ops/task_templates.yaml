@@ -1,0 +1,263 @@
+version: 1
+defaults:
+  owner_from_lane: true
+  status: ready
+  priority: medium
+  type: chore
+  files: []
+  dependencies: []
+  acceptance_criteria: []
+  notes_for_next_agent: Fill in the next concrete action before handoff.
+lanes:
+  product:
+    ready_queue_target: 3
+    templates:
+      - id: product-006
+        type: definition
+        title: Define confidence rubric for score responses
+        priority: medium
+        files:
+          - docs/04_api_contracts.md
+        dependencies:
+          - product-002
+        acceptance_criteria:
+          - HIGH, MEDIUM, and LOW confidence rules are documented.
+          - Rubric can be applied without changing scoring logic.
+        notes_for_next_agent: Keep the rubric simple enough for App to render directly.
+      - id: product-007
+        type: qa
+        title: Create score review checklist for example addresses
+        priority: medium
+        files:
+          - docs/03_scoring_model.md
+          - docs/06_team_working_agreement.md
+        dependencies:
+          - product-003
+          - product-004
+        acceptance_criteria:
+          - Checklist covers score plausibility and explanation clarity.
+          - Review steps are repeatable by humans and AI agents.
+        notes_for_next_agent: Tie the checklist to the Chicago example addresses instead of inventing new scope.
+      - id: product-008
+        type: handoff
+        title: Document launch-readiness questions for the MVP demo
+        priority: low
+        files:
+          - docs/handoffs/product.md
+        dependencies:
+          - product-005
+        acceptance_criteria:
+          - Open product questions listed.
+          - Demo sign-off inputs requested from Data and App.
+        notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
+      - id: product-017
+        type: definition
+        title: Define buyer personas and monetization targets
+        priority: high
+        files:
+          - docs/buyer_personas.md
+        dependencies:
+          - product-001
+          - product-002
+        acceptance_criteria:
+          - At least 3 buyer personas documented with pain point, trigger, and estimated willingness to pay.
+          - Each persona tied to at least one MVP output field that directly addresses their pain.
+          - Personas stay within the Chicago MVP scope and do not invent non-MVP features.
+        notes_for_next_agent: Anchor every persona to a real buyer who would pay for the /score output, not a hypothetical future roadmap user.
+      - id: product-018
+        type: definition
+        title: Write investor-facing pitch narrative
+        priority: high
+        files:
+          - docs/pitch_narrative.md
+        dependencies:
+          - product-017
+        acceptance_criteria:
+          - Problem, solution, and market opportunity stated concisely.
+          - Why-now argument grounded in the Chicago permit and closure data already in the MVP.
+          - Narrative stays within MVP scope and does not promise non-MVP features.
+        notes_for_next_agent: Write for a non-technical investor who has never seen the API. Lead with the pain, not the tech.
+      - id: product-019
+        type: content
+        title: Create demo script for investor and stakeholder walkthroughs
+        priority: high
+        files:
+          - docs/demo_script.md
+        dependencies:
+          - product-012
+          - product-016
+        acceptance_criteria:
+          - Step-by-step demo walkthrough covers the full address-to-score flow.
+          - Each step has a suggested talking point tied to buyer value, not implementation detail.
+          - Script references the approved demo responses from docs/04_api_contracts.md.
+        notes_for_next_agent: The script should be usable by anyone on the team without prior context. Avoid jargon.
+      - id: product-020
+        type: definition
+        title: Define MVP pricing model concept and go-to-market packaging
+        priority: high
+        files:
+          - docs/pricing_model.md
+        dependencies:
+          - product-017
+          - product-018
+        acceptance_criteria:
+          - At least 2 pricing tiers defined with rationale tied to buyer personas.
+          - Go-to-market motion identified (direct sales, API self-serve, or partnership).
+          - Model stays consistent with the MVP API output and does not depend on unbuilt features.
+        notes_for_next_agent: Anchor pricing to the /score API call volume or address coverage, not hypothetical add-ons.
+      - id: product-021
+        type: content
+        title: Write design-partner outreach email templates
+        priority: high
+        files:
+          - docs/outreach_templates.md
+        dependencies:
+          - product-017
+          - product-020
+        acceptance_criteria:
+          - One email template per buyer persona (CRE, logistics, proptech).
+          - Each template has a subject line, two-paragraph body, and a clear next-step ask.
+          - Templates stay grounded in the MVP output and do not oversell unbuilt features.
+        notes_for_next_agent: Write for a cold outreach context — the recipient does not know the product. Lead with their pain, not the API.
+      - id: product-022
+        type: definition
+        title: Define 90-day post-launch success metrics
+        priority: high
+        files:
+          - docs/success_metrics.md
+        dependencies:
+          - product-017
+          - product-020
+        acceptance_criteria:
+          - KPIs defined for customer, revenue, and product dimensions.
+          - Leading indicators identified so the team can course-correct before 90 days.
+          - Metrics tie to the buyer personas and pricing tiers already documented.
+        notes_for_next_agent: Keep metrics lean — 3 to 5 primary KPIs, not a comprehensive analytics framework.
+      - id: product-023
+        type: definition
+        title: Write competitive positioning brief
+        priority: medium
+        files:
+          - docs/competitive_positioning.md
+        dependencies:
+          - product-017
+          - product-018
+        acceptance_criteria:
+          - At least 3 competitive alternatives described (city portals, GIS tools, manual research).
+          - Clear differentiation statement for each alternative.
+          - Objection-handling notes for the most common comparisons a buyer will raise.
+        notes_for_next_agent: Focus on alternatives buyers actually use today, not theoretical future competitors.
+      - id: product-024
+        type: definition
+        title: Define design-partner pilot terms
+        priority: high
+        files:
+          - docs/pilot_terms.md
+        dependencies:
+          - product-020
+          - product-021
+        acceptance_criteria:
+          - Pilot duration, call volume, pricing, and success criteria are specified.
+          - Mutual commitments from both sides are listed.
+          - Terms are simple enough to agree on via email without a formal contract.
+        notes_for_next_agent: Optimize for getting a yes quickly — keep the ask small and the commitment light for the first pilot.
+      - id: product-025
+        type: content
+        title: Write FAQ for investor and buyer questions
+        priority: medium
+        files:
+          - docs/faq.md
+        dependencies:
+          - product-018
+          - product-019
+          - product-023
+        acceptance_criteria:
+          - At least 10 questions answered covering data quality, accuracy, coverage, pricing, and roadmap.
+          - Answers are consistent with the approved demo script and pitch narrative.
+          - No answer promises features outside the Chicago MVP scope.
+        notes_for_next_agent: Pull from the objection-handling section of the demo script as a starting point. Keep answers short and confident.
+    ready_queue_target: 3
+    templates:
+      - id: data-010
+        type: quality
+        title: Add source freshness checks for permit and closure ingests
+        priority: medium
+        files:
+          - docs/05_data_sources_chicago.md
+          - docs/handoffs/data.md
+        dependencies:
+          - data-002
+          - data-004
+        acceptance_criteria:
+          - Freshness expectations documented.
+          - A repeatable check is defined for both core sources.
+        notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+      - id: data-011
+        type: ops
+        title: Document daily refresh steps for MVP data sources
+        priority: medium
+        files:
+          - docs/handoffs/data.md
+        dependencies:
+          - data-002
+          - data-004
+        acceptance_criteria:
+          - Refresh order documented.
+          - Failure cases and owner handoff notes listed.
+        notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+      - id: data-012
+        type: quality
+        title: Define normalization QA checks for canonical projects
+        priority: medium
+        files:
+          - docs/handoffs/data.md
+          - docs/04_api_contracts.md
+        dependencies:
+          - data-006
+          - data-007
+        acceptance_criteria:
+          - Required field checks listed.
+          - QA outputs can be shared with App without manual interpretation.
+        notes_for_next_agent: Reuse the canonical schema field names exactly.
+  app:
+    ready_queue_target: 3
+    templates:
+      - id: app-009
+        type: qa
+        title: Add mocked score endpoint smoke-check task
+        priority: medium
+        files:
+          - docs/handoffs/app.md
+          - README.md
+        dependencies:
+          - app-002
+        acceptance_criteria:
+          - Mocked backend check steps are documented.
+          - The task is small enough to complete before real data wiring.
+        notes_for_next_agent: Keep this focused on the mocked `/score` path so App can stay unblocked.
+      - id: app-010
+        type: integration
+        title: Add API smoke test instructions for local demo flow
+        priority: medium
+        files:
+          - README.md
+          - docs/handoffs/app.md
+        dependencies:
+          - app-002
+          - app-008
+        acceptance_criteria:
+          - Backend and frontend smoke test steps documented.
+          - Expected demo output described in one place.
+        notes_for_next_agent: Prefer commands that run from the repo root.
+      - id: app-011
+        type: qa
+        title: Capture frontend contract mismatches and follow-ups
+        priority: low
+        files:
+          - docs/handoffs/app.md
+        dependencies:
+          - app-008
+        acceptance_criteria:
+          - Known API/UI mismatches logged.
+          - Each mismatch points to the owning lane.
+        notes_for_next_agent: Use this only for contract gaps that affect the MVP demo.
