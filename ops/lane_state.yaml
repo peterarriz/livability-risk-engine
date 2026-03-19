@@ -43,4 +43,4 @@ lanes:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
       - The demo flow needs a different next-ready task.
-    notes: All app tasks through app-014 are done. app-008 (connect frontend to real backend) is complete now that data-009 delivered the radius query. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.
+    notes: app-015 through app-018 completed. ScoreHero placeholder copy fixed, .env.example populated, backend/requirements.txt added, README smoke-check updated with /health and live mode steps. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.

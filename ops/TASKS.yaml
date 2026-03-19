@@ -470,6 +470,66 @@ tasks:
       - Demo data fallback preserves a polished experience when live backend access is unavailable.
       - The single-page app feels broader and more complete without adding routes.
     notes_for_next_agent: Completed with anchored in-page navigation, explicit Score/Signals/Demo sections, and a graceful demo-data fallback that avoids a dead-end configuration error.
+  - id: app-015
+    lane: app
+    type: polish
+    title: Fix placeholder kicker copy in ScoreHero component
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-011
+    acceptance_criteria:
+      - The "Score hero" placeholder kicker is replaced with meaningful copy.
+      - The replacement copy is consistent with the product framing in the demo.
+    notes_for_next_agent: Replaced "Score hero" with "Disruption analysis" in the ScoreHero kicker.
+  - id: app-016
+    lane: app
+    type: ops
+    title: Populate .env.example with documented frontend env vars
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - .env.example
+    dependencies:
+      - app-008
+    acceptance_criteria:
+      - NEXT_PUBLIC_API_URL is listed with a comment explaining its purpose.
+      - The file is safe to commit (no real secrets).
+    notes_for_next_agent: Populated with NEXT_PUBLIC_API_URL, all POSTGRES_* vars, and FRONTEND_ORIGIN with inline comments. No secrets committed.
+  - id: app-017
+    lane: app
+    type: ops
+    title: Add backend/requirements.txt for Python dependencies
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/requirements.txt
+    dependencies:
+      - app-001
+    acceptance_criteria:
+      - All packages imported in backend/ are listed with minimal pinned versions.
+      - A developer can run pip install -r backend/requirements.txt to get a working environment.
+    notes_for_next_agent: Created backend/requirements.txt with fastapi, uvicorn[standard], psycopg2-binary, and requests, each with a minimal lower-bound pin.
+  - id: app-018
+    lane: app
+    type: docs
+    title: Update README smoke-check to cover /health endpoint and live mode
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - README.md
+    dependencies:
+      - app-009
+    acceptance_criteria:
+      - A curl step for GET /health is included in the smoke-check section.
+      - Live mode activation via POSTGRES_HOST is documented alongside the demo fallback.
+    notes_for_next_agent: Updated README smoke-check with pip install step, /health curl step, live mode note, and .env.local setup instruction. All within the existing section.
   - id: product-010
     lane: product
     type: qa
