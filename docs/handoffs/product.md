@@ -17,8 +17,32 @@ Keep Product work focused on scope clarity, scoring guidance, and demo-readiness
 - Approved the canonical demo example (1600 W Chicago Ave, High band) and four buyer-facing demo responses per score band in `docs/04_api_contracts.md`.
 - **Monetization foundation complete**: buyer personas, investor pitch narrative, investor demo script, and pricing model are all documented in `docs/`.
 
+## Launch-readiness questions (product-008)
+
+These are the open questions that must be resolved — or explicitly accepted as known risks — before the MVP is demo-ready for investors or design partners.
+
+### Data lane sign-off required
+1. **Ingestion reliability**: Have building permits (data-002) and street closures (data-004) been successfully pulled into a running PostGIS instance at least once? If not, are the scripts confirmed error-free by Data?
+2. **Geometry coverage**: What percentage of the permit and closure records in the raw tables have valid lat/lon? A geometry gap above ~30% would materially reduce score accuracy for many addresses.
+3. **Freshness lag**: Is daily ingestion automated or manual for the MVP? If manual, what is the maximum acceptable data lag before a demo response becomes misleading?
+4. **Normalization status**: Are data-005 (canonical projects table), data-006 (permit normalization), and data-007 (closure normalization) scheduled? App cannot wire the live `/score` endpoint until data-009 (radius query) is also complete.
+
+### App lane sign-off required
+5. **Mocked smoke check**: Has the mocked `/score` endpoint been verified against the canonical demo example (1600 W Chicago Ave, score 62) using the smoke-check steps in `docs/handoffs/app.md`?
+6. **Demo fallback behavior**: When the live backend is unavailable, does the frontend gracefully display the approved demo data without surfacing a configuration error?
+7. **API contract alignment**: Are all five response fields (`address`, `disruption_score`, `confidence`, `severity`, `top_risks`, `explanation`) rendered in the frontend with no missing or extra fields?
+
+### Product decisions still open
+8. **Design-partner timeline**: When does Product want to begin outreach to design-partner candidates? This determines whether the live backend or only the mocked demo is needed for first conversations.
+9. **Demo address rotation**: Should the demo default to the approved 1600 W Chicago Ave example, or should presenters be able to enter any Chicago address live? (Live entry requires the real backend to be running.)
+10. **Pricing tier sign-off**: Has the Spot/Professional/Enterprise tier structure in `docs/pricing_model.md` been reviewed by at least one other team member before any external pricing communication?
+
+### Known accepted risks
+- The MVP score is heuristic-based and will produce plausible but not perfectly accurate results for some addresses, especially those with sparse permit data.
+- Confidence will be `LOW` or `MEDIUM` for most addresses until the canonical projects normalization pipeline is complete.
+- The demo relies on mocked data if the live backend is not running — this is acceptable for early investor conversations but must be disclosed to design partners who expect live scoring.
+
 ## Still open
-- product-008: Document launch-readiness questions — confirm Data and App sign-off before live demo.
 
 ## Next 3 product actions
 1. Complete product-008: list open launch-readiness questions and request sign-off from Data and App lanes.

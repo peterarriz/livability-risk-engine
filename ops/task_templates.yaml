@@ -105,7 +105,77 @@ lanes:
           - Go-to-market motion identified (direct sales, API self-serve, or partnership).
           - Model stays consistent with the MVP API output and does not depend on unbuilt features.
         notes_for_next_agent: Anchor pricing to the /score API call volume or address coverage, not hypothetical add-ons.
-  data:
+      - id: product-021
+        type: content
+        title: Write design-partner outreach email templates
+        priority: high
+        files:
+          - docs/outreach_templates.md
+        dependencies:
+          - product-017
+          - product-020
+        acceptance_criteria:
+          - One email template per buyer persona (CRE, logistics, proptech).
+          - Each template has a subject line, two-paragraph body, and a clear next-step ask.
+          - Templates stay grounded in the MVP output and do not oversell unbuilt features.
+        notes_for_next_agent: Write for a cold outreach context — the recipient does not know the product. Lead with their pain, not the API.
+      - id: product-022
+        type: definition
+        title: Define 90-day post-launch success metrics
+        priority: high
+        files:
+          - docs/success_metrics.md
+        dependencies:
+          - product-017
+          - product-020
+        acceptance_criteria:
+          - KPIs defined for customer, revenue, and product dimensions.
+          - Leading indicators identified so the team can course-correct before 90 days.
+          - Metrics tie to the buyer personas and pricing tiers already documented.
+        notes_for_next_agent: Keep metrics lean — 3 to 5 primary KPIs, not a comprehensive analytics framework.
+      - id: product-023
+        type: definition
+        title: Write competitive positioning brief
+        priority: medium
+        files:
+          - docs/competitive_positioning.md
+        dependencies:
+          - product-017
+          - product-018
+        acceptance_criteria:
+          - At least 3 competitive alternatives described (city portals, GIS tools, manual research).
+          - Clear differentiation statement for each alternative.
+          - Objection-handling notes for the most common comparisons a buyer will raise.
+        notes_for_next_agent: Focus on alternatives buyers actually use today, not theoretical future competitors.
+      - id: product-024
+        type: definition
+        title: Define design-partner pilot terms
+        priority: high
+        files:
+          - docs/pilot_terms.md
+        dependencies:
+          - product-020
+          - product-021
+        acceptance_criteria:
+          - Pilot duration, call volume, pricing, and success criteria are specified.
+          - Mutual commitments from both sides are listed.
+          - Terms are simple enough to agree on via email without a formal contract.
+        notes_for_next_agent: Optimize for getting a yes quickly — keep the ask small and the commitment light for the first pilot.
+      - id: product-025
+        type: content
+        title: Write FAQ for investor and buyer questions
+        priority: medium
+        files:
+          - docs/faq.md
+        dependencies:
+          - product-018
+          - product-019
+          - product-023
+        acceptance_criteria:
+          - At least 10 questions answered covering data quality, accuracy, coverage, pricing, and roadmap.
+          - Answers are consistent with the approved demo script and pitch narrative.
+          - No answer promises features outside the Chicago MVP scope.
+        notes_for_next_agent: Pull from the objection-handling section of the demo script as a starting point. Keep answers short and confident.
     ready_queue_target: 3
     templates:
       - id: data-010
