@@ -17,10 +17,15 @@ export type ScoreResponse = {
   fallback_reason?: string | null;
 };
 
-export type ScoreSource = "live" | "demo";
+export type ScoreSource = "live";
+
+type FrontendFallbackReason =
+  | "frontend_api_not_configured"
+  | "frontend_network_error"
+  | "frontend_backend_error"
+  | "frontend_invalid_response";
 
 export type ScoreResult = {
-  note?: string;
   score: ScoreResponse;
   source: ScoreSource;
 };
@@ -52,6 +57,11 @@ function buildApiUrl(pathname: string): URL {
   return new URL(pathname, getApiBaseUrl());
 }
 
+function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
+  console.warn(`[LRE] frontend demo fallback: ${reason}`);
+  return message;
+}
+
 function buildDemoScore(address: string): ScoreResponse {
   return {
     address,
@@ -69,6 +79,8 @@ function buildDemoScore(address: string): ScoreResponse {
     ],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
+    mode: "demo",
+    fallback_reason: null,
   };
 }
 
@@ -100,7 +112,10 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo scenario shown because the backend URL is not configured.",
+      note: logFrontendFallback(
+        "frontend_api_not_configured",
+        "Demo scenario shown because the backend URL is not configured.",
+      ),
     };
   }
 
@@ -116,33 +131,41 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo scenario shown because live scoring is temporarily unavailable.",
+      note: logFrontendFallback(
+        "frontend_network_error",
+        "Demo scenario shown because live scoring is temporarily unavailable.",
+      ),
     };
   }
 
   if (!response.ok) {
+    console.warn(`[LRE] backend score request failed: status=${response.status}`);
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note:
+      note: logFrontendFallback(
+        "frontend_backend_error",
         response.status >= 500
           ? "Demo scenario shown because the scoring service is temporarily unavailable."
           : "Demo scenario shown because the requested score could not be fetched.",
+      ),
     };
   }
 
   try {
     const score = (await response.json()) as ScoreResponse;
-    // app-022: log backend fallback_reason for operator debugging (not shown to end users)
     if (score.fallback_reason) {
       console.log("[LRE] backend fallback_reason:", score.fallback_reason);
     }
-    return { score, source: "live" };
+    return { score, source: score.mode ?? "live" };
   } catch {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo scenario shown because the scoring service returned an invalid response.",
+      note: logFrontendFallback(
+        "frontend_invalid_response",
+        "Demo scenario shown because the scoring service returned an invalid response.",
+      ),
     };
   }
 }
