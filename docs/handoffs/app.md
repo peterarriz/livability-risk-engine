@@ -35,6 +35,9 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 
 ## Internal validation runbook (app-024)
 
+For post-deploy live-score review, also use `docs/live_score_validation.md` for the 5-address smoke-test set and review table template.
+Use `docs/deploy_readiness_checklist.md` to confirm whether the deployed app is truly live or still falling back to demo mode.
+
 Use this runbook to validate the full app/backend path in under 10 minutes.
 Written for operators, not developers — no source code knowledge required.
 
@@ -127,7 +130,7 @@ curl -s "http://127.0.0.1:8000/debug/score?address=1600%20W%20Chicago%20Ave,%20C
   "lat": <number>,
   "lon": <number>,
   "nearby_projects_count": <integer>,
-  "nearby_projects_sample": [ ... up to 3 project summaries ... ],
+  "nearby_projects_sample": [ ... up to 5 project summaries ... ],
   "score_result": { ... full score response ... },
   "fallback_reason": null
 }
@@ -148,8 +151,8 @@ cd frontend && NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 
 Submit `1600 W Chicago Ave, Chicago, IL`.
 
-- In demo mode: a **"Demo data"** badge should appear below the form.
-- In live mode: a **"Live data"** badge should appear below the form.
+- In demo mode: a **"Demo scenario"** badge should appear below the form.
+- In live mode: a **"Live data • Chicago"** badge should appear below the form.
 - Open browser DevTools → Console. If `fallback_reason` is present in the backend response, it will be logged as `[LRE] backend fallback_reason: <reason>`.
 
 ---
@@ -162,5 +165,5 @@ Submit `1600 W Chicago Ave, Chicago, IL`.
 | `db_configured: false` but `POSTGRES_HOST` is set | Env var not exported to process | Confirm `export POSTGRES_HOST=...` before starting uvicorn |
 | `db_connection: false` with `db_configured: true` | DB not reachable | Check DB host/port, firewall, and credentials |
 | `/score` returns `mode: "demo"` when live expected | Geocoding failed or DB query error | Check `/debug/score` for `fallback_reason`; verify geocode service |
-| Frontend shows "Demo data" despite live backend | Backend returning demo fallback | Confirm `/health` → `db_connection: true`, then check console for `fallback_reason` |
+| Frontend shows "Demo scenario" despite live backend | Backend returning demo fallback | Confirm `/health` → `db_connection: true`, then check console for `fallback_reason` |
 | `nearby_projects_count: 0` in `/debug/score` | Ingest pipeline not run | Ask data lane to run `backend/ingest/` scripts against live DB |

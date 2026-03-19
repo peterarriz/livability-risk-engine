@@ -1,9 +1,11 @@
 export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ScoreMode = "live" | "demo";
 
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
-  confidence: string;
+  confidence: ConfidenceLevel;
   severity: {
     noise: SeverityLevel;
     traffic: SeverityLevel;
@@ -11,18 +13,34 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
-  // app-019: backend mode metadata — added without breaking existing consumers
-  mode?: "live" | "demo";
+  // Optional for backward compatibility with older backend builds.
+  mode?: ScoreMode;
   fallback_reason?: string | null;
 };
 
-export type ScoreSource = "live" | "demo";
+export type ScoreSource = ScoreMode;
 
-export type ScoreResult = {
-  note?: string;
+type FrontendFallbackReason =
+  | "frontend_api_not_configured"
+  | "frontend_network_error"
+  | "frontend_backend_error"
+  | "frontend_invalid_response";
+
+type LiveScoreResult = {
   score: ScoreResponse;
-  source: ScoreSource;
+  source: "live";
+  note?: undefined;
 };
+
+type DemoScoreResult = {
+  score: ScoreResponse;
+  source: "demo";
+  // Optional because backend 200 demo responses do not add a note,
+  // while frontend-fabricated demo fallbacks do.
+  note?: string;
+};
+
+export type ScoreResult = LiveScoreResult | DemoScoreResult;
 
 const LOCAL_API_URL = "http://127.0.0.1:8000";
 
@@ -51,6 +69,14 @@ function buildApiUrl(pathname: string): URL {
   return new URL(pathname, getApiBaseUrl());
 }
 
+function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
+  console.warn(`[LRE] frontend demo fallback: ${reason}`);
+  return message;
+}
+
+// Canonical demo payload used in two places:
+// 1. the backend's own demo mode when live scoring is unavailable
+// 2. the frontend's fabricated fallback when it cannot reach the backend at all
 function buildDemoScore(address: string): ScoreResponse {
   return {
     address,
@@ -68,17 +94,23 @@ function buildDemoScore(address: string): ScoreResponse {
     ],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
+    mode: "demo",
+    fallback_reason: null,
   };
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
+  // No backend URL means the frontend must fabricate the approved demo response.
   if (!apiBaseUrl) {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: backend URL is not configured, so the experience is using a polished sample response.",
+      note: logFrontendFallback(
+        "frontend_api_not_configured",
+        "Showing the approved demo scenario while the live backend URL is being configured.",
+      ),
     };
   }
 
@@ -94,33 +126,49 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: live scoring is temporarily unavailable, so a sample response is being shown instead.",
+      note: logFrontendFallback(
+        "frontend_network_error",
+        "Showing the approved demo scenario while live scoring is temporarily unavailable.",
+      ),
     };
   }
 
   if (!response.ok) {
+    console.warn(`[LRE] backend score request failed: status=${response.status}`);
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note:
+      note: logFrontendFallback(
+        "frontend_backend_error",
         response.status >= 500
-          ? "Demo data mode: the scoring service is temporarily unavailable, so a sample response is being shown instead."
-          : "Demo data mode: the requested score could not be fetched, so a sample response is being shown instead.",
+          ? "Showing the approved demo scenario while the scoring service is temporarily unavailable."
+          : "Showing the approved demo scenario because this lookup could not be completed right now.",
+      ),
     };
   }
 
   try {
     const score = (await response.json()) as ScoreResponse;
-    // app-022: log backend fallback_reason for operator debugging (not shown to end users)
     if (score.fallback_reason) {
       console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+    }
+
+    // Historically, repeated 62s usually meant demo fallback was active somewhere.
+    // Prefer the backend's explicit mode when present so a 200 demo response is not
+    // mislabeled as a live result by the frontend fetch layer.
+    const source: ScoreSource = score.mode ?? "live";
+    if (source === "demo") {
+      return { score, source: "demo" };
     }
     return { score, source: "live" };
   } catch {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: the scoring service returned an invalid response, so a sample response is being shown instead.",
+      note: logFrontendFallback(
+        "frontend_invalid_response",
+        "Showing the approved demo scenario because the scoring response could not be validated.",
+      ),
     };
   }
 }

@@ -51,6 +51,9 @@
 - Keep branches small and focused; merge to `main` via PR only when passing CI and review.
 - Use `main` as the deployable branch; no direct pushes to `main`.
 
+## Branch and preview hygiene
+- Use `docs/branch_and_preview_hygiene.md` for the short operational rules on demo-safe branches, deleting short-lived agent branches, and avoiding confusion between GitHub branches and Vercel previews.
+
 ## Pull request expectations
 - Title: `[lane] short summary` (for example `[app] implement /score endpoint`).
 - Description: What changed, why, how to test, and any manual steps.
