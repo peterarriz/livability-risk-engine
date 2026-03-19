@@ -35,6 +35,7 @@ export default function HomePage() {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
