@@ -867,8 +867,84 @@ tasks:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
     notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
-  - id: data-014
-    lane: data
+  - id: app-019
+    lane: app
+    type: feature
+    title: Add mode and fallback_reason to score response
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - docs/04_api_contracts.md
+    dependencies:
+      - app-002
+      - app-008
+    acceptance_criteria:
+      - /score response includes a top-level mode field with value "live" or "demo".
+      - /score response includes a top-level fallback_reason field (null when mode is live).
+      - All existing contract fields remain unchanged — backward-compatible addition only.
+      - docs/04_api_contracts.md is updated to document both new fields.
+    notes_for_next_agent: Completed. backend/app/main.py now returns mode and fallback_reason on every /score response. fallback_reason values are "db_not_configured", "geocode_failed", or "scoring_error". docs/04_api_contracts.md documents both new fields with a backward-compatibility note. app-021 and app-022 depend on this field — both are also done.
+  - id: app-020
+    lane: app
+    type: feature
+    title: Upgrade /health to a real backend readiness check
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-001
+      - data-009
+    acceptance_criteria:
+      - /health returns db_configured (bool) reflecting whether POSTGRES_HOST is set.
+      - /health returns db_connection (bool) reflecting whether a live DB ping succeeded.
+      - /health returns last_ingest_status if available from a lightweight state check; null if not tracked.
+      - /health never raises a 500 — DB unavailability should return a 200 with db_connection false and a reason string.
+      - Existing status and mode fields are preserved.
+    notes_for_next_agent: Completed. /health now returns db_configured, db_connection, db_error (when connection fails), and last_ingest_status (null for MVP). Never raises 5xx — DB errors are reflected in db_connection false and db_error string. Use this as the first check in any pre-demo readiness workflow. Runbook in docs/handoffs/app.md.
+  - id: app-021
+    lane: app
+    type: feature
+    title: Add internal debug score endpoint
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+      - app-020
+    acceptance_criteria:
+      - GET /debug/score?address=... returns a structured response containing address, mode, lat/lon (when available), nearby_projects_count, nearby_projects_sample (up to 5 records), score_result, and fallback_reason.
+      - Endpoint is clearly labeled as internal — not part of the public API contract.
+      - Endpoint does not require auth for MVP but should be noted as ops-only in comments.
+      - Returns a useful partial response even when geocoding fails or DB is unavailable.
+    notes_for_next_agent: Completed. GET /debug/score returns address, mode, lat, lon, nearby_projects_count, nearby_projects_sample (up to 5 project records with key fields only), score_result, and fallback_reason. Returns partial response on geocode/DB failure. Documented in docs/handoffs/app.md validation runbook.
+  - id: app-022
+    lane: app
+    type: feature
+    title: Surface live vs demo mode indicator in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-019
+      - app-014
+    acceptance_criteria:
+      - Frontend reads the mode field from the /score response.
+      - Live mode is indicated subtly in the results area (e.g. a small badge or label).
+      - Demo mode is indicated subtly with distinct copy that does not alarm the user.
+      - fallback_reason is logged to the browser console for debugging but not displayed to end users.
+      - Visual treatment stays consistent with the existing premium shell — no new components required.
+    notes_for_next_agent: Completed. ScoreResponse type in api.ts now includes optional mode and fallback_reason fields. fetchScore logs fallback_reason to console when present. page.tsx shows the mode badge (Live data • Chicago / Demo scenario) whenever a result is available, using result.mode when present and falling back to scoreSource. No new components or CSS changes.
+  - id: app-023
+    lane: app
     type: ops
     title: Audit database hosting options and recommend path to live Postgres+PostGIS
     owner: data
@@ -896,9 +972,51 @@ tasks:
     dependencies:
       - data-014
     acceptance_criteria:
-      - Database deployed on Railway with PostGIS enabled
-      - Schema migrated (raw tables + canonical projects)
-      - Environment variables configured for live mode
-      - Ingest pipeline tested with real data
-      - /score endpoint returning real scores
-    notes_for_next_agent: Follow Railway deployment guide from data-014 audit. Test all components: schema migration, data ingestion, scoring queries. Validate that demo fallback is preserved for redundancy. Update README with new live mode instructions.
+      - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
+      - Expected output bands for each golden address are documented as the acceptance baseline.
+      - A review cadence is defined (suggested: run after each data ingest or backend change).
+      - Review steps are clear enough for app or product to run without data engineering involvement.
+      - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
+    notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.
+  - id: app-025
+    lane: app
+    type: polish
+    title: Upgrade score interpretation and trust signals in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-014
+      - app-022
+    acceptance_criteria:
+      - Results view adds structured score drivers, richer confidence context, and a concise "What this means" interpretation layer without changing the API contract.
+      - Results view adds an impact-window treatment, subtle live-vs-demo labeling, staged loading copy, and source provenance within the existing layout.
+      - Copy upgrades preserve the current demo shell and avoid any backend scoring changes.
+    notes_for_next_agent: Completed with a frontend-only interpretation layer built from top_risks and explanation. Score results now surface primary disruption drivers, confidence reasons, a what-this-means summary, impact timing, staged loading copy, mode labeling, and source provenance without changing backend scoring logic or the /score contract.
+
+  - id: app-026
+    lane: app
+    type: polish
+    title: Tighten live-vs-demo score path diagnostics
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - frontend/src/lib/api.ts
+      - docs/04_api_contracts.md
+      - docs/handoffs/app.md
+    dependencies:
+      - app-019
+      - app-021
+      - app-022
+    acceptance_criteria:
+      - /score returns explicit mode metadata in every success response and uses fallback_reason values db_not_configured, geocode_failed, or scoring_error.
+      - DB connectivity failures do not silently downgrade to a demo 200 response; unexpected live-path failures return 503 while /debug/score remains inspectable.
+      - Frontend demo fallback keeps the UI explicit about demo mode and preserves debugging visibility for backend and client-side fallback causes.
+    notes_for_next_agent: Completed with a surgical live-path audit and fallback cleanup. backend/app/main.py now checks DB reachability before geocoding, uses scoring_error consistently, and returns up to 5 debug project samples. frontend/src/lib/api.ts preserves demo-mode visibility even for client-side fallbacks and uses the backend mode when a 200 response is returned in demo mode.
