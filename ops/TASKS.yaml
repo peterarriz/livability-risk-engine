@@ -1076,3 +1076,24 @@ tasks:
       - Review steps are clear enough for app or product to run without data engineering involvement.
       - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
     notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.
+  - id: app-025
+    lane: app
+    type: polish
+    title: Upgrade score interpretation and trust signals in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-014
+      - app-022
+    acceptance_criteria:
+      - Results view adds structured score drivers, richer confidence context, and a concise "What this means" interpretation layer without changing the API contract.
+      - Results view adds an impact-window treatment, subtle live-vs-demo labeling, staged loading copy, and source provenance within the existing layout.
+      - Copy upgrades preserve the current demo shell and avoid any backend scoring changes.
+    notes_for_next_agent: Completed with a frontend-only interpretation layer built from top_risks and explanation. Score results now surface primary disruption drivers, confidence reasons, a what-this-means summary, impact timing, staged loading copy, mode labeling, and source provenance without changing backend scoring logic or the /score contract.
+
