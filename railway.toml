@@ -1,0 +1,29 @@
+# railway.toml
+# task: data-019
+# lane: data
+#
+# Railway deployment configuration for the Livability Risk Engine FastAPI backend.
+#
+# How to deploy:
+#   1. In Railway dashboard → New Project → "Deploy from GitHub repo"
+#   2. Select peterarriz/livability-risk-engine
+#   3. Railway auto-detects this file and applies the settings below
+#   4. Add environment variables in Railway dashboard:
+#        DATABASE_URL       → your Railway Postgres connection string (auto-injected
+#                             if you add a Postgres service to the same project)
+#        FRONTEND_ORIGIN    → https://livability-risk-engine.vercel.app
+#   5. Copy the Railway-generated public URL, then set it in Vercel:
+#        NEXT_PUBLIC_API_URL → https://<your-service>.railway.app
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[environments.production.deploy]
+startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 2"

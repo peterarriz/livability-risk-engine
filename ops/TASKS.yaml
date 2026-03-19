@@ -1000,3 +1000,43 @@ tasks:
       - Selecting a suggestion populates the address field
       - Falls back gracefully when suggestions are unavailable
     notes_for_next_agent: Implemented /suggest on the backend using Nominatim with Chicago bounding box filter. Frontend autocomplete is in page.tsx (not in components/ per CLAUDE.md rules). Suggestion list is dismissed on outside click or selection. Next task should continue from data-016 — consider data-017 to add keyboard navigation to the autocomplete or wire suggestions to the Chicago Data Portal instead of Nominatim once DB is live.
+  - id: data-018
+    lane: data
+    type: ops
+    title: Schedule recurring ingest pipeline via GitHub Actions cron
+    owner: data
+    status: done
+    priority: high
+    files:
+      - .github/workflows/ingest.yml
+    dependencies:
+      - data-016
+      - data-017
+    acceptance_criteria:
+      - GitHub Actions workflow runs run_pipeline.py on a daily schedule (06:00 UTC)
+      - Schema apply step is idempotent — safe to run on every execution
+      - Dry-run and skip-geocode inputs available for manual trigger
+      - Smoke check validates active project count after ingest
+      - Workflow uses DATABASE_URL and optional CHICAGO_SOCRATA_APP_TOKEN secrets
+      - Failure surfaces as a GitHub Actions error with diagnostic guidance
+    notes_for_next_agent: Completed. .github/workflows/ingest.yml runs daily at 06:00 UTC. Apply schema step is idempotent (CREATE TABLE IF NOT EXISTS). Manual dispatch supported with dry_run and skip_geocode options. Post-ingest smoke check queries projects table for active row count. Requires DATABASE_URL GitHub secret — set this in repo Settings → Secrets → Actions before the first scheduled run. CHICAGO_SOCRATA_APP_TOKEN is optional but recommended.
+  - id: data-019
+    lane: data
+    type: ops
+    title: Add Railway deployment config for FastAPI backend
+    owner: data
+    status: done
+    priority: high
+    files:
+      - railway.toml
+      - Procfile
+    dependencies:
+      - data-015
+      - data-018
+    acceptance_criteria:
+      - railway.toml configures build and start command with correct uvicorn invocation
+      - Procfile present as fallback for platforms that read it instead of railway.toml
+      - Health check path set to /health so Railway knows the service is ready
+      - Production config uses 2 uvicorn workers
+      - Deployment instructions documented inline in railway.toml comments
+    notes_for_next_agent: Completed. railway.toml and Procfile committed. To finish the Railway deployment (manual steps required — cannot be done by code push alone):\n  1. Railway dashboard → New Project → Deploy from GitHub → select peterarriz/livability-risk-engine\n  2. Add environment variables in Railway: DATABASE_URL (auto-injected if using Railway Postgres service), FRONTEND_ORIGIN=https://livability-risk-engine.vercel.app\n  3. Copy the Railway-generated public URL (e.g. https://livability-risk-engine.up.railway.app)\n  4. In Vercel dashboard → livability-risk-engine → Settings → Environment Variables → add NEXT_PUBLIC_API_URL=<railway-url>\n  5. Redeploy Vercel frontend to pick up the new env var\n  6. Validate: curl <railway-url>/health → db_connection should be true
