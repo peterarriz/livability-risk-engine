@@ -867,3 +867,212 @@ tasks:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
     notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+  - id: app-019
+    lane: app
+    type: feature
+    title: Add mode and fallback_reason to score response
+    owner: app
+    status: ready
+    priority: high
+    files:
+      - backend/app/main.py
+      - docs/04_api_contracts.md
+    dependencies:
+      - app-002
+      - app-008
+    acceptance_criteria:
+      - /score response includes a top-level mode field with value "live" or "demo".
+      - /score response includes a top-level fallback_reason field (null when mode is live).
+      - All existing contract fields remain unchanged — backward-compatible addition only.
+      - docs/04_api_contracts.md is updated to document both new fields.
+    notes_for_next_agent: This is a non-breaking addition. Set mode based on whether POSTGRES_HOST is configured and a live DB query succeeded. fallback_reason should explain why demo mode was used (e.g. "db_not_configured", "geocode_failed", "query_error"). app-021 and app-022 depend on this field being present.
+  - id: app-020
+    lane: app
+    type: feature
+    title: Upgrade /health to a real backend readiness check
+    owner: app
+    status: ready
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-001
+      - data-009
+    acceptance_criteria:
+      - /health returns db_configured (bool) reflecting whether POSTGRES_HOST is set.
+      - /health returns db_connection (bool) reflecting whether a live DB ping succeeded.
+      - /health returns last_ingest_status if available from a lightweight state check; null if not tracked.
+      - /health never raises a 500 — DB unavailability should return a 200 with db_connection false and a reason string.
+      - Existing status and mode fields are preserved.
+    notes_for_next_agent: The endpoint must remain non-fatal. Catch all DB connection errors and reflect them in the response body rather than raising. This is the first thing an operator or CI check should call before a live demo. app-021 and product-029 depend on this being reliable.
+  - id: app-021
+    lane: app
+    type: feature
+    title: Add internal debug score endpoint
+    owner: app
+    status: ready
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+      - app-020
+    acceptance_criteria:
+      - GET /debug/score?address=... returns a structured response containing address, mode, lat/lon (when available), nearby_projects_count, nearby_projects_sample (up to 3 records), score_result, and fallback_reason.
+      - Endpoint is clearly labeled as internal — not part of the public API contract.
+      - Endpoint does not require auth for MVP but should be noted as ops-only in comments.
+      - Returns a useful partial response even when geocoding fails or DB is unavailable.
+    notes_for_next_agent: This endpoint is for operator and QA use only — not exposed in the demo UI. Keep the response schema flat and human-readable. nearby_projects_sample should include enough fields to confirm data quality without returning the full project object. Document the endpoint in docs/handoffs/app.md.
+  - id: app-022
+    lane: app
+    type: feature
+    title: Surface live vs demo mode indicator in frontend
+    owner: app
+    status: ready
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-019
+      - app-014
+    acceptance_criteria:
+      - Frontend reads the mode field from the /score response.
+      - Live mode is indicated subtly in the results area (e.g. a small badge or label).
+      - Demo mode is indicated subtly with distinct copy that does not alarm the user.
+      - fallback_reason is logged to the browser console for debugging but not displayed to end users.
+      - Visual treatment stays consistent with the existing premium shell — no new components required.
+    notes_for_next_agent: Do not redesign the UI. A small status chip or footnote label is sufficient. The goal is operator transparency, not a prominent warning. If mode is missing from the response (e.g. older backend), default gracefully to showing nothing. Keep all changes inside frontend/src/lib/api.ts and the relevant section of frontend/src/app/page.tsx.
+  - id: app-023
+    lane: app
+    type: ops
+    title: Add structured request logging to the score path
+    owner: app
+    status: ready
+    priority: medium
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+    acceptance_criteria:
+      - Every /score request logs the input address, resolved mode, and fallback_reason (if any).
+      - Unexpected scoring failures are logged at ERROR level with the exception message.
+      - Log output is structured enough to grep during manual testing sessions.
+      - No PII beyond the submitted address string is logged.
+    notes_for_next_agent: Use Python's stdlib logging module — do not add a new dependency. A simple log.info line per request is sufficient. The goal is to make the score path inspectable during QA and design-partner demos without adding a metrics system.
+  - id: app-024
+    lane: app
+    type: docs
+    title: Write internal validation runbook for app and backend testing
+    owner: app
+    status: ready
+    priority: medium
+    files:
+      - docs/handoffs/app.md
+    dependencies:
+      - app-020
+      - app-021
+    acceptance_criteria:
+      - Runbook documents the exact curl commands for /health, /score, and /debug/score.
+      - Documents expected response shape for live mode and demo mode separately.
+      - Documents what a healthy vs unhealthy /health response looks like.
+      - Runbook is written so a non-author can validate the full backend path in under 10 minutes.
+      - Stored in docs/handoffs/app.md alongside existing app handoff notes.
+    notes_for_next_agent: This runbook replaces the informal smoke-check steps in README.md for operators — the README steps can stay for developer onboarding. Focus on the post-deployment operator perspective. Include a short failure triage table (symptom → likely cause → fix path).
+  - id: product-026
+    lane: product
+    type: qa
+    title: Define live-output trust review process
+    owner: product
+    status: ready
+    priority: high
+    files:
+      - docs/product_qa_checklist.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-016
+      - product-014
+    acceptance_criteria:
+      - A repeatable review process is documented for evaluating whether live /score outputs are believable.
+      - Review steps cover score plausibility, explanation tone, and confidence alignment against the approved score bands.
+      - A clear escalation path is defined for suspicious outputs (e.g. extreme scores for benign addresses, mismatched severity and explanation).
+      - Review can be run by any team member using only docs/product_qa_checklist.md and the /debug/score endpoint.
+    notes_for_next_agent: This is not a redesign of the scoring model — it is an operator-facing QA step. Anchor the review criteria to the approved score bands from product-016 and the QA address set from product-004. Add the process as a new section in docs/product_qa_checklist.md and reference it from docs/handoffs/product.md. Consider adding a note about running this review weekly once the live DB is connected.
+  - id: product-027
+    lane: product
+    type: definition
+    title: Approve first design-partner persona for outbound testing
+    owner: product
+    status: ready
+    priority: high
+    files:
+      - docs/buyer_personas.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-017
+      - product-024
+    acceptance_criteria:
+      - One primary persona is explicitly selected from docs/buyer_personas.md as the first outbound target.
+      - Selection rationale is documented (e.g. fastest time to feedback, strongest MVP fit, easiest to reach).
+      - The selected persona is tied to at least one specific current MVP output that directly addresses their pain.
+      - Selection is recorded in docs/buyer_personas.md under a new "Active outbound persona" section.
+    notes_for_next_agent: Do not invent a new persona — select and promote one of the three existing ones. The prioritization note in docs/buyer_personas.md already recommends CRE analysts as fastest path to first revenue; use that as the starting point. Once selected, product-028 (target list spec) can proceed.
+  - id: product-028
+    lane: product
+    type: definition
+    title: Build first 25-target design-partner list spec
+    owner: product
+    status: ready
+    priority: medium
+    files:
+      - docs/handoffs/product.md
+    dependencies:
+      - product-027
+    acceptance_criteria:
+      - Ideal target profile is defined using the selected persona from product-027 (title, company type, Chicago footprint indicators).
+      - List-building criteria are documented so any team member can populate the list without guessing.
+      - A clear next-step ask is specified (e.g. demo call, pilot agreement, data feedback session).
+      - Owner of list-building and outreach sequence is identified.
+      - Spec is stored in docs/handoffs/product.md under a "Design-partner list spec" section.
+    notes_for_next_agent: This is a spec, not the list itself. The goal is to make it trivial for the next person to generate 25 qualified targets using LinkedIn, CoStar, or industry directories. Keep criteria tight — 25 well-matched targets beats 200 cold ones. Tie criteria explicitly to the approved pilot terms in docs/pilot_terms.md.
+  - id: product-029
+    lane: product
+    type: definition
+    title: Define launch-readiness checklist for live demos
+    owner: product
+    status: ready
+    priority: high
+    files:
+      - docs/handoffs/product.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-008
+      - app-020
+    acceptance_criteria:
+      - Checklist covers backend mode visibility — presenter must confirm /health shows db_connection true before any live demo.
+      - Checklist covers /health and /debug/score readiness checks with expected output.
+      - Checklist covers approved fallback messaging to use if demo mode is active during a presentation.
+      - Checklist is short enough to run in under 5 minutes before a meeting.
+      - Stored in docs/product_qa_checklist.md under a "Pre-demo launch-readiness checklist" section.
+    notes_for_next_agent: The goal is to prevent presenting a "live" demo that is silently in demo mode without the presenter knowing. This is the single most common failure mode for early-stage API products in investor or design-partner settings. Also add a brief weekly cadence note — suggest running this check as part of any standing demo-prep or review meeting.
+  - id: product-030
+    lane: product
+    type: qa
+    title: Define score review workflow for golden addresses
+    owner: product
+    status: ready
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/product_qa_review.md
+    dependencies:
+      - product-004
+      - product-007
+      - product-010
+    acceptance_criteria:
+      - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
+      - Expected output bands for each golden address are documented as the acceptance baseline.
+      - A review cadence is defined (suggested: run after each data ingest or backend change).
+      - Review steps are clear enough for app or product to run without data engineering involvement.
+      - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
+    notes_for_next_agent: Pull the golden address candidates from the existing 18-address QA set in docs/03_scoring_model.md — do not invent new addresses. Prioritize addresses that span the full score range and have clear real-world rationale. The review workflow should call /score directly and compare to the documented expected band. Tie this to the live-output trust review process from product-026.
