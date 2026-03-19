@@ -143,19 +143,92 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   }
 }
 
+/**
+ * Fetch address suggestions for a partial query.
+ *
+ * Strategy:
+ *  1. Try the backend /suggest endpoint (server-side Nominatim call).
+ *  2. If the backend returns empty or fails, call Nominatim directly from the
+ *     browser — this bypasses server-side proxy restrictions and works in any
+ *     environment where the user's browser can reach nominatim.openstreetmap.org.
+ */
 export async function fetchSuggestions(query: string): Promise<string[]> {
+  const q = query.trim();
+  if (q.length < 3) return [];
+
+  // 1. Try backend endpoint.
   const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl || query.trim().length < 2) {
-    return [];
+  if (apiBaseUrl) {
+    try {
+      const url = buildApiUrl("/suggest");
+      url.searchParams.set("q", q);
+      const response = await fetch(url.toString(), { cache: "no-store" });
+      if (response.ok) {
+        const data = (await response.json()) as { suggestions: string[] };
+        if (data.suggestions?.length) return data.suggestions;
+      }
+    } catch {
+      // Backend unavailable — fall through to browser-side geocoding.
+    }
   }
 
+  // 2. Browser-side Nominatim call (works even when server cannot reach it).
   try {
-    const url = buildApiUrl("/suggest");
-    url.searchParams.set("q", query);
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) return [];
-    const data = (await response.json()) as { suggestions: string[] };
-    return data.suggestions ?? [];
+    const url = new URL("https://nominatim.openstreetmap.org/search");
+    const searchQuery = q.toLowerCase().includes("chicago") ? q : `${q}, Chicago, IL`;
+    url.searchParams.set("q", searchQuery);
+    url.searchParams.set("format", "json");
+    url.searchParams.set("limit", "5");
+    url.searchParams.set("countrycodes", "us");
+    url.searchParams.set("viewbox", "-87.9401,41.6445,-87.5240,42.0230");
+    url.searchParams.set("bounded", "1");
+    url.searchParams.set("addressdetails", "1");
+
+    const resp = await fetch(url.toString(), {
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
+      cache: "no-store",
+    });
+    if (!resp.ok) return [];
+
+    type NominatimResult = {
+      address: {
+        house_number?: string;
+        road?: string;
+        city?: string;
+        town?: string;
+        village?: string;
+        state?: string;
+      };
+    };
+
+    const data = (await resp.json()) as NominatimResult[];
+    const suggestions: string[] = [];
+    const seen = new Set<string>();
+
+    for (const item of data) {
+      const addr = item.address;
+      const parts: string[] = [];
+
+      const houseNumber = addr.house_number ?? "";
+      const road = addr.road ?? "";
+      if (houseNumber && road) parts.push(`${houseNumber} ${road}`);
+      else if (road) parts.push(road);
+
+      const city = addr.city ?? addr.town ?? addr.village ?? "";
+      const state = addr.state ?? "";
+      if (city && state) parts.push(`${city}, ${state}`);
+      else if (city) parts.push(city);
+
+      if (parts.length) {
+        const formatted = parts.join(", ");
+        if (!seen.has(formatted)) {
+          seen.add(formatted);
+          suggestions.push(formatted);
+        }
+      }
+    }
+
+    return suggestions.slice(0, 5);
   } catch {
     return [];
   }
