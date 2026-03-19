@@ -577,7 +577,7 @@ tasks:
     type: qa
     title: Approve one buyer-facing demo response per score band
     owner: product
-    status: backlog
+    status: done
     priority: medium
     files:
       - docs/04_api_contracts.md
@@ -588,7 +588,91 @@ tasks:
     acceptance_criteria:
       - There is one approved example for low, moderate, high, and severe outputs.
       - Example wording stays inside the MVP contract and tone rules.
-    notes_for_next_agent: Use this to make demos feel calibrated and trustworthy across score bands.
+    notes_for_next_agent: Completed. Four approved buyer-facing demo responses (Low, Moderate, High, Severe) added to docs/04_api_contracts.md under "Approved buyer-facing demo responses per score band." All examples use traffic-wording aligned with product-015 and tone calibrated to the score-band rules. Use these verbatim in demos, pitch decks, and stakeholder presentations.
+  - id: product-012
+    lane: product
+    type: qa
+    title: Approve final mocked score example for demo reviewers
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/04_api_contracts.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-010
+      - product-011
+    acceptance_criteria:
+      - One final example response is approved for demo walkthroughs.
+      - Example wording matches backend and frontend behavior.
+    notes_for_next_agent: Completed. The 1600 W Chicago Ave (West Town) High-band example is the approved canonical demo response. It is documented with a rationale note in docs/04_api_contracts.md. Traffic wording updated to explicitly say "traffic and curb access disruption" per product-015. product-016 approved all four score bands using this example as the High-band anchor.
+  - id: product-017
+    lane: product
+    type: definition
+    title: Define buyer personas and monetization targets
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/buyer_personas.md
+    dependencies:
+      - product-001
+      - product-002
+    acceptance_criteria:
+      - At least 3 buyer personas documented with pain point, trigger, and estimated willingness to pay.
+      - Each persona tied to at least one MVP output field that directly addresses their pain.
+      - Personas stay within the Chicago MVP scope and do not invent non-MVP features.
+    notes_for_next_agent: Completed. docs/buyer_personas.md defines 3 personas — CRE Analyst ($200–$800/mo WTP), Logistics Ops Manager ($150–$3,000/mo), and Proptech/Mobility Builder ($500–$2,000/mo) — each with pain, trigger, MVP field mapping, and WTP. Prioritization note recommends CRE analysts as fastest path to first revenue. Use this doc to anchor all pitch and pricing decisions.
+  - id: product-018
+    lane: product
+    type: definition
+    title: Write investor-facing pitch narrative
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pitch_narrative.md
+    dependencies:
+      - product-017
+    acceptance_criteria:
+      - Problem, solution, and market opportunity stated concisely.
+      - Why-now argument grounded in the Chicago permit and closure data already in the MVP.
+      - Narrative stays within MVP scope and does not promise non-MVP features.
+    notes_for_next_agent: Completed. docs/pitch_narrative.md covers problem, solution, why now, market opportunity ($15K–$60K+ MRR scenarios), and ask. Written for a non-technical investor. Introduces the category label "disruption intelligence." Use as the basis for any deck, email, or one-pager for fundraising or design-partner outreach.
+  - id: product-019
+    lane: product
+    type: content
+    title: Create demo script for investor and stakeholder walkthroughs
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/demo_script.md
+    dependencies:
+      - product-012
+      - product-016
+    acceptance_criteria:
+      - Step-by-step demo walkthrough covers the full address-to-score flow.
+      - Each step has a suggested talking point tied to buyer value, not implementation detail.
+      - Script references the approved demo responses from docs/04_api_contracts.md.
+    notes_for_next_agent: Completed. docs/demo_script.md is a full 8–12 minute walkthrough with persona-specific talking points, all four approved score band examples, objection handling, and the ask. Usable by any team member without prior context. Anchored to the approved demo responses in docs/04_api_contracts.md.
+  - id: product-020
+    lane: product
+    type: definition
+    title: Define MVP pricing model concept and go-to-market packaging
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pricing_model.md
+    dependencies:
+      - product-017
+      - product-018
+    acceptance_criteria:
+      - At least 2 pricing tiers defined with rationale tied to buyer personas.
+      - Go-to-market motion identified (direct sales, API self-serve, or partnership).
+      - Model stays consistent with the MVP API output and does not depend on unbuilt features.
+    notes_for_next_agent: Completed. docs/pricing_model.md defines 3 tiers (Spot at $0.10/call, Professional at $299/mo, Enterprise from $1,500/mo), a 3-phase GTM motion (design partner → self-serve → enterprise), and a revenue model summary with Conservative/Base/Aggressive scenarios ($48K–$576K ARR by month 12). All tiers are anchored to the existing /score API. Self-serve and billing infrastructure are correctly flagged as post-MVP.
   - id: product-007
     lane: product
     type: qa

@@ -50,6 +50,61 @@ lanes:
           - Open product questions listed.
           - Demo sign-off inputs requested from Data and App.
         notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
+      - id: product-017
+        type: definition
+        title: Define buyer personas and monetization targets
+        priority: high
+        files:
+          - docs/buyer_personas.md
+        dependencies:
+          - product-001
+          - product-002
+        acceptance_criteria:
+          - At least 3 buyer personas documented with pain point, trigger, and estimated willingness to pay.
+          - Each persona tied to at least one MVP output field that directly addresses their pain.
+          - Personas stay within the Chicago MVP scope and do not invent non-MVP features.
+        notes_for_next_agent: Anchor every persona to a real buyer who would pay for the /score output, not a hypothetical future roadmap user.
+      - id: product-018
+        type: definition
+        title: Write investor-facing pitch narrative
+        priority: high
+        files:
+          - docs/pitch_narrative.md
+        dependencies:
+          - product-017
+        acceptance_criteria:
+          - Problem, solution, and market opportunity stated concisely.
+          - Why-now argument grounded in the Chicago permit and closure data already in the MVP.
+          - Narrative stays within MVP scope and does not promise non-MVP features.
+        notes_for_next_agent: Write for a non-technical investor who has never seen the API. Lead with the pain, not the tech.
+      - id: product-019
+        type: content
+        title: Create demo script for investor and stakeholder walkthroughs
+        priority: high
+        files:
+          - docs/demo_script.md
+        dependencies:
+          - product-012
+          - product-016
+        acceptance_criteria:
+          - Step-by-step demo walkthrough covers the full address-to-score flow.
+          - Each step has a suggested talking point tied to buyer value, not implementation detail.
+          - Script references the approved demo responses from docs/04_api_contracts.md.
+        notes_for_next_agent: The script should be usable by anyone on the team without prior context. Avoid jargon.
+      - id: product-020
+        type: definition
+        title: Define MVP pricing model concept and go-to-market packaging
+        priority: high
+        files:
+          - docs/pricing_model.md
+        dependencies:
+          - product-017
+          - product-018
+        acceptance_criteria:
+          - At least 2 pricing tiers defined with rationale tied to buyer personas.
+          - Go-to-market motion identified (direct sales, API self-serve, or partnership).
+          - Model stays consistent with the MVP API output and does not depend on unbuilt features.
+        notes_for_next_agent: Anchor pricing to the /score API call volume or address coverage, not hypothetical add-ons.
   data:
     ready_queue_target: 3
     templates:

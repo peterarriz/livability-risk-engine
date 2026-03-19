@@ -14,14 +14,13 @@ lanes:
     display_name: Product
     ready_queue_target: 3
     current_focus:
-      - product-012
-      - product-016
+      - product-008
     blockers: []
     update_when:
       - A product task changes status.
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
-    notes: product-007, product-010, and product-014 are done. Next focus is approving the final mocked demo example (product-012) and buyer-facing demo responses per score band (product-016).
+    notes: product-012, product-016, product-017, product-018, product-019, and product-020 are done. Core monetization documentation is complete (buyer personas, pitch narrative, demo script, pricing model). Next product action is product-008 (launch-readiness questions) to confirm Data and App sign-off before demo. Run generate_tasks.py if the queue drops below 3 ready items.
   data:
     display_name: Data
     ready_queue_target: 3
