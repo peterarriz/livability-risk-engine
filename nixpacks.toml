@@ -1,8 +1,17 @@
 # nixpacks.toml — explicit Nixpacks build config for the FastAPI backend.
-# Prevents Railpack from being confused by the presence of frontend/ (Next.js).
+#
+# `providers = ["python"]` does two things:
+#   1. Restricts detection to Python only — Nixpacks won't also try to build
+#      Node.js from the frontend/ directory in this service.
+#   2. Lets Nixpacks' built-in Python provider handle the full install pipeline,
+#      which creates an isolated virtualenv before running pip. This avoids the
+#      PEP 668 "externally-managed-environment" error that occurs when bare
+#      `pip install` tries to write into the Nix-managed system Python.
+#
+# The start command is kept here and mirrored in railway.toml so both configs
+# agree; railway.toml's startCommand takes precedence at deploy time.
 
-[phases.install]
-cmds = ["pip install -r requirements.txt"]
+providers = ["python"]
 
 [start]
 cmd = "bash start.sh"
