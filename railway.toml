@@ -1,7 +1,15 @@
+# railway.toml
+# task: data-019
+# Railway service configuration for the FastAPI backend.
+# Root-level config — Railway reads this when the service root is the repo root.
+# See also: backend/railway.toml (used when service root is set to /backend)
+
 [build]
 builder = "nixpacks"
 
 [deploy]
-healthcheckPath = "/docs"
+startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
