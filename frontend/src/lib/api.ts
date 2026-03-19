@@ -11,6 +11,9 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // app-019: backend mode metadata — added without breaking existing consumers
+  mode?: "live" | "demo";
+  fallback_reason?: string | null;
 };
 
 export type ScoreSource = "live" | "demo";
@@ -107,10 +110,12 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
   }
 
   try {
-    return {
-      score: (await response.json()) as ScoreResponse,
-      source: "live",
-    };
+    const score = (await response.json()) as ScoreResponse;
+    // app-022: log backend fallback_reason for operator debugging (not shown to end users)
+    if (score.fallback_reason) {
+      console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+    }
+    return { score, source: "live" };
   } catch {
     return {
       score: buildDemoScore(address),
