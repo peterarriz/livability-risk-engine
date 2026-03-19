@@ -181,10 +181,23 @@ tasks:
 
   - id: data-019
     title: Schedule recurring ingest pipeline via GitHub Actions cron
-    status: backlog
-    priority: medium
+    status: done
+    priority: high
     notes_for_next_agent: >
-      Set up a .github/workflows/ingest.yml that runs run_pipeline.py
-      on a daily cron (e.g. 06:00 UTC) using the DATABASE_URL secret.
-      Include Socrata app token secret for higher rate limits.
-      Add status notifications on failure.
+      .github/workflows/ingest.yml created. Runs daily at 06:00 UTC.
+      Applies schema (idempotent), runs run_pipeline.py, then smoke-checks
+      active project count. Manual dispatch supported with dry_run and
+      skip_geocode inputs. Requires DATABASE_URL GitHub secret.
+      CHICAGO_SOCRATA_APP_TOKEN optional but recommended.
+
+  - id: data-019
+    title: Add Railway deployment config for FastAPI backend
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      railway.toml and Procfile committed. Manual steps still required:
+        1. Railway dashboard → New Project → Deploy from GitHub repo
+        2. Set DATABASE_URL + FRONTEND_ORIGIN env vars in Railway
+        3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
+        4. Redeploy Vercel frontend
+        5. Validate: curl <railway-url>/health → db_connection=true
