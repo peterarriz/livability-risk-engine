@@ -690,7 +690,7 @@ tasks:
       - Checklist covers score plausibility and explanation clarity.
       - Review steps are repeatable by humans and AI agents.
     notes_for_next_agent: Completed with a 7-step repeatable checklist in docs/03_scoring_model.md covering score-band alignment, explanation tone, dominant-driver consistency, confidence calibration, and buyer-facing readability. Tied to the 18 Chicago QA addresses. product-010 and product-014 used this checklist to complete their QA pass.
-- id: data-013
+  - id: data-013
     lane: data
     type: ingest
     title: Load normalized projects into canonical DB table
@@ -706,8 +706,69 @@ tasks:
     acceptance_criteria:
       - Upserts into projects table idempotently.
       - Populates geom column for ST_DWithin queries.
-    notes_for_next_agent: >
-      Completed. backend/ingest/load_projects.py reads staging JSON and
-      upserts into projects table. Full pipeline to get live scores:
-      (1) building_permits.py (2) street_closures.py (3) load_projects.py
-      then start API with POSTGRES_HOST set.
+    notes_for_next_agent: "Completed. backend/ingest/load_projects.py reads staging JSON and upserts into projects table. Full pipeline to get live scores: (1) building_permits.py (2) street_closures.py (3) load_projects.py then start API with POSTGRES_HOST set."
+  - id: product-008
+    lane: product
+    type: handoff
+    title: Document launch-readiness questions for the MVP demo
+    owner: product
+    status: ready
+    priority: low
+    files:
+      - docs/handoffs/product.md
+    dependencies:
+      - product-005
+    acceptance_criteria:
+      - Open product questions listed.
+      - Demo sign-off inputs requested from Data and App.
+    notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
+  - id: data-010
+    lane: data
+    type: quality
+    title: Add source freshness checks for permit and closure ingests
+    owner: data
+    status: ready
+    priority: medium
+    files:
+      - docs/05_data_sources_chicago.md
+      - docs/handoffs/data.md
+    dependencies:
+      - data-002
+      - data-004
+    acceptance_criteria:
+      - Freshness expectations documented.
+      - A repeatable check is defined for both core sources.
+    notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+  - id: data-011
+    lane: data
+    type: ops
+    title: Document daily refresh steps for MVP data sources
+    owner: data
+    status: ready
+    priority: medium
+    files:
+      - docs/handoffs/data.md
+    dependencies:
+      - data-002
+      - data-004
+    acceptance_criteria:
+      - Refresh order documented.
+      - Failure cases and owner handoff notes listed.
+    notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+  - id: data-012
+    lane: data
+    type: quality
+    title: Define normalization QA checks for canonical projects
+    owner: data
+    status: ready
+    priority: medium
+    files:
+      - docs/handoffs/data.md
+      - docs/04_api_contracts.md
+    dependencies:
+      - data-006
+      - data-007
+    acceptance_criteria:
+      - Required field checks listed.
+      - QA outputs can be shared with App without manual interpretation.
+    notes_for_next_agent: Reuse the canonical schema field names exactly.
