@@ -31,7 +31,6 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
@@ -59,54 +58,7 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function handleAddressChange(value: string) {
-    setAddress(value);
-    setShowSuggestions(false);
-
-    if (suggestTimerRef.current) {
-      clearTimeout(suggestTimerRef.current);
-    }
-
-    if (value.trim().length < 3) {
-      setSuggestions([]);
-      return;
-    }
-
-    suggestTimerRef.current = setTimeout(async () => {
-      const results = await fetchSuggestions(value);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
-    }, 300);
-  }
-
   function handleSuggestionSelect(suggestion: string) {
-    setAddress(suggestion);
-    setSuggestions([]);
-    setShowSuggestions(false);
-  }
-  const confidenceReasons = result ? getConfidenceReasons(result) : [];
-  const meaningInsights = result ? getMeaningInsights(result) : [];
-  const loadingSteps = [
-    "Analyzing nearby permits…",
-    "Evaluating infrastructure impact…",
-    "Calculating disruption score…",
-  ];
-
-  useEffect(() => {
-    if (address.trim().length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      const results = await fetchSuggestions(address);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [address]);
-
-  function handleSelectSuggestion(suggestion: string) {
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -196,7 +148,6 @@ export default function HomePage() {
                   placeholder={PREMIUM_PLACEHOLDER}
                   autoComplete="off"
                   required
-                  autoComplete="off"
                 />
                 <button type="submit" disabled={isLoading}>
                   {isLoading ? "Analyzing…" : "Analyze address"}
@@ -225,7 +176,7 @@ export default function HomePage() {
                         key={s}
                         role="option"
                         aria-selected={false}
-                        onMouseDown={() => handleSelectSuggestion(s)}
+                        onMouseDown={() => handleSuggestionSelect(s)}
                         style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
                       >
                         {s}
