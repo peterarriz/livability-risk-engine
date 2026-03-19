@@ -88,7 +88,6 @@ export default function HomePage() {
       const scoreResult = await fetchScore(address);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
-      setStatusNote(scoreResult.note ?? null);
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
