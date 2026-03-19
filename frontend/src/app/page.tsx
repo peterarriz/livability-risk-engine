@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -12,7 +12,7 @@ import {
   TopRiskGrid,
 } from "@/components/score-experience";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
@@ -29,6 +29,8 @@ export default function HomePage() {
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
@@ -37,6 +39,26 @@ export default function HomePage() {
     "Evaluating infrastructure impact…",
     "Calculating disruption score…",
   ];
+
+  useEffect(() => {
+    if (address.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(address);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [address]);
+
+  function handleSelectSuggestion(suggestion: string) {
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,19 +129,54 @@ export default function HomePage() {
               <label htmlFor="address" className="input-label">
                 {workspaceMode ? "Search another Chicago address" : "Chicago address"}
               </label>
-              <div className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
+              <div className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`} style={{ position: "relative" }}>
                 <input
                   id="address"
                   name="address"
                   type="text"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder={PREMIUM_PLACEHOLDER}
                   required
+                  autoComplete="off"
                 />
                 <button type="submit" disabled={isLoading}>
                   {isLoading ? "Analyzing…" : "Analyze address"}
                 </button>
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul
+                    role="listbox"
+                    aria-label="Address suggestions"
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      background: "var(--surface, #fff)",
+                      border: "1px solid var(--border, #e2e8f0)",
+                      borderRadius: "var(--radius, 6px)",
+                      listStyle: "none",
+                      margin: "4px 0 0",
+                      padding: "4px 0",
+                      zIndex: 100,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                    }}
+                  >
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        onMouseDown={() => handleSelectSuggestion(s)}
+                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">

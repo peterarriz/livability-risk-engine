@@ -328,3 +328,68 @@ def debug_score(
             "fallback_reason": "query_error",
             "error": str(exc),
         }
+
+
+# ---------------------------------------------------------------------------
+# /suggest endpoint (data-016)
+# Returns up to 5 Chicago address suggestions for a partial query.
+# Powered by Nominatim (OpenStreetMap). Falls back to empty list on error.
+# ---------------------------------------------------------------------------
+
+@app.get("/suggest")
+def suggest_addresses(
+    q: str = Query(..., min_length=2, description="Partial Chicago address query"),
+) -> dict:
+    """
+    Return up to 5 Chicago address suggestions for a partial address query.
+    Used by the frontend autocomplete input.
+    Powered by Nominatim (OpenStreetMap). Falls back to an empty list on any error.
+    """
+    import requests as _requests
+
+    try:
+        resp = _requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": q,
+                "format": "json",
+                "limit": 7,
+                "countrycodes": "us",
+                "bounded": "1",
+                # Chicago bounding box: left, top, right, bottom
+                "viewbox": "-87.9401,42.0230,-87.5241,41.6445",
+                "addressdetails": "1",
+            },
+            headers={"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+
+        suggestions: list = []
+        seen: set = set()
+        for r in results:
+            addr = r.get("address", {})
+            if addr.get("city", "").lower() != "chicago":
+                continue
+            house = addr.get("house_number", "")
+            road = (
+                addr.get("road")
+                or addr.get("pedestrian")
+                or addr.get("path", "")
+            )
+            if not road:
+                continue
+            formatted = (
+                f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
+            )
+            if formatted not in seen:
+                seen.add(formatted)
+                suggestions.append(formatted)
+
+        log.info("suggest q=%r results=%d", q, len(suggestions))
+        return {"suggestions": suggestions[:5]}
+
+    except Exception as exc:
+        log.warning("suggest q=%r error: %s", q, exc)
+        return {"suggestions": []}

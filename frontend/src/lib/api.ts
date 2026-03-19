@@ -72,6 +72,24 @@ function buildDemoScore(address: string): ScoreResponse {
   };
 }
 
+export async function fetchSuggestions(query: string): Promise<string[]> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl || query.trim().length < 2) {
+    return [];
+  }
+
+  try {
+    const url = buildApiUrl("/suggest");
+    url.searchParams.set("q", query);
+    const response = await fetch(url.toString(), { cache: "no-store" });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { suggestions: string[] };
+    return data.suggestions ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
