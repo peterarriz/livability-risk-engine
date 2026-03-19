@@ -17,7 +17,7 @@ export type ScoreResponse = {
   fallback_reason?: string | null;
 };
 
-export type ScoreSource = "live" | "demo";
+export type ScoreSource = "live";
 
 type FrontendFallbackReason =
   | "frontend_api_not_configured"
@@ -26,7 +26,6 @@ type FrontendFallbackReason =
   | "frontend_invalid_response";
 
 export type ScoreResult = {
-  note?: string;
   score: ScoreResponse;
   source: ScoreSource;
 };

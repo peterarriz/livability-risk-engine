@@ -1,0 +1,173 @@
+---
+# TASKS.yaml
+# Chicago MVP — Data Lane task registry
+# Format:
+#   id:          task identifier (data-NNN)
+#   title:       short description
+#   status:      done | in-progress | backlog
+#   priority:    high | medium | low
+#   github_issue: issue number on peterarriz/livability-risk-engine
+#   notes_for_next_agent: key context for the agent picking this up next
+
+tasks:
+  - id: data-001
+    title: Define project schema and data model
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      Schema lives in db/schema.sql. Canonical table is `projects`.
+      All scoring queries run against `projects`, not raw tables.
+
+  - id: data-002
+    title: Ingest Chicago building permits from Socrata API
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      Script: backend/ingest/building_permits.py.
+      Output: data/raw/building_permits.json.
+      Uses CHICAGO_SOCRATA_APP_TOKEN env var (optional).
+
+  - id: data-003
+    title: Data model — Project dataclass and normalization helpers
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      backend/models/project.py: Project dataclass, normalize_permit,
+      normalize_closure. These are the only normalization functions
+      that should feed into the projects table.
+
+  - id: data-004
+    title: Ingest Chicago CDOT street closures from Socrata API
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      Script: backend/ingest/street_closures.py.
+      Output: data/raw/street_closures.json.
+      Street closures carry the highest weight in the scoring model.
+
+  - id: data-005
+    title: Canonical projects table schema (PostGIS)
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      db/schema.sql: projects table with PostGIS geom column.
+      ST_DWithin on geom is the primary scoring query pattern.
+
+  - id: data-006
+    title: Normalize building permits into canonical projects table
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      normalize_permit() in backend/models/project.py.
+      Called by load_projects.py.
+
+  - id: data-007
+    title: Normalize street closures into canonical projects table
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      normalize_closure() in backend/models/project.py.
+      Called by load_projects.py.
+
+  - id: data-008
+    title: Geocoding — address to lat/lon via Chicago geocoder
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      backend/ingest/geocode.py: geocode_address(address) → (lat, lon) | None.
+      Uses Chicago PDOK / Nominatim as fallback.
+
+  - id: data-009
+    title: Scoring query — ST_DWithin radius query against projects table
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      backend/scoring/query.py: get_nearby_projects(), compute_score().
+      Radius is 500m. Returns list of NearbyProject(project, distance_m).
+
+  - id: data-010
+    title: Ingest freshness check
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      backend/ingest/check_freshness.py. Reads ingest_runs table.
+      Used by /health to expose last_ingest_status (future).
+
+  - id: data-011
+    title: Geocode fill — backfill missing coordinates in staging files
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      backend/ingest/geocode_fill.py: reads staging JSON, geocodes records
+      missing lat/lon, writes back. Run before load_projects.py.
+
+  - id: data-012
+    title: DB summary / row count reporter
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      backend/ingest/db_summary.py: prints row counts for all tables.
+      Useful for post-ingest validation.
+
+  - id: data-013
+    title: DB loader — upsert normalized Project records into projects table
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      backend/ingest/load_projects.py. Reads staging JSON files,
+      normalizes, upserts into projects table with ON CONFLICT idempotency.
+      Populates geom column from lat/lon. Supports --dry-run.
+
+  - id: data-014
+    title: Audit DB hosting requirements and document options
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      Evaluated Railway, Supabase, Render. Railway chosen — supports
+      PostGIS, easy DATABASE_URL injection, free tier available.
+      DATABASE_URL added as GitHub secret.
+
+  - id: data-015
+    title: Provision Railway Postgres+PostGIS instance
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      Railway DB is live. DATABASE_URL is in GitHub secrets.
+      Schema not yet applied as of data-015 completion.
+
+  - id: data-016
+    title: Create pipeline orchestrator and schema apply script
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      run_pipeline.py at repo root orchestrates all 4 ingest steps.
+      scripts/apply_schema.sh applies db/schema.sql via psql.
+      Both accept DATABASE_URL env var.
+
+  - id: data-017
+    title: Apply schema and run live ingest against Railway database
+    status: in-progress
+    priority: high
+    github_issue: 30
+    notes_for_next_agent: >
+      Code changes are done (PR on branch claude/issue-30-20260319-1800):
+        - run_pipeline.py created
+        - scripts/apply_schema.sh created
+        - Demo fallback removed from backend/app/main.py
+        - Demo fallback removed from frontend/src/lib/api.ts
+      Remaining manual steps (require DATABASE_URL secret):
+        1. Apply schema: DATABASE_URL=$SECRET ./scripts/apply_schema.sh
+        2. Run ingest:   DATABASE_URL=$SECRET python run_pipeline.py
+        3. Validate:     curl "$BACKEND_URL/health" → db_connection=true
+                         curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago"
+      Once validated, this task is done. Next: data-018 (schedule ingest cron).
+
+  - id: data-018
+    title: Schedule recurring ingest pipeline via GitHub Actions cron
+    status: backlog
+    priority: medium
+    notes_for_next_agent: >
+      Set up a .github/workflows/ingest.yml that runs run_pipeline.py
+      on a daily cron (e.g. 06:00 UTC) using the DATABASE_URL secret.
+      Include Socrata app token secret for higher rate limits.
+      Add status notifications on failure.
