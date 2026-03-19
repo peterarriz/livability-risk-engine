@@ -43,9 +43,15 @@ Prerequisites:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Ensure the project root is on PYTHONPATH so subprocesses can resolve
+# package imports like ``from backend.ingest.geocode import ...``.
+_PROJECT_ROOT = str(Path(__file__).resolve().parent)
+_ENV = {**os.environ, "PYTHONPATH": _PROJECT_ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
 
 # ---------------------------------------------------------------------------
 # Pipeline steps
@@ -104,7 +110,7 @@ def run_step(step: dict, args: argparse.Namespace) -> bool:
     print(f"\n── {step['name']} ──────────────────────────────")
     print(f"   $ {' '.join(cmd)}")
 
-    result = subprocess.run(cmd, check=False)
+    result = subprocess.run(cmd, check=False, env=_ENV)
     if result.returncode != 0:
         print(f"\nERROR: step '{step['name']}' failed with exit code {result.returncode}",
               file=sys.stderr)

@@ -35,6 +35,9 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 
 ## Internal validation runbook (app-024)
 
+For post-deploy live-score review, also use `docs/live_score_validation.md` for the 5-address smoke-test set and review table template.
+Use `docs/deploy_readiness_checklist.md` to confirm whether the deployed app is truly live or still falling back to demo mode.
+
 Use this runbook to validate the full app/backend path in under 10 minutes.
 Written for operators, not developers — no source code knowledge required.
 

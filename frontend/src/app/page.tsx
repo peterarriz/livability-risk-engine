@@ -11,8 +11,9 @@ import {
   SeverityMeters,
   TopRiskGrid,
 } from "@/components/score-experience";
+import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
@@ -31,11 +32,24 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
+  const resultMode = result?.mode ?? scoreSource;
+  const isDemoResult = resultMode === "demo";
+  const statusHeadline = isDemoResult ? "Demo scenario" : "Live data • Chicago";
+  const statusMessage = isDemoResult
+    ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
+    : "Live backend scoring is active for this address lookup.";
 
-  // Dismiss suggestions on outside click.
+  // Dismiss suggestions dropdown on outside click.
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
@@ -46,38 +60,44 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function handleAddressChange(value: string) {
-    setAddress(value);
-    setShowSuggestions(false);
-
-    if (suggestTimerRef.current) {
-      clearTimeout(suggestTimerRef.current);
-    }
-
-    if (value.trim().length < 3) {
+  // Fetch autocomplete suggestions as the user types (debounced 300 ms).
+  useEffect(() => {
+    if (address.trim().length < 3) {
       setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
-
-    suggestTimerRef.current = setTimeout(async () => {
-      const results = await fetchSuggestions(value);
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(address);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
     }, 300);
-  }
+    return () => clearTimeout(timer);
+  }, [address]);
+
+  // When a score result arrives, resolve map coordinates.
+  // The backend includes lat/lon in the response; fall back to a Nominatim
+  // lookup from the frontend when those fields are absent.
+  useEffect(() => {
+    if (!result) {
+      setMapCoords(null);
+      return;
+    }
+    if (result.latitude != null && result.longitude != null) {
+      setMapCoords({ lat: result.latitude, lon: result.longitude });
+      return;
+    }
+    // Backend didn't supply coords — geocode on the frontend.
+    geocodeForMap(result.address).then((coords) => {
+      if (coords) setMapCoords(coords);
+    });
+  }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
   }
-  const confidenceReasons = result ? getConfidenceReasons(result) : [];
-  const meaningInsights = result ? getMeaningInsights(result) : [];
-  const loadingSteps = [
-    "Analyzing nearby permits…",
-    "Evaluating infrastructure impact…",
-    "Calculating disruption score…",
-  ];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,11 +108,16 @@ export default function HomePage() {
       const scoreResult = await fetchScore(address);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
+      if ("note" in scoreResult && scoreResult.note) {
+        setStatusNote(scoreResult.note);
+      } else {
+        setStatusNote(null);
+      }
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : "Unable to fetch a disruption score right now.",
+          : "The score request could not be completed. Try again in a moment.",
       );
       setResult(null);
       setStatusNote(null);
@@ -157,8 +182,9 @@ export default function HomePage() {
                   name="address"
                   type="text"
                   value={address}
-                  onChange={(event) => handleAddressChange(event.target.value)}
+                  onChange={(event) => setAddress(event.target.value)}
                   onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder={PREMIUM_PLACEHOLDER}
                   autoComplete="off"
                   required
@@ -175,37 +201,25 @@ export default function HomePage() {
                       top: "100%",
                       left: 0,
                       right: 0,
-                      zIndex: 50,
-                      margin: 0,
-                      padding: "4px 0",
-                      listStyle: "none",
                       background: "var(--surface, #fff)",
                       border: "1px solid var(--border, #e2e8f0)",
-                      borderRadius: "6px",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                      borderRadius: "var(--radius, 6px)",
+                      listStyle: "none",
+                      margin: "4px 0 0",
+                      padding: "4px 0",
+                      zIndex: 100,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                     }}
                   >
-                    {suggestions.map((suggestion) => (
-                      <li key={suggestion}>
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={address === suggestion}
-                          onClick={() => handleSuggestionSelect(suggestion)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "8px 14px",
-                            textAlign: "left",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: "0.875rem",
-                            color: "inherit",
-                          }}
-                        >
-                          {suggestion}
-                        </button>
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        onMouseDown={() => handleSuggestionSelect(s)}
+                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                      >
+                        {s}
                       </li>
                     ))}
                   </ul>
@@ -236,18 +250,19 @@ export default function HomePage() {
             </form>
 
             {(result || statusNote) ? (
-              <div className="status-banner status-banner--demo" role="status">
-                <span className="status-badge">
-                  {(result?.mode ?? scoreSource) === "demo" ? "Demo scenario" : "Live data • Chicago"}
-                </span>
-                <span>Sources: Chicago permits • Street closures</span>
-                {statusNote ? <span>{statusNote}</span> : null}
+              <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
+                <span className="status-badge">{statusHeadline}</span>
+                <div className="status-copy">
+                  <strong>{statusMessage}</strong>
+                  <span>Sources: Chicago permits • Street closures</span>
+                </div>
               </div>
             ) : null}
 
             {error ? (
               <div className="feedback-banner" role="alert">
-                {error}
+                <p className="feedback-title">Unable to complete the lookup</p>
+                <p>{error}</p>
               </div>
             ) : null}
           </Card>
@@ -276,6 +291,9 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
+                <p className="loading-support">
+                  Checking live availability first, then assembling a decision-ready brief.
+                </p>
                 <div className="skeleton skeleton-score" />
                 <div className="skeleton skeleton-meta" />
               </Card>
@@ -330,17 +348,21 @@ export default function HomePage() {
                         <p className="map-kicker">Spatial context</p>
                         <h2>Map view</h2>
                       </div>
-                      <span className="map-badge">Coming soon</span>
                     </div>
-                    <div className="map-placeholder" aria-hidden="true">
-                      <div className="map-grid" />
-                      <div className="map-pin map-pin--primary" />
-                      <div className="map-pin map-pin--secondary" />
-                      <div className="map-pin map-pin--tertiary" />
-                    </div>
+                    {mapCoords ? (
+                      <MapView
+                        latitude={mapCoords.lat}
+                        longitude={mapCoords.lon}
+                        address={result.address}
+                      />
+                    ) : (
+                      <div className="map-placeholder" aria-label="Locating address on map…">
+                        <div className="map-grid" />
+                        <div className="map-pin map-pin--primary" />
+                      </div>
+                    )}
                     <p className="map-copy">
-                      Location-aware context will land here next. For now, this placeholder grounds
-                      the score in a real-world workspace layout.
+                      OpenStreetMap view centred on the scored address.
                     </p>
                   </Card>
 
@@ -383,8 +405,8 @@ export default function HomePage() {
                 <p className="empty-kicker">Ready for analysis</p>
                 <h3>Start with a Chicago address to generate a decision-ready disruption brief.</h3>
                 <p>
-                  The empty state is intentionally designed to feel complete and presentation-ready,
-                  with space reserved for score, severity, top risks, and narrative context.
+                  Live scoring appears when the backend is available. If not, the workspace falls back
+                  gracefully to the approved demo scenario so reviews can still continue intentionally.
                 </p>
               </Card>
             </section>

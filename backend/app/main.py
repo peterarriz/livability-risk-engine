@@ -33,16 +33,21 @@ app = FastAPI(title="Livability Risk Engine")
 # ---------------------------------------------------------------------------
 # CORS middleware
 # Allows the Next.js dev server (localhost:3000) to call the API directly.
-# In production, restrict origins to the deployed frontend domain.
+# In production, set FRONTEND_ORIGIN to the deployed Vercel domain, e.g.:
+#   FRONTEND_ORIGIN=https://livability-risk-engine.vercel.app
 # ---------------------------------------------------------------------------
+
+_allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+_frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").strip()
+if _frontend_origin:
+    _allowed_origins.append(_frontend_origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        os.environ.get("FRONTEND_ORIGIN", ""),
-    ],
+    allow_origins=_allowed_origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -76,17 +81,21 @@ DEMO_RESPONSE = {
 }
 
 
-def _build_demo_response(address: str, fallback_reason: str) -> dict:
+def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
     """
     Build a demo response for the given address.
     fallback_reason explains why demo mode is active:
       "db_not_configured" | "geocode_failed" | "scoring_error"
+    latitude/longitude are included when available so the frontend map can show
+    the correct pin even in demo mode.
     """
     return {
         **DEMO_RESPONSE,
         "address": address,
         "mode": "demo",
         "fallback_reason": fallback_reason,
+        "latitude": lat,
+        "longitude": lon,
     }
 
 
@@ -105,7 +114,7 @@ def _score_live(address: str) -> dict:
       2. Geocode address → (lat, lon)
       3. Query nearby projects from canonical DB
       4. Apply scoring engine → ScoreResult
-      5. Return as dict matching API contract
+      5. Return as dict matching API contract (includes latitude/longitude)
     """
     from backend.ingest.geocode import geocode_address
     from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
@@ -122,7 +131,7 @@ def _score_live(address: str) -> dict:
         conn.close()
 
     result = compute_score(nearby, address)
-    return {**asdict(result), "mode": "live", "fallback_reason": None}
+    return {**asdict(result), "mode": "live", "fallback_reason": None, "latitude": lat, "longitude": lon}
 
 
 # ---------------------------------------------------------------------------
@@ -130,82 +139,6 @@ def _score_live(address: str) -> dict:
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
 # Used by the frontend search bar autocomplete.
 # ---------------------------------------------------------------------------
-
-_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-_NOMINATIM_USER_AGENT = "livability-risk-engine/mvp (contact: project-team)"
-
-# Chicago bounding box: viewbox is west,south,east,north for Nominatim.
-_CHICAGO_VIEWBOX = "-87.9401,41.6445,-87.5240,42.0230"
-
-
-@app.get("/suggest")
-def suggest_addresses(
-    q: str = Query(..., min_length=3, description="Partial Chicago address to complete"),
-) -> list[str]:
-    """
-    Return up to 5 real Chicago address suggestions for the given partial query.
-
-    Uses Nominatim (OpenStreetMap) with Chicago bounding box filtering.
-    Returns a plain list of formatted address strings.
-    Falls back to an empty list if the upstream call fails so the UI degrades
-    gracefully without a hard error.
-    """
-    search_query = q.strip()
-    if not search_query.lower().endswith("chicago"):
-        search_query = f"{search_query}, Chicago, IL"
-
-    params = {
-        "q": search_query,
-        "format": "json",
-        "limit": 5,
-        "countrycodes": "us",
-        "viewbox": _CHICAGO_VIEWBOX,
-        "bounded": 1,
-        "addressdetails": 1,
-    }
-    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
-
-    try:
-        resp = _requests.get(_NOMINATIM_URL, params=params, headers=headers, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        log.warning("suggest: nominatim call failed: %s", exc)
-        return []
-
-    suggestions: list[str] = []
-    for item in data:
-        addr = item.get("address", {})
-        parts = []
-
-        house_number = addr.get("house_number", "")
-        road = addr.get("road", "")
-        if house_number and road:
-            parts.append(f"{house_number} {road}")
-        elif road:
-            parts.append(road)
-
-        city = addr.get("city") or addr.get("town") or addr.get("village") or ""
-        state = addr.get("state", "")
-
-        if city and state:
-            parts.append(f"{city}, {state}")
-        elif city:
-            parts.append(city)
-
-        if parts:
-            suggestions.append(", ".join(parts))
-
-    # Deduplicate while preserving order.
-    seen: set[str] = set()
-    unique: list[str] = []
-    for s in suggestions:
-        if s not in seen:
-            seen.add(s)
-            unique.append(s)
-
-    return unique[:5]
-
 
 # ---------------------------------------------------------------------------
 # /score endpoint
@@ -218,10 +151,33 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    Geocodes the address, queries the canonical projects table,
-    and applies the rule-based scoring engine.
-    Response includes mode="live" and fallback_reason=null.
+    When a live DB is configured: geocodes, queries projects, and scores live.
+    When DB is not configured: returns the approved demo scenario so the frontend
+    always receives a structured response (never a raw 503).
+    Response includes mode, fallback_reason, and latitude/longitude for map display.
     """
+    # When no DB is configured, return a demo response.
+    # Include pre-resolved coords for known addresses so the frontend map pin works
+    # without a second geocode round-trip.
+    _KNOWN_COORDS: dict[str, tuple[float, float]] = {
+        "1600 W Chicago Ave, Chicago, IL": (41.8956, -87.6606),
+        "700 W Grand Ave, Chicago, IL": (41.8910, -87.6462),
+        "233 S Wacker Dr, Chicago, IL": (41.8788, -87.6359),
+    }
+    if not _is_db_configured():
+        known = _KNOWN_COORDS.get(address)
+        lat, lon = (known[0], known[1]) if known else (None, None)
+        if lat is None:
+            try:
+                from backend.ingest.geocode import geocode_address
+                coords = geocode_address(address)
+                if coords:
+                    lat, lon = coords
+            except Exception:
+                pass
+        log.info("score address=%r mode=demo fallback_reason=db_not_configured", address)
+        return _build_demo_response(address, "db_not_configured", lat, lon)
+
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
@@ -386,3 +342,133 @@ def debug_score(
             "fallback_reason": "scoring_error",
             "error": str(exc),
         }
+
+
+# ---------------------------------------------------------------------------
+# /suggest endpoint
+# Returns up to 5 Chicago address suggestions for a partial query.
+# Primary: Nominatim (OpenStreetMap).
+# Fallback: Photon by Komoot (also OSM-backed, more permissive from servers).
+# ---------------------------------------------------------------------------
+
+# Nominatim: viewbox = left,top,right,bottom = minLon,maxLat,maxLon,minLat
+_NOMINATIM_VIEWBOX = "-87.9401,42.0230,-87.5240,41.6445"
+# Photon: bbox = minLon,minLat,maxLon,maxLat
+_PHOTON_BBOX = "-87.9401,41.6445,-87.5240,42.0230"
+# Chicago lat/lon bounds for bbox-based filtering (avoids strict city-name check)
+_CHI_LAT = (41.6445, 42.0230)
+_CHI_LON = (-87.9401, -87.5240)
+
+
+def _in_chicago(lat: float, lon: float) -> bool:
+    return _CHI_LAT[0] <= lat <= _CHI_LAT[1] and _CHI_LON[0] <= lon <= _CHI_LON[1]
+
+
+def _parse_nominatim(results: list) -> list[str]:
+    """Format Nominatim results as 'number road, Chicago, IL' strings."""
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for r in results:
+        try:
+            if not _in_chicago(float(r["lat"]), float(r["lon"])):
+                continue
+        except (KeyError, ValueError):
+            continue
+        addr = r.get("address", {})
+        house = addr.get("house_number", "")
+        road = addr.get("road") or addr.get("pedestrian") or addr.get("highway") or ""
+        if not road:
+            continue
+        formatted = f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
+        if formatted not in seen:
+            seen.add(formatted)
+            suggestions.append(formatted)
+    return suggestions[:5]
+
+
+def _parse_photon(features: list) -> list[str]:
+    """Format Photon GeoJSON features as 'number road, Chicago, IL' strings."""
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for f in features:
+        props = f.get("properties", {})
+        if props.get("countrycode", "").upper() != "US":
+            continue
+        coords = f.get("geometry", {}).get("coordinates", [])
+        try:
+            lon, lat = float(coords[0]), float(coords[1])
+            if not _in_chicago(lat, lon):
+                continue
+        except (IndexError, ValueError, TypeError):
+            continue
+        street = props.get("street", "")
+        if not street:
+            continue
+        house = props.get("housenumber", "")
+        formatted = f"{house} {street}, Chicago, IL" if house else f"{street}, Chicago, IL"
+        if formatted not in seen:
+            seen.add(formatted)
+            suggestions.append(formatted)
+    return suggestions[:5]
+
+
+@app.get("/suggest")
+def suggest_addresses(
+    q: str = Query(..., min_length=2, description="Partial Chicago address query"),
+) -> dict:
+    """
+    Return up to 5 Chicago address suggestions for a partial address query.
+    Used by the frontend autocomplete input.
+
+    Tries Nominatim first; falls back to Photon (komoot) if Nominatim is
+    unreachable or returns no results within the Chicago bbox.
+    """
+    query = q.strip()
+    # Bias both geocoders toward Chicago without altering short queries.
+    nominatim_q = query if "chicago" in query.lower() else f"{query}, Chicago, IL"
+    photon_q = query if "chicago" in query.lower() else f"{query} Chicago"
+
+    # 1. Nominatim
+    try:
+        resp = _requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": nominatim_q,
+                "format": "json",
+                "limit": 8,
+                "countrycodes": "us",
+                "bounded": "1",
+                "viewbox": _NOMINATIM_VIEWBOX,
+                "addressdetails": "1",
+            },
+            headers={"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"},
+            timeout=4,
+        )
+        if resp.ok:
+            suggestions = _parse_nominatim(resp.json())
+            if suggestions:
+                log.info("suggest q=%r source=nominatim results=%d", q, len(suggestions))
+                return {"suggestions": suggestions}
+    except Exception as exc:
+        log.debug("suggest q=%r nominatim error: %s", q, exc)
+
+    # 2. Photon fallback
+    try:
+        resp = _requests.get(
+            "https://photon.komoot.io/api/",
+            params={
+                "q": photon_q,
+                "limit": 8,
+                "bbox": _PHOTON_BBOX,
+                "lang": "en",
+            },
+            timeout=4,
+        )
+        if resp.ok:
+            suggestions = _parse_photon(resp.json().get("features", []))
+            log.info("suggest q=%r source=photon results=%d", q, len(suggestions))
+            return {"suggestions": suggestions}
+    except Exception as exc:
+        log.warning("suggest q=%r both geocoders failed, last error: %s", q, exc)
+
+    return {"suggestions": []}

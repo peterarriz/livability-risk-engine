@@ -990,9 +990,9 @@ tasks:
       - frontend/src/lib/api.ts
       - frontend/src/app/page.tsx
     dependencies:
-      - data-008
-      - app-004
+      - app-008
     acceptance_criteria:
+<<<<<<< claude/chicago-addresses-search-Frtlx
       - /suggest endpoint returns real Chicago address suggestions via Nominatim
       - fetchSuggestions added to api.ts
       - Autocomplete dropdown wired to the search input in page.tsx
@@ -1040,3 +1040,11 @@ tasks:
       - Production config uses 2 uvicorn workers
       - Deployment instructions documented inline in railway.toml comments
     notes_for_next_agent: Completed. railway.toml and Procfile committed. To finish the Railway deployment (manual steps required — cannot be done by code push alone):\n  1. Railway dashboard → New Project → Deploy from GitHub → select peterarriz/livability-risk-engine\n  2. Add environment variables in Railway: DATABASE_URL (auto-injected if using Railway Postgres service), FRONTEND_ORIGIN=https://livability-risk-engine.vercel.app\n  3. Copy the Railway-generated public URL (e.g. https://livability-risk-engine.up.railway.app)\n  4. In Vercel dashboard → livability-risk-engine → Settings → Environment Variables → add NEXT_PUBLIC_API_URL=<railway-url>\n  5. Redeploy Vercel frontend to pick up the new env var\n  6. Validate: curl <railway-url>/health → db_connection should be true
+=======
+      - /suggest endpoint added to FastAPI backend using Nominatim (OpenStreetMap)
+      - fetchSuggestions added to frontend/src/lib/api.ts
+      - Debounced autocomplete dropdown wired to address input in page.tsx
+      - Suggestions filtered to Chicago addresses only
+      - Graceful fallback to empty list on error
+    notes_for_next_agent: Nominatim is queried with a Chicago bounding box (bounded=1) to ensure results stay within the city. Suggestions are formatted as "{house} {road}, Chicago, IL". Debounce is 300ms. onMouseDown is used instead of onClick to prevent the input's onBlur from hiding suggestions before the click registers. Next step is data-015 (deploy live database) to complete the full live-data path.
+>>>>>>> main

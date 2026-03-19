@@ -7,7 +7,7 @@ Ingests Chicago CDOT Street Closure Permits from the City of Chicago
 Socrata API and writes raw records to a local JSON staging file.
 
 Source:
-  https://data.cityofchicago.org/resource/Rfu5-xgsz.json
+  https://data.cityofchicago.org/resource/jdis-5sry.json
   Dataset: CDOT Street Closures / Work Zone Permits
 
 Usage:
@@ -44,31 +44,33 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_BASE_URL = "https://data.cityofchicago.org/resource/Rfu5-xgsz.json"
+SOCRATA_BASE_URL = "https://data.cityofchicago.org/resource/jdis-5sry.json"
 
-# Fields to retain from the raw closure record.
-FIELDS_TO_KEEP = [
-    "row_id",                # source identifier — never drop this
-    "work_type",
-    "street_closure_type",
-    "closure_reason",
-    "status",
-    "creation_date",
-    "modified_date",
-    "start_date",
-    "end_date",
-    "street_name",
-    "from_street",
-    "to_street",
-    "street_direction",
-    "latitude",
-    "longitude",
-    "location",              # GeoJSON point if available
-    "contact_last_name",
-    "contact_first_name",
-    "contact_org",
-    "permit_number",
-]
+# Mapping from Socrata jdis-5sry column names to the internal field names
+# used by the rest of the pipeline (geocode_fill, load_projects, normalize).
+SOCRATA_TO_INTERNAL = {
+    "uniquekey":                "row_id",
+    "worktype":                 "work_type",
+    "streetclosure":            "street_closure_type",
+    "comments":                 "closure_reason",
+    "applicationstatus":        "status",
+    "applicationprocesseddate": "creation_date",
+    "applicationstartdate":     "start_date",
+    "applicationenddate":       "end_date",
+    "streetname":               "street_name",
+    "streetnumberfrom":         "from_street",
+    "streetnumberto":           "to_street",
+    "direction":                "street_direction",
+    "latitude":                 "latitude",
+    "longitude":                "longitude",
+    "location":                 "location",
+    "primarycontactlast":       "contact_last_name",
+    "emergencycontactname":     "contact_first_name",
+    "applicationnumber":        "permit_number",
+    "worktypedescription":      "work_type_description",
+    "applicationdescription":   "closure_reason_detail",
+    "suffix":                   "street_suffix",
+}
 
 PAGE_SIZE = 5000
 DEFAULT_OUTPUT_PATH = "data/raw/street_closures.json"
@@ -95,8 +97,8 @@ def build_params(
     params: dict = {
         "$limit": limit,
         "$offset": offset,
-        "$where": f"end_date >= '{cutoff_str}' OR start_date >= '{cutoff_str}'",
-        "$order": "start_date DESC",
+        "$where": f"applicationenddate >= '{cutoff_str}' OR applicationstartdate >= '{cutoff_str}'",
+        "$order": "applicationstartdate DESC",
     }
 
     if app_token:
@@ -169,12 +171,11 @@ def fetch_all_closures(app_token: str | None, days_back: int, dry_run: bool) -> 
 # ---------------------------------------------------------------------------
 
 def filter_fields(record: dict) -> dict:
-    """Retain only the fields needed for downstream normalization."""
-    filtered = {k: v for k, v in record.items() if k in FIELDS_TO_KEEP}
-
-    # Always preserve row_id as the source identifier.
-    if "row_id" in record and "row_id" not in filtered:
-        filtered["row_id"] = record["row_id"]
+    """Remap Socrata column names to internal names and drop unneeded fields."""
+    filtered: dict = {}
+    for socrata_key, internal_key in SOCRATA_TO_INTERNAL.items():
+        if socrata_key in record:
+            filtered[internal_key] = record[socrata_key]
 
     return filtered
 
