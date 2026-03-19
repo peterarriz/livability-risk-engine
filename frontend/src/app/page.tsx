@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -12,7 +12,7 @@ import {
   TopRiskGrid,
 } from "@/components/score-experience";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
@@ -34,6 +34,10 @@ export default function HomePage() {
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
   const derivedInsights = result
     ? {
@@ -60,7 +64,6 @@ export default function HomePage() {
       const scoreResult = await fetchScore(address);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
-      setStatusNote(scoreResult.note ?? null);
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -120,19 +123,69 @@ export default function HomePage() {
               <label htmlFor="address" className="input-label">
                 {workspaceMode ? "Search another Chicago address" : "Chicago address"}
               </label>
-              <div className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
+              <div
+                ref={searchShellRef}
+                className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}
+                style={{ position: "relative" }}
+              >
                 <input
                   id="address"
                   name="address"
                   type="text"
                   value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                  onChange={(event) => handleAddressChange(event.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                   placeholder={PREMIUM_PLACEHOLDER}
+                  autoComplete="off"
                   required
                 />
                 <button type="submit" disabled={isLoading}>
                   {isLoading ? "Analyzing…" : "Analyze address"}
                 </button>
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul
+                    role="listbox"
+                    aria-label="Address suggestions"
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 50,
+                      margin: 0,
+                      padding: "4px 0",
+                      listStyle: "none",
+                      background: "var(--surface, #fff)",
+                      border: "1px solid var(--border, #e2e8f0)",
+                      borderRadius: "6px",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                    }}
+                  >
+                    {suggestions.map((suggestion) => (
+                      <li key={suggestion}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={address === suggestion}
+                          onClick={() => handleSuggestionSelect(suggestion)}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            padding: "8px 14px",
+                            textAlign: "left",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "0.875rem",
+                            color: "inherit",
+                          }}
+                        >
+                          {suggestion}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
@@ -148,7 +201,7 @@ export default function HomePage() {
                         key={example}
                         type="button"
                         className="example-chip"
-                        onClick={() => setAddress(example)}
+                        onClick={() => handleSuggestionSelect(example)}
                       >
                         {example}
                       </button>

@@ -1,14 +1,13 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
 lane: app
 
-FastAPI /score endpoint — updated to use the real scoring path
-when a DB connection is available, with graceful fallback to the
-mocked demo response when it is not (preserving demo mode).
+FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
+Demo fallback removed in data-017 (DB is now live on Railway).
 
 Changes in app-019/020/021/023:
-  - /score returns mode ("live"|"demo") and fallback_reason (app-019)
+  - /score returns mode ("live") and fallback_reason (app-019)
   - /health returns db_configured, db_connection, last_ingest_status (app-020)
   - /debug/score exposes the full scoring path for operator inspection (app-021)
   - Score requests are logged with address, mode, and fallback_reason (app-023)
@@ -23,6 +22,7 @@ import logging
 import os
 from dataclasses import asdict
 
+import requests as _requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -92,11 +92,10 @@ def _build_demo_response(address: str, fallback_reason: str) -> dict:
 
 # ---------------------------------------------------------------------------
 # DB + scoring path (live mode)
-# Only activated when POSTGRES_HOST env var is set.
 # ---------------------------------------------------------------------------
 
 def _is_db_configured() -> bool:
-    return bool(os.environ.get("POSTGRES_HOST"))
+    return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
 
 
 def _score_live(address: str) -> dict:
@@ -127,6 +126,88 @@ def _score_live(address: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# /suggest endpoint (data-016)
+# Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
+# Used by the frontend search bar autocomplete.
+# ---------------------------------------------------------------------------
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_USER_AGENT = "livability-risk-engine/mvp (contact: project-team)"
+
+# Chicago bounding box: viewbox is west,south,east,north for Nominatim.
+_CHICAGO_VIEWBOX = "-87.9401,41.6445,-87.5240,42.0230"
+
+
+@app.get("/suggest")
+def suggest_addresses(
+    q: str = Query(..., min_length=3, description="Partial Chicago address to complete"),
+) -> list[str]:
+    """
+    Return up to 5 real Chicago address suggestions for the given partial query.
+
+    Uses Nominatim (OpenStreetMap) with Chicago bounding box filtering.
+    Returns a plain list of formatted address strings.
+    Falls back to an empty list if the upstream call fails so the UI degrades
+    gracefully without a hard error.
+    """
+    search_query = q.strip()
+    if not search_query.lower().endswith("chicago"):
+        search_query = f"{search_query}, Chicago, IL"
+
+    params = {
+        "q": search_query,
+        "format": "json",
+        "limit": 5,
+        "countrycodes": "us",
+        "viewbox": _CHICAGO_VIEWBOX,
+        "bounded": 1,
+        "addressdetails": 1,
+    }
+    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
+
+    try:
+        resp = _requests.get(_NOMINATIM_URL, params=params, headers=headers, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.warning("suggest: nominatim call failed: %s", exc)
+        return []
+
+    suggestions: list[str] = []
+    for item in data:
+        addr = item.get("address", {})
+        parts = []
+
+        house_number = addr.get("house_number", "")
+        road = addr.get("road", "")
+        if house_number and road:
+            parts.append(f"{house_number} {road}")
+        elif road:
+            parts.append(road)
+
+        city = addr.get("city") or addr.get("town") or addr.get("village") or ""
+        state = addr.get("state", "")
+
+        if city and state:
+            parts.append(f"{city}, {state}")
+        elif city:
+            parts.append(city)
+
+        if parts:
+            suggestions.append(", ".join(parts))
+
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    unique: list[str] = []
+    for s in suggestions:
+        if s not in seen:
+            seen.add(s)
+            unique.append(s)
+
+    return unique[:5]
+
+
+# ---------------------------------------------------------------------------
 # /score endpoint
 # ---------------------------------------------------------------------------
 
@@ -137,34 +218,21 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    Live mode (when POSTGRES_HOST is set):
-      Geocodes the address, queries the canonical projects table,
-      and applies the rule-based scoring engine.
-      Response includes mode="live" and fallback_reason=null.
-
-    Demo mode (when POSTGRES_HOST is not set or geocoding fails):
-      Returns the approved mocked example from docs/04_api_contracts.md.
-      Response includes mode="demo" and a fallback_reason string.
+    Geocodes the address, queries the canonical projects table,
+    and applies the rule-based scoring engine.
+    Response includes mode="live" and fallback_reason=null.
     """
-    if not _is_db_configured():
-        log.info("score address=%r mode=demo fallback_reason=db_not_configured", address)
-        return _build_demo_response(address, "db_not_configured")
-
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
         return result
     except ValueError as exc:
-        # Geocoding failure — return demo response rather than a hard error
-        # so the frontend stays functional during partial data availability.
-        log.info(
-            "score address=%r mode=demo fallback_reason=geocode_failed error=%s",
-            address, exc,
-        )
-        return _build_demo_response(address, "geocode_failed")
+        log.warning("score address=%r geocode_failed error=%s", address, exc)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not geocode address: {exc}",
+        ) from exc
     except Exception as exc:
-        # Unexpected DB or scoring error — raise 503 so the frontend
-        # falls back to its own demo mode gracefully.
         log.error("score address=%r unexpected scoring error: %s", address, exc)
         raise HTTPException(
             status_code=503,
@@ -185,8 +253,8 @@ def health() -> dict:
 
     Fields:
       status:             always "ok" (endpoint never hard-fails)
-      mode:               "live" if POSTGRES_HOST is set, else "demo"
-      db_configured:      true if POSTGRES_HOST env var is present
+      mode:               "live" if DATABASE_URL or POSTGRES_HOST is set, else "demo"
+      db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
       last_ingest_status: reserved for future ingest tracking; null for MVP
@@ -206,7 +274,7 @@ def health() -> dict:
 
     response: dict = {
         "status": "ok",
-        "mode": "live" if db_configured else "demo",
+        "mode": "live" if db_configured else "unconfigured",
         "db_configured": db_configured,
         "db_connection": db_connection,
         "last_ingest_status": None,
@@ -263,18 +331,6 @@ def debug_score(
     This endpoint does not require auth for MVP but is intended for ops use only.
     It returns a useful partial response even when geocoding or DB is unavailable.
     """
-    if not _is_db_configured():
-        return {
-            "address": address,
-            "mode": "demo",
-            "lat": None,
-            "lon": None,
-            "nearby_projects_count": None,
-            "nearby_projects_sample": [],
-            "score_result": _build_demo_response(address, "db_not_configured"),
-            "fallback_reason": "db_not_configured",
-        }
-
     try:
         from backend.ingest.geocode import geocode_address
         from backend.scoring.query import (
@@ -315,6 +371,8 @@ def debug_score(
             "fallback_reason": None,
         }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         log.error("debug_score address=%r error: %s", address, exc)
         return {

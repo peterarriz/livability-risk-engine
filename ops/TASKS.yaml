@@ -946,129 +946,204 @@ tasks:
   - id: app-023
     lane: app
     type: ops
-    title: Add structured request logging to the score path
-    owner: app
+    title: Audit database hosting options and recommend path to live Postgres+PostGIS
+    owner: data
     status: done
-    priority: medium
+    priority: high
+    files:
+      - docs/database_hosting_audit.md
+    dependencies:
+      - data-013
+    acceptance_criteria:
+      - Hosting platforms researched and compared
+      - Primary recommendation with implementation path
+      - Cost analysis and risk assessment
+      - Next steps clearly defined
+    notes_for_next_agent: Completed comprehensive audit. Railway recommended as primary option ($5/month) for MVP due to native PostGIS support, low setup effort, and co-located backend hosting. Supabase as secondary option for database-only approach. Audit document in docs/database_hosting_audit.md provides detailed platform comparison and implementation guidance. Next task should be data-015 (implement Railway hosting) to go live.
+  - id: data-015
+    lane: data
+    type: ops
+    title: Deploy live Postgres+PostGIS database on Railway
+    owner: data
+    status: ready
+    priority: high
+    files:
+      - docs/deployment_guide.md
+    dependencies:
+      - data-014
+    acceptance_criteria:
+      - Database deployed on Railway with PostGIS enabled
+      - Schema migrated (raw tables + canonical projects)
+      - Environment variables configured for live mode
+      - Ingest pipeline tested with real data
+      - /score endpoint returning real scores
+    notes_for_next_agent: Follow Railway deployment guide from data-014 audit. Test all components: schema migration, data ingestion, scoring queries. Validate that demo fallback is preserved for redundancy. Update README with new live mode instructions.
+  - id: data-016
+    lane: data
+    type: feature
+    title: Wire real Chicago address autocomplete to search bar
+    owner: data
+    status: done
+    priority: high
     files:
       - backend/app/main.py
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - data-008
+      - app-004
+    acceptance_criteria:
+      - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
+      - Expected output bands for each golden address are documented as the acceptance baseline.
+      - A review cadence is defined (suggested: run after each data ingest or backend change).
+      - Review steps are clear enough for app or product to run without data engineering involvement.
+      - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
+    notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.
+  - id: app-025
+    lane: app
+    type: polish
+    title: Upgrade score interpretation and trust signals in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-014
+      - app-022
+    acceptance_criteria:
+      - Results view adds structured score drivers, richer confidence context, and a concise "What this means" interpretation layer without changing the API contract.
+      - Results view adds an impact-window treatment, subtle live-vs-demo labeling, staged loading copy, and source provenance within the existing layout.
+      - Copy upgrades preserve the current demo shell and avoid any backend scoring changes.
+    notes_for_next_agent: Completed with a frontend-only interpretation layer built from top_risks and explanation. Score results now surface primary disruption drivers, confidence reasons, a what-this-means summary, impact timing, staged loading copy, mode labeling, and source provenance without changing backend scoring logic or the /score contract.
+
+  - id: app-026
+    lane: app
+    type: polish
+    title: Tighten live-vs-demo score path diagnostics
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - frontend/src/lib/api.ts
+      - docs/04_api_contracts.md
+      - docs/handoffs/app.md
     dependencies:
       - app-019
+      - app-021
+      - app-022
     acceptance_criteria:
-      - Every /score request logs the input address, resolved mode, and fallback_reason (if any).
-      - Unexpected scoring failures are logged at ERROR level with the exception message.
-      - Log output is structured enough to grep during manual testing sessions.
-      - No PII beyond the submitted address string is logged.
-    notes_for_next_agent: Completed. All /score requests log address, mode, and fallback_reason via Python stdlib logging at INFO level. Unexpected errors log at ERROR level with exception message. Uses log = logging.getLogger(__name__) — no new dependency. /debug/score also logs errors.
-  - id: app-024
+      - /score returns explicit mode metadata in every success response and uses fallback_reason values db_not_configured, geocode_failed, or scoring_error.
+      - DB connectivity failures do not silently downgrade to a demo 200 response; unexpected live-path failures return 503 while /debug/score remains inspectable.
+      - Frontend demo fallback keeps the UI explicit about demo mode and preserves debugging visibility for backend and client-side fallback causes.
+    notes_for_next_agent: Completed with a surgical live-path audit and fallback cleanup. backend/app/main.py now checks DB reachability before geocoding, uses scoring_error consistently, and returns up to 5 debug project samples. frontend/src/lib/api.ts preserves demo-mode visibility even for client-side fallbacks and uses the backend mode when a 200 response is returned in demo mode.
+
+  - id: app-027
     lane: app
     type: docs
-    title: Write internal validation runbook for app and backend testing
+    title: Add lightweight live score validation workflow
     owner: app
     status: done
     priority: medium
     files:
+      - docs/live_score_validation.md
       - docs/handoffs/app.md
     dependencies:
-      - app-020
-      - app-021
+      - app-024
     acceptance_criteria:
-      - Runbook documents the exact curl commands for /health, /score, and /debug/score.
-      - Documents expected response shape for live mode and demo mode separately.
-      - Documents what a healthy vs unhealthy /health response looks like.
-      - Runbook is written so a non-author can validate the full backend path in under 10 minutes.
-      - Stored in docs/handoffs/app.md alongside existing app handoff notes.
-    notes_for_next_agent: Completed. docs/handoffs/app.md now contains a full operator validation runbook with curl commands for /health, /score, and /debug/score; expected response shapes for demo and live modes; a healthy vs unhealthy /health example; and a failure triage table (symptom → likely cause → fix path). README smoke-check steps remain for developer onboarding.
-  - id: product-026
-    lane: product
-    type: qa
-    title: Define live-output trust review process
-    owner: product
-    status: done
-    priority: high
-    files:
-      - docs/product_qa_checklist.md
-      - docs/handoffs/product.md
-    dependencies:
-      - product-016
-      - product-014
-    acceptance_criteria:
-      - A repeatable review process is documented for evaluating whether live /score outputs are believable.
-      - Review steps cover score plausibility, explanation tone, and confidence alignment against the approved score bands.
-      - A clear escalation path is defined for suspicious outputs (e.g. extreme scores for benign addresses, mismatched severity and explanation).
-      - Review can be run by any team member using only docs/product_qa_checklist.md and the /debug/score endpoint.
-    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a new "Live-output trust review process" section covering /health pre-check, four-address plausibility review, per-address checks, escalation path (count=0 → data lane, count>0 wrong score → scoring rubric, wrong tone → post-launch fix), and recommended cadence (before every demo, after each ingest). docs/handoffs/product.md updated to reference it.
-  - id: product-027
-    lane: product
-    type: definition
-    title: Approve first design-partner persona for outbound testing
-    owner: product
-    status: done
-    priority: high
-    files:
-      - docs/buyer_personas.md
-      - docs/handoffs/product.md
-    dependencies:
-      - product-017
-      - product-024
-    acceptance_criteria:
-      - One primary persona is explicitly selected from docs/buyer_personas.md as the first outbound target.
-      - Selection rationale is documented (e.g. fastest time to feedback, strongest MVP fit, easiest to reach).
-      - The selected persona is tied to at least one specific current MVP output that directly addresses their pain.
-      - Selection is recorded in docs/buyer_personas.md under a new "Active outbound persona" section.
-    notes_for_next_agent: Completed. CRE Analyst selected as the active outbound persona. Selection rationale, MVP field mapping (disruption_score + explanation + severity.traffic), and next steps documented in docs/buyer_personas.md under "Active outbound persona." product-028 list spec is also done.
-  - id: product-028
-    lane: product
-    type: definition
-    title: Build first 25-target design-partner list spec
-    owner: product
+      - A dedicated markdown doc captures a 5-address live-score smoke test set with expected bands and dominant drivers.
+      - The doc includes a reusable review table template and a short post-deploy usage section.
+      - App-facing docs link to the new validation workflow.
+    notes_for_next_agent: Completed with docs/live_score_validation.md covering the 5-address smoke-test set, expected bands, expected dominant drivers, a reusable review table, and short after-deploy instructions. docs/handoffs/app.md now links to it from the internal validation runbook.
+
+  - id: app-028
+    lane: app
+    type: polish
+    title: Tighten frontend API score result typing
+    owner: app
     status: done
     priority: medium
     files:
-      - docs/handoffs/product.md
+      - frontend/src/lib/api.ts
     dependencies:
-      - product-027
+      - app-022
     acceptance_criteria:
-      - Ideal target profile is defined using the selected persona from product-027 (title, company type, Chicago footprint indicators).
-      - List-building criteria are documented so any team member can populate the list without guessing.
-      - A clear next-step ask is specified (e.g. demo call, pilot agreement, data feedback session).
-      - Owner of list-building and outreach sequence is identified.
-      - Spec is stored in docs/handoffs/product.md under a "Design-partner list spec" section.
-    notes_for_next_agent: Completed. docs/handoffs/product.md has a "Design-partner list spec" section with selected persona (CRE Analyst), ideal target profile (title/company type/Chicago footprint), list-building criteria for LinkedIn/CoStar prospecting, next-step ask (20-min discovery call, do not pitch pricing), and owner (product lane). Tied to docs/pilot_terms.md for interested contacts.
-  - id: product-029
-    lane: product
-    type: definition
-    title: Define launch-readiness checklist for live demos
-    owner: product
-    status: done
-    priority: high
-    files:
-      - docs/handoffs/product.md
-      - docs/product_qa_checklist.md
-    dependencies:
-      - product-008
-      - app-020
-    acceptance_criteria:
-      - Checklist covers backend mode visibility — presenter must confirm /health shows db_connection true before any live demo.
-      - Checklist covers /health and /debug/score readiness checks with expected output.
-      - Checklist covers approved fallback messaging to use if demo mode is active during a presentation.
-      - Checklist is short enough to run in under 5 minutes before a meeting.
-      - Stored in docs/product_qa_checklist.md under a "Pre-demo launch-readiness checklist" section.
-    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a "Pre-demo launch-readiness checklist" covering /health db_connection check, /score mode check, /debug/score nearby count check, frontend badge check, demo content readiness, and approved fallback messaging script for when demo mode is active. Also includes a weekly cadence recommendation.
-  - id: product-030
-    lane: product
-    type: qa
-    title: Define score review workflow for golden addresses
-    owner: product
+      - frontend/src/lib/api.ts cleanly models both live and demo fetch paths without changing runtime behavior.
+      - ScoreSource, ScoreResult, and note typing are internally consistent.
+      - Inline comments explain backend demo mode, frontend fabricated fallback, and why repeated 62s historically appeared.
+    notes_for_next_agent: Completed with a type-only cleanup in frontend/src/lib/api.ts. Added ScoreMode plus a ScoreResult union so live results never carry notes while demo results may, kept runtime behavior unchanged, and added concise comments explaining backend demo mode, frontend fabricated fallback, and the historical repeated-62 symptom.
+
+  - id: app-029
+    lane: app
+    type: docs
+    title: Add deploy readiness checklist for live vs demo verification
+    owner: app
     status: done
     priority: medium
     files:
-      - docs/03_scoring_model.md
-      - docs/product_qa_review.md
+      - docs/deploy_readiness_checklist.md
+      - docs/handoffs/app.md
     dependencies:
-      - product-004
-      - product-007
-      - product-010
+      - app-024
+      - app-027
+    acceptance_criteria:
+      - A dedicated deploy-readiness checklist exists for quickly verifying live vs demo state.
+      - The checklist covers NEXT_PUBLIC_API_URL, /health, /score, /debug/score, and frontend live/demo labeling.
+      - App handoff docs link to the checklist and common failure modes are documented.
+    notes_for_next_agent: Completed with docs/deploy_readiness_checklist.md covering frontend API URL setup, /health, /score, /debug/score, frontend badge verification, and common failure modes (missing API URL, unreachable backend, geocoding failure, DB/config issue). docs/handoffs/app.md now links to the checklist alongside the existing live score validation doc.
+
+  - id: app-030
+    lane: app
+    type: polish
+    title: Fix frontend demo fallback typing mismatch
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-028
+    acceptance_criteria:
+      - ScoreSource cleanly models both live and demo values used at runtime.
+      - ScoreResult typing allows fallback returns with source: demo and optional note without narrowing live results incorrectly.
+      - The frontend build passes without the production type error around source: demo.
+    notes_for_next_agent: Completed with a minimal typing-safe cleanup in frontend/src/lib/api.ts. Demo and live return shapes are now represented consistently, the backend mode is still preferred when available, and the demo fallback behavior is unchanged at runtime.
+
+  - id: app-031
+    lane: app
+    type: docs
+    title: Add branch and preview hygiene guidance
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - docs/branch_and_preview_hygiene.md
+      - docs/06_team_working_agreement.md
+    dependencies:
+      - app-029
+    acceptance_criteria:
+      - A short practical guide defines the demo-safe branch, preview deployment usage, short-lived branch cleanup, and branch vs preview naming hygiene.
+      - The working agreement links to the new guidance so it is discoverable.
+    notes_for_next_agent: Completed with docs/branch_and_preview_hygiene.md covering demo-safe use of main, deletion timing for short-lived agent branches, preview deployment usage, and how to avoid mixing up GitHub branches with active Vercel previews. docs/06_team_working_agreement.md now links to it.
+
+  - id: app-032
+    lane: app
+    type: polish
+    title: Improve non-happy-path frontend UX states
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-014
+      - app-028
     acceptance_criteria:
       - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
       - Expected output bands for each golden address are documented as the acceptance baseline.
