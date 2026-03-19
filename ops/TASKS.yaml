@@ -703,24 +703,25 @@ tasks:
     type: quality
     title: Add source freshness checks for permit and closure ingests
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/05_data_sources_chicago.md
       - docs/handoffs/data.md
+      - backend/ingest/check_freshness.py
     dependencies:
       - data-002
       - data-004
     acceptance_criteria:
       - Freshness expectations documented.
       - A repeatable check is defined for both core sources.
-    notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+    notes_for_next_agent: Created backend/ingest/check_freshness.py (exits 1 if stale; --json flag for automation). Freshness expectations (26h threshold) added to docs/05_data_sources_chicago.md and docs/handoffs/data.md.
   - id: data-011
     lane: data
     type: ops
     title: Document daily refresh steps for MVP data sources
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/handoffs/data.md
@@ -730,21 +731,20 @@ tasks:
     acceptance_criteria:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
-    notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+    notes_for_next_agent: Added "Daily refresh steps" section to docs/handoffs/data.md with ordered steps (permits → closures → load → verify), failure table, and App handoff note.
   - id: data-012
     lane: data
     type: quality
     title: Define normalization QA checks for canonical projects
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/handoffs/data.md
-      - docs/04_api_contracts.md
     dependencies:
       - data-006
       - data-007
     acceptance_criteria:
       - Required field checks listed.
       - QA outputs can be shared with App without manual interpretation.
-    notes_for_next_agent: Reuse the canonical schema field names exactly.
+    notes_for_next_agent: Added "Normalization QA checks" section to docs/handoffs/data.md with required field table, dry-run command, and load summary interpretation guide for App. No changes to docs/04_api_contracts.md needed (field names already exact).
