@@ -21,11 +21,6 @@ const EXAMPLE_ADDRESSES = [
   "700 W Grand Ave, Chicago, IL",
   "233 S Wacker Dr, Chicago, IL",
 ];
-const LOADING_STEPS = [
-  "Analyzing nearby permits…",
-  "Evaluating infrastructure impact…",
-  "Calculating disruption score…",
-];
 
 export default function HomePage() {
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
@@ -39,21 +34,63 @@ export default function HomePage() {
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
-  const derivedInsights = result
-    ? {
-        confidenceReasons: getConfidenceReasons(result),
-        meaningInsights: getMeaningInsights(result),
-      }
-    : {
-        confidenceReasons: [],
-        meaningInsights: [],
-      };
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
   const statusHeadline = isDemoResult ? "Demo scenario" : "Live data • Chicago";
   const statusMessage = isDemoResult
     ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
     : "Live backend scoring is active for this address lookup.";
+
+  // Dismiss suggestions on outside click.
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleAddressChange(value: string) {
+    setAddress(value);
+    setShowSuggestions(false);
+
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current);
+    }
+
+    if (value.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    suggestTimerRef.current = setTimeout(async () => {
+      const results = await fetchSuggestions(value);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 300);
+  }
+
+  function handleSuggestionSelect(suggestion: string) {
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -246,7 +283,7 @@ export default function HomePage() {
               <Card className="score-card skeleton-card loading-card">
                 <p className="loading-kicker">Building disruption brief</p>
                 <div className="loading-step-list" aria-live="polite">
-                  {LOADING_STEPS.map((step, index) => (
+                  {loadingSteps.map((step, index) => (
                     <div key={step} className="loading-step">
                       <span className="loading-step-index">0{index + 1}</span>
                       <span>{step}</span>
@@ -286,12 +323,12 @@ export default function HomePage() {
                 <div className="detail-grid detail-grid--workspace">
                   <Card className="detail-card">
                     <h2>Confidence and severity signals</h2>
-                    <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={derivedInsights.confidenceReasons} />
+                    <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
                   </Card>
 
                   <Card className="detail-card narrative-card">
                     <h2>Interpretation</h2>
-                    <ExplanationPanel explanation={result.explanation} meaning={derivedInsights.meaningInsights} />
+                    <ExplanationPanel explanation={result.explanation} meaning={meaningInsights} />
                   </Card>
                 </div>
               </div>
