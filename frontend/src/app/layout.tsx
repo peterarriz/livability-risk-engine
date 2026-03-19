@@ -1,13 +1,16 @@
-import "./globals.css";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Livability Risk Engine",
-  description: "Premium Chicago disruption score demo shell",
+  description: "Chicago disruption intelligence for evaluating near-term construction risk by address.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
       <body>{children}</body>

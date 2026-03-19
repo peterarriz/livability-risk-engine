@@ -947,13 +947,13 @@ tasks:
     lane: app
     type: ops
     title: Audit database hosting options and recommend path to live Postgres+PostGIS
-    owner: data
+    owner: app
     status: done
     priority: high
     files:
       - docs/database_hosting_audit.md
     dependencies:
-      - data-013
+      - app-022
     acceptance_criteria:
       - Hosting platforms researched and compared
       - Primary recommendation with implementation path
@@ -970,14 +970,14 @@ tasks:
     files:
       - docs/deployment_guide.md
     dependencies:
-      - data-014
+      - app-023
     acceptance_criteria:
       - Database deployed on Railway with PostGIS enabled
       - Schema migrated (raw tables + canonical projects)
       - Environment variables configured for live mode
       - Ingest pipeline tested with real data
       - /score endpoint returning real scores
-    notes_for_next_agent: Follow Railway deployment guide from data-014 audit. Test all components: schema migration, data ingestion, scoring queries. Validate that demo fallback is preserved for redundancy. Update README with new live mode instructions.
+    notes_for_next_agent: "Follow Railway deployment guide from data-014 audit. Test schema migration, data ingestion, and scoring queries. Validate that demo fallback is preserved. Update README with new live mode instructions."
   - id: data-016
     lane: data
     type: feature
@@ -992,14 +992,12 @@ tasks:
     dependencies:
       - app-008
     acceptance_criteria:
-<<<<<<< claude/chicago-addresses-search-Frtlx
-      - /suggest endpoint returns real Chicago address suggestions via Nominatim
-      - fetchSuggestions added to api.ts
-      - Autocomplete dropdown wired to the search input in page.tsx
-      - Input is debounced to avoid excessive API calls
-      - Selecting a suggestion populates the address field
-      - Falls back gracefully when suggestions are unavailable
-    notes_for_next_agent: Implemented /suggest on the backend using Nominatim with Chicago bounding box filter. Frontend autocomplete is in page.tsx (not in components/ per CLAUDE.md rules). Suggestion list is dismissed on outside click or selection. Next task should continue from data-016 — consider data-017 to add keyboard navigation to the autocomplete or wire suggestions to the Chicago Data Portal instead of Nominatim once DB is live.
+      - /suggest endpoint added to FastAPI backend using Nominatim (OpenStreetMap)
+      - fetchSuggestions added to frontend/src/lib/api.ts
+      - Debounced autocomplete dropdown wired to address input in page.tsx
+      - Suggestions filtered to Chicago addresses only
+      - Graceful fallback to empty list on error
+    notes_for_next_agent: "Nominatim is queried with a Chicago bounding box (bounded=1) to keep results in city. Suggestions are formatted as '{house} {road}, Chicago, IL'. Debounce is 300ms. onMouseDown is used instead of onClick so the input blur does not dismiss the suggestion before selection registers. Next step is data-015 to complete the full live-data path."
   - id: data-018
     lane: data
     type: ops
@@ -1011,15 +1009,15 @@ tasks:
       - .github/workflows/ingest.yml
     dependencies:
       - data-016
-      - data-017
+      - data-015
     acceptance_criteria:
       - GitHub Actions workflow runs run_pipeline.py on a daily schedule (06:00 UTC)
-      - Schema apply step is idempotent — safe to run on every execution
+      - Schema apply step is idempotent and safe to run on every execution
       - Dry-run and skip-geocode inputs available for manual trigger
       - Smoke check validates active project count after ingest
       - Workflow uses DATABASE_URL and optional CHICAGO_SOCRATA_APP_TOKEN secrets
       - Failure surfaces as a GitHub Actions error with diagnostic guidance
-    notes_for_next_agent: Completed. .github/workflows/ingest.yml runs daily at 06:00 UTC. Apply schema step is idempotent (CREATE TABLE IF NOT EXISTS). Manual dispatch supported with dry_run and skip_geocode options. Post-ingest smoke check queries projects table for active row count. Requires DATABASE_URL GitHub secret — set this in repo Settings → Secrets → Actions before the first scheduled run. CHICAGO_SOCRATA_APP_TOKEN is optional but recommended.
+    notes_for_next_agent: "Completed. .github/workflows/ingest.yml runs daily at 06:00 UTC. Apply schema step is idempotent. Manual dispatch supports dry_run and skip_geocode. Post-ingest smoke check queries the projects table for active row count. Requires DATABASE_URL GitHub secret; CHICAGO_SOCRATA_APP_TOKEN is optional but recommended."
   - id: data-019
     lane: data
     type: ops
@@ -1039,12 +1037,26 @@ tasks:
       - Health check path set to /health so Railway knows the service is ready
       - Production config uses 2 uvicorn workers
       - Deployment instructions documented inline in railway.toml comments
-    notes_for_next_agent: Completed. railway.toml and Procfile committed. To finish the Railway deployment (manual steps required — cannot be done by code push alone):\n  1. Railway dashboard → New Project → Deploy from GitHub → select peterarriz/livability-risk-engine\n  2. Add environment variables in Railway: DATABASE_URL (auto-injected if using Railway Postgres service), FRONTEND_ORIGIN=https://livability-risk-engine.vercel.app\n  3. Copy the Railway-generated public URL (e.g. https://livability-risk-engine.up.railway.app)\n  4. In Vercel dashboard → livability-risk-engine → Settings → Environment Variables → add NEXT_PUBLIC_API_URL=<railway-url>\n  5. Redeploy Vercel frontend to pick up the new env var\n  6. Validate: curl <railway-url>/health → db_connection should be true
-=======
-      - /suggest endpoint added to FastAPI backend using Nominatim (OpenStreetMap)
-      - fetchSuggestions added to frontend/src/lib/api.ts
-      - Debounced autocomplete dropdown wired to address input in page.tsx
-      - Suggestions filtered to Chicago addresses only
-      - Graceful fallback to empty list on error
-    notes_for_next_agent: Nominatim is queried with a Chicago bounding box (bounded=1) to ensure results stay within the city. Suggestions are formatted as "{house} {road}, Chicago, IL". Debounce is 300ms. onMouseDown is used instead of onClick to prevent the input's onBlur from hiding suggestions before the click registers. Next step is data-015 (deploy live database) to complete the full live-data path.
->>>>>>> main
+    notes_for_next_agent: "Completed. railway.toml and Procfile are committed. Manual steps remain in Railway and Vercel to finish live deployment and wire NEXT_PUBLIC_API_URL to the Railway backend URL."
+  - id: app-025
+    lane: app
+    type: polish
+    title: Hardening pass for production-ready frontend scoring experience
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/globals.css
+      - frontend/src/app/layout.tsx
+      - frontend/src/app/page.tsx
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-022
+      - data-016
+    acceptance_criteria:
+      - Address autocomplete dropdown is readable, keyboard-usable, and visually aligned with the dark shell
+      - Results layout removes obvious dead space and reads in a tighter decision-ready order
+      - Driver cards are more compact and less repetitive while preserving strongest evidence
+      - Live state reads as production-ready while demo fallback remains explicit but subordinate
+      - Frontend production build passes
+    notes_for_next_agent: "Completed production-hardening pass across the score workflow. Search suggestions now use a premium dark dropdown with keyboard navigation. Results flow is reorganized into score → interpretation → confidence/severity → drivers → map/timeline/supporting context. Demo language was reduced in the primary flow while fallback labeling remains explicit. Verified with 'cd frontend && npm run build'."
