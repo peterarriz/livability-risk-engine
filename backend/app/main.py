@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
 lane: app
 
 FastAPI /score endpoint — updated to use the real scoring path
@@ -23,6 +23,7 @@ import logging
 import os
 from dataclasses import asdict
 
+import requests as _requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -124,6 +125,88 @@ def _score_live(address: str) -> dict:
 
     result = compute_score(nearby, address)
     return {**asdict(result), "mode": "live", "fallback_reason": None}
+
+
+# ---------------------------------------------------------------------------
+# /suggest endpoint (data-016)
+# Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
+# Used by the frontend search bar autocomplete.
+# ---------------------------------------------------------------------------
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_USER_AGENT = "livability-risk-engine/mvp (contact: project-team)"
+
+# Chicago bounding box: viewbox is west,south,east,north for Nominatim.
+_CHICAGO_VIEWBOX = "-87.9401,41.6445,-87.5240,42.0230"
+
+
+@app.get("/suggest")
+def suggest_addresses(
+    q: str = Query(..., min_length=3, description="Partial Chicago address to complete"),
+) -> list[str]:
+    """
+    Return up to 5 real Chicago address suggestions for the given partial query.
+
+    Uses Nominatim (OpenStreetMap) with Chicago bounding box filtering.
+    Returns a plain list of formatted address strings.
+    Falls back to an empty list if the upstream call fails so the UI degrades
+    gracefully without a hard error.
+    """
+    search_query = q.strip()
+    if not search_query.lower().endswith("chicago"):
+        search_query = f"{search_query}, Chicago, IL"
+
+    params = {
+        "q": search_query,
+        "format": "json",
+        "limit": 5,
+        "countrycodes": "us",
+        "viewbox": _CHICAGO_VIEWBOX,
+        "bounded": 1,
+        "addressdetails": 1,
+    }
+    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
+
+    try:
+        resp = _requests.get(_NOMINATIM_URL, params=params, headers=headers, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        log.warning("suggest: nominatim call failed: %s", exc)
+        return []
+
+    suggestions: list[str] = []
+    for item in data:
+        addr = item.get("address", {})
+        parts = []
+
+        house_number = addr.get("house_number", "")
+        road = addr.get("road", "")
+        if house_number and road:
+            parts.append(f"{house_number} {road}")
+        elif road:
+            parts.append(road)
+
+        city = addr.get("city") or addr.get("town") or addr.get("village") or ""
+        state = addr.get("state", "")
+
+        if city and state:
+            parts.append(f"{city}, {state}")
+        elif city:
+            parts.append(city)
+
+        if parts:
+            suggestions.append(", ".join(parts))
+
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    unique: list[str] = []
+    for s in suggestions:
+        if s not in seen:
+            seen.add(s)
+            unique.append(s)
+
+    return unique[:5]
 
 
 # ---------------------------------------------------------------------------

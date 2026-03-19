@@ -902,3 +902,25 @@ tasks:
       - Ingest pipeline tested with real data
       - /score endpoint returning real scores
     notes_for_next_agent: Follow Railway deployment guide from data-014 audit. Test all components: schema migration, data ingestion, scoring queries. Validate that demo fallback is preserved for redundancy. Update README with new live mode instructions.
+  - id: data-016
+    lane: data
+    type: feature
+    title: Wire real Chicago address autocomplete to search bar
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - data-008
+      - app-004
+    acceptance_criteria:
+      - /suggest endpoint returns real Chicago address suggestions via Nominatim
+      - fetchSuggestions added to api.ts
+      - Autocomplete dropdown wired to the search input in page.tsx
+      - Input is debounced to avoid excessive API calls
+      - Selecting a suggestion populates the address field
+      - Falls back gracefully when suggestions are unavailable
+    notes_for_next_agent: Implemented /suggest on the backend using Nominatim with Chicago bounding box filter. Frontend autocomplete is in page.tsx (not in components/ per CLAUDE.md rules). Suggestion list is dismissed on outside click or selection. Next task should continue from data-016 — consider data-017 to add keyboard navigation to the autocomplete or wire suggestions to the Chicago Data Portal instead of Nominatim once DB is live.
