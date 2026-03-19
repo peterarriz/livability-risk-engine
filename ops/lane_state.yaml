@@ -24,25 +24,20 @@ lanes:
   data:
     display_name: Data
     ready_queue_target: 3
-    current_focus:
-      - data-005
-      - data-006
-      - data-007
+    current_focus: []
     blockers: []
     update_when:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: data-001, data-002, and data-004 are done. Next focus is canonical projects table (data-005) and normalization tasks (data-006, data-007). data-005 must complete before data-006 and data-007 can start.
+    notes: All data tasks through data-016 are done. Pipeline now covers: ingest → geocode-fill → load (with prune) → freshness check → DB summary. No ready data tasks remain; generate tasks when the next milestone is defined.
   app:
     display_name: App
     ready_queue_target: 3
-    current_focus:
-      - app-008
-    blockers:
-      - data-009: Implement radius query for nearby projects before App can wire the live score flow.
+    current_focus: []
+    blockers: []
     update_when:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
       - The demo flow needs a different next-ready task.
-    notes: Keep the queue centered on the API and the minimal demo frontend.
+    notes: app-015 through app-018 completed. ScoreHero placeholder copy fixed, .env.example populated, backend/requirements.txt added, README smoke-check updated with /health and live mode steps. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.

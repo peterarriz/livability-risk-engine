@@ -2,11 +2,17 @@
 
 Chicago-only MVP for returning a near-term construction disruption risk score for a single address via a JSON API and minimal demo UI.
 
-## Mocked `/score` smoke check
+## `/score` smoke check
 
-Use these steps when App needs a quick confirmation that the mocked backend/frontend flow still matches the documented contract before real data wiring.
+Use these steps to confirm the backend/frontend flow matches the documented contract. The backend runs in **demo mode** by default (no DB required); set `POSTGRES_HOST` to activate live scoring.
 
-### 1. Start the mocked FastAPI backend
+### 1. Install backend dependencies
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+### 2. Start the FastAPI backend
 
 ```bash
 cd backend
@@ -15,9 +21,23 @@ uvicorn app.main:app --reload
 
 Expected result:
 - The server starts on `http://127.0.0.1:8000`.
-- `GET /score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL` returns the mocked JSON contract fields: `address`, `disruption_score`, `confidence`, `severity`, `top_risks`, and `explanation`.
+- Without `POSTGRES_HOST` set, the backend runs in demo mode and returns the approved mocked response.
+- With `POSTGRES_HOST` set, the backend geocodes the address and queries the live DB.
 
-### 2. Smoke check the API response directly
+### 3. Check the health endpoint
+
+```bash
+curl "http://127.0.0.1:8000/health"
+```
+
+Expected response:
+```json
+{"status": "ok", "mode": "demo"}
+```
+
+`mode` will be `"live"` when `POSTGRES_HOST` is set.
+
+### 4. Smoke check the score endpoint
 
 ```bash
 curl "http://127.0.0.1:8000/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL"
@@ -28,7 +48,9 @@ Confirm that:
 - `severity` contains `noise`, `traffic`, and `dust`.
 - `top_risks` is an ordered list of up to 3 display-ready strings.
 
-### 3. Start the Next.js demo frontend
+### 5. Start the Next.js demo frontend
+
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_API_URL`, then start the dev server:
 
 ```bash
 cd frontend
@@ -38,9 +60,10 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 
 Expected result:
 - The demo starts on `http://127.0.0.1:3000`.
-- Submitting the default Chicago address renders the same mocked score, severity snapshot, top risks, and explanation returned by the API.
+- Submitting the default Chicago address renders the score, severity snapshot, top risks, and explanation returned by the API.
+- A "Demo data" or "Live data" badge shows which mode the backend is running in.
 
-### 4. Record handoff notes if the smoke check fails
+### 6. Record handoff notes if the smoke check fails
 
 Capture:
 - whether the failure is backend-only, frontend-only, or integration-related;

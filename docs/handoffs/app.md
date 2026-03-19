@@ -18,10 +18,11 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Does it avoid turning the frontend demo into a broader product redesign?
 - Is the next App task specific enough to implement with a small, reviewable PR?
 
-## Current blocker
-- App has no remaining `ready` task in `ops/TASKS.yaml` as of 2026-03-18.
-- The next meaningful App task is `app-008` (connect frontend to real backend), but it is blocked on `data-009` delivering the nearby-project radius query needed for live scoring.
-- Until that Data dependency lands, preserve the polished mocked/demo fallback instead of inventing a parallel contract or speculative backend wiring.
+## Current state (2026-03-19)
+- All app tasks through `app-014` are done.
+- `app-008` (connect frontend to real backend) is complete: the backend now uses the live scoring path when `POSTGRES_HOST` is set, with a graceful demo fallback when it is not.
+- `app-007` (map view) remains backlog — defer unless demo polish is explicitly prioritised.
+- No actionable app tasks remain. Run `python ops/generate_tasks.py` when the next integration milestone is defined.
 
 ## Mocked `/score` smoke-check handoff
 - Start the mocked backend with `cd backend && uvicorn app.main:app --reload`.
