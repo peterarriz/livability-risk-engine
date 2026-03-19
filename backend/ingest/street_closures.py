@@ -7,7 +7,7 @@ Ingests Chicago CDOT Street Closure Permits from the City of Chicago
 Socrata API and writes raw records to a local JSON staging file.
 
 Source:
-  https://data.cityofchicago.org/resource/Rfu5-xgsz.json
+  https://data.cityofchicago.org/resource/jdis-5sry.json
   Dataset: CDOT Street Closures / Work Zone Permits
 
 Usage:
@@ -44,7 +44,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_BASE_URL = "https://data.cityofchicago.org/resource/Rfu5-xgsz.json"
+SOCRATA_BASE_URL = "https://data.cityofchicago.org/resource/jdis-5sry.json"
 
 # Fields to retain from the raw closure record.
 FIELDS_TO_KEEP = [
