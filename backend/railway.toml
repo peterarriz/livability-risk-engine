@@ -1,0 +1,13 @@
+# railway.toml
+# task: data-018
+# Railway service configuration for the FastAPI backend.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
