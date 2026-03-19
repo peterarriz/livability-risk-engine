@@ -867,3 +867,38 @@ tasks:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
     notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+  - id: data-014
+    lane: data
+    type: ops
+    title: Audit database hosting options and recommend path to live Postgres+PostGIS
+    owner: data
+    status: done
+    priority: high
+    files:
+      - docs/database_hosting_audit.md
+    dependencies:
+      - data-013
+    acceptance_criteria:
+      - Hosting platforms researched and compared
+      - Primary recommendation with implementation path
+      - Cost analysis and risk assessment
+      - Next steps clearly defined
+    notes_for_next_agent: Completed comprehensive audit. Railway recommended as primary option ($5/month) for MVP due to native PostGIS support, low setup effort, and co-located backend hosting. Supabase as secondary option for database-only approach. Audit document in docs/database_hosting_audit.md provides detailed platform comparison and implementation guidance. Next task should be data-015 (implement Railway hosting) to go live.
+  - id: data-015
+    lane: data
+    type: ops
+    title: Deploy live Postgres+PostGIS database on Railway
+    owner: data
+    status: ready
+    priority: high
+    files:
+      - docs/deployment_guide.md
+    dependencies:
+      - data-014
+    acceptance_criteria:
+      - Database deployed on Railway with PostGIS enabled
+      - Schema migrated (raw tables + canonical projects)
+      - Environment variables configured for live mode
+      - Ingest pipeline tested with real data
+      - /score endpoint returning real scores
+    notes_for_next_agent: Follow Railway deployment guide from data-014 audit. Test all components: schema migration, data ingestion, scoring queries. Validate that demo fallback is preserved for redundancy. Update README with new live mode instructions.
