@@ -30,7 +30,7 @@ lanes:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: All data tasks through data-013 are done, plus data-010/011/012 completed. Freshness check script added (backend/ingest/check_freshness.py), daily refresh steps and normalization QA guide added to docs/handoffs/data.md. No ready data tasks remain; generate tasks when the next milestone is defined.
+    notes: All data tasks through data-016 are done. Pipeline now covers: ingest → geocode-fill → load (with prune) → freshness check → DB summary. No ready data tasks remain; generate tasks when the next milestone is defined.
   app:
     display_name: App
     ready_queue_target: 3

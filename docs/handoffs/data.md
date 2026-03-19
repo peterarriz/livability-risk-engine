@@ -51,21 +51,45 @@ python backend/ingest/street_closures.py
 
 Output: `data/raw/street_closures.json` — active and upcoming closure records.
 
-### Step 3 — Load into canonical DB
+### Step 3 — Fill missing coordinates (geocode-fill)
+
+Geocodes staging records that have address text but no lat/lon, writing
+the results back to the same JSON files before the DB load.
+
+```bash
+python backend/ingest/geocode_fill.py
+```
+
+Use `--dry-run` to see how many records would be filled without writing.
+Use `--max-fill N` to limit API calls during testing.
+
+### Step 4 — Load into canonical DB
 
 Requires `POSTGRES_HOST` (and other `POSTGRES_*` vars) to be set.
 
 ```bash
-python backend/ingest/load_projects.py
+python backend/ingest/load_projects.py --prune-days 90
 ```
 
-Use `--dry-run` to validate normalization without touching the DB.
+`--prune-days 90` removes completed records older than 90 days from the
+`projects` table, keeping it focused on the near-term scoring window.
+Use `--dry-run` to validate normalization and see the prune count without
+touching the DB.
 
-### Step 4 — Verify freshness
+### Step 5 — Verify freshness
 
 ```bash
 python backend/ingest/check_freshness.py
 ```
+
+### Step 6 — Review DB summary
+
+```bash
+python backend/ingest/db_summary.py
+```
+
+Prints counts by source, status, and impact_type. Share output with App
+as a QA artifact after the first successful live-data load.
 
 ### Failure handling
 
@@ -73,6 +97,7 @@ python backend/ingest/check_freshness.py
 |---------|--------|
 | Socrata API returns HTTP 429 or 503 | Wait 60s and retry; if persisting, note in `ops/lane_state.yaml` as a blocker. |
 | Staging file written but record_count is 0 | Check the Socrata `$where` filter date logic; re-run with `--days-back 180` to widen the window. |
+| `geocode_fill.py` shows high failed count | Addresses may be ambiguous or missing street number; check a sample with `geocode.py` directly. High failure rates for closures (street-only addresses) are expected. |
 | DB upsert fails | Check `POSTGRES_*` env vars; run with `--dry-run` to confirm normalization is clean before re-attempting. |
 | `check_freshness.py` reports stale after refresh | Re-run the relevant ingest script; the `ingested_at` timestamp is written at the end of a successful run. |
 

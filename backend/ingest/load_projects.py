@@ -13,19 +13,23 @@ the /score endpoint returns real data.
 End-to-end pipeline:
   1. python backend/ingest/building_permits.py    → data/raw/building_permits.json
   2. python backend/ingest/street_closures.py     → data/raw/street_closures.json
-  3. python backend/ingest/load_projects.py       → upserts into `projects` table
-  4. uvicorn app.main:app --reload                → live /score endpoint
+  3. python backend/ingest/geocode_fill.py        → fills missing lat/lon in staging files
+  4. python backend/ingest/load_projects.py       → upserts into `projects` table
+  5. uvicorn app.main:app --reload                → live /score endpoint
 
 Usage:
   # Load both sources
   python backend/ingest/load_projects.py
 
+  # Load both sources and prune completed records older than 90 days
+  python backend/ingest/load_projects.py --prune-days 90
+
   # Load only one source
   python backend/ingest/load_projects.py --source permits
   python backend/ingest/load_projects.py --source closures
 
-  # Dry-run (normalize and validate; no DB writes)
-  python backend/ingest/load_projects.py --dry-run
+  # Dry-run (normalize, validate, and show prune count; no DB writes)
+  python backend/ingest/load_projects.py --dry-run --prune-days 90
 
   # Custom staging file paths
   python backend/ingest/load_projects.py \\
@@ -96,6 +100,7 @@ class LoadStats:
     skipped_no_coords: int = 0
     skipped_no_source_id: int = 0
     errors: int = 0
+    pruned: int = 0
 
     def report(self) -> str:
         lines = [
@@ -107,6 +112,7 @@ class LoadStats:
             f"  Skipped (no coords):    {self.skipped_no_coords}",
             f"  Skipped (no source_id): {self.skipped_no_source_id}",
             f"  Errors:                 {self.errors}",
+            f"  Pruned (stale):         {self.pruned}",
         ]
         return "\n".join(lines)
 
@@ -178,6 +184,55 @@ UPDATE ingest_runs
 SET finished_at = NOW(), record_count = %(record_count)s, status = %(status)s, error_msg = %(error_msg)s
 WHERE id = %(run_id)s;
 """
+
+# Prune completed records whose end_date is older than N days.
+# Only removes `completed` status rows — never touches active or planned records.
+PRUNE_SQL = """
+DELETE FROM projects
+WHERE status = 'completed'
+  AND end_date < CURRENT_DATE - %(prune_days)s * INTERVAL '1 day';
+"""
+
+PRUNE_COUNT_SQL = """
+SELECT COUNT(*) FROM projects
+WHERE status = 'completed'
+  AND end_date < CURRENT_DATE - %(prune_days)s * INTERVAL '1 day';
+"""
+
+
+# ---------------------------------------------------------------------------
+# Stale-record pruning
+# ---------------------------------------------------------------------------
+
+def prune_stale_projects(conn, prune_days: int, dry_run: bool) -> int:
+    """
+    Remove completed projects whose end_date is older than prune_days.
+
+    In dry-run mode, counts and reports the rows that would be removed
+    without deleting anything.
+
+    Returns the number of rows deleted (or that would be deleted).
+    """
+    params = {"prune_days": prune_days}
+
+    with conn.cursor() as cur:
+        cur.execute(PRUNE_COUNT_SQL, params)
+        count = cur.fetchone()[0]
+
+    if dry_run:
+        print(f"  Dry-run: {count} completed record(s) older than {prune_days} days would be pruned.")
+        return count
+
+    if count == 0:
+        print(f"  No completed records older than {prune_days} days to prune.")
+        return 0
+
+    with conn.cursor() as cur:
+        cur.execute(PRUNE_SQL, params)
+    conn.commit()
+
+    print(f"  Pruned {count} completed record(s) older than {prune_days} days.")
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +503,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Normalize and validate only; do not write to DB.",
     )
+    parser.add_argument(
+        "--prune-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "After upserting, delete completed projects whose end_date is "
+            "older than N days. Dry-run mode reports the count without deleting. "
+            "Recommended: 90."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -472,6 +538,7 @@ def main() -> None:
             sys.exit(1)
 
     all_stats: list[LoadStats] = []
+    total_pruned = 0
 
     try:
         if args.source in ("permits", "both"):
@@ -481,6 +548,19 @@ def main() -> None:
         if args.source in ("closures", "both"):
             stats = load_closures(args.closures_file, conn, args.dry_run)
             all_stats.append(stats)
+
+        if args.prune_days is not None and conn is not None:
+            print(f"\nPruning completed records older than {args.prune_days} days...")
+            total_pruned = prune_stale_projects(conn, args.prune_days, args.dry_run)
+        elif args.prune_days is not None and args.dry_run:
+            print(f"\nPruning completed records older than {args.prune_days} days...")
+            # For dry-run we still need a connection to count rows.
+            try:
+                _conn = get_db_connection()
+                total_pruned = prune_stale_projects(_conn, args.prune_days, dry_run=True)
+                _conn.close()
+            except Exception:
+                print("  (Cannot count prune candidates without a DB connection in dry-run mode.)")
     finally:
         if conn:
             conn.close()
@@ -493,6 +573,7 @@ def main() -> None:
     total_upserted = sum(s.upserted for s in all_stats)
     total_errors   = sum(s.errors   for s in all_stats)
     print(f"\nTotal upserted: {total_upserted}")
+    print(f"Total pruned:   {total_pruned}")
     print(f"Total errors:   {total_errors}")
 
     if total_errors > 0:

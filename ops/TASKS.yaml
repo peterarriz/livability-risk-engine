@@ -832,3 +832,56 @@ tasks:
       - Required field checks listed.
       - QA outputs can be shared with App without manual interpretation.
     notes_for_next_agent: Added "Normalization QA checks" section to docs/handoffs/data.md with required field table, dry-run command, and load summary interpretation guide for App. No changes to docs/04_api_contracts.md needed (field names already exact).
+  - id: data-014
+    lane: data
+    type: quality
+    title: Add geocode-fill pass for staging records missing coordinates
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/ingest/geocode_fill.py
+      - docs/handoffs/data.md
+    dependencies:
+      - data-008
+      - data-013
+    acceptance_criteria:
+      - Script reads both staging JSON files and fills lat/lon for records that have an address but no coordinates.
+      - Filled records are written back to the staging files so load_projects.py picks them up on the next run.
+      - Script is idempotent — re-running does not double-geocode already-filled records.
+      - Progress and skip counts are printed clearly.
+    notes_for_next_agent: Created backend/ingest/geocode_fill.py. Uses geocode_address() with 0.25s sleep. --dry-run and --max-fill flags included. Also updated docs/handoffs/data.md to insert geocode-fill as Step 3 in the daily refresh runbook.
+  - id: data-015
+    lane: data
+    type: ops
+    title: Add stale completed-record pruning to load_projects
+    owner: data
+    status: done
+    priority: medium
+    files:
+      - backend/ingest/load_projects.py
+    dependencies:
+      - data-013
+    acceptance_criteria:
+      - load_projects.py accepts a --prune-days N flag (default 90).
+      - When set, DELETE FROM projects WHERE status='completed' AND end_date < today - N days runs after the upsert.
+      - Dry-run mode reports how many rows would be pruned without deleting.
+      - Row count deleted is printed in the load summary.
+    notes_for_next_agent: Added --prune-days flag, prune_stale_projects() function, PRUNE_SQL and PRUNE_COUNT_SQL constants. Prune runs after all upserts and is reported in the load summary. Never touches active or planned records.
+  - id: data-016
+    lane: data
+    type: quality
+    title: Add DB summary diagnostic script
+    owner: data
+    status: done
+    priority: medium
+    files:
+      - backend/ingest/db_summary.py
+    dependencies:
+      - data-013
+    acceptance_criteria:
+      - Script queries projects table and prints counts by source, status, and impact_type.
+      - Shows the freshest and oldest normalized_at per source so Data can confirm a successful load.
+      - Exits 0 always; output is copy-paste-ready for sharing with App as a QA artifact.
+      - Works with the same POSTGRES_* env vars as load_projects.py.
+    notes_for_next_agent: Created backend/ingest/db_summary.py. Queries by source+status, source+impact_type, and freshness. --json flag for machine-readable output. All queries read-only. Added as Step 6 in the daily refresh runbook in docs/handoffs/data.md.
