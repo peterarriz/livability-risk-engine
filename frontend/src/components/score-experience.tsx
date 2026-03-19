@@ -71,6 +71,28 @@ function toTitleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function metersToFeet(meters: number): number {
+  return Math.round(meters * 3.28084);
+}
+
+function humanizeRiskText(text: string): string {
+  // Replace internal permit type codes with plain language
+  let result = text
+    .replace(/\bGenOpening\b/g, "Permitted work (opening phase)")
+    .replace(/\bGenOccupy\b/g, "Active lane occupation");
+
+  // Convert meter distances to feet
+  result = result.replace(/(\d{1,4})\s*meters?\b/gi, (_, m) => `~${metersToFeet(Number(m))} ft`);
+
+  // Humanize "18TH from 14 to 59" style street ranges → "18TH between addresses 14–59"
+  result = result.replace(
+    /\b([A-Z0-9][A-Z0-9\s]{1,20})\s+from\s+(\d+)\s+to\s+(\d+)\b/gi,
+    (_, street, start, end) => `${toTitleCase(street.trim().toLowerCase())} between addresses ${start}–${end}`,
+  );
+
+  return result;
+}
+
 function inferImpact(text: string, index: number): RiskCardModel["impact"] {
   const normalized = text.toLowerCase();
 
@@ -108,14 +130,14 @@ function inferDriverEyebrow(text: string): string {
 }
 
 function inferDriverTitle(text: string): string {
-  const normalized = normalizeSentence(text);
+  const humanized = humanizeRiskText(text);
+  const normalized = normalizeSentence(humanized);
   const simplified = normalized
     .replace(/^active\s+/i, "")
     .replace(/^a nearby\s+/i, "")
     .replace(/^nearby\s+/i, "")
     .replace(/^traffic and curb access are the dominant near-term disruption signals at this address$/i, "Traffic and curb access drive this score")
     .replace(/\bwithin roughly\b/gi, "~")
-    .replace(/\bmeters\b/gi, "m")
     .replace(/\s+/g, " ");
 
   if (simplified.length <= 76) {
@@ -128,24 +150,43 @@ function inferDriverTitle(text: string): string {
 
 function deriveDriverRationale(text: string): string {
   const normalized = text.toLowerCase();
+  const meterMatch = text.match(/(\d{1,4})\s*meters?/i);
+  const distanceLabel = meterMatch ? `~${metersToFeet(Number(meterMatch[1]))} ft away` : "nearby";
 
-  if (/closure|lane|traffic/.test(normalized)) {
-    return "Direct roadway constraints are usually the fastest way nearby work changes day-to-day access.";
+  if (/2-lane|multi-lane/.test(normalized) && /closure/.test(normalized)) {
+    return `A multi-lane closure ${distanceLabel} reduces available travel lanes and can affect access during the active window.`;
+  }
+  if (/closure|lane/.test(normalized) && !/through|window/.test(normalized)) {
+    return `This lane restriction ${distanceLabel} affects normal traffic flow and curb access near the address.`;
+  }
+  if (/dominant|traffic.*signal|curb.*dominant/.test(normalized)) {
+    return "Traffic and curb conditions are the primary factor elevating the disruption score at this address.";
   }
   if (/through|window|days|months|timeline/.test(normalized)) {
-    return "A defined active window makes the disruption easier to plan around and easier to trust.";
+    return "A defined active window helps you plan around the disruption with more confidence.";
   }
-  if (/within roughly|meters|adjacent|close proximity|within/.test(normalized)) {
-    return "Proximity matters here: closer signals are more likely to be felt at the address itself.";
+  if (/within roughly|adjacent|close proximity/.test(normalized)) {
+    return `At ${distanceLabel}, this signal is close enough to directly affect arrivals and departures.`;
   }
   if (/permit|construction|site work|excavation|renovation/.test(normalized)) {
-    return "Confirmed nearby work gives the score a concrete physical source rather than background neighborhood noise.";
+    return "Active permitted work nearby provides a concrete physical basis for the elevated disruption level.";
   }
   if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) {
-    return "Curb friction often shows up before broader congestion and can change arrival quality quickly.";
+    return "Curb friction typically appears before broader congestion and can affect arrival quality quickly.";
   }
 
-  return "This is one of the strongest plain-language signals returned by the scoring service.";
+  return "This signal contributes meaningfully to the overall disruption read for this address.";
+}
+
+function inferDataSource(text: string): string {
+  const normalized = text.toLowerCase();
+  if (/closure|lane|cdot|street closing/.test(normalized)) {
+    return "Source: CDOT street closure data";
+  }
+  if (/permit|construction|site work|excavation|renovation|genopening|genoccupy/i.test(normalized)) {
+    return "Source: City of Chicago building permit data";
+  }
+  return "Source: City of Chicago Open Data Portal";
 }
 
 function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string[] {
@@ -154,7 +195,7 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 
   const meterMatch = text.match(/(\d{1,4})\s*meters?/i);
   if (meterMatch) {
-    chips.add(`${meterMatch[1]} m away`);
+    chips.add(`~${metersToFeet(Number(meterMatch[1]))} ft away`);
   }
 
   const dateMatch = text.match(/(20\d{2}-\d{2}-\d{2})/);
@@ -176,15 +217,16 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 
 function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
   return result.top_risks.slice(0, 3).map((risk, index) => {
-    const impact = inferImpact(risk, index);
+    const humanized = humanizeRiskText(risk);
+    const impact = inferImpact(humanized, index);
     return {
       id: `${risk}-${index}`,
-      eyebrow: inferDriverEyebrow(risk),
-      title: inferDriverTitle(risk),
+      eyebrow: inferDriverEyebrow(humanized),
+      title: inferDriverTitle(humanized),
       impact,
-      rationale: deriveDriverRationale(risk),
-      evidence: normalizeSentence(risk),
-      chips: extractRiskChips(risk, impact),
+      rationale: deriveDriverRationale(humanized),
+      evidence: inferDataSource(risk),
+      chips: extractRiskChips(humanized, impact),
     };
   });
 }
@@ -337,11 +379,24 @@ function useAnimatedScore(target: number) {
   return displayScore;
 }
 
+function getGaugeBand(score: number): "low" | "moderate" | "high" {
+  if (score <= 30) return "low";
+  if (score <= 60) return "moderate";
+  return "high";
+}
+
+function getBenchmarkText(score: number): string {
+  if (score < 20) return "This address scores below the typical Chicago range of 20–40.";
+  if (score <= 40) return "This address falls within the typical Chicago range of 20–40.";
+  return "This address scores above the typical Chicago range of 20–40.";
+}
+
 export function ScoreHero({ result }: ScoreHeroProps) {
   const displayScore = useAnimatedScore(result.disruption_score);
   const scoreMessage = getScoreMessage(result.disruption_score);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
   const modeLabel = result.mode === "demo" ? "Demo scenario" : "Live Chicago signal";
+  const gaugeBand = getGaugeBand(result.disruption_score);
 
   return (
     <div className="score-hero">
@@ -352,6 +407,22 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           <p className="confidence-pill">{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
+
+        <div className="score-gauge" aria-label={`Score ${displayScore} out of 100`}>
+          <div className="score-gauge-track">
+            <div className={`score-gauge-fill score-gauge-fill--${gaugeBand}`} style={{ width: `${displayScore}%` }} />
+            <div className="score-gauge-marker" style={{ left: "30%" }} aria-hidden="true" />
+            <div className="score-gauge-marker" style={{ left: "60%" }} aria-hidden="true" />
+          </div>
+          <div className="score-gauge-labels" aria-hidden="true">
+            <span>0 — Low</span>
+            <span>30</span>
+            <span>60</span>
+            <span>100 — High</span>
+          </div>
+        </div>
+        <p className="score-benchmark">{getBenchmarkText(result.disruption_score)}</p>
+
         <h2 className="score-hero-title">{scoreMessage.label}</h2>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
       </div>
@@ -370,7 +441,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           </div>
           <div>
             <span>Primary signals</span>
-            <strong>{result.top_risks.length} surfaced</strong>
+            <strong>{result.top_risks.length} detected</strong>
           </div>
         </div>
       </div>
@@ -381,9 +452,9 @@ export function ScoreHero({ result }: ScoreHeroProps) {
 export function SeverityMeters({ severity, confidence, confidenceReasons }: SeverityMetersProps) {
   const rows = useMemo(
     () => [
-      { label: "Noise", value: severity.noise, accent: "noise" },
-      { label: "Traffic & curb access", value: severity.traffic, accent: "traffic" },
-      { label: "Dust & vibration", value: severity.dust, accent: "dust" },
+      { label: "Signal noise (unrelated activity nearby)", value: severity.noise, accent: "noise" },
+      { label: "Access disruption", value: severity.traffic, accent: "traffic" },
+      { label: "Construction intensity", value: severity.dust, accent: "dust" },
     ],
     [severity],
   );
@@ -392,7 +463,15 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
     <div className="severity-stack">
       <div className="confidence-summary">
         <div className="confidence-summary-head">
-          <p className="confidence-summary-label">Confidence</p>
+          <p className="confidence-summary-label">
+            Confidence
+            <span className="tooltip-anchor" tabIndex={0} aria-label="About confidence scoring">
+              ?
+              <span className="tooltip-content" role="tooltip">
+                Confidence reflects how closely the detected signals are tied to this specific address, not how severe the disruption is.
+              </span>
+            </span>
+          </p>
           <strong>{toTitleCase(confidence.toLowerCase())}</strong>
         </div>
         <ul className="confidence-reason-list">
@@ -418,7 +497,6 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
           </div>
         ))}
       </div>
-      <p className="severity-footnote">Confidence speaks to evidence quality and specificity, not severity.</p>
     </div>
   );
 }

@@ -10,6 +10,7 @@ type SectionProps = Omit<ComponentPropsWithoutRef<"section">, "children"> & {
   eyebrow?: string;
   title?: string;
   description?: string;
+  headerAction?: ReactNode;
 };
 
 type CardProps = ContainerProps & {
@@ -33,16 +34,20 @@ export function Section({
   eyebrow,
   title,
   description,
+  headerAction,
   className,
   ...sectionProps
 }: SectionProps) {
   return (
     <section className={joinClasses("shell-section", className)} {...sectionProps}>
-      {eyebrow || title || description ? (
-        <div className="section-heading">
-          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-          {title ? <h2>{title}</h2> : null}
-          {description ? <p className="section-copy">{description}</p> : null}
+      {eyebrow || title || description || headerAction ? (
+        <div className={joinClasses("section-heading", headerAction ? "section-heading--with-action" : undefined)}>
+          <div>
+            {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+            {title ? <h2>{title}</h2> : null}
+            {description ? <p className="section-copy">{description}</p> : null}
+          </div>
+          {headerAction ? <div className="section-header-action">{headerAction}</div> : null}
         </div>
       ) : null}
       {children}
