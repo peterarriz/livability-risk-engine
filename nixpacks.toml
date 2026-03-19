@@ -1,0 +1,8 @@
+# nixpacks.toml — explicit Nixpacks build config for the FastAPI backend.
+# Prevents Railpack from being confused by the presence of frontend/ (Next.js).
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "bash start.sh"

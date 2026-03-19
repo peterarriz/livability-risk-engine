@@ -1,13 +1,2 @@
-# railway.toml
-# task: data-018
-# Railway service configuration for the FastAPI backend.
-
-[build]
-builder = "nixpacks"
-
-[deploy]
-startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
-healthcheckPath = "/health"
-healthcheckTimeout = 30
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+# MOVED — active Railway config is now at the repo root: /railway.toml
+# This file is kept for history only; Railway reads the root-level file.

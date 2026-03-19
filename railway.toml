@@ -1,0 +1,17 @@
+# railway.toml — repo root
+# Backend service: FastAPI on Railway using Nixpacks.
+#
+# The Python package uses "backend.app.main" as the module path, so the build
+# and start commands must run from the repo root (not from backend/).
+# Railway is configured to look at repo root for this service.
+# Frontend (Next.js) is deployed separately on Vercel.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "bash start.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
