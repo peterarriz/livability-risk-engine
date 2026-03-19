@@ -14,36 +14,33 @@ lanes:
     display_name: Product
     ready_queue_target: 3
     current_focus:
-      - product-012
-      - product-016
+      - product-008
     blockers: []
     update_when:
       - A product task changes status.
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
-    notes: product-007, product-010, and product-014 are done. Next focus is approving the final mocked demo example (product-012) and buyer-facing demo responses per score band (product-016).
+    notes: All prior product tasks are done. product-008 (launch-readiness questions) is now ready and is the next actionable product task.
   data:
     display_name: Data
     ready_queue_target: 3
     current_focus:
-      - data-005
-      - data-006
-      - data-007
+      - data-010
+      - data-011
+      - data-012
     blockers: []
     update_when:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: data-001, data-002, and data-004 are done. Next focus is canonical projects table (data-005) and normalization tasks (data-006, data-007). data-005 must complete before data-006 and data-007 can start.
+    notes: data-005 through data-009 and data-013 are done. Next focus is freshness checks (data-010), daily refresh docs (data-011), and normalization QA (data-012).
   app:
     display_name: App
     ready_queue_target: 3
-    current_focus:
-      - app-008
-    blockers:
-      - data-009: Implement radius query for nearby projects before App can wire the live score flow.
+    current_focus: []
+    blockers: []
     update_when:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
       - The demo flow needs a different next-ready task.
-    notes: Keep the queue centered on the API and the minimal demo frontend.
+    notes: All app tasks through app-014 are done. app-008 (connect frontend to real backend) is complete now that data-009 delivered the radius query. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.
