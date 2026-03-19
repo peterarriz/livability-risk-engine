@@ -92,6 +92,26 @@ export default function HomePage() {
     "Calculating disruption score…",
   ];
 
+  useEffect(() => {
+    if (address.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(address);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [address]);
+
+  function handleSelectSuggestion(suggestion: string) {
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
@@ -170,11 +190,13 @@ export default function HomePage() {
                   name="address"
                   type="text"
                   value={address}
-                  onChange={(event) => handleAddressChange(event.target.value)}
+                  onChange={(event) => setAddress(event.target.value)}
                   onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder={PREMIUM_PLACEHOLDER}
                   autoComplete="off"
                   required
+                  autoComplete="off"
                 />
                 <button type="submit" disabled={isLoading}>
                   {isLoading ? "Analyzing…" : "Analyze address"}
@@ -188,37 +210,25 @@ export default function HomePage() {
                       top: "100%",
                       left: 0,
                       right: 0,
-                      zIndex: 50,
-                      margin: 0,
-                      padding: "4px 0",
-                      listStyle: "none",
                       background: "var(--surface, #fff)",
                       border: "1px solid var(--border, #e2e8f0)",
-                      borderRadius: "6px",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                      borderRadius: "var(--radius, 6px)",
+                      listStyle: "none",
+                      margin: "4px 0 0",
+                      padding: "4px 0",
+                      zIndex: 100,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                     }}
                   >
-                    {suggestions.map((suggestion) => (
-                      <li key={suggestion}>
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={address === suggestion}
-                          onClick={() => handleSuggestionSelect(suggestion)}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "8px 14px",
-                            textAlign: "left",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: "0.875rem",
-                            color: "inherit",
-                          }}
-                        >
-                          {suggestion}
-                        </button>
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        onMouseDown={() => handleSelectSuggestion(s)}
+                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
+                      >
+                        {s}
                       </li>
                     ))}
                   </ul>
