@@ -458,13 +458,22 @@ def get_db_connection():
     """
     Create a psycopg2 connection from environment variables.
 
-    Required env vars:
-      POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-      POSTGRES_USER, POSTGRES_PASSWORD
+    Supports two formats:
+    1. DATABASE_URL (Railway standard): postgresql://user:pass@host:port/db
+    2. Individual variables: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
+       POSTGRES_USER, POSTGRES_PASSWORD
+
+    Falls back to individual variables if DATABASE_URL is not set.
     """
     if not HAS_PSYCOPG2:
         raise ImportError("psycopg2 is required. pip install psycopg2-binary")
 
+    # Try DATABASE_URL first (Railway/Heroku standard)
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url)
+
+    # Fallback to individual environment variables
     return psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST", "localhost"),
         port=int(os.environ.get("POSTGRES_PORT", 5432)),

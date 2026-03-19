@@ -92,11 +92,11 @@ def _build_demo_response(address: str, fallback_reason: str) -> dict:
 
 # ---------------------------------------------------------------------------
 # DB + scoring path (live mode)
-# Only activated when POSTGRES_HOST env var is set.
+# Only activated when DATABASE_URL or POSTGRES_HOST env var is set.
 # ---------------------------------------------------------------------------
 
 def _is_db_configured() -> bool:
-    return bool(os.environ.get("POSTGRES_HOST"))
+    return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
 
 
 def _score_live(address: str) -> dict:
@@ -137,12 +137,12 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    Live mode (when POSTGRES_HOST is set):
+    Live mode (when DATABASE_URL or POSTGRES_HOST is set):
       Geocodes the address, queries the canonical projects table,
       and applies the rule-based scoring engine.
       Response includes mode="live" and fallback_reason=null.
 
-    Demo mode (when POSTGRES_HOST is not set or geocoding fails):
+    Demo mode (when database is not configured or geocoding fails):
       Returns the approved mocked example from docs/04_api_contracts.md.
       Response includes mode="demo" and a fallback_reason string.
     """
@@ -185,8 +185,8 @@ def health() -> dict:
 
     Fields:
       status:             always "ok" (endpoint never hard-fails)
-      mode:               "live" if POSTGRES_HOST is set, else "demo"
-      db_configured:      true if POSTGRES_HOST env var is present
+      mode:               "live" if DATABASE_URL or POSTGRES_HOST is set, else "demo"
+      db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
       last_ingest_status: reserved for future ingest tracking; null for MVP
