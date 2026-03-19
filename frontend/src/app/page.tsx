@@ -135,10 +135,16 @@ export default function HomePage() {
               </div>
             </form>
 
-            {statusNote ? (
+            {(result || statusNote) ? (
+              // app-022: always show mode badge when a result is available.
+              // Prefer the backend's mode field (more precise); fall back to
+              // the frontend's inferred source. fallback_reason is logged to
+              // console only (see api.ts) — never surfaced in the UI.
               <div className="status-banner status-banner--demo" role="status">
-                <span className="status-badge">{scoreSource === "demo" ? "Demo data" : "Live data"}</span>
-                <span>{statusNote}</span>
+                <span className="status-badge">
+                  {(result?.mode ?? scoreSource) === "demo" ? "Demo data" : "Live data"}
+                </span>
+                {statusNote ? <span>{statusNote}</span> : null}
               </div>
             ) : null}
 

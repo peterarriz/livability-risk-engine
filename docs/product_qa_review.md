@@ -714,3 +714,24 @@ Use this checklist when reviewing any /score response, mocked or live.
 - [ ] dust is HIGH but no demolition/excavation is in top_risks
 - [ ] Explanation mentions a project not referenced in top_risks
 - [ ] Score is Low but explanation uses alarming language
+
+
+---
+
+## Golden address review workflow (product-030)
+
+The recurring live-data validation workflow based on this QA set is documented
+in `docs/product_qa_checklist.md` under "Score review workflow for golden addresses."
+
+**Golden set (6 addresses):** drawn from the 18-address set in this document to
+span the full score range:
+- #1  — 1600 W Chicago Ave (High)
+- #3  — 1200 W Fulton Market (Severe)
+- #7  — 111 N Halsted St (Moderate)
+- #11 — 3150 N Southport Ave (Moderate / low-end)
+- #13 — 5800 N Northwest Hwy (Low)
+- #18 — 11900 S Morgan St (Low / deepest)
+
+Full selection rationale, expected bands, and per-address review steps are in
+`docs/product_qa_checklist.md`. Reference this file when adding new QA addresses
+or updating expected bands after a scoring model change.
