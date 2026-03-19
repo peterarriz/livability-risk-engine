@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -31,7 +31,59 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
+  const resultMode = result?.mode ?? scoreSource;
+  const isDemoResult = resultMode === "demo";
+  const statusHeadline = isDemoResult ? "Demo scenario" : "Live data • Chicago";
+  const statusMessage = isDemoResult
+    ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
+    : "Live backend scoring is active for this address lookup.";
+
+  // Dismiss suggestions on outside click.
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleAddressChange(value: string) {
+    setAddress(value);
+    setShowSuggestions(false);
+
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current);
+    }
+
+    if (value.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    suggestTimerRef.current = setTimeout(async () => {
+      const results = await fetchSuggestions(value);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 300);
+  }
+
+  function handleSuggestionSelect(suggestion: string) {
+    setAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
   const loadingSteps = [
@@ -69,12 +121,11 @@ export default function HomePage() {
       const scoreResult = await fetchScore(address);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
-      setStatusNote(scoreResult.note ?? null);
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : "Unable to fetch a disruption score right now.",
+          : "The score request could not be completed. Try again in a moment.",
       );
       setResult(null);
       setStatusNote(null);
@@ -129,7 +180,11 @@ export default function HomePage() {
               <label htmlFor="address" className="input-label">
                 {workspaceMode ? "Search another Chicago address" : "Chicago address"}
               </label>
-              <div className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`} style={{ position: "relative" }}>
+              <div
+                ref={searchShellRef}
+                className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}
+                style={{ position: "relative" }}
+              >
                 <input
                   id="address"
                   name="address"
@@ -139,6 +194,7 @@ export default function HomePage() {
                   onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder={PREMIUM_PLACEHOLDER}
+                  autoComplete="off"
                   required
                   autoComplete="off"
                 />
@@ -192,7 +248,7 @@ export default function HomePage() {
                         key={example}
                         type="button"
                         className="example-chip"
-                        onClick={() => setAddress(example)}
+                        onClick={() => handleSuggestionSelect(example)}
                       >
                         {example}
                       </button>
@@ -203,18 +259,19 @@ export default function HomePage() {
             </form>
 
             {(result || statusNote) ? (
-              <div className="status-banner status-banner--demo" role="status">
-                <span className="status-badge">
-                  {(result?.mode ?? scoreSource) === "demo" ? "Demo scenario" : "Live data • Chicago"}
-                </span>
-                <span>Sources: Chicago permits • Street closures</span>
-                {statusNote ? <span>{statusNote}</span> : null}
+              <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
+                <span className="status-badge">{statusHeadline}</span>
+                <div className="status-copy">
+                  <strong>{statusMessage}</strong>
+                  <span>Sources: Chicago permits • Street closures</span>
+                </div>
               </div>
             ) : null}
 
             {error ? (
               <div className="feedback-banner" role="alert">
-                {error}
+                <p className="feedback-title">Unable to complete the lookup</p>
+                <p>{error}</p>
               </div>
             ) : null}
           </Card>
@@ -243,6 +300,9 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
+                <p className="loading-support">
+                  Checking live availability first, then assembling a decision-ready brief.
+                </p>
                 <div className="skeleton skeleton-score" />
                 <div className="skeleton skeleton-meta" />
               </Card>
@@ -350,8 +410,8 @@ export default function HomePage() {
                 <p className="empty-kicker">Ready for analysis</p>
                 <h3>Start with a Chicago address to generate a decision-ready disruption brief.</h3>
                 <p>
-                  The empty state is intentionally designed to feel complete and presentation-ready,
-                  with space reserved for score, severity, top risks, and narrative context.
+                  Live scoring appears when the backend is available. If not, the workspace falls back
+                  gracefully to the approved demo scenario so reviews can still continue intentionally.
                 </p>
               </Card>
             </section>
