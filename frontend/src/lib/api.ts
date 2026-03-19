@@ -143,95 +143,126 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   }
 }
 
+// Chicago bounding box constants shared by both geocoder calls below.
+// Nominatim viewbox: left,top,right,bottom = minLon,maxLat,maxLon,minLat
+const _NOMINATIM_VIEWBOX = "-87.9401,42.0230,-87.5240,41.6445";
+// Photon bbox: minLon,minLat,maxLon,maxLat
+const _PHOTON_BBOX = "-87.9401,41.6445,-87.5240,42.0230";
+const _CHI_LAT: [number, number] = [41.6445, 42.0230];
+const _CHI_LON: [number, number] = [-87.9401, -87.5240];
+
+function _inChicago(lat: number, lon: number): boolean {
+  return lat >= _CHI_LAT[0] && lat <= _CHI_LAT[1] && lon >= _CHI_LON[0] && lon <= _CHI_LON[1];
+}
+
+type NominatimItem = {
+  lat: string;
+  lon: string;
+  address: { house_number?: string; road?: string; pedestrian?: string; highway?: string };
+};
+
+type PhotonFeature = {
+  geometry: { coordinates: [number, number] };
+  properties: { countrycode?: string; housenumber?: string; street?: string };
+};
+
+function _parseNominatim(items: NominatimItem[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of items) {
+    const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+    if (!_inChicago(lat, lon)) continue;
+    const a = r.address;
+    const road = a.road ?? a.pedestrian ?? a.highway ?? "";
+    if (!road) continue;
+    const house = a.house_number ?? "";
+    const s = house ? `${house} ${road}, Chicago, IL` : `${road}, Chicago, IL`;
+    if (!seen.has(s)) { seen.add(s); out.push(s); }
+  }
+  return out.slice(0, 5);
+}
+
+function _parsePhoton(features: PhotonFeature[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const f of features) {
+    if (f.properties.countrycode?.toUpperCase() !== "US") continue;
+    const [lon, lat] = f.geometry.coordinates;
+    if (!_inChicago(lat, lon)) continue;
+    const street = f.properties.street ?? "";
+    if (!street) continue;
+    const house = f.properties.housenumber ?? "";
+    const s = house ? `${house} ${street}, Chicago, IL` : `${street}, Chicago, IL`;
+    if (!seen.has(s)) { seen.add(s); out.push(s); }
+  }
+  return out.slice(0, 5);
+}
+
 /**
  * Fetch address suggestions for a partial query.
  *
- * Strategy:
- *  1. Try the backend /suggest endpoint (server-side Nominatim call).
- *  2. If the backend returns empty or fails, call Nominatim directly from the
- *     browser — this bypasses server-side proxy restrictions and works in any
- *     environment where the user's browser can reach nominatim.openstreetmap.org.
+ * Strategy (in order):
+ *  1. Backend /suggest  — server-side Nominatim → Photon; best in production
+ *  2. Browser Nominatim — direct from user's browser; bypasses server proxy limits
+ *  3. Browser Photon    — fallback if Nominatim is also unreachable from browser
  */
 export async function fetchSuggestions(query: string): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
 
-  // 1. Try backend endpoint.
+  // 1. Backend endpoint (tries Nominatim then Photon server-side).
   const apiBaseUrl = getApiBaseUrl();
   if (apiBaseUrl) {
     try {
       const url = buildApiUrl("/suggest");
       url.searchParams.set("q", q);
-      const response = await fetch(url.toString(), { cache: "no-store" });
-      if (response.ok) {
-        const data = (await response.json()) as { suggestions: string[] };
+      const resp = await fetch(url.toString(), { cache: "no-store" });
+      if (resp.ok) {
+        const data = (await resp.json()) as { suggestions: string[] };
         if (data.suggestions?.length) return data.suggestions;
       }
     } catch {
-      // Backend unavailable — fall through to browser-side geocoding.
+      // Backend unreachable — fall through to browser-side geocoding.
     }
   }
 
-  // 2. Browser-side Nominatim call (works even when server cannot reach it).
+  const biasedQ = q.toLowerCase().includes("chicago") ? q : `${q}, Chicago, IL`;
+
+  // 2. Browser-side Nominatim.
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
-    const searchQuery = q.toLowerCase().includes("chicago") ? q : `${q}, Chicago, IL`;
-    url.searchParams.set("q", searchQuery);
+    url.searchParams.set("q", biasedQ);
     url.searchParams.set("format", "json");
-    url.searchParams.set("limit", "5");
+    url.searchParams.set("limit", "8");
     url.searchParams.set("countrycodes", "us");
-    url.searchParams.set("viewbox", "-87.9401,41.6445,-87.5240,42.0230");
     url.searchParams.set("bounded", "1");
+    url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     url.searchParams.set("addressdetails", "1");
-
     const resp = await fetch(url.toString(), {
       headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
       cache: "no-store",
     });
-    if (!resp.ok) return [];
-
-    type NominatimResult = {
-      address: {
-        house_number?: string;
-        road?: string;
-        city?: string;
-        town?: string;
-        village?: string;
-        state?: string;
-      };
-    };
-
-    const data = (await resp.json()) as NominatimResult[];
-    const suggestions: string[] = [];
-    const seen = new Set<string>();
-
-    for (const item of data) {
-      const addr = item.address;
-      const parts: string[] = [];
-
-      const houseNumber = addr.house_number ?? "";
-      const road = addr.road ?? "";
-      if (houseNumber && road) parts.push(`${houseNumber} ${road}`);
-      else if (road) parts.push(road);
-
-      const city = addr.city ?? addr.town ?? addr.village ?? "";
-      const state = addr.state ?? "";
-      if (city && state) parts.push(`${city}, ${state}`);
-      else if (city) parts.push(city);
-
-      if (parts.length) {
-        const formatted = parts.join(", ");
-        if (!seen.has(formatted)) {
-          seen.add(formatted);
-          suggestions.push(formatted);
-        }
-      }
+    if (resp.ok) {
+      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[]);
+      if (suggestions.length) return suggestions;
     }
+  } catch { /* fall through */ }
 
-    return suggestions.slice(0, 5);
-  } catch {
-    return [];
-  }
+  // 3. Browser-side Photon fallback.
+  try {
+    const photonQ = q.toLowerCase().includes("chicago") ? q : `${q} Chicago`;
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", photonQ);
+    url.searchParams.set("limit", "8");
+    url.searchParams.set("bbox", _PHOTON_BBOX);
+    url.searchParams.set("lang", "en");
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (resp.ok) {
+      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? []);
+    }
+  } catch { /* */ }
+
+  return [];
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {

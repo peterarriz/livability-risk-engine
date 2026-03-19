@@ -345,10 +345,72 @@ def debug_score(
 
 
 # ---------------------------------------------------------------------------
-# /suggest endpoint (data-016)
+# /suggest endpoint
 # Returns up to 5 Chicago address suggestions for a partial query.
-# Powered by Nominatim (OpenStreetMap). Falls back to empty list on error.
+# Primary: Nominatim (OpenStreetMap).
+# Fallback: Photon by Komoot (also OSM-backed, more permissive from servers).
 # ---------------------------------------------------------------------------
+
+# Nominatim: viewbox = left,top,right,bottom = minLon,maxLat,maxLon,minLat
+_NOMINATIM_VIEWBOX = "-87.9401,42.0230,-87.5240,41.6445"
+# Photon: bbox = minLon,minLat,maxLon,maxLat
+_PHOTON_BBOX = "-87.9401,41.6445,-87.5240,42.0230"
+# Chicago lat/lon bounds for bbox-based filtering (avoids strict city-name check)
+_CHI_LAT = (41.6445, 42.0230)
+_CHI_LON = (-87.9401, -87.5240)
+
+
+def _in_chicago(lat: float, lon: float) -> bool:
+    return _CHI_LAT[0] <= lat <= _CHI_LAT[1] and _CHI_LON[0] <= lon <= _CHI_LON[1]
+
+
+def _parse_nominatim(results: list) -> list[str]:
+    """Format Nominatim results as 'number road, Chicago, IL' strings."""
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for r in results:
+        try:
+            if not _in_chicago(float(r["lat"]), float(r["lon"])):
+                continue
+        except (KeyError, ValueError):
+            continue
+        addr = r.get("address", {})
+        house = addr.get("house_number", "")
+        road = addr.get("road") or addr.get("pedestrian") or addr.get("highway") or ""
+        if not road:
+            continue
+        formatted = f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
+        if formatted not in seen:
+            seen.add(formatted)
+            suggestions.append(formatted)
+    return suggestions[:5]
+
+
+def _parse_photon(features: list) -> list[str]:
+    """Format Photon GeoJSON features as 'number road, Chicago, IL' strings."""
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for f in features:
+        props = f.get("properties", {})
+        if props.get("countrycode", "").upper() != "US":
+            continue
+        coords = f.get("geometry", {}).get("coordinates", [])
+        try:
+            lon, lat = float(coords[0]), float(coords[1])
+            if not _in_chicago(lat, lon):
+                continue
+        except (IndexError, ValueError, TypeError):
+            continue
+        street = props.get("street", "")
+        if not street:
+            continue
+        house = props.get("housenumber", "")
+        formatted = f"{house} {street}, Chicago, IL" if house else f"{street}, Chicago, IL"
+        if formatted not in seen:
+            seen.add(formatted)
+            suggestions.append(formatted)
+    return suggestions[:5]
+
 
 @app.get("/suggest")
 def suggest_addresses(
@@ -357,53 +419,56 @@ def suggest_addresses(
     """
     Return up to 5 Chicago address suggestions for a partial address query.
     Used by the frontend autocomplete input.
-    Powered by Nominatim (OpenStreetMap). Falls back to an empty list on any error.
-    """
-    import requests as _requests
 
+    Tries Nominatim first; falls back to Photon (komoot) if Nominatim is
+    unreachable or returns no results within the Chicago bbox.
+    """
+    query = q.strip()
+    # Bias both geocoders toward Chicago without altering short queries.
+    nominatim_q = query if "chicago" in query.lower() else f"{query}, Chicago, IL"
+    photon_q = query if "chicago" in query.lower() else f"{query} Chicago"
+
+    # 1. Nominatim
     try:
         resp = _requests.get(
             "https://nominatim.openstreetmap.org/search",
             params={
-                "q": q,
+                "q": nominatim_q,
                 "format": "json",
-                "limit": 7,
+                "limit": 8,
                 "countrycodes": "us",
                 "bounded": "1",
-                # Chicago bounding box: left, top, right, bottom
-                "viewbox": "-87.9401,42.0230,-87.5241,41.6445",
+                "viewbox": _NOMINATIM_VIEWBOX,
                 "addressdetails": "1",
             },
             headers={"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"},
-            timeout=5,
+            timeout=4,
         )
-        resp.raise_for_status()
-        results = resp.json()
-
-        suggestions: list = []
-        seen: set = set()
-        for r in results:
-            addr = r.get("address", {})
-            if addr.get("city", "").lower() != "chicago":
-                continue
-            house = addr.get("house_number", "")
-            road = (
-                addr.get("road")
-                or addr.get("pedestrian")
-                or addr.get("path", "")
-            )
-            if not road:
-                continue
-            formatted = (
-                f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
-            )
-            if formatted not in seen:
-                seen.add(formatted)
-                suggestions.append(formatted)
-
-        log.info("suggest q=%r results=%d", q, len(suggestions))
-        return {"suggestions": suggestions[:5]}
-
+        if resp.ok:
+            suggestions = _parse_nominatim(resp.json())
+            if suggestions:
+                log.info("suggest q=%r source=nominatim results=%d", q, len(suggestions))
+                return {"suggestions": suggestions}
     except Exception as exc:
-        log.warning("suggest q=%r error: %s", q, exc)
-        return {"suggestions": []}
+        log.debug("suggest q=%r nominatim error: %s", q, exc)
+
+    # 2. Photon fallback
+    try:
+        resp = _requests.get(
+            "https://photon.komoot.io/api/",
+            params={
+                "q": photon_q,
+                "limit": 8,
+                "bbox": _PHOTON_BBOX,
+                "lang": "en",
+            },
+            timeout=4,
+        )
+        if resp.ok:
+            suggestions = _parse_photon(resp.json().get("features", []))
+            log.info("suggest q=%r source=photon results=%d", q, len(suggestions))
+            return {"suggestions": suggestions}
+    except Exception as exc:
+        log.warning("suggest q=%r both geocoders failed, last error: %s", q, exc)
+
+    return {"suggestions": []}
