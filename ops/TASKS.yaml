@@ -867,3 +867,212 @@ tasks:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
     notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+  - id: app-019
+    lane: app
+    type: feature
+    title: Add mode and fallback_reason to score response
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - docs/04_api_contracts.md
+    dependencies:
+      - app-002
+      - app-008
+    acceptance_criteria:
+      - /score response includes a top-level mode field with value "live" or "demo".
+      - /score response includes a top-level fallback_reason field (null when mode is live).
+      - All existing contract fields remain unchanged — backward-compatible addition only.
+      - docs/04_api_contracts.md is updated to document both new fields.
+    notes_for_next_agent: Completed. backend/app/main.py now returns mode and fallback_reason on every /score response. fallback_reason values are "db_not_configured", "geocode_failed", or "query_error". docs/04_api_contracts.md documents both new fields with a backward-compatibility note. app-021 and app-022 depend on this field — both are also done.
+  - id: app-020
+    lane: app
+    type: feature
+    title: Upgrade /health to a real backend readiness check
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-001
+      - data-009
+    acceptance_criteria:
+      - /health returns db_configured (bool) reflecting whether POSTGRES_HOST is set.
+      - /health returns db_connection (bool) reflecting whether a live DB ping succeeded.
+      - /health returns last_ingest_status if available from a lightweight state check; null if not tracked.
+      - /health never raises a 500 — DB unavailability should return a 200 with db_connection false and a reason string.
+      - Existing status and mode fields are preserved.
+    notes_for_next_agent: Completed. /health now returns db_configured, db_connection, db_error (when connection fails), and last_ingest_status (null for MVP). Never raises 5xx — DB errors are reflected in db_connection false and db_error string. Use this as the first check in any pre-demo readiness workflow. Runbook in docs/handoffs/app.md.
+  - id: app-021
+    lane: app
+    type: feature
+    title: Add internal debug score endpoint
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+      - app-020
+    acceptance_criteria:
+      - GET /debug/score?address=... returns a structured response containing address, mode, lat/lon (when available), nearby_projects_count, nearby_projects_sample (up to 3 records), score_result, and fallback_reason.
+      - Endpoint is clearly labeled as internal — not part of the public API contract.
+      - Endpoint does not require auth for MVP but should be noted as ops-only in comments.
+      - Returns a useful partial response even when geocoding fails or DB is unavailable.
+    notes_for_next_agent: Completed. GET /debug/score returns address, mode, lat, lon, nearby_projects_count, nearby_projects_sample (up to 3 project records with key fields only), score_result, and fallback_reason. Returns partial response on geocode/DB failure. Documented in docs/handoffs/app.md validation runbook.
+  - id: app-022
+    lane: app
+    type: feature
+    title: Surface live vs demo mode indicator in frontend
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-019
+      - app-014
+    acceptance_criteria:
+      - Frontend reads the mode field from the /score response.
+      - Live mode is indicated subtly in the results area (e.g. a small badge or label).
+      - Demo mode is indicated subtly with distinct copy that does not alarm the user.
+      - fallback_reason is logged to the browser console for debugging but not displayed to end users.
+      - Visual treatment stays consistent with the existing premium shell — no new components required.
+    notes_for_next_agent: Completed. ScoreResponse type in api.ts now includes optional mode and fallback_reason fields. fetchScore logs fallback_reason to console when present. page.tsx shows the mode badge (Live data / Demo data) whenever a result is available, using result.mode when present and falling back to scoreSource. No new components or CSS changes.
+  - id: app-023
+    lane: app
+    type: ops
+    title: Add structured request logging to the score path
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - backend/app/main.py
+    dependencies:
+      - app-019
+    acceptance_criteria:
+      - Every /score request logs the input address, resolved mode, and fallback_reason (if any).
+      - Unexpected scoring failures are logged at ERROR level with the exception message.
+      - Log output is structured enough to grep during manual testing sessions.
+      - No PII beyond the submitted address string is logged.
+    notes_for_next_agent: Completed. All /score requests log address, mode, and fallback_reason via Python stdlib logging at INFO level. Unexpected errors log at ERROR level with exception message. Uses log = logging.getLogger(__name__) — no new dependency. /debug/score also logs errors.
+  - id: app-024
+    lane: app
+    type: docs
+    title: Write internal validation runbook for app and backend testing
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - docs/handoffs/app.md
+    dependencies:
+      - app-020
+      - app-021
+    acceptance_criteria:
+      - Runbook documents the exact curl commands for /health, /score, and /debug/score.
+      - Documents expected response shape for live mode and demo mode separately.
+      - Documents what a healthy vs unhealthy /health response looks like.
+      - Runbook is written so a non-author can validate the full backend path in under 10 minutes.
+      - Stored in docs/handoffs/app.md alongside existing app handoff notes.
+    notes_for_next_agent: Completed. docs/handoffs/app.md now contains a full operator validation runbook with curl commands for /health, /score, and /debug/score; expected response shapes for demo and live modes; a healthy vs unhealthy /health example; and a failure triage table (symptom → likely cause → fix path). README smoke-check steps remain for developer onboarding.
+  - id: product-026
+    lane: product
+    type: qa
+    title: Define live-output trust review process
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/product_qa_checklist.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-016
+      - product-014
+    acceptance_criteria:
+      - A repeatable review process is documented for evaluating whether live /score outputs are believable.
+      - Review steps cover score plausibility, explanation tone, and confidence alignment against the approved score bands.
+      - A clear escalation path is defined for suspicious outputs (e.g. extreme scores for benign addresses, mismatched severity and explanation).
+      - Review can be run by any team member using only docs/product_qa_checklist.md and the /debug/score endpoint.
+    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a new "Live-output trust review process" section covering /health pre-check, four-address plausibility review, per-address checks, escalation path (count=0 → data lane, count>0 wrong score → scoring rubric, wrong tone → post-launch fix), and recommended cadence (before every demo, after each ingest). docs/handoffs/product.md updated to reference it.
+  - id: product-027
+    lane: product
+    type: definition
+    title: Approve first design-partner persona for outbound testing
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/buyer_personas.md
+      - docs/handoffs/product.md
+    dependencies:
+      - product-017
+      - product-024
+    acceptance_criteria:
+      - One primary persona is explicitly selected from docs/buyer_personas.md as the first outbound target.
+      - Selection rationale is documented (e.g. fastest time to feedback, strongest MVP fit, easiest to reach).
+      - The selected persona is tied to at least one specific current MVP output that directly addresses their pain.
+      - Selection is recorded in docs/buyer_personas.md under a new "Active outbound persona" section.
+    notes_for_next_agent: Completed. CRE Analyst selected as the active outbound persona. Selection rationale, MVP field mapping (disruption_score + explanation + severity.traffic), and next steps documented in docs/buyer_personas.md under "Active outbound persona." product-028 list spec is also done.
+  - id: product-028
+    lane: product
+    type: definition
+    title: Build first 25-target design-partner list spec
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/handoffs/product.md
+    dependencies:
+      - product-027
+    acceptance_criteria:
+      - Ideal target profile is defined using the selected persona from product-027 (title, company type, Chicago footprint indicators).
+      - List-building criteria are documented so any team member can populate the list without guessing.
+      - A clear next-step ask is specified (e.g. demo call, pilot agreement, data feedback session).
+      - Owner of list-building and outreach sequence is identified.
+      - Spec is stored in docs/handoffs/product.md under a "Design-partner list spec" section.
+    notes_for_next_agent: Completed. docs/handoffs/product.md has a "Design-partner list spec" section with selected persona (CRE Analyst), ideal target profile (title/company type/Chicago footprint), list-building criteria for LinkedIn/CoStar prospecting, next-step ask (20-min discovery call, do not pitch pricing), and owner (product lane). Tied to docs/pilot_terms.md for interested contacts.
+  - id: product-029
+    lane: product
+    type: definition
+    title: Define launch-readiness checklist for live demos
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/handoffs/product.md
+      - docs/product_qa_checklist.md
+    dependencies:
+      - product-008
+      - app-020
+    acceptance_criteria:
+      - Checklist covers backend mode visibility — presenter must confirm /health shows db_connection true before any live demo.
+      - Checklist covers /health and /debug/score readiness checks with expected output.
+      - Checklist covers approved fallback messaging to use if demo mode is active during a presentation.
+      - Checklist is short enough to run in under 5 minutes before a meeting.
+      - Stored in docs/product_qa_checklist.md under a "Pre-demo launch-readiness checklist" section.
+    notes_for_next_agent: Completed. docs/product_qa_checklist.md has a "Pre-demo launch-readiness checklist" covering /health db_connection check, /score mode check, /debug/score nearby count check, frontend badge check, demo content readiness, and approved fallback messaging script for when demo mode is active. Also includes a weekly cadence recommendation.
+  - id: product-030
+    lane: product
+    type: qa
+    title: Define score review workflow for golden addresses
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/03_scoring_model.md
+      - docs/product_qa_review.md
+    dependencies:
+      - product-004
+      - product-007
+      - product-010
+    acceptance_criteria:
+      - A subset of canonical Chicago QA addresses is selected as the "golden set" for recurring validation (suggested 5–8 addresses spanning low, moderate, high, and severe bands).
+      - Expected output bands for each golden address are documented as the acceptance baseline.
+      - A review cadence is defined (suggested: run after each data ingest or backend change).
+      - Review steps are clear enough for app or product to run without data engineering involvement.
+      - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
+    notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.
