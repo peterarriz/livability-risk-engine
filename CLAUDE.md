@@ -22,6 +22,7 @@ Continue from where we left off. Last completed tasks:
 - Create a GitHub issue for each new task before executing it
 - Use the format: [data-NNN] Short description
 - Add each task to TASKS.yaml with status, priority, and notes_for_next_agent
+- After completing each data task via GitHub Actions, before finishing, always create the next GitHub issue using the [data-NNN] naming convention with a description and @claude in the body, and add the task to TASKS.yaml
 
 ### Current Priority: Go Live
 The data pipeline is built but the database is not running. Priority tasks:
