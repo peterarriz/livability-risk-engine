@@ -24,7 +24,10 @@
 - In buyer-facing copy, `traffic` should be understood as **traffic and curb access** when parking, loading, pickup, or dropoff friction is part of the nearby disruption story.
 - `severity.dust` reflects demolition, excavation, or similarly physical site activity likely to create dust or vibration nuisance.
 
-### Example response
+### Approved demo example (product-012)
+
+The following response is the approved canonical example for demo walkthroughs and stakeholder reviews. It represents a High-band address with a dominant traffic signal. Use this example verbatim when demoing the API output.
+
 ```json
 {
   "address": "1600 W Chicago Ave, Chicago, IL",
@@ -38,9 +41,78 @@
   "top_risks": [
     "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
     "Active closure window runs through 2026-03-22",
-    "Traffic is the dominant near-term disruption signal at this address"
+    "Traffic and curb access are the dominant near-term disruption signals at this address"
   ],
-  "explanation": "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited."
+  "explanation": "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic and curb access disruption even though noise and dust are limited."
+}
+```
+
+**Why this example was chosen**: 1600 W Chicago Ave is a recognizable West Town arterial with documented active closure history, making it credible to a Chicago-area buyer or investor. The score of 62 sits clearly in the High band without overstating a Severe outcome, and the single dominant traffic signal demonstrates the model's clean, interpretable output. Confidence is MEDIUM because the closure timing is specific but the data is not address-level GPS-precise.
+
+### Approved buyer-facing demo responses per score band (product-016)
+
+Use these four responses when walking a buyer or investor through the full range of model outputs. Each example is approved for use in demos, pitch decks, and stakeholder presentations.
+
+#### Low band (0–24) — 11900 S Morgan St, Chicago, IL (West Pullman)
+```json
+{
+  "address": "11900 S Morgan St, Chicago, IL",
+  "disruption_score": 8,
+  "confidence": "LOW",
+  "severity": {
+    "noise": "LOW",
+    "traffic": "LOW",
+    "dust": "LOW"
+  },
+  "top_risks": [
+    "No active street closures or major permits found within 500 meters",
+    "Background permit activity in the area is minor and distant",
+    "Disruption risk is low based on available city data"
+  ],
+  "explanation": "There is little evidence of meaningful near-term construction disruption near this address. Available city permit and closure records show only minor background activity, so normal access and livability conditions are expected."
+}
+```
+
+#### Moderate band (25–49) — 3150 N Southport Ave, Chicago, IL (Lakeview)
+```json
+{
+  "address": "3150 N Southport Ave, Chicago, IL",
+  "disruption_score": 34,
+  "confidence": "MEDIUM",
+  "severity": {
+    "noise": "MEDIUM",
+    "traffic": "LOW",
+    "dust": "LOW"
+  },
+  "top_risks": [
+    "Active building permit for exterior renovation work within roughly 90 meters",
+    "Work window extends through the next 30 days",
+    "Construction noise is the most likely near-term impact at this address"
+  ],
+  "explanation": "Nearby construction activity is the main driver, so this address has moderate short-term noise disruption. The permit covers exterior work within close range, but no street or lane closures are confirmed, so traffic access remains largely unaffected."
+}
+```
+
+#### High band (50–74) — 1600 W Chicago Ave, Chicago, IL (West Town)
+*(See approved demo example above.)*
+
+#### Severe band (75–100) — 1200 W Fulton Market, Chicago, IL (Fulton Market)
+```json
+{
+  "address": "1200 W Fulton Market, Chicago, IL",
+  "disruption_score": 81,
+  "confidence": "MEDIUM",
+  "severity": {
+    "noise": "HIGH",
+    "traffic": "HIGH",
+    "dust": "MEDIUM"
+  },
+  "top_risks": [
+    "Multi-lane closure on W Fulton Market within roughly 60 meters, active through next 14 days",
+    "Active large-scale construction permit adjacent to the address generating sustained noise",
+    "Dust and vibration likely given excavation scope of nearby site work"
+  ],
+  "explanation": "Multiple reinforcing signals make this address severely disrupted in the near term. A multi-lane closure and an adjacent active construction site combine to create high traffic and curb access friction plus sustained noise disruption within a very short distance."
 }
 ```
 
