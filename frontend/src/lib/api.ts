@@ -1,5 +1,6 @@
 export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ScoreMode = "live" | "demo";
 
 export type ScoreResponse = {
   address: string;
@@ -12,12 +13,12 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
-  // app-019: backend mode metadata — added without breaking existing consumers
-  mode?: "live" | "demo";
+  // Optional for backward compatibility with older backend builds.
+  mode?: ScoreMode;
   fallback_reason?: string | null;
 };
 
-export type ScoreSource = "live";
+export type ScoreSource = ScoreMode;
 
 type FrontendFallbackReason =
   | "frontend_api_not_configured"
@@ -25,10 +26,21 @@ type FrontendFallbackReason =
   | "frontend_backend_error"
   | "frontend_invalid_response";
 
-export type ScoreResult = {
+type LiveScoreResult = {
   score: ScoreResponse;
-  source: ScoreSource;
+  source: "live";
+  note?: undefined;
 };
+
+type DemoScoreResult = {
+  score: ScoreResponse;
+  source: "demo";
+  // Optional because backend 200 demo responses do not add a note,
+  // while frontend-fabricated demo fallbacks do.
+  note?: string;
+};
+
+export type ScoreResult = LiveScoreResult | DemoScoreResult;
 
 const LOCAL_API_URL = "http://127.0.0.1:8000";
 
@@ -62,6 +74,9 @@ function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
   return message;
 }
 
+// Canonical demo payload used in two places:
+// 1. the backend's own demo mode when live scoring is unavailable
+// 2. the frontend's fabricated fallback when it cannot reach the backend at all
 function buildDemoScore(address: string): ScoreResponse {
   return {
     address,
@@ -108,13 +123,14 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
+  // No backend URL means the frontend must fabricate the approved demo response.
   if (!apiBaseUrl) {
     return {
       score: buildDemoScore(address),
       source: "demo",
       note: logFrontendFallback(
         "frontend_api_not_configured",
-        "Demo scenario shown because the backend URL is not configured.",
+        "Showing the approved demo scenario while the live backend URL is being configured.",
       ),
     };
   }
@@ -133,7 +149,7 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
       source: "demo",
       note: logFrontendFallback(
         "frontend_network_error",
-        "Demo scenario shown because live scoring is temporarily unavailable.",
+        "Showing the approved demo scenario while live scoring is temporarily unavailable.",
       ),
     };
   }
@@ -146,8 +162,8 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
       note: logFrontendFallback(
         "frontend_backend_error",
         response.status >= 500
-          ? "Demo scenario shown because the scoring service is temporarily unavailable."
-          : "Demo scenario shown because the requested score could not be fetched.",
+          ? "Showing the approved demo scenario while the scoring service is temporarily unavailable."
+          : "Showing the approved demo scenario because this lookup could not be completed right now.",
       ),
     };
   }
@@ -157,14 +173,22 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     if (score.fallback_reason) {
       console.log("[LRE] backend fallback_reason:", score.fallback_reason);
     }
-    return { score, source: score.mode ?? "live" };
+
+    // Historically, repeated 62s usually meant demo fallback was active somewhere.
+    // Prefer the backend's explicit mode when present so a 200 demo response is not
+    // mislabeled as a live result by the frontend fetch layer.
+    const source: ScoreSource = score.mode ?? "live";
+    if (source === "demo") {
+      return { score, source: "demo" };
+    }
+    return { score, source: "live" };
   } catch {
     return {
       score: buildDemoScore(address),
       source: "demo",
       note: logFrontendFallback(
         "frontend_invalid_response",
-        "Demo scenario shown because the scoring service returned an invalid response.",
+        "Showing the approved demo scenario because the scoring response could not be validated.",
       ),
     };
   }

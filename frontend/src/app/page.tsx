@@ -34,6 +34,19 @@ export default function HomePage() {
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
+  const resultMode = result?.mode ?? scoreSource;
+  const isDemoResult = resultMode === "demo";
+  const statusHeadline = isDemoResult ? "Demo scenario" : "Live data • Chicago";
+  const statusMessage = isDemoResult
+    ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
+    : "Live backend scoring is active for this address lookup.";
 
   // Dismiss suggestions on outside click.
   useEffect(() => {
@@ -92,7 +105,7 @@ export default function HomePage() {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : "Unable to fetch a disruption score right now.",
+          : "The score request could not be completed. Try again in a moment.",
       );
       setResult(null);
       setStatusNote(null);
@@ -236,18 +249,19 @@ export default function HomePage() {
             </form>
 
             {(result || statusNote) ? (
-              <div className="status-banner status-banner--demo" role="status">
-                <span className="status-badge">
-                  {(result?.mode ?? scoreSource) === "demo" ? "Demo scenario" : "Live data • Chicago"}
-                </span>
-                <span>Sources: Chicago permits • Street closures</span>
-                {statusNote ? <span>{statusNote}</span> : null}
+              <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
+                <span className="status-badge">{statusHeadline}</span>
+                <div className="status-copy">
+                  <strong>{statusMessage}</strong>
+                  <span>Sources: Chicago permits • Street closures</span>
+                </div>
               </div>
             ) : null}
 
             {error ? (
               <div className="feedback-banner" role="alert">
-                {error}
+                <p className="feedback-title">Unable to complete the lookup</p>
+                <p>{error}</p>
               </div>
             ) : null}
           </Card>
@@ -276,6 +290,9 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
+                <p className="loading-support">
+                  Checking live availability first, then assembling a decision-ready brief.
+                </p>
                 <div className="skeleton skeleton-score" />
                 <div className="skeleton skeleton-meta" />
               </Card>
@@ -383,8 +400,8 @@ export default function HomePage() {
                 <p className="empty-kicker">Ready for analysis</p>
                 <h3>Start with a Chicago address to generate a decision-ready disruption brief.</h3>
                 <p>
-                  The empty state is intentionally designed to feel complete and presentation-ready,
-                  with space reserved for score, severity, top risks, and narrative context.
+                  Live scoring appears when the backend is available. If not, the workspace falls back
+                  gracefully to the approved demo scenario so reviews can still continue intentionally.
                 </p>
               </Card>
             </section>
