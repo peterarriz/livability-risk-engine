@@ -48,6 +48,48 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# Demo fallback response
+# Used when DB is not configured or geocoding fails.
+# Matches the approved example in docs/04_api_contracts.md exactly.
+# ---------------------------------------------------------------------------
+
+DEMO_RESPONSE = {
+    "address": None,            # filled in at request time
+    "disruption_score": 62,
+    "confidence": "MEDIUM",
+    "severity": {
+        "noise": "LOW",
+        "traffic": "HIGH",
+        "dust": "LOW",
+    },
+    "top_risks": [
+        "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+        "Active closure window runs through 2026-03-22",
+        "Traffic is the dominant near-term disruption signal at this address",
+    ],
+    "explanation": (
+        "A nearby 2-lane closure is the main driver, so this address has "
+        "elevated short-term traffic disruption even though noise and dust "
+        "are limited."
+    ),
+}
+
+
+def _build_demo_response(address: str, fallback_reason: str) -> dict:
+    """
+    Build a demo response for the given address.
+    fallback_reason explains why demo mode is active:
+      "db_not_configured" | "geocode_failed" | "scoring_error"
+    """
+    return {
+        **DEMO_RESPONSE,
+        "address": address,
+        "mode": "demo",
+        "fallback_reason": fallback_reason,
+    }
+
+
+# ---------------------------------------------------------------------------
 # DB + scoring path (live mode)
 # ---------------------------------------------------------------------------
 
@@ -58,22 +100,22 @@ def _is_db_configured() -> bool:
 def _score_live(address: str) -> dict:
     """
     Full live scoring path:
-      1. Geocode address → (lat, lon)
-      2. Query nearby projects from canonical DB
-      3. Apply scoring engine → ScoreResult
-      4. Return as dict matching API contract
+      1. Confirm the canonical DB is reachable
+      2. Geocode address → (lat, lon)
+      3. Query nearby projects from canonical DB
+      4. Apply scoring engine → ScoreResult
+      5. Return as dict matching API contract
     """
     from backend.ingest.geocode import geocode_address
     from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
 
-    coords = geocode_address(address)
-    if not coords:
-        raise ValueError(f"Could not geocode address: {address!r}")
-
-    lat, lon = coords
     conn = get_db_connection()
-
     try:
+        coords = geocode_address(address)
+        if not coords:
+            raise ValueError(f"Could not geocode address: {address!r}")
+
+        lat, lon = coords
         nearby = get_nearby_projects(lat, lon, conn)
     finally:
         conn.close()
@@ -173,11 +215,11 @@ _DEBUG_PROJECT_FIELDS = frozenset(
 
 def _serialize_project_sample(nearby_list) -> list:
     """
-    Return a minimal, JSON-safe summary of up to 3 nearby projects.
+    Return a minimal, JSON-safe summary of up to 5 nearby projects.
     Dates are converted to ISO strings; only key fields are included.
     """
     sample = []
-    for np in nearby_list[:3]:
+    for np in nearby_list[:5]:
         row = asdict(np.project)
         entry = {}
         for k, v in row.items():
@@ -214,16 +256,22 @@ def debug_score(
             get_nearby_projects,
         )
 
-        coords = geocode_address(address)
-        if not coords:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Could not geocode address: {address!r}",
-            )
-
-        lat, lon = coords
         conn = get_db_connection()
         try:
+            coords = geocode_address(address)
+            if not coords:
+                return {
+                    "address": address,
+                    "mode": "demo",
+                    "lat": None,
+                    "lon": None,
+                    "nearby_projects_count": None,
+                    "nearby_projects_sample": [],
+                    "score_result": _build_demo_response(address, "geocode_failed"),
+                    "fallback_reason": "geocode_failed",
+                }
+
+            lat, lon = coords
             nearby = get_nearby_projects(lat, lon, conn)
         finally:
             conn.close()
@@ -244,7 +292,14 @@ def debug_score(
         raise
     except Exception as exc:
         log.error("debug_score address=%r error: %s", address, exc)
-        raise HTTPException(
-            status_code=503,
-            detail=f"Scoring service error: {exc}",
-        ) from exc
+        return {
+            "address": address,
+            "mode": "demo",
+            "lat": None,
+            "lon": None,
+            "nearby_projects_count": None,
+            "nearby_projects_sample": [],
+            "score_result": _build_demo_response(address, "scoring_error"),
+            "fallback_reason": "scoring_error",
+            "error": str(exc),
+        }

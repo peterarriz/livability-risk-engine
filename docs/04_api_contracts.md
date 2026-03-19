@@ -12,7 +12,7 @@
 - `top_risks`: ordered list of up to 3 short plain-English risk bullets.
 - `explanation`: 1 short paragraph explaining the dominant driver.
 - `mode`: `"live"` when the score was computed from the live database; `"demo"` when the approved fallback response was used. Added in app-019.
-- `fallback_reason`: `null` when `mode` is `"live"`. A string explaining why demo mode was used when `mode` is `"demo"`. Values: `"db_not_configured"` | `"geocode_failed"` | `"query_error"`. Added in app-019.
+- `fallback_reason`: `null` when `mode` is `"live"`. A string explaining why demo mode was used when `mode` is `"demo"`. Values: `"db_not_configured"` | `"geocode_failed"` | `"scoring_error"`. Added in app-019.
 
 **Backward compatibility**: `mode` and `fallback_reason` are additive fields. Existing consumers that do not read them are unaffected.
 

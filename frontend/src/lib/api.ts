@@ -19,6 +19,12 @@ export type ScoreResponse = {
 
 export type ScoreSource = "live";
 
+type FrontendFallbackReason =
+  | "frontend_api_not_configured"
+  | "frontend_network_error"
+  | "frontend_backend_error"
+  | "frontend_invalid_response";
+
 export type ScoreResult = {
   score: ScoreResponse;
   source: ScoreSource;
@@ -51,11 +57,45 @@ function buildApiUrl(pathname: string): URL {
   return new URL(pathname, getApiBaseUrl());
 }
 
+function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
+  console.warn(`[LRE] frontend demo fallback: ${reason}`);
+  return message;
+}
+
+function buildDemoScore(address: string): ScoreResponse {
+  return {
+    address,
+    disruption_score: 62,
+    confidence: "MEDIUM",
+    severity: {
+      noise: "LOW",
+      traffic: "HIGH",
+      dust: "LOW",
+    },
+    top_risks: [
+      "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+      "Active closure window runs through 2026-03-22",
+      "Traffic is the dominant near-term disruption signal at this address",
+    ],
+    explanation:
+      "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
+    mode: "demo",
+    fallback_reason: null,
+  };
+}
+
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
   if (!apiBaseUrl) {
-    throw new ApiError("Backend URL is not configured (NEXT_PUBLIC_API_URL is unset).");
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: logFrontendFallback(
+        "frontend_api_not_configured",
+        "Demo scenario shown because the backend URL is not configured.",
+      ),
+    };
   }
 
   const url = buildApiUrl("/score");
@@ -66,18 +106,45 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     response = await fetch(url.toString(), {
       cache: "no-store",
     });
-  } catch (err) {
-    throw new ApiError("Live scoring is temporarily unavailable.");
+  } catch {
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: logFrontendFallback(
+        "frontend_network_error",
+        "Demo scenario shown because live scoring is temporarily unavailable.",
+      ),
+    };
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status >= 500
-        ? "The scoring service is temporarily unavailable."
-        : "The requested score could not be fetched.",
-    );
+    console.warn(`[LRE] backend score request failed: status=${response.status}`);
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: logFrontendFallback(
+        "frontend_backend_error",
+        response.status >= 500
+          ? "Demo scenario shown because the scoring service is temporarily unavailable."
+          : "Demo scenario shown because the requested score could not be fetched.",
+      ),
+    };
   }
 
-  const score = (await response.json()) as ScoreResponse;
-  return { score, source: "live" };
+  try {
+    const score = (await response.json()) as ScoreResponse;
+    if (score.fallback_reason) {
+      console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+    }
+    return { score, source: score.mode ?? "live" };
+  } catch {
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: logFrontendFallback(
+        "frontend_invalid_response",
+        "Demo scenario shown because the scoring service returned an invalid response.",
+      ),
+    };
+  }
 }
