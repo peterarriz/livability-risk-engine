@@ -951,6 +951,487 @@ button:disabled {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Score gauge ─────────────────────────────────────────────── */
+
+.score-gauge {
+  margin: 14px 0 12px;
+}
+
+.score-gauge-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: visible;
+}
+
+.score-gauge-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.score-gauge-fill--low {
+  background: linear-gradient(90deg, #3ce5b3, #6ef0c8);
+}
+
+.score-gauge-fill--moderate {
+  background: linear-gradient(90deg, #ffc870, #ffd497);
+}
+
+.score-gauge-fill--high {
+  background: linear-gradient(90deg, #ff6060, #ffb3b3);
+}
+
+.score-gauge-marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.score-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.score-benchmark {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ─── Tooltip ─────────────────────────────────────────────────── */
+
+.tooltip-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+}
+
+.tooltip-content {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  padding: 11px 14px;
+  background: rgba(6, 12, 24, 0.98);
+  border: 1px solid rgba(141, 165, 255, 0.26);
+  border-radius: 14px;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.6;
+  z-index: 50;
+  pointer-events: none;
+  white-space: normal;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+}
+
+.tooltip-anchor:hover .tooltip-content,
+.tooltip-anchor:focus .tooltip-content {
+  display: block;
+}
+
+/* ─── Score actions (Save / Compare) ─────────────────────────── */
+
+.score-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.action-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(141, 165, 255, 0.14);
+  border: 1px solid rgba(141, 165, 255, 0.28);
+  color: var(--brand);
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: rgba(141, 165, 255, 0.22);
+  transform: none;
+  box-shadow: none;
+}
+
+.compare-link {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.compare-link:hover {
+  color: var(--brand);
+}
+
+/* ─── Pro badge ───────────────────────────────────────────────── */
+
+.pro-badge-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 112, 112, 0.28);
+  background: rgba(115, 19, 31, 0.18);
+  color: #ffd7db;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin-bottom: 4px;
+}
+
+.pro-badge-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pro-badge-link {
+  color: var(--danger);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ─── Section header with action ─────────────────────────────── */
+
+.section-heading--with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-header-action {
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── Confidence dot in Quick Read ───────────────────────────── */
+
+.confidence-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.confidence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.confidence-dot--low {
+  background: #3ce5b3;
+}
+
+.confidence-dot--medium {
+  background: #ffd497;
+}
+
+.confidence-dot--high {
+  background: #ff7070;
+}
+
+/* ─── Form disclaimer ─────────────────────────────────────────── */
+
+.form-disclaimer {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ─── Address history dropdown ────────────────────────────────── */
+
+.history-dropdown-shell {
+  position: relative;
+}
+
+.history-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.history-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+  box-shadow: none;
+}
+
+.history-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  border: 1px solid rgba(141, 165, 255, 0.22);
+  border-radius: 18px;
+  background: rgba(8, 14, 28, 0.97);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
+  min-width: 260px;
+}
+
+.history-dropdown li {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.history-dropdown button {
+  width: 100%;
+  padding: 11px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 140ms ease;
+}
+
+.history-dropdown button:hover {
+  background: rgba(95, 124, 255, 0.14);
+  color: var(--text);
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── Save Report modal ───────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 18, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.modal-card {
+  position: relative;
+  width: min(480px, 100%);
+  padding: 36px;
+  border: 1px solid rgba(141, 165, 255, 0.24);
+  border-radius: var(--radius-xl);
+  background: rgba(10, 17, 34, 0.98);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+  display: grid;
+  gap: 16px;
+}
+
+.modal-card h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: -0.03em;
+}
+
+.modal-copy {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.modal-fine-print {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: none;
+  box-shadow: none;
+}
+
+.modal-cta {
+  width: 100%;
+  padding: 16px 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #84a6ff 0%, #5f7cff 52%, #3ce5b3 100%);
+  color: #07101d;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 14px 32px rgba(72, 104, 255, 0.32);
+}
+
+/* ─── Pricing section ─────────────────────────────────────────── */
+
+.pricing-section {
+  margin-top: 8px;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  max-width: 760px;
+}
+
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+}
+
+.pricing-card--pro {
+  border-color: rgba(141, 165, 255, 0.3);
+  background: linear-gradient(135deg, rgba(95, 124, 255, 0.1), rgba(60, 229, 179, 0.05)), var(--surface);
+}
+
+.pricing-features {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.pricing-cta {
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pricing-cta--primary {
+  background: linear-gradient(135deg, #84a6ff 0%, #5f7cff 52%, #3ce5b3 100%);
+  color: #07101d;
+  box-shadow: 0 12px 28px rgba(72, 104, 255, 0.28);
+}
+
+.pricing-cta--secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-soft);
+  box-shadow: none;
+}
+
+.pricing-cta--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  transform: none;
+}
+
+/* ─── Nav pricing link ────────────────────────────────────────── */
+
+.topnav-pricing {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(141, 165, 255, 0.1);
+  border: 1px solid rgba(141, 165, 255, 0.22);
+  color: var(--brand);
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: background 140ms ease;
+}
+
+.topnav-pricing:hover {
+  background: rgba(141, 165, 255, 0.18);
+  color: #fff;
+}
+
 @media (max-width: 1100px) {
   .workspace-top-grid,
   .support-grid,
@@ -966,7 +1447,8 @@ button:disabled {
   .detail-grid,
   .demo-grid,
   .support-grid,
-  .workspace-top-grid {
+  .workspace-top-grid,
+  .pricing-grid {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;

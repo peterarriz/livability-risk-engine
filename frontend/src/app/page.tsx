@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -34,6 +34,10 @@ export default function HomePage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveEmail, setSaveEmail] = useState("");
+  const [addressHistory, setAddressHistory] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
@@ -54,12 +58,13 @@ export default function HomePage() {
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
 
-  const supportingDetails = useMemo(() => {
+  type DetailItem = { label: string; value: string; isConfidence?: boolean };
+  const supportingDetails = useMemo((): DetailItem[] => {
     if (!result) return [];
     return [
-      { label: "Mode", value: isDemoResult ? "Demo fallback" : "Live Chicago scoring" },
-      { label: "Confidence", value: result.confidence },
-      { label: "Drivers surfaced", value: String(result.top_risks.length) },
+      { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
+      { label: "Confidence", value: result.confidence, isConfidence: true },
+      { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: "Chicago permits • Street closures" },
     ];
   }, [isDemoResult, result]);
@@ -158,11 +163,16 @@ export default function HomePage() {
       } else {
         setStatusNote(null);
       }
+      // Track address history (last 5, deduplicated)
+      setAddressHistory((prev: string[]) => {
+        const deduped = [addr, ...prev.filter((a: string) => a !== addr)];
+        return deduped.slice(0, 5);
+      });
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
           ? submissionError.message
-          : "The score request could not be completed. Try again in a moment.",
+          : "Live data temporarily unavailable. Try again in a moment.",
       );
       setResult(null);
       setStatusNote(null);
@@ -192,10 +202,39 @@ export default function HomePage() {
 
           <nav className="topnav" aria-label="Primary">
             {workspaceMode ? <span className="topnav-label">Viewing</span> : null}
-            {workspaceMode ? <span className="topnav-address">{result?.address ?? address}</span> : null}
+            {workspaceMode ? (
+              <a href="#" className="topnav-address" onClick={(e: React.MouseEvent) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} title="Scroll to top">
+                {result?.address ?? address}
+              </a>
+            ) : null}
+            {workspaceMode && addressHistory.length > 1 ? (
+              <div className="history-dropdown-shell">
+                <button
+                  type="button"
+                  className="history-btn"
+                  onClick={() => setShowHistory((v: boolean) => !v)}
+                  aria-expanded={showHistory}
+                  aria-label="Recent addresses"
+                >
+                  🕐 Recent
+                </button>
+                {showHistory ? (
+                  <ul className="history-dropdown" role="listbox" aria-label="Recent addresses">
+                    {addressHistory.slice(1).map((hist: string) => (
+                      <li key={hist} role="option" aria-selected={false}>
+                        <button type="button" onClick={() => { handleSuggestionSelect(hist); setShowHistory(false); }}>
+                          {hist}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
             <a href="#score-section">Score</a>
             <a href="#signals-section">Signals</a>
             <a href="#examples-section">Examples</a>
+            <a href="#pricing-section" className="topnav-pricing">Pricing</a>
           </nav>
         </Header>
 
@@ -206,18 +245,18 @@ export default function HomePage() {
               <h1>
                 {workspaceMode
                   ? "A decision-ready disruption brief for the current address."
-                  : "Assess near-term construction friction before it affects the address."}
+                  : "Instant disruption intelligence for any Chicago address."}
               </h1>
               <p className="lede">
                 {workspaceMode
-                  ? "Keep the current score, reasoning, and spatial context visible while you run another Chicago lookup."
-                  : "Surface a clear disruption score, confidence read, strongest drivers, and spatial context in one premium workflow."}
+                  ? "Run another lookup below. Score, reasoning, and spatial context update automatically."
+                  : "Enter an address to get a real-time disruption score powered by live Chicago permit and street closure data — in under 10 seconds."}
               </p>
             </div>
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                {workspaceMode ? "Search another Chicago address" : "Chicago address"}
+                Enter a Chicago address
               </label>
               <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
                 <div className="search-input-stack">
@@ -267,6 +306,7 @@ export default function HomePage() {
                 <p className="form-hint">
                   Returns a score, severity read, strongest drivers, interpretation, and map context for one Chicago address.
                 </p>
+                <p className="form-disclaimer">Currently covers Chicago, IL addresses only.</p>
 
                 <div className="example-row">
                   <span className="example-label">Quick examples</span>
@@ -298,8 +338,16 @@ export default function HomePage() {
 
             {error ? (
               <div className="feedback-banner" role="alert">
-                <p className="feedback-title">Unable to complete the lookup</p>
-                <p>{error}</p>
+                <p className="feedback-title">
+                  {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
+                    ? "Address not found"
+                    : "Lookup unavailable"}
+                </p>
+                <p>
+                  {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
+                    ? "We couldn't find that address in Chicago. Try including a ZIP code."
+                    : "Live data temporarily unavailable. Try again in a moment, or use one of the example addresses below."}
+                </p>
               </div>
             ) : null}
           </Card>
@@ -314,6 +362,16 @@ export default function HomePage() {
               ? "Read the headline score first, then move directly into interpretation, strongest drivers, and supporting context."
               : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
+          headerAction={workspaceMode && result ? (
+            <button
+              type="button"
+              className="icon-btn"
+              title="PDF export is available on the Pro plan"
+              onClick={() => alert("PDF export is available on the Pro plan — see Pricing for details.")}
+            >
+              ↓ Export PDF
+            </button>
+          ) : undefined}
         >
           <div id="score-section" className="anchor-target" />
           {isLoading ? (
@@ -351,9 +409,27 @@ export default function HomePage() {
             </section>
           ) : result ? (
             <section className="results results--loaded workspace-flow">
+              {result.disruption_score >= 61 && (
+                <div className="pro-badge-bar">
+                  <span className="pro-badge-icon">⚠</span>
+                  <span>
+                    <strong>High-risk address detected.</strong> Pro users get 30-day forecasts and permit detail exports.{" "}
+                    <a href="#pricing-section" className="pro-badge-link">See Pro plan →</a>
+                  </span>
+                </div>
+              )}
+
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
+                  <div className="score-actions">
+                    <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
+                      Save report
+                    </button>
+                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                      Compare with another address →
+                    </a>
+                  </div>
                 </Card>
                 <Card className="detail-card detail-card--summary">
                   <h2>Why this score</h2>
@@ -372,7 +448,14 @@ export default function HomePage() {
                     {supportingDetails.map((item) => (
                       <li key={item.label}>
                         <span>{item.label}</span>
-                        <strong>{item.value}</strong>
+                        {"isConfidence" in item && item.isConfidence ? (
+                          <strong className="confidence-value">
+                            <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
+                            {item.value}
+                          </strong>
+                        ) : (
+                          <strong>{item.value}</strong>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -420,15 +503,11 @@ export default function HomePage() {
                     <ul className="supporting-list">
                       <li>
                         <span>Interpretation</span>
-                        <strong>Read the score as a near-term livability signal, not an exact operational forecast.</strong>
+                        <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
                       </li>
                       <li>
                         <span>Best use</span>
                         <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
-                      </li>
-                      <li>
-                        <span>Mode handling</span>
-                        <strong>{isDemoResult ? "Fallback state remains visible and intentional for review." : "Live mode is clearly labeled so decision-makers know the score is database-backed."}</strong>
                       </li>
                     </ul>
                   </Card>
@@ -439,13 +518,48 @@ export default function HomePage() {
             <section className="results">
               <Card className="empty-state">
                 <p className="empty-kicker">Ready for analysis</p>
-                <h3>Start with a Chicago address to generate a disruption brief.</h3>
+                <h3>Enter a Chicago address above to get an instant disruption score.</h3>
                 <p>
-                  When live scoring is available, the page returns a live address assessment. If not, it falls back gracefully to the approved demo scenario without hiding the mode.
+                  The score is powered by live city permit and street closure data. Results return in under 10 seconds.
                 </p>
               </Card>
             </section>
           )}
+        </Section>
+
+        <Section
+          id="pricing-section"
+          eyebrow="Pricing"
+          title="Choose the right plan"
+          description="Start free. Upgrade when you need forecasts, exports, and team access."
+          className="pricing-section"
+        >
+          <div className="pricing-grid">
+            <Card className="detail-card pricing-card">
+              <p className="supporting-kicker">Free</p>
+              <h2>$0 / month</h2>
+              <ul className="pricing-features">
+                <li>Unlimited address lookups</li>
+                <li>Real-time disruption score</li>
+                <li>Signal cards and confidence read</li>
+                <li>Spatial map context</li>
+              </ul>
+              <button type="button" className="pricing-cta pricing-cta--secondary">Get started free</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--pro">
+              <p className="supporting-kicker">Pro</p>
+              <h2>$49 / month</h2>
+              <ul className="pricing-features">
+                <li>Everything in Free</li>
+                <li>30-day disruption forecasts</li>
+                <li>PDF and CSV report exports</li>
+                <li>Permit detail drill-down</li>
+                <li>Address comparison tool</li>
+                <li>Priority data refresh</li>
+              </ul>
+              <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
+            </Card>
+          </div>
         </Section>
 
         <Section
@@ -492,6 +606,26 @@ export default function HomePage() {
           </div>
         </Section>
       </Container>
+
+      {showSaveModal && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => setShowSaveModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
+            <p className="supporting-kicker">Save report</p>
+            <h3>Create a free account to save and share this report.</h3>
+            <p className="modal-copy">Your disruption brief for {result?.address} will be saved to your account and shareable via link.</p>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={saveEmail}
+              onChange={(e) => setSaveEmail(e.target.value)}
+              aria-label="Email address"
+            />
+            <button type="button" className="modal-cta">Create free account</button>
+            <p className="modal-fine-print">No credit card required. Free plan includes unlimited lookups.</p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

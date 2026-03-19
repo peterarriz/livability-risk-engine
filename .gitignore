@@ -7,3 +7,4 @@ node_modules/
 .next/
 *.egg-info/
 dist/
+frontend/tsconfig.tsbuildinfo
