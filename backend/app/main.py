@@ -80,7 +80,7 @@ def _build_demo_response(address: str, fallback_reason: str) -> dict:
     """
     Build a demo response for the given address.
     fallback_reason explains why demo mode is active:
-      "db_not_configured" | "geocode_failed" | "query_error"
+      "db_not_configured" | "geocode_failed" | "scoring_error"
     """
     return {
         **DEMO_RESPONSE,
@@ -102,22 +102,22 @@ def _is_db_configured() -> bool:
 def _score_live(address: str) -> dict:
     """
     Full live scoring path:
-      1. Geocode address → (lat, lon)
-      2. Query nearby projects from canonical DB
-      3. Apply scoring engine → ScoreResult
-      4. Return as dict matching API contract
+      1. Confirm the canonical DB is reachable
+      2. Geocode address → (lat, lon)
+      3. Query nearby projects from canonical DB
+      4. Apply scoring engine → ScoreResult
+      5. Return as dict matching API contract
     """
     from backend.ingest.geocode import geocode_address
     from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
 
-    coords = geocode_address(address)
-    if not coords:
-        raise ValueError(f"Could not geocode address: {address!r}")
-
-    lat, lon = coords
     conn = get_db_connection()
-
     try:
+        coords = geocode_address(address)
+        if not coords:
+            raise ValueError(f"Could not geocode address: {address!r}")
+
+        lat, lon = coords
         nearby = get_nearby_projects(lat, lon, conn)
     finally:
         conn.close()
@@ -230,11 +230,11 @@ _DEBUG_PROJECT_FIELDS = frozenset(
 
 def _serialize_project_sample(nearby_list) -> list:
     """
-    Return a minimal, JSON-safe summary of up to 3 nearby projects.
+    Return a minimal, JSON-safe summary of up to 5 nearby projects.
     Dates are converted to ISO strings; only key fields are included.
     """
     sample = []
-    for np in nearby_list[:3]:
+    for np in nearby_list[:5]:
         row = asdict(np.project)
         entry = {}
         for k, v in row.items():
@@ -283,22 +283,22 @@ def debug_score(
             get_nearby_projects,
         )
 
-        coords = geocode_address(address)
-        if not coords:
-            return {
-                "address": address,
-                "mode": "demo",
-                "lat": None,
-                "lon": None,
-                "nearby_projects_count": None,
-                "nearby_projects_sample": [],
-                "score_result": _build_demo_response(address, "geocode_failed"),
-                "fallback_reason": "geocode_failed",
-            }
-
-        lat, lon = coords
         conn = get_db_connection()
         try:
+            coords = geocode_address(address)
+            if not coords:
+                return {
+                    "address": address,
+                    "mode": "demo",
+                    "lat": None,
+                    "lon": None,
+                    "nearby_projects_count": None,
+                    "nearby_projects_sample": [],
+                    "score_result": _build_demo_response(address, "geocode_failed"),
+                    "fallback_reason": "geocode_failed",
+                }
+
+            lat, lon = coords
             nearby = get_nearby_projects(lat, lon, conn)
         finally:
             conn.close()
@@ -324,7 +324,7 @@ def debug_score(
             "lon": None,
             "nearby_projects_count": None,
             "nearby_projects_sample": [],
-            "score_result": _build_demo_response(address, "query_error"),
-            "fallback_reason": "query_error",
+            "score_result": _build_demo_response(address, "scoring_error"),
+            "fallback_reason": "scoring_error",
             "error": str(exc),
         }
