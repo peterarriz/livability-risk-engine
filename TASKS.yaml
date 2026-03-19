@@ -163,28 +163,52 @@ tasks:
       Once validated, this task is done. Next: data-018 (schedule ingest cron).
 
   - id: data-018
-    title: Deploy FastAPI backend to Railway
-    status: in-progress
+    title: Deploy FastAPI backend to Railway — code delivery
+    status: done
     priority: high
     github_issue: 41
     notes_for_next_agent: >
-      Created backend/railway.toml and backend/Procfile for Railway deployment.
-      CORS updated: FRONTEND_ORIGIN env var must be set in Railway to the Vercel
-      domain (e.g. https://livability-risk-engine.vercel.app).
-      Remaining manual steps:
-        1. Create Railway project, link to repo root, set root directory = /
-        2. Railway will detect backend/railway.toml automatically
-        3. Set env vars in Railway: DATABASE_URL (Supabase), FRONTEND_ORIGIN (Vercel URL)
-        4. After deploy: verify /health → db_connection=true
-        5. Update Vercel env: NEXT_PUBLIC_API_URL = Railway backend URL
-      Next task: data-019 (schedule recurring ingest pipeline via GitHub Actions cron)
+      Delivered backend/railway.toml, backend/Procfile, and root railway.toml.
+      CORS set via FRONTEND_ORIGIN env var. /health endpoint live in main.py.
+      Manual deploy steps tracked in data-019 (issue #49).
 
   - id: data-019
-    title: Schedule recurring ingest pipeline via GitHub Actions cron
-    status: backlog
-    priority: medium
+    title: Deploy FastAPI backend to Railway — operator steps and validation
+    status: in-progress
+    priority: high
+    github_issue: 49
     notes_for_next_agent: >
-      Set up a .github/workflows/ingest.yml that runs run_pipeline.py
-      on a daily cron (e.g. 06:00 UTC) using the DATABASE_URL secret.
-      Include Socrata app token secret for higher rate limits.
-      Add status notifications on failure.
+      Code is in place (railway.toml, Procfile, /health endpoint).
+      Remaining manual steps (require dashboard access):
+        1. railway.app → New Project → Deploy from GitHub → peterarriz/livability-risk-engine
+        2. Add Railway Postgres service to same project (DATABASE_URL auto-injected)
+        3. Set FRONTEND_ORIGIN = https://livability-risk-engine.vercel.app
+        4. Copy Railway public URL (e.g. https://livability-risk-engine.up.railway.app)
+        5. vercel.com → Settings → Env Vars → NEXT_PUBLIC_API_URL = <railway-url>
+        6. Redeploy frontend
+        7. Validate: curl <railway-url>/health  → db_connection=true
+                     curl "<railway-url>/score?address=100+W+Randolph+St+Chicago+IL"
+      Once validated, mark this task done and proceed to data-020.
+
+  - id: data-020
+    title: Schedule recurring ingest pipeline via GitHub Actions cron
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      .github/workflows/ingest.yml created. Runs daily at 06:00 UTC.
+      Applies schema (idempotent), runs run_pipeline.py, then smoke-checks
+      active project count. Manual dispatch supported with dry_run and
+      skip_geocode inputs. Requires DATABASE_URL GitHub secret.
+      CHICAGO_SOCRATA_APP_TOKEN optional but recommended.
+
+  - id: data-019
+    title: Add Railway deployment config for FastAPI backend
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      railway.toml and Procfile committed. Manual steps still required:
+        1. Railway dashboard → New Project → Deploy from GitHub repo
+        2. Set DATABASE_URL + FRONTEND_ORIGIN env vars in Railway
+        3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
+        4. Redeploy Vercel frontend
+        5. Validate: curl <railway-url>/health → db_connection=true

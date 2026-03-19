@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -16,7 +16,7 @@ import { Card, Container, Header, Section } from "@/components/shell";
 import { fetchScore, fetchSuggestions, geocodeForMap, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
+const PREMIUM_PLACEHOLDER = "Search a Chicago address";
 const EXAMPLE_ADDRESSES = [
   "1600 W Chicago Ave, Chicago, IL",
   "700 W Grand Ave, Chicago, IL",
@@ -32,6 +32,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const skipSuggestRef = useRef(false);
@@ -39,22 +40,34 @@ export default function HomePage() {
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
   const loadingSteps = [
-    "Analyzing nearby permits…",
-    "Evaluating infrastructure impact…",
-    "Calculating disruption score…",
+    "Checking live availability",
+    "Evaluating nearby permits and closures",
+    "Building the disruption brief",
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Demo scenario" : "Live data • Chicago";
+  const statusHeadline = isDemoResult ? "Demo fallback" : "Live score";
   const statusMessage = isDemoResult
-    ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
+    ? (statusNote ?? "Showing the approved Chicago fallback while live scoring is unavailable.")
     : "Live backend scoring is active for this address lookup.";
+  const hasSuggestions = showSuggestions && suggestions.length > 0;
+  const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
 
-  // Dismiss suggestions dropdown on outside click.
+  const supportingDetails = useMemo(() => {
+    if (!result) return [];
+    return [
+      { label: "Mode", value: isDemoResult ? "Demo fallback" : "Live Chicago scoring" },
+      { label: "Confidence", value: result.confidence },
+      { label: "Drivers surfaced", value: String(result.top_risks.length) },
+      { label: "Sources", value: "Chicago permits • Street closures" },
+    ];
+  }, [isDemoResult, result]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+        setActiveSuggestionIndex(-1);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -72,19 +85,18 @@ export default function HomePage() {
     if (address.trim().length < 3) {
       setSuggestions([]);
       setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
       return;
     }
     const timer = setTimeout(async () => {
       const results = await fetchSuggestions(address);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
+      setActiveSuggestionIndex(-1);
     }, 300);
     return () => clearTimeout(timer);
   }, [address]);
 
-  // When a score result arrives, resolve map coordinates.
-  // The backend includes lat/lon in the response; fall back to a Nominatim
-  // lookup from the frontend when those fields are absent.
   useEffect(() => {
     if (!result) {
       setMapCoords(null);
@@ -94,7 +106,6 @@ export default function HomePage() {
       setMapCoords({ lat: result.latitude, lon: result.longitude });
       return;
     }
-    // Backend didn't supply coords — geocode on the frontend.
     geocodeForMap(result.address).then((coords) => {
       if (coords) setMapCoords(coords);
     });
@@ -105,8 +116,33 @@ export default function HomePage() {
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
-    // Auto-submit immediately after selection.
-    void submitAddress(suggestion);
+    setActiveSuggestionIndex(-1);
+    inputRef.current?.focus();
+  }
+
+  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!hasSuggestions) {
+      if (event.key === "ArrowDown" && suggestions.length > 0) {
+        setShowSuggestions(true);
+        setActiveSuggestionIndex(0);
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestionIndex((current) => (current + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestionIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+    } else if (event.key === "Enter" && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      handleSuggestionSelect(suggestions[activeSuggestionIndex]);
+    } else if (event.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
+    }
   }
 
   async function submitAddress(addr: string) {
@@ -158,94 +194,81 @@ export default function HomePage() {
             {workspaceMode ? <span className="topnav-address">{result?.address ?? address}</span> : null}
             <a href="#score-section">Score</a>
             <a href="#signals-section">Signals</a>
-            <a href="#demo-section">Demo</a>
+            <a href="#examples-section">Examples</a>
           </nav>
         </Header>
 
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Chicago MVP demo</p>
+              <p className="eyebrow">Chicago address intelligence</p>
               <h1>
                 {workspaceMode
-                  ? "Workspace mode for active disruption analysis."
-                  : "Know the disruption profile of an address before you commit."}
+                  ? "A decision-ready disruption brief for the current address."
+                  : "Assess near-term construction friction before it affects the address."}
               </h1>
               <p className="lede">
                 {workspaceMode
-                  ? "Search again instantly while keeping the current score, severity, drivers, and explanation visible in a structured product workspace."
-                  : "A premium product shell for surfacing near-term construction friction with a crisp score, interpretable severity, and decision-ready narrative."}
+                  ? "Keep the current score, reasoning, and spatial context visible while you run another Chicago lookup."
+                  : "Surface a clear disruption score, confidence read, strongest drivers, and spatial context in one premium workflow."}
               </p>
             </div>
 
-            <form
-              className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`}
-              onSubmit={handleSubmit}
-            >
+            <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
                 {workspaceMode ? "Search another Chicago address" : "Chicago address"}
               </label>
-              <div
-                ref={searchShellRef}
-                className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}
-                style={{ position: "relative" }}
-              >
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                  placeholder={PREMIUM_PLACEHOLDER}
-                  autoComplete="off"
-                  required
-                />
+              <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
+                <div className="search-input-stack">
+                  <input
+                    ref={inputRef}
+                    id="address"
+                    name="address"
+                    type="text"
+                    value={address}
+                    onChange={(event) => setAddress(event.target.value)}
+                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onKeyDown={handleInputKeyDown}
+                    placeholder={PREMIUM_PLACEHOLDER}
+                    autoComplete="off"
+                    role="combobox"
+                    aria-expanded={hasSuggestions}
+                    aria-controls="address-suggestions"
+                    aria-activedescendant={activeSuggestionId}
+                    aria-autocomplete="list"
+                    required
+                  />
+                  {hasSuggestions ? (
+                    <ul id="address-suggestions" className="suggestion-list" role="listbox" aria-label="Address suggestions">
+                      {suggestions.map((suggestion, index) => (
+                        <li
+                          key={suggestion}
+                          id={`address-suggestion-${index}`}
+                          role="option"
+                          aria-selected={index === activeSuggestionIndex}
+                          className={`suggestion-item ${index === activeSuggestionIndex ? "suggestion-item--active" : ""}`}
+                          onMouseDown={() => handleSuggestionSelect(suggestion)}
+                          onMouseEnter={() => setActiveSuggestionIndex(index)}
+                        >
+                          <span className="suggestion-item-label">{suggestion}</span>
+                          <span className="suggestion-item-meta">Chicago address</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
                 <button type="submit" disabled={isLoading}>
                   {isLoading ? "Analyzing…" : "Analyze address"}
                 </button>
-                {showSuggestions && suggestions.length > 0 && (
-                  <ul
-                    role="listbox"
-                    aria-label="Address suggestions"
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      background: "var(--surface, #fff)",
-                      border: "1px solid var(--border, #e2e8f0)",
-                      borderRadius: "var(--radius, 6px)",
-                      listStyle: "none",
-                      margin: "4px 0 0",
-                      padding: "4px 0",
-                      zIndex: 100,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    {suggestions.map((s) => (
-                      <li
-                        key={s}
-                        role="option"
-                        aria-selected={false}
-                        onMouseDown={() => handleSuggestionSelect(s)}
-                        style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.875rem" }}
-                      >
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
-                  Decision brief includes a disruption score, confidence context, primary disruption
-                  drivers, and a concise explanation.
+                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Chicago address.
                 </p>
 
                 <div className="example-row">
-                  <span className="example-label">Try an example</span>
+                  <span className="example-label">Quick examples</span>
                   <div className="example-chip-group">
                     {EXAMPLE_ADDRESSES.map((example) => (
                       <button
@@ -267,7 +290,7 @@ export default function HomePage() {
                 <span className="status-badge">{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
-                  <span>Sources: Chicago permits • Street closures</span>
+                  <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
             ) : null}
@@ -284,11 +307,11 @@ export default function HomePage() {
         <Section
           className={workspaceMode ? "workspace-section workspace-section--score" : undefined}
           eyebrow="Score"
-          title={workspaceMode ? "Score workspace" : "Decision-ready output"}
+          title={workspaceMode ? "Decision brief" : "What the score returns"}
           description={
             workspaceMode
-              ? "The score section anchors the analysis workspace with the strongest signal, severity, and explanation."
-              : "The layout below is designed to support a high-stakes demo even before richer data visualizations are added."
+              ? "Read the headline score first, then move directly into interpretation, strongest drivers, and supporting context."
+              : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
         >
           <div id="score-section" className="anchor-target" />
@@ -304,9 +327,7 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
-                <p className="loading-support">
-                  Checking live availability first, then assembling a decision-ready brief.
-                </p>
+                <p className="loading-support">Checking live availability first, then assembling a concise address-level brief.</p>
                 <div className="skeleton skeleton-score" />
                 <div className="skeleton skeleton-meta" />
               </Card>
@@ -328,98 +349,98 @@ export default function HomePage() {
               </div>
             </section>
           ) : result ? (
-            <section className="results results--loaded workspace-grid">
-              <div className="workspace-main">
+            <section className="results results--loaded workspace-flow">
+              <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
                 </Card>
-
-                <div className="detail-grid detail-grid--workspace">
-                  <Card className="detail-card">
-                    <h2>Confidence and severity signals</h2>
-                    <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
-                  </Card>
-
-                  <Card className="detail-card narrative-card">
-                    <h2>Interpretation</h2>
-                    <ExplanationPanel explanation={result.explanation} meaning={meaningInsights} />
-                  </Card>
-                </div>
+                <Card className="detail-card detail-card--summary">
+                  <h2>Why this score</h2>
+                  <ExplanationPanel explanation={result.explanation} meaning={meaningInsights} />
+                </Card>
               </div>
 
-              <aside className="workspace-sidebar">
-                <div id="signals-section" className="anchor-target" />
-                <Section
-                  eyebrow="Signals"
-                  title="Evidence and supporting context"
-                  description="These sections expose the strongest drivers, spatial grounding, and supporting details that sit behind the score."
-                  className="sidebar-section"
-                >
-                  <Card className="detail-card map-card">
-                    <div className="map-card-head">
-                      <div>
-                        <p className="map-kicker">Spatial context</p>
-                        <h2>Map view</h2>
-                      </div>
+              <div className="detail-grid detail-grid--balanced">
+                <Card className="detail-card">
+                  <h2>Confidence and severity</h2>
+                  <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
+                </Card>
+                <Card className="detail-card supporting-card">
+                  <p className="supporting-kicker">Quick read</p>
+                  <ul className="supporting-list supporting-list--compact">
+                    {supportingDetails.map((item) => (
+                      <li key={item.label}>
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              </div>
+
+              <div id="signals-section" className="anchor-target" />
+              <Section
+                eyebrow="Signals"
+                title="Strongest supporting drivers"
+                description="These are the clearest nearby signals behind the score, followed by the map and timeline context that help interpret them."
+                className="workspace-subsection"
+              >
+                <Card className="detail-card drivers-card">
+                  <TopRiskGrid result={result} />
+                </Card>
+              </Section>
+
+              <div className="support-grid">
+                <Card className="detail-card map-card">
+                  <div className="map-card-head">
+                    <div>
+                      <p className="map-kicker">Spatial context</p>
+                      <h2>Address and nearby area</h2>
                     </div>
-                    {mapCoords ? (
-                      <MapView
-                        latitude={mapCoords.lat}
-                        longitude={mapCoords.lon}
-                        address={result.address}
-                      />
-                    ) : (
-                      <div className="map-placeholder" aria-label="Locating address on map…">
-                        <div className="map-grid" />
-                        <div className="map-pin map-pin--primary" />
-                      </div>
-                    )}
-                    <p className="map-copy">
-                      OpenStreetMap view centred on the scored address.
-                    </p>
-                  </Card>
+                    <span className="map-badge">OpenStreetMap</span>
+                  </div>
+                  {mapCoords ? (
+                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} />
+                  ) : (
+                    <div className="map-placeholder" aria-label="Locating address on map…">
+                      <div className="map-grid" />
+                      <div className="map-pin map-pin--primary" />
+                    </div>
+                  )}
+                  <p className="map-copy">Use the map to anchor the score geographically and confirm whether the risk is tied to a major corridor or local site context.</p>
+                </Card>
 
-                  <Card className="detail-card">
-                    <h2>Primary disruption drivers</h2>
-                    <TopRiskGrid result={result} />
-                  </Card>
-
+                <div className="support-stack">
                   <Card className="detail-card">
                     <ImpactWindow result={result} />
                   </Card>
-
                   <Card className="detail-card supporting-card">
-                    <p className="supporting-kicker">Supporting details</p>
+                    <p className="supporting-kicker">Review notes</p>
                     <ul className="supporting-list">
                       <li>
-                        <span>Address</span>
-                        <strong>{result.address}</strong>
+                        <span>Interpretation</span>
+                        <strong>Read the score as a near-term livability signal, not an exact operational forecast.</strong>
                       </li>
                       <li>
-                        <span>Confidence</span>
-                        <strong>{result.confidence}</strong>
+                        <span>Best use</span>
+                        <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
                       </li>
                       <li>
-                        <span>Primary drivers surfaced</span>
-                        <strong>{result.top_risks.length}</strong>
-                      </li>
-                      <li>
-                        <span>Sources</span>
-                        <strong>Chicago permits • Street closures</strong>
+                        <span>Mode handling</span>
+                        <strong>{isDemoResult ? "Fallback state remains visible and intentional for review." : "Live mode is clearly labeled so decision-makers know the score is database-backed."}</strong>
                       </li>
                     </ul>
                   </Card>
-                </Section>
-              </aside>
+                </div>
+              </div>
             </section>
           ) : (
             <section className="results">
               <Card className="empty-state">
                 <p className="empty-kicker">Ready for analysis</p>
-                <h3>Start with a Chicago address to generate a decision-ready disruption brief.</h3>
+                <h3>Start with a Chicago address to generate a disruption brief.</h3>
                 <p>
-                  Live scoring appears when the backend is available. If not, the workspace falls back
-                  gracefully to the approved demo scenario so reviews can still continue intentionally.
+                  When live scoring is available, the page returns a live address assessment. If not, it falls back gracefully to the approved demo scenario without hiding the mode.
                 </p>
               </Card>
             </section>
@@ -427,16 +448,16 @@ export default function HomePage() {
         </Section>
 
         <Section
-          id="demo-section"
-          eyebrow="Demo"
-          title="How this demo works"
-          description="A single-page investor-ready flow that shows the score, supporting signals, and product framing without requiring hidden routes or extra setup."
+          id="examples-section"
+          eyebrow="Examples"
+          title="Fallback and review examples"
+          description="Examples stay available for walkthroughs and fallback validation, but they stay below the primary scoring workflow."
           className="demo-section"
         >
-          <div className="demo-grid">
+          <div className="demo-grid demo-grid--compressed">
             <Card className="detail-card demo-card">
-              <p className="supporting-kicker">Examples</p>
-              <h2>Present three strong Chicago scenarios</h2>
+              <p className="supporting-kicker">Chicago examples</p>
+              <h2>Load a known address quickly</h2>
               <div className="example-chip-group example-chip-group--demo">
                 {EXAMPLE_ADDRESSES.map((example) => (
                   <button
@@ -455,19 +476,15 @@ export default function HomePage() {
             </Card>
 
             <Card className="detail-card demo-card">
-              <p className="supporting-kicker">How it works</p>
+              <p className="supporting-kicker">Mode behavior</p>
               <ul className="supporting-list">
                 <li>
-                  <span>Score</span>
-                  <strong>Summarizes near-term disruption into one clear product moment.</strong>
+                  <span>Live state</span>
+                  <strong>Clearly labeled and presented as the default decision-ready experience.</strong>
                 </li>
                 <li>
-                  <span>Signals</span>
-                  <strong>Breaks the score into evidence, confidence context, and impact timing.</strong>
-                </li>
-                <li>
-                  <span>Demo mode</span>
-                  <strong>Falls back to sample data gracefully when live backend access is unavailable.</strong>
+                  <span>Demo fallback</span>
+                  <strong>Still visible and explicit, so reviewers can distinguish sample output from live scoring.</strong>
                 </li>
               </ul>
             </Card>
