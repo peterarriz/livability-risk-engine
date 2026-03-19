@@ -11,8 +11,9 @@ import {
   SeverityMeters,
   TopRiskGrid,
 } from "@/components/score-experience";
+import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Try 1600 W Chicago Ave, Chicago, IL";
@@ -31,6 +32,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
@@ -47,7 +49,7 @@ export default function HomePage() {
     ? (statusNote ?? "Showing the approved Chicago demo scenario while live scoring is unavailable.")
     : "Live backend scoring is active for this address lookup.";
 
-  // Dismiss suggestions on outside click.
+  // Dismiss suggestions dropdown on outside click.
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
@@ -57,6 +59,39 @@ export default function HomePage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Fetch autocomplete suggestions as the user types (debounced 300 ms).
+  useEffect(() => {
+    if (address.trim().length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(address);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [address]);
+
+  // When a score result arrives, resolve map coordinates.
+  // The backend includes lat/lon in the response; fall back to a Nominatim
+  // lookup from the frontend when those fields are absent.
+  useEffect(() => {
+    if (!result) {
+      setMapCoords(null);
+      return;
+    }
+    if (result.latitude != null && result.longitude != null) {
+      setMapCoords({ lat: result.latitude, lon: result.longitude });
+      return;
+    }
+    // Backend didn't supply coords — geocode on the frontend.
+    geocodeForMap(result.address).then((coords) => {
+      if (coords) setMapCoords(coords);
+    });
+  }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
     setAddress(suggestion);
@@ -73,6 +108,11 @@ export default function HomePage() {
       const scoreResult = await fetchScore(address);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
+      if ("note" in scoreResult && scoreResult.note) {
+        setStatusNote(scoreResult.note);
+      } else {
+        setStatusNote(null);
+      }
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -308,17 +348,21 @@ export default function HomePage() {
                         <p className="map-kicker">Spatial context</p>
                         <h2>Map view</h2>
                       </div>
-                      <span className="map-badge">Coming soon</span>
                     </div>
-                    <div className="map-placeholder" aria-hidden="true">
-                      <div className="map-grid" />
-                      <div className="map-pin map-pin--primary" />
-                      <div className="map-pin map-pin--secondary" />
-                      <div className="map-pin map-pin--tertiary" />
-                    </div>
+                    {mapCoords ? (
+                      <MapView
+                        latitude={mapCoords.lat}
+                        longitude={mapCoords.lon}
+                        address={result.address}
+                      />
+                    ) : (
+                      <div className="map-placeholder" aria-label="Locating address on map…">
+                        <div className="map-grid" />
+                        <div className="map-pin map-pin--primary" />
+                      </div>
+                    )}
                     <p className="map-copy">
-                      Location-aware context will land here next. For now, this placeholder grounds
-                      the score in a real-world workspace layout.
+                      OpenStreetMap view centred on the scored address.
                     </p>
                   </Card>
 

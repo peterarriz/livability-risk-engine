@@ -81,17 +81,21 @@ DEMO_RESPONSE = {
 }
 
 
-def _build_demo_response(address: str, fallback_reason: str) -> dict:
+def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
     """
     Build a demo response for the given address.
     fallback_reason explains why demo mode is active:
       "db_not_configured" | "geocode_failed" | "scoring_error"
+    latitude/longitude are included when available so the frontend map can show
+    the correct pin even in demo mode.
     """
     return {
         **DEMO_RESPONSE,
         "address": address,
         "mode": "demo",
         "fallback_reason": fallback_reason,
+        "latitude": lat,
+        "longitude": lon,
     }
 
 
@@ -110,7 +114,7 @@ def _score_live(address: str) -> dict:
       2. Geocode address → (lat, lon)
       3. Query nearby projects from canonical DB
       4. Apply scoring engine → ScoreResult
-      5. Return as dict matching API contract
+      5. Return as dict matching API contract (includes latitude/longitude)
     """
     from backend.ingest.geocode import geocode_address
     from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
@@ -127,7 +131,7 @@ def _score_live(address: str) -> dict:
         conn.close()
 
     result = compute_score(nearby, address)
-    return {**asdict(result), "mode": "live", "fallback_reason": None}
+    return {**asdict(result), "mode": "live", "fallback_reason": None, "latitude": lat, "longitude": lon}
 
 
 # ---------------------------------------------------------------------------
@@ -135,82 +139,6 @@ def _score_live(address: str) -> dict:
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
 # Used by the frontend search bar autocomplete.
 # ---------------------------------------------------------------------------
-
-_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-_NOMINATIM_USER_AGENT = "livability-risk-engine/mvp (contact: project-team)"
-
-# Chicago bounding box: viewbox is west,south,east,north for Nominatim.
-_CHICAGO_VIEWBOX = "-87.9401,41.6445,-87.5240,42.0230"
-
-
-@app.get("/suggest")
-def suggest_addresses(
-    q: str = Query(..., min_length=3, description="Partial Chicago address to complete"),
-) -> list[str]:
-    """
-    Return up to 5 real Chicago address suggestions for the given partial query.
-
-    Uses Nominatim (OpenStreetMap) with Chicago bounding box filtering.
-    Returns a plain list of formatted address strings.
-    Falls back to an empty list if the upstream call fails so the UI degrades
-    gracefully without a hard error.
-    """
-    search_query = q.strip()
-    if not search_query.lower().endswith("chicago"):
-        search_query = f"{search_query}, Chicago, IL"
-
-    params = {
-        "q": search_query,
-        "format": "json",
-        "limit": 5,
-        "countrycodes": "us",
-        "viewbox": _CHICAGO_VIEWBOX,
-        "bounded": 1,
-        "addressdetails": 1,
-    }
-    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
-
-    try:
-        resp = _requests.get(_NOMINATIM_URL, params=params, headers=headers, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        log.warning("suggest: nominatim call failed: %s", exc)
-        return []
-
-    suggestions: list[str] = []
-    for item in data:
-        addr = item.get("address", {})
-        parts = []
-
-        house_number = addr.get("house_number", "")
-        road = addr.get("road", "")
-        if house_number and road:
-            parts.append(f"{house_number} {road}")
-        elif road:
-            parts.append(road)
-
-        city = addr.get("city") or addr.get("town") or addr.get("village") or ""
-        state = addr.get("state", "")
-
-        if city and state:
-            parts.append(f"{city}, {state}")
-        elif city:
-            parts.append(city)
-
-        if parts:
-            suggestions.append(", ".join(parts))
-
-    # Deduplicate while preserving order.
-    seen: set[str] = set()
-    unique: list[str] = []
-    for s in suggestions:
-        if s not in seen:
-            seen.add(s)
-            unique.append(s)
-
-    return unique[:5]
-
 
 # ---------------------------------------------------------------------------
 # /score endpoint
@@ -223,10 +151,33 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    Geocodes the address, queries the canonical projects table,
-    and applies the rule-based scoring engine.
-    Response includes mode="live" and fallback_reason=null.
+    When a live DB is configured: geocodes, queries projects, and scores live.
+    When DB is not configured: returns the approved demo scenario so the frontend
+    always receives a structured response (never a raw 503).
+    Response includes mode, fallback_reason, and latitude/longitude for map display.
     """
+    # When no DB is configured, return a demo response.
+    # Include pre-resolved coords for known addresses so the frontend map pin works
+    # without a second geocode round-trip.
+    _KNOWN_COORDS: dict[str, tuple[float, float]] = {
+        "1600 W Chicago Ave, Chicago, IL": (41.8956, -87.6606),
+        "700 W Grand Ave, Chicago, IL": (41.8910, -87.6462),
+        "233 S Wacker Dr, Chicago, IL": (41.8788, -87.6359),
+    }
+    if not _is_db_configured():
+        known = _KNOWN_COORDS.get(address)
+        lat, lon = (known[0], known[1]) if known else (None, None)
+        if lat is None:
+            try:
+                from backend.ingest.geocode import geocode_address
+                coords = geocode_address(address)
+                if coords:
+                    lat, lon = coords
+            except Exception:
+                pass
+        log.info("score address=%r mode=demo fallback_reason=db_not_configured", address)
+        return _build_demo_response(address, "db_not_configured", lat, lon)
+
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)

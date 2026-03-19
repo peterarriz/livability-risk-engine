@@ -16,6 +16,9 @@ export type ScoreResponse = {
   // Optional for backward compatibility with older backend builds.
   mode?: ScoreMode;
   fallback_reason?: string | null;
+  // Coordinates returned by the backend for map display.
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type ScoreSource = ScoreMode;
@@ -96,7 +99,48 @@ function buildDemoScore(address: string): ScoreResponse {
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
     mode: "demo",
     fallback_reason: null,
+    // Include coordinates for the demo address so the map pin shows immediately.
+    latitude: KNOWN_COORDS[address]?.lat ?? null,
+    longitude: KNOWN_COORDS[address]?.lon ?? null,
   };
+}
+
+// Pre-resolved coordinates for the canonical demo/example addresses.
+// These are used as an instant fallback when Nominatim is unavailable or slow.
+const KNOWN_COORDS: Record<string, { lat: number; lon: number }> = {
+  "1600 W Chicago Ave, Chicago, IL": { lat: 41.8956, lon: -87.6606 },
+  "700 W Grand Ave, Chicago, IL": { lat: 41.8910, lon: -87.6462 },
+  "233 S Wacker Dr, Chicago, IL": { lat: 41.8788, lon: -87.6359 },
+};
+
+/**
+ * Geocode an address for map display.
+ * Checks a local table of known coordinates first (instant, no network).
+ * Falls back to Nominatim for arbitrary addresses when a live backend is configured.
+ */
+export async function geocodeForMap(address: string): Promise<{ lat: number; lon: number } | null> {
+  // Fast path: pre-resolved coordinates for demo/example addresses.
+  const known = KNOWN_COORDS[address];
+  if (known) return known;
+
+  // Live geocoding via Nominatim (works in production; may be blocked in restricted envs).
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/search");
+    url.searchParams.set("q", address);
+    url.searchParams.set("format", "json");
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("countrycodes", "us");
+    const resp = await fetch(url.toString(), {
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
+      cache: "no-store",
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as Array<{ lat: string; lon: string }>;
+    if (!data.length) return null;
+    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchSuggestions(query: string): Promise<string[]> {
