@@ -35,7 +35,7 @@ export default function HomePage() {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const skipSuggestRef = useRef(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
@@ -74,7 +74,14 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Fetch autocomplete suggestions as the user types (debounced 300 ms).
+  // skipSuggestRef suppresses the effect when address is set programmatically
+  // (e.g. suggestion selection) to prevent the dropdown from reopening.
   useEffect(() => {
+    if (skipSuggestRef.current) {
+      skipSuggestRef.current = false;
+      return;
+    }
     if (address.trim().length < 3) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -105,6 +112,7 @@ export default function HomePage() {
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
+    skipSuggestRef.current = true;
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -137,14 +145,11 @@ export default function HomePage() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitAddress(addr: string) {
     setIsLoading(true);
     setError(null);
-    setShowSuggestions(false);
-
     try {
-      const scoreResult = await fetchScore(address);
+      const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
       setScoreSource(scoreResult.source);
       if ("note" in scoreResult && scoreResult.note) {
@@ -163,6 +168,11 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitAddress(address);
   }
 
   return (
