@@ -33,16 +33,21 @@ app = FastAPI(title="Livability Risk Engine")
 # ---------------------------------------------------------------------------
 # CORS middleware
 # Allows the Next.js dev server (localhost:3000) to call the API directly.
-# In production, restrict origins to the deployed frontend domain.
+# In production, set FRONTEND_ORIGIN to the deployed Vercel domain, e.g.:
+#   FRONTEND_ORIGIN=https://livability-risk-engine.vercel.app
 # ---------------------------------------------------------------------------
+
+_allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+_frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").strip()
+if _frontend_origin:
+    _allowed_origins.append(_frontend_origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        os.environ.get("FRONTEND_ORIGIN", ""),
-    ],
+    allow_origins=_allowed_origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
