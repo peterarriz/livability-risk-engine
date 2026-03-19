@@ -9,6 +9,8 @@
 - **Access method**: Socrata API at `data.cityofchicago.org` (dataset `ydr8-5enu`); no API key required for read-only access; supports JSON and CSV output.
 - **Ingestion approach**: Scheduled pull from Socrata API + incremental delta using `updated_date`.
 - **Refresh cadence**: Daily. Pull records updated in the last 24 hours using `$where=updated_date>'<yesterday>'`; full re-pull weekly to catch any backdated edits.
+- **Freshness expectation**: Staging file `data/raw/building_permits.json` must be no older than **26 hours** before scoring is considered trustworthy. The 26-hour threshold allows a 2-hour grace window over a 24-hour cron cadence.
+- **Freshness check**: `python backend/ingest/check_freshness.py`
 
 ### 2) Chicago Street Closure Permits (CDOT Street Closures)
 - **What it provides**: Planned street/lanes/sidewalk closures, including location, closure start/end, stage details.
@@ -17,6 +19,8 @@
 - **Access method**: Socrata API at `data.cityofchicago.org` (dataset `Ansr-8mav` for right-of-way permits / `u44e-s9pk` for CDOT closures); also available as CSV download from city portal.
 - **Ingestion approach**: Pull via Socrata API; normalize closure dates and location into canonical fields; geometry filled via geocoding when absent.
 - **Refresh cadence**: Daily. Closures change frequently; pull all records with `close_date >= today - 7 days` to catch recent additions and updates.
+- **Freshness expectation**: Staging file `data/raw/street_closures.json` must be no older than **26 hours**. Closures have a shorter relevance horizon than permits; a missed refresh is more likely to leave the scoring engine with stale traffic signal.
+- **Freshness check**: `python backend/ingest/check_freshness.py`
 
 ## Priority 2 sources
 

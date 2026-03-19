@@ -24,16 +24,13 @@ lanes:
   data:
     display_name: Data
     ready_queue_target: 3
-    current_focus:
-      - data-010
-      - data-011
-      - data-012
+    current_focus: []
     blockers: []
     update_when:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: data-005 through data-009 and data-013 are done. Next focus is freshness checks (data-010), daily refresh docs (data-011), and normalization QA (data-012).
+    notes: All data tasks through data-013 are done, plus data-010/011/012 completed. Freshness check script added (backend/ingest/check_freshness.py), daily refresh steps and normalization QA guide added to docs/handoffs/data.md. No ready data tasks remain; generate tasks when the next milestone is defined.
   app:
     display_name: App
     ready_queue_target: 3
@@ -43,4 +40,4 @@ lanes:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
       - The demo flow needs a different next-ready task.
-    notes: All app tasks through app-014 are done. app-008 (connect frontend to real backend) is complete now that data-009 delivered the radius query. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.
+    notes: app-015 through app-018 completed. ScoreHero placeholder copy fixed, .env.example populated, backend/requirements.txt added, README smoke-check updated with /health and live mode steps. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.

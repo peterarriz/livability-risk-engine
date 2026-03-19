@@ -109,7 +109,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   return (
     <div className="score-hero">
       <div className="score-hero-copy">
-        <p className="score-hero-kicker">Score hero</p>
+        <p className="score-hero-kicker">Disruption analysis</p>
         <div className="score-hero-topline">
           <p className="score-label">Disruption score</p>
           <p className="confidence-pill">Confidence level: {result.confidence}</p>

@@ -470,6 +470,66 @@ tasks:
       - Demo data fallback preserves a polished experience when live backend access is unavailable.
       - The single-page app feels broader and more complete without adding routes.
     notes_for_next_agent: Completed with anchored in-page navigation, explicit Score/Signals/Demo sections, and a graceful demo-data fallback that avoids a dead-end configuration error.
+  - id: app-015
+    lane: app
+    type: polish
+    title: Fix placeholder kicker copy in ScoreHero component
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-011
+    acceptance_criteria:
+      - The "Score hero" placeholder kicker is replaced with meaningful copy.
+      - The replacement copy is consistent with the product framing in the demo.
+    notes_for_next_agent: Replaced "Score hero" with "Disruption analysis" in the ScoreHero kicker.
+  - id: app-016
+    lane: app
+    type: ops
+    title: Populate .env.example with documented frontend env vars
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - .env.example
+    dependencies:
+      - app-008
+    acceptance_criteria:
+      - NEXT_PUBLIC_API_URL is listed with a comment explaining its purpose.
+      - The file is safe to commit (no real secrets).
+    notes_for_next_agent: Populated with NEXT_PUBLIC_API_URL, all POSTGRES_* vars, and FRONTEND_ORIGIN with inline comments. No secrets committed.
+  - id: app-017
+    lane: app
+    type: ops
+    title: Add backend/requirements.txt for Python dependencies
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/requirements.txt
+    dependencies:
+      - app-001
+    acceptance_criteria:
+      - All packages imported in backend/ are listed with minimal pinned versions.
+      - A developer can run pip install -r backend/requirements.txt to get a working environment.
+    notes_for_next_agent: Created backend/requirements.txt with fastapi, uvicorn[standard], psycopg2-binary, and requests, each with a minimal lower-bound pin.
+  - id: app-018
+    lane: app
+    type: docs
+    title: Update README smoke-check to cover /health endpoint and live mode
+    owner: app
+    status: done
+    priority: medium
+    files:
+      - README.md
+    dependencies:
+      - app-009
+    acceptance_criteria:
+      - A curl step for GET /health is included in the smoke-check section.
+      - Live mode activation via POSTGRES_HOST is documented alongside the demo fallback.
+    notes_for_next_agent: Updated README smoke-check with pip install step, /health curl step, live mode note, and .env.local setup instruction. All within the existing section.
   - id: product-010
     lane: product
     type: qa
@@ -727,24 +787,25 @@ tasks:
     type: quality
     title: Add source freshness checks for permit and closure ingests
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/05_data_sources_chicago.md
       - docs/handoffs/data.md
+      - backend/ingest/check_freshness.py
     dependencies:
       - data-002
       - data-004
     acceptance_criteria:
       - Freshness expectations documented.
       - A repeatable check is defined for both core sources.
-    notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
+    notes_for_next_agent: Created backend/ingest/check_freshness.py (exits 1 if stale; --json flag for automation). Freshness expectations (26h threshold) added to docs/05_data_sources_chicago.md and docs/handoffs/data.md.
   - id: data-011
     lane: data
     type: ops
     title: Document daily refresh steps for MVP data sources
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/handoffs/data.md
@@ -754,21 +815,20 @@ tasks:
     acceptance_criteria:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
-    notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.
+    notes_for_next_agent: Added "Daily refresh steps" section to docs/handoffs/data.md with ordered steps (permits → closures → load → verify), failure table, and App handoff note.
   - id: data-012
     lane: data
     type: quality
     title: Define normalization QA checks for canonical projects
     owner: data
-    status: ready
+    status: done
     priority: medium
     files:
       - docs/handoffs/data.md
-      - docs/04_api_contracts.md
     dependencies:
       - data-006
       - data-007
     acceptance_criteria:
       - Required field checks listed.
       - QA outputs can be shared with App without manual interpretation.
-    notes_for_next_agent: Reuse the canonical schema field names exactly.
+    notes_for_next_agent: Added "Normalization QA checks" section to docs/handoffs/data.md with required field table, dry-run command, and load summary interpretation guide for App. No changes to docs/04_api_contracts.md needed (field names already exact).
