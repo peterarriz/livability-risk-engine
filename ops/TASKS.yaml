@@ -565,23 +565,6 @@ tasks:
       - LOW, MEDIUM, and HIGH usage is documented for each severity category.
       - App and backend can render severity without extra interpretation.
     notes_for_next_agent: Completed with explicit LOW/MEDIUM/HIGH severity meanings and clarified category mapping in docs/03_scoring_model.md and docs/04_api_contracts.md.
-  - id: product-012
-    lane: product
-    type: qa
-    title: Approve final mocked score example for demo reviewers
-    owner: product
-    status: done
-    priority: medium
-    files:
-      - docs/04_api_contracts.md
-      - docs/handoffs/product.md
-    dependencies:
-      - product-010
-      - product-011
-    acceptance_criteria:
-      - One final example response is approved for demo walkthroughs.
-      - Example wording matches backend and frontend behavior.
-    notes_for_next_agent: Use the Chicago Ave example unless a better demo case emerges.
   - id: product-013
     lane: product
     type: calibration
@@ -750,29 +733,12 @@ tasks:
       - Checklist covers score plausibility and explanation clarity.
       - Review steps are repeatable by humans and AI agents.
     notes_for_next_agent: Completed with a 7-step repeatable checklist in docs/03_scoring_model.md covering score-band alignment, explanation tone, dominant-driver consistency, confidence calibration, and buyer-facing readability. Tied to the 18 Chicago QA addresses. product-010 and product-014 used this checklist to complete their QA pass.
-  - id: data-013
-    lane: data
-    type: ingest
-    title: Load normalized projects into canonical DB table
-    owner: data
-    status: done
-    priority: high
-    files:
-      - backend/ingest/load_projects.py
-    dependencies:
-      - data-005
-      - data-006
-      - data-007
-    acceptance_criteria:
-      - Upserts into projects table idempotently.
-      - Populates geom column for ST_DWithin queries.
-    notes_for_next_agent: "Completed. backend/ingest/load_projects.py reads staging JSON and upserts into projects table. Full pipeline to get live scores: (1) building_permits.py (2) street_closures.py (3) load_projects.py then start API with POSTGRES_HOST set."
   - id: product-008
     lane: product
     type: handoff
     title: Document launch-readiness questions for the MVP demo
     owner: product
-    status: ready
+    status: done
     priority: low
     files:
       - docs/handoffs/product.md
@@ -781,31 +747,116 @@ tasks:
     acceptance_criteria:
       - Open product questions listed.
       - Demo sign-off inputs requested from Data and App.
-    notes_for_next_agent: Keep this focused on the MVP demo and not a full product roadmap.
+    notes_for_next_agent: Completed. docs/handoffs/product.md now includes a "Launch-readiness questions" section with 10 open questions across Data (ingestion, geometry, freshness, normalization status), App (smoke check, fallback, contract alignment), and Product (design-partner timeline, demo address rotation, pricing sign-off). Known accepted risks also documented. Use this as the checklist before any live investor or design-partner demo.
+  - id: product-021
+    lane: product
+    type: content
+    title: Write design-partner outreach email templates
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/outreach_templates.md
+    dependencies:
+      - product-017
+      - product-020
+    acceptance_criteria:
+      - One email template per buyer persona (CRE, logistics, proptech).
+      - Each template has a subject line, two-paragraph body, and a clear next-step ask.
+      - Templates stay grounded in the MVP output and do not oversell unbuilt features.
+    notes_for_next_agent: Completed. docs/outreach_templates.md has 3 cold outreach templates (CRE Analyst, Logistics Ops Manager, Proptech Builder) plus a 5-day follow-up template. Each has a subject line, 2-paragraph body, and a clear call to action. Outreach notes included to prevent overselling. Use these as starting points — always personalize before sending.
+  - id: product-022
+    lane: product
+    type: definition
+    title: Define 90-day post-launch success metrics
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/success_metrics.md
+    dependencies:
+      - product-017
+      - product-020
+    acceptance_criteria:
+      - KPIs defined for customer, revenue, and product dimensions.
+      - Leading indicators identified so the team can course-correct before 90 days.
+      - Metrics tie to the buyer personas and pricing tiers already documented.
+    notes_for_next_agent: Completed. docs/success_metrics.md defines 5 primary KPIs (paying customers, MRR, design-partner sessions, API call volume per customer, accuracy complaints) with day-30 checkpoints and course-correction triggers. Secondary metrics table also included. Review weekly after launch.
+  - id: product-023
+    lane: product
+    type: definition
+    title: Write competitive positioning brief
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/competitive_positioning.md
+    dependencies:
+      - product-017
+      - product-018
+    acceptance_criteria:
+      - At least 3 competitive alternatives described (city portals, GIS tools, manual research).
+      - Clear differentiation statement for each alternative.
+      - Objection-handling notes for the most common comparisons a buyer will raise.
+    notes_for_next_agent: Completed. docs/competitive_positioning.md covers 4 alternatives (city portal, GIS platforms, manual research, proptech aggregators) with differentiation statements, objection-handling language, and a summary win/no-win table. Use when preparing for sales calls or investor Q&A.
+  - id: product-024
+    lane: product
+    type: definition
+    title: Define design-partner pilot terms
+    owner: product
+    status: done
+    priority: high
+    files:
+      - docs/pilot_terms.md
+    dependencies:
+      - product-020
+      - product-021
+    acceptance_criteria:
+      - Pilot duration, call volume, pricing, and success criteria are specified.
+      - Mutual commitments from both sides are listed.
+      - Terms are simple enough to agree on via email without a formal contract.
+    notes_for_next_agent: Completed. docs/pilot_terms.md defines 30-day pilot with 500 included API calls, 1 midpoint session, 1 written summary. Mutual commitments, scope boundaries, conversion offers (20% discount first month), a sample confirmation email, and a pilot-tracking log format are all included. Confirmable via email — no contract required.
+  - id: product-025
+    lane: product
+    type: content
+    title: Write FAQ for investor and buyer questions
+    owner: product
+    status: done
+    priority: medium
+    files:
+      - docs/faq.md
+    dependencies:
+      - product-018
+      - product-019
+      - product-023
+    acceptance_criteria:
+      - At least 10 questions answered covering data quality, accuracy, coverage, pricing, and roadmap.
+      - Answers are consistent with the approved demo script and pitch narrative.
+      - No answer promises features outside the Chicago MVP scope.
+    notes_for_next_agent: Completed. docs/faq.md has 16 questions across data sourcing, score interpretation, product scope, integration, and pricing. All answers are consistent with the demo script and pitch narrative. No unbuilt features promised. Use as a leave-behind after investor meetings or design-partner intros.
   - id: data-010
     lane: data
     type: quality
     title: Add source freshness checks for permit and closure ingests
     owner: data
-    status: done
+    status: ready
     priority: medium
     files:
       - docs/05_data_sources_chicago.md
       - docs/handoffs/data.md
-      - backend/ingest/check_freshness.py
     dependencies:
       - data-002
       - data-004
     acceptance_criteria:
       - Freshness expectations documented.
       - A repeatable check is defined for both core sources.
-    notes_for_next_agent: Created backend/ingest/check_freshness.py (exits 1 if stale; --json flag for automation). Freshness expectations (26h threshold) added to docs/05_data_sources_chicago.md and docs/handoffs/data.md.
+    notes_for_next_agent: Keep checks deterministic and lightweight so they can run during reviews.
   - id: data-011
     lane: data
     type: ops
     title: Document daily refresh steps for MVP data sources
     owner: data
-    status: done
+    status: ready
     priority: medium
     files:
       - docs/handoffs/data.md
@@ -815,73 +866,4 @@ tasks:
     acceptance_criteria:
       - Refresh order documented.
       - Failure cases and owner handoff notes listed.
-    notes_for_next_agent: Added "Daily refresh steps" section to docs/handoffs/data.md with ordered steps (permits → closures → load → verify), failure table, and App handoff note.
-  - id: data-012
-    lane: data
-    type: quality
-    title: Define normalization QA checks for canonical projects
-    owner: data
-    status: done
-    priority: medium
-    files:
-      - docs/handoffs/data.md
-    dependencies:
-      - data-006
-      - data-007
-    acceptance_criteria:
-      - Required field checks listed.
-      - QA outputs can be shared with App without manual interpretation.
-    notes_for_next_agent: Added "Normalization QA checks" section to docs/handoffs/data.md with required field table, dry-run command, and load summary interpretation guide for App. No changes to docs/04_api_contracts.md needed (field names already exact).
-  - id: data-014
-    lane: data
-    type: quality
-    title: Add geocode-fill pass for staging records missing coordinates
-    owner: data
-    status: done
-    priority: high
-    files:
-      - backend/ingest/geocode_fill.py
-      - docs/handoffs/data.md
-    dependencies:
-      - data-008
-      - data-013
-    acceptance_criteria:
-      - Script reads both staging JSON files and fills lat/lon for records that have an address but no coordinates.
-      - Filled records are written back to the staging files so load_projects.py picks them up on the next run.
-      - Script is idempotent — re-running does not double-geocode already-filled records.
-      - Progress and skip counts are printed clearly.
-    notes_for_next_agent: Created backend/ingest/geocode_fill.py. Uses geocode_address() with 0.25s sleep. --dry-run and --max-fill flags included. Also updated docs/handoffs/data.md to insert geocode-fill as Step 3 in the daily refresh runbook.
-  - id: data-015
-    lane: data
-    type: ops
-    title: Add stale completed-record pruning to load_projects
-    owner: data
-    status: done
-    priority: medium
-    files:
-      - backend/ingest/load_projects.py
-    dependencies:
-      - data-013
-    acceptance_criteria:
-      - load_projects.py accepts a --prune-days N flag (default 90).
-      - When set, DELETE FROM projects WHERE status='completed' AND end_date < today - N days runs after the upsert.
-      - Dry-run mode reports how many rows would be pruned without deleting.
-      - Row count deleted is printed in the load summary.
-    notes_for_next_agent: Added --prune-days flag, prune_stale_projects() function, PRUNE_SQL and PRUNE_COUNT_SQL constants. Prune runs after all upserts and is reported in the load summary. Never touches active or planned records.
-  - id: data-016
-    lane: data
-    type: quality
-    title: Add DB summary diagnostic script
-    owner: data
-    status: done
-    priority: medium
-    files:
-      - backend/ingest/db_summary.py
-    dependencies:
-      - data-013
-    acceptance_criteria:
-      - Script queries projects table and prints counts by source, status, and impact_type.
-      - Shows the freshest and oldest normalized_at per source so Data can confirm a successful load.
-      - Exits 0 always; output is copy-paste-ready for sharing with App as a QA artifact.
-      - Works with the same POSTGRES_* env vars as load_projects.py.
-    notes_for_next_agent: Created backend/ingest/db_summary.py. Queries by source+status, source+impact_type, and freshness. --json flag for machine-readable output. All queries read-only. Added as Step 6 in the daily refresh runbook in docs/handoffs/data.md.
+    notes_for_next_agent: Capture only the two MVP data sources and avoid adding new feeds.

@@ -20,7 +20,7 @@ lanes:
       - A product task changes status.
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
-    notes: All prior product tasks are done. product-008 (launch-readiness questions) is now ready and is the next actionable product task.
+    notes: Entire monetization foundation is complete (product-008 through product-025 all done). Docs produced — buyer_personas.md, pitch_narrative.md, demo_script.md, pricing_model.md, outreach_templates.md, success_metrics.md, competitive_positioning.md, pilot_terms.md, faq.md. Product lane queue is now empty — run generate_tasks.py to surface the next batch of ready tasks.
   data:
     display_name: Data
     ready_queue_target: 3
