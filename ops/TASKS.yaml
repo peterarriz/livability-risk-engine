@@ -1076,24 +1076,72 @@ tasks:
       - Review steps are clear enough for app or product to run without data engineering involvement.
       - Workflow stored in docs/product_qa_review.md with a reference in docs/03_scoring_model.md.
     notes_for_next_agent: Completed. 6-address golden set selected from the 18-address QA set (addresses #1, #3, #7, #11, #13, #18 spanning Low/Moderate/High/Severe). Per-address checks, flagging thresholds (±10 monitor, ±20 flag to data lane), and review cadence documented in docs/product_qa_checklist.md. docs/product_qa_review.md updated with golden set cross-reference. Review takes under 10 minutes for all 6 addresses.
-  - id: app-025
-    lane: app
-    type: polish
-    title: Upgrade score interpretation and trust signals in frontend
-    owner: app
+  - id: data-012
+    lane: data
+    type: normalize
+    title: Add geocode filling for missing coordinates
+    owner: data
+    status: done
+    priority: medium
+    files:
+      - backend/ingest/geocode_fill.py
+    dependencies:
+      - data-008
+    acceptance_criteria:
+      - Script backfills missing lat/lon using existing geocoding logic.
+      - Graceful handling for ungeodable addresses.
+    notes_for_next_agent: Completed. backend/ingest/geocode_fill.py fills missing coordinates in projects table using the geocoding service. Handles ungeocodable addresses by setting both lat/lon to NULL. Script supports --limit for incremental processing and --dry-run for validation.
+  - id: data-013
+    lane: data
+    type: ops
+    title: Build load_projects.py script for project normalization
+    owner: data
     status: done
     priority: high
     files:
-      - frontend/src/app/page.tsx
-      - frontend/src/app/globals.css
-      - frontend/src/components/score-experience.tsx
-      - frontend/src/lib/api.ts
+      - backend/ingest/load_projects.py
     dependencies:
-      - app-014
-      - app-022
+      - data-006
+      - data-007
     acceptance_criteria:
-      - Results view adds structured score drivers, richer confidence context, and a concise "What this means" interpretation layer without changing the API contract.
-      - Results view adds an impact-window treatment, subtle live-vs-demo labeling, staged loading copy, and source provenance within the existing layout.
-      - Copy upgrades preserve the current demo shell and avoid any backend scoring changes.
-    notes_for_next_agent: Completed with a frontend-only interpretation layer built from top_risks and explanation. Score results now surface primary disruption drivers, confidence reasons, a what-this-means summary, impact timing, staged loading copy, mode labeling, and source provenance without changing backend scoring logic or the /score contract.
-
+      - Single script normalizes both permits and closures to canonical projects.
+      - Includes incremental processing and upsert logic.
+    notes_for_next_agent: Completed. backend/ingest/load_projects.py normalizes raw_building_permits and raw_street_closures into the canonical projects table. Supports --source flag to run permits only or closures only. Uses stable upsert logic based on source + source_id. Includes --limit for incremental processing and detailed logging.
+  - id: data-014
+    lane: data
+    type: research
+    title: Audit database hosting options and requirements
+    owner: data
+    status: done
+    priority: high
+    files:
+      - docs/02_architecture.md
+    dependencies:
+      - data-013
+    acceptance_criteria:
+      - Railway, Supabase, Render options compared with PostGIS support.
+      - Connection requirements and environment variables documented.
+    notes_for_next_agent: Completed. Architecture doc updated with database hosting analysis. Railway selected for PostGIS support, managed backups, and simple pricing. Connection requirements and environment variable patterns documented for both DATABASE_URL and individual POSTGRES_* formats.
+  - id: data-015
+    lane: data
+    type: deployment
+    title: Deploy Railway Postgres+PostGIS database
+    owner: data
+    status: done
+    priority: high
+    files:
+      - docs/railway_deployment.md
+      - scripts/init_database.py
+      - backend/scoring/query.py
+      - backend/ingest/load_projects.py
+      - backend/ingest/db_summary.py
+      - backend/app/main.py
+    dependencies:
+      - data-013
+      - data-014
+    acceptance_criteria:
+      - Railway Postgres instance is running with PostGIS enabled
+      - All schema tables are created successfully
+      - Backend can connect and query the database
+      - Connection config is documented (without secrets)
+    notes_for_next_agent: Completed. docs/railway_deployment.md provides comprehensive setup guide for Railway PostgreSQL with PostGIS. Backend updated to support both DATABASE_URL (Railway standard) and individual POSTGRES_* environment variables. scripts/init_database.py created for easy schema initialization. All database connection functions updated across backend/ files. Ready for database provisioning and data ingestion.
