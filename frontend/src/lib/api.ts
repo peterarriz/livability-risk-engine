@@ -1,9 +1,10 @@
 export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
+export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
-  confidence: string;
+  confidence: ConfidenceLevel;
   severity: {
     noise: SeverityLevel;
     traffic: SeverityLevel;
@@ -11,6 +12,9 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // app-019: backend mode metadata — added without breaking existing consumers
+  mode?: "live" | "demo";
+  fallback_reason?: string | null;
 };
 
 export type ScoreSource = "live" | "demo";
@@ -75,7 +79,7 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: backend URL is not configured, so the experience is using a polished sample response.",
+      note: "Demo scenario shown because the backend URL is not configured.",
     };
   }
 
@@ -91,7 +95,7 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: live scoring is temporarily unavailable, so a sample response is being shown instead.",
+      note: "Demo scenario shown because live scoring is temporarily unavailable.",
     };
   }
 
@@ -101,21 +105,23 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
       source: "demo",
       note:
         response.status >= 500
-          ? "Demo data mode: the scoring service is temporarily unavailable, so a sample response is being shown instead."
-          : "Demo data mode: the requested score could not be fetched, so a sample response is being shown instead.",
+          ? "Demo scenario shown because the scoring service is temporarily unavailable."
+          : "Demo scenario shown because the requested score could not be fetched.",
     };
   }
 
   try {
-    return {
-      score: (await response.json()) as ScoreResponse,
-      source: "live",
-    };
+    const score = (await response.json()) as ScoreResponse;
+    // app-022: log backend fallback_reason for operator debugging (not shown to end users)
+    if (score.fallback_reason) {
+      console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+    }
+    return { score, source: "live" };
   } catch {
     return {
       score: buildDemoScore(address),
       source: "demo",
-      note: "Demo data mode: the scoring service returned an invalid response, so a sample response is being shown instead.",
+      note: "Demo scenario shown because the scoring service returned an invalid response.",
     };
   }
 }

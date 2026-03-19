@@ -78,3 +78,25 @@ This document defines the primary buyer personas for the Livability Risk Engine 
 | Proptech / Mobility Builder | B2B SaaS / developer | $500–$2,000 | Medium (100s of builders, high usage per customer) | API self-serve, developer docs, product-led growth |
 
 **Priority for Chicago MVP monetization**: CRE analysts are the fastest path to revenue because they have an existing budget for due diligence data, their buying decision is individual (not IT procurement), and the MVP output maps directly to a quantifiable business risk they already manage. Logistics operators are the highest revenue ceiling but require more integration work. Proptech builders are the best word-of-mouth multiplier if the API is reliable and well-documented.
+
+---
+
+## Active outbound persona (product-027)
+
+**Selected persona: The Commercial Real Estate Analyst**
+
+**Selection rationale:**
+- Fastest path to a paid design-partner relationship — budget exists, decision is individual, no IT procurement required
+- The MVP output maps directly to a decision they make multiple times per week (deal-level risk review)
+- `disruption_score` + `explanation` maps to a specific deliverable they already produce (deal memo language)
+- First conversations can happen with or without a live DB — the approved demo response is credible enough for initial outreach
+- Lowest friction from first contact to pilot agreement using `docs/pilot_terms.md`
+
+**Primary MVP fields tied to this persona's pain:**
+- `disruption_score` — the go/no-go headline signal for a deal under review
+- `explanation` — the one-paragraph summary they paste into a deal memo
+- `severity.traffic` — access friction affecting tenants, deliveries, and foot traffic
+
+**Selection approved:** 2026-03-19
+
+**Next step:** Use the CRE Analyst template in `docs/outreach_templates.md` and the list-building criteria in `docs/handoffs/product.md` to identify first 25 targets.

@@ -4,6 +4,9 @@ import { FormEvent, useState } from "react";
 
 import {
   ExplanationPanel,
+  getConfidenceReasons,
+  getMeaningInsights,
+  ImpactWindow,
   ScoreHero,
   SeverityMeters,
   TopRiskGrid,
@@ -27,6 +30,13 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const workspaceMode = isLoading || result !== null;
+  const confidenceReasons = result ? getConfidenceReasons(result) : [];
+  const meaningInsights = result ? getMeaningInsights(result) : [];
+  const loadingSteps = [
+    "Analyzing nearby permits…",
+    "Evaluating infrastructure impact…",
+    "Calculating disruption score…",
+  ];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,8 +123,8 @@ export default function HomePage() {
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
-                  Demo output includes disruption score, confidence, severity, top risks, and
-                  explanation.
+                  Decision brief includes a disruption score, confidence context, primary disruption
+                  drivers, and a concise explanation.
                 </p>
 
                 <div className="example-row">
@@ -135,10 +145,13 @@ export default function HomePage() {
               </div>
             </form>
 
-            {statusNote ? (
+            {(result || statusNote) ? (
               <div className="status-banner status-banner--demo" role="status">
-                <span className="status-badge">{scoreSource === "demo" ? "Demo data" : "Live data"}</span>
-                <span>{statusNote}</span>
+                <span className="status-badge">
+                  {(result?.mode ?? scoreSource) === "demo" ? "Demo scenario" : "Live data • Chicago"}
+                </span>
+                <span>Sources: Chicago permits • Street closures</span>
+                {statusNote ? <span>{statusNote}</span> : null}
               </div>
             ) : null}
 
@@ -163,8 +176,16 @@ export default function HomePage() {
           <div id="score-section" className="anchor-target" />
           {isLoading ? (
             <section className="results results--loading">
-              <Card className="score-card skeleton-card">
-                <div className="skeleton skeleton-label" />
+              <Card className="score-card skeleton-card loading-card">
+                <p className="loading-kicker">Building disruption brief</p>
+                <div className="loading-step-list" aria-live="polite">
+                  {loadingSteps.map((step, index) => (
+                    <div key={step} className="loading-step">
+                      <span className="loading-step-index">0{index + 1}</span>
+                      <span>{step}</span>
+                    </div>
+                  ))}
+                </div>
                 <div className="skeleton skeleton-score" />
                 <div className="skeleton skeleton-meta" />
               </Card>
@@ -194,13 +215,13 @@ export default function HomePage() {
 
                 <div className="detail-grid detail-grid--workspace">
                   <Card className="detail-card">
-                    <h2>Confidence Level & Severity</h2>
-                    <SeverityMeters severity={result.severity} />
+                    <h2>Confidence and severity signals</h2>
+                    <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
                   </Card>
 
                   <Card className="detail-card narrative-card">
-                    <h2>Explanation</h2>
-                    <ExplanationPanel explanation={result.explanation} />
+                    <h2>Interpretation</h2>
+                    <ExplanationPanel explanation={result.explanation} meaning={meaningInsights} />
                   </Card>
                 </div>
               </div>
@@ -234,8 +255,12 @@ export default function HomePage() {
                   </Card>
 
                   <Card className="detail-card">
-                    <h2>Primary Drivers</h2>
+                    <h2>Primary disruption drivers</h2>
                     <TopRiskGrid result={result} />
+                  </Card>
+
+                  <Card className="detail-card">
+                    <ImpactWindow result={result} />
                   </Card>
 
                   <Card className="detail-card supporting-card">
@@ -246,12 +271,16 @@ export default function HomePage() {
                         <strong>{result.address}</strong>
                       </li>
                       <li>
-                        <span>Confidence Level</span>
+                        <span>Confidence</span>
                         <strong>{result.confidence}</strong>
                       </li>
                       <li>
-                        <span>Top risks surfaced</span>
+                        <span>Primary drivers surfaced</span>
                         <strong>{result.top_risks.length}</strong>
+                      </li>
+                      <li>
+                        <span>Sources</span>
+                        <strong>Chicago permits • Street closures</strong>
                       </li>
                     </ul>
                   </Card>
@@ -262,7 +291,7 @@ export default function HomePage() {
             <section className="results">
               <Card className="empty-state">
                 <p className="empty-kicker">Ready for analysis</p>
-                <h3>Start with a Chicago address to generate a polished disruption brief.</h3>
+                <h3>Start with a Chicago address to generate a decision-ready disruption brief.</h3>
                 <p>
                   The empty state is intentionally designed to feel complete and presentation-ready,
                   with space reserved for score, severity, top risks, and narrative context.
@@ -309,7 +338,7 @@ export default function HomePage() {
                 </li>
                 <li>
                   <span>Signals</span>
-                  <strong>Explains the evidence and why the score should be trusted.</strong>
+                  <strong>Breaks the score into evidence, confidence context, and impact timing.</strong>
                 </li>
                 <li>
                   <span>Demo mode</span>

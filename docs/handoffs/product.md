@@ -44,10 +44,37 @@ These are the open questions that must be resolved — or explicitly accepted as
 
 ## Still open
 
-## Next 3 product actions
-1. Complete product-008: list open launch-readiness questions and request sign-off from Data and App lanes.
-2. Review `docs/pricing_model.md` with the team to confirm the Spot/Professional/Enterprise tier structure before any customer outreach.
-3. Identify 3 design-partner candidates from the CRE and logistics segments using `docs/buyer_personas.md` as the targeting guide.
+## Next product actions (updated 2026-03-19)
+1. Run the live-output trust review (product-026) once the DB is connected — see `docs/product_qa_checklist.md`.
+2. Confirm the selected design-partner persona and start outbound (product-027, product-028).
+3. Run the pre-demo launch-readiness checklist before any investor or partner meeting (product-029, see `docs/product_qa_checklist.md`).
+4. Review `docs/pricing_model.md` with the team before any external pricing communication.
+
+## Design-partner list spec (product-028)
+
+### Selected persona
+**CRE Analyst** — the fastest path to revenue and feedback. See `docs/buyer_personas.md` for full profile.
+
+### Ideal target profile
+- **Title**: Research analyst, acquisitions associate, asset manager, or VP of Acquisitions
+- **Company type**: CRE investment firm, REIT, property fund, or commercial brokerage with a Chicago portfolio
+- **Chicago footprint indicator**: Active in Chicago acquisitions, lease renewals, or asset management; company has Chicago office or regional presence
+- **Deal velocity**: Works on deals with 48–72 hour due diligence windows where a quick disruption signal would save time
+
+### List-building criteria (for LinkedIn or CoStar prospecting)
+1. Title contains one of: "real estate analyst", "acquisitions", "asset manager", "portfolio manager", "CRE"
+2. Company is a known CRE firm, REIT, or investment fund with Chicago exposure
+3. Individual is likely the buyer, not an IT gatekeeper — analyst or associate level preferred for first contact
+4. Company size: 10–500 employees (large enough to have dedicated analysts; small enough for fast decisions)
+
+### Next-step ask
+A 20-minute discovery call to confirm the due diligence workflow and whether a `disruption_score` API would save time. **Do not pitch pricing on the first call.** Lead with the specific time savings for their existing workflow.
+
+### Owner
+Product lane. Outreach sequence uses `docs/outreach_templates.md` (CRE Analyst template).
+
+### Build target
+First 25 contacts. Quality over quantity — 25 well-matched targets beats 200 cold ones. Tie to pilot terms in `docs/pilot_terms.md` for any interested contact.
 
 ## What to hand off to other lanes
 - To **Data**: keep the dominant-signal framing aligned with the score-band interpretation, confidence drivers, and severity mapping notes.
