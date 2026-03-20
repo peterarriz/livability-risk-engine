@@ -74,6 +74,7 @@ class ScoreResult:
     """
     Final output of the scoring engine.
     Shape matches docs/04_api_contracts.md exactly.
+    top_risk_details added in data-024: structured metadata for permit drill-down.
     """
     address: str
     disruption_score: int       # 0–100
@@ -366,6 +367,33 @@ def _build_top_risks(
     return risks
 
 
+def _build_top_risk_details(
+    contributions: list[tuple[NearbyProject, float]],
+) -> list[dict]:
+    """
+    Build structured permit/closure detail dicts for the top risks (data-024).
+    Each dict gives the frontend enough data to render an expandable detail panel.
+    """
+    details = []
+    for nearby, weight in contributions[:3]:
+        p = nearby.project
+        details.append({
+            "project_id": p.project_id,
+            "source": p.source,
+            "source_id": p.source_id,
+            "impact_type": p.impact_type,
+            "title": p.title,
+            "notes": p.notes,
+            "status": p.status,
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
+            "address": p.address,
+            "distance_m": round(nearby.distance_m),
+            "weighted_score": round(weight, 1),
+        })
+    return details
+
+
 def _build_explanation(
     contributions: list[tuple[NearbyProject, float]],
     severity: dict,
@@ -468,6 +496,24 @@ def compute_score(
     top_risks = _build_top_risks(top3)
     top_risk_details = _build_top_risk_details(top3)
     explanation = _build_explanation(top3, severity)
+    top_risk_details = _build_top_risk_details(top3)
+
+    # Build nearby_signals for the map heat layer.
+    # Include all scored projects that have valid coordinates (not just top 3).
+    nearby_signals = []
+    for np, weight in scored:
+        p = np.project
+        if p.latitude is None or p.longitude is None:
+            continue
+        nearby_signals.append({
+            "lat": p.latitude,
+            "lon": p.longitude,
+            "impact_type": p.impact_type,
+            "title": p.title,
+            "distance_m": round(np.distance_m),
+            "severity_hint": p.severity_hint,
+            "weight": round(weight, 1),
+        })
 
     return ScoreResult(
         address=address,
