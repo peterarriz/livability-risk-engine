@@ -2,6 +2,40 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
+export type ScoreHistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: ScoreMode;
+  created_at: string | null;
+};
+
+export type SaveReportResponse = {
+  report_id: string;
+  address: string;
+};
+
+export type FetchReportResponse = {
+  report_id: string;
+  address: string;
+  score: ScoreResponse;
+  created_at: string | null;
+};
+
+export type TopRiskDetail = {
+  project_id: string;
+  source: string;
+  source_id: string;
+  impact_type: string;
+  title: string;
+  notes: string | null;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  address: string | null;
+  distance_m: number;
+  weighted_score: number;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -19,6 +53,8 @@ export type ScoreResponse = {
   // Coordinates returned by the backend for map display.
   latitude?: number | null;
   longitude?: number | null;
+  // data-024: structured permit/closure metadata for drill-down.
+  top_risk_details?: TopRiskDetail[];
 };
 
 export type ScoreSource = ScoreMode;
