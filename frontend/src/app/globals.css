@@ -1102,6 +1102,53 @@ button:disabled {
   color: var(--brand);
 }
 
+/* ─── Compare page ────────────────────────────────────────────── */
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.compare-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compare-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compare-score-card {
+  border-top: 3px solid var(--border);
+}
+
+.compare-score-card--severe {
+  border-top-color: rgb(220, 38, 38);
+}
+
+.compare-score-card--high {
+  border-top-color: rgb(234, 88, 12);
+}
+
+.compare-score-card--moderate {
+  border-top-color: rgb(202, 138, 4);
+}
+
+.compare-score-card--low {
+  border-top-color: rgb(22, 163, 74);
+}
+
 /* ─── Pro badge ───────────────────────────────────────────────── */
 
 .pro-badge-bar {
@@ -1500,5 +1547,9 @@ button:disabled {
   .example-chip-group,
   .risk-chip-row {
     display: grid;
+  }
+
+  .compare-grid {
+    grid-template-columns: 1fr;
   }
 }

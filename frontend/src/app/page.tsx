@@ -426,7 +426,7 @@ export default function HomePage() {
                     <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
                       Save report
                     </button>
-                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                    <a href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`} className="compare-link">
                       Compare with another address →
                     </a>
                   </div>

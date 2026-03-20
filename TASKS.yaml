@@ -212,3 +212,18 @@ tasks:
         3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
+
+  - id: data-023
+    title: /compare page — side-by-side address comparison
+    status: done
+    priority: medium
+    github_issue: 55
+    notes_for_next_agent: >
+      frontend/src/app/compare/page.tsx created. Two independent address
+      slots each call /score via fetchScore(). Displays ScoreHero,
+      SeverityMeters, and TopRiskGrid side-by-side. Pre-fills Address A
+      when navigated from main page via /compare?a=<encoded-address>.
+      Compare link in page.tsx updated to /compare?a=<current-address>.
+      CSS for .compare-grid and .compare-slot added to globals.css.
+      Next: data-024 — consider adding visual diff (score delta highlight)
+      or winner/loser badge between the two slots.
