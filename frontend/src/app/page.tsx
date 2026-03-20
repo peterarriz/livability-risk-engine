@@ -481,7 +481,7 @@ export default function HomePage() {
                 <p>
                   {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
                     ? "We couldn't find that address in Chicago. Try including a ZIP code."
-                    : "Live data temporarily unavailable. Try again in a moment, or use one of the example addresses below."}
+                    : error}
                 </p>
               </div>
             ) : null}
