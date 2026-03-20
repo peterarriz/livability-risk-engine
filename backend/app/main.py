@@ -18,13 +18,14 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
+import hashlib
 import logging
 import os
-import uuid
+import secrets
 from dataclasses import asdict
 
 import requests as _requests
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -146,7 +147,7 @@ def _score_live(address: str) -> dict:
 # /score endpoint
 # ---------------------------------------------------------------------------
 
-@app.get("/score")
+@app.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
     address: str = Query(..., description="Chicago address to score"),
 ) -> dict:
@@ -183,6 +184,7 @@ def get_score(
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
+        _record_score_history(address, result["disruption_score"], result["confidence"], "live")
         return result
     except ValueError as exc:
         log.warning("score address=%r geocode_failed error=%s", address, exc)
@@ -196,6 +198,81 @@ def get_score(
             status_code=503,
             detail="Scoring service temporarily unavailable.",
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Score history helpers (data-025)
+# ---------------------------------------------------------------------------
+
+def _record_score_history(address: str, score: int, confidence: str, mode: str) -> None:
+    """
+    Write a score_history row. Fire-and-forget: exceptions are logged and swallowed
+    so a history write failure never breaks the /score response.
+    """
+    if not _is_db_configured():
+        return
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO score_history (address, disruption_score, confidence, mode) VALUES (%s, %s, %s, %s)",
+                    (address, score, confidence, mode),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.warning("score_history write failed (non-fatal): %s", exc)
+
+
+@app.get("/history")
+def get_score_history(
+    address: str = Query(..., description="Chicago address to fetch history for"),
+    limit: int = Query(10, ge=1, le=50, description="Max number of historical records to return"),
+) -> dict:
+    """
+    Return the score history for a given address (most recent first).
+    Used by the frontend sparkline component to show score trend over time.
+    Returns an empty list when DB is not configured or address has no history.
+    """
+    if not _is_db_configured():
+        return {"address": address, "history": []}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT disruption_score, confidence, mode, created_at
+                    FROM score_history
+                    WHERE address = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (address, limit),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        history = [
+            {
+                "disruption_score": row[0],
+                "confidence": row[1],
+                "mode": row[2],
+                "created_at": row[3].isoformat() if row[3] else None,
+            }
+            for row in rows
+        ]
+        return {"address": address, "history": history}
+
+    except Exception as exc:
+        log.error("get_score_history address=%r error: %s", address, exc)
+        return {"address": address, "history": []}
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +489,166 @@ def _parse_photon(features: list) -> list[str]:
             seen.add(formatted)
             suggestions.append(formatted)
     return suggestions[:5]
+
+
+# ---------------------------------------------------------------------------
+# /neighborhood/<slug> endpoint (data-026)
+# Returns all live disruption projects within a neighborhood bounding box
+# plus neighborhood metadata. Used by the /neighborhood/[slug] frontend pages.
+#
+# Bounding boxes are defined as (min_lat, min_lon, max_lat, max_lon).
+# Neighborhoods were chosen to cover the most active permit/closure corridors.
+# ---------------------------------------------------------------------------
+
+_NEIGHBORHOODS: dict[str, dict] = {
+    "wicker-park": {
+        "name": "Wicker Park",
+        "description": "Dense mixed-use neighborhood with high permit activity along Milwaukee Ave.",
+        "center": {"lat": 41.9088, "lon": -87.6776},
+        "bbox": {"min_lat": 41.8990, "min_lon": -87.6950, "max_lat": 41.9180, "max_lon": -87.6600},
+    },
+    "logan-square": {
+        "name": "Logan Square",
+        "description": "Rapidly developing neighborhood with significant construction along the 606 trail corridor.",
+        "center": {"lat": 41.9217, "lon": -87.7082},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.7250, "max_lat": 41.9330, "max_lon": -87.6900},
+    },
+    "river-north": {
+        "name": "River North",
+        "description": "High-density commercial and residential construction zone north of the Chicago River.",
+        "center": {"lat": 41.8940, "lon": -87.6340},
+        "bbox": {"min_lat": 41.8850, "min_lon": -87.6500, "max_lat": 41.9030, "max_lon": -87.6200},
+    },
+    "lincoln-park": {
+        "name": "Lincoln Park",
+        "description": "Affluent lakefront neighborhood with ongoing street and utility work.",
+        "center": {"lat": 41.9240, "lon": -87.6450},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.6630, "max_lat": 41.9380, "max_lon": -87.6270},
+    },
+    "pilsen": {
+        "name": "Pilsen",
+        "description": "Arts and manufacturing district with active infrastructure upgrades.",
+        "center": {"lat": 41.8560, "lon": -87.6640},
+        "bbox": {"min_lat": 41.8470, "min_lon": -87.6850, "max_lat": 41.8650, "max_lon": -87.6430},
+    },
+    "loop": {
+        "name": "The Loop",
+        "description": "Chicago's downtown core with continuous street closure and utility activity.",
+        "center": {"lat": 41.8827, "lon": -87.6323},
+        "bbox": {"min_lat": 41.8740, "min_lon": -87.6480, "max_lat": 41.8920, "max_lon": -87.6180},
+    },
+    "uptown": {
+        "name": "Uptown",
+        "description": "Dense lakeside neighborhood undergoing significant transit corridor improvements.",
+        "center": {"lat": 41.9650, "lon": -87.6540},
+        "bbox": {"min_lat": 41.9540, "min_lon": -87.6680, "max_lat": 41.9750, "max_lon": -87.6390},
+    },
+    "bridgeport": {
+        "name": "Bridgeport",
+        "description": "South Side industrial-residential neighborhood with ongoing utility and road work.",
+        "center": {"lat": 41.8350, "lon": -87.6444},
+        "bbox": {"min_lat": 41.8250, "min_lon": -87.6600, "max_lat": 41.8460, "max_lon": -87.6300},
+    },
+}
+
+
+def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> list[dict]:
+    """
+    Query active projects within a bounding box from the canonical projects table.
+    Returns a list of JSON-serializable project dicts.
+    Falls back to an empty list when DB is not configured.
+    """
+    if not _is_db_configured():
+        return []
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT project_id, source, impact_type, title,
+                           start_date, end_date, status, lat, lon
+                    FROM projects
+                    WHERE status = 'active'
+                      AND lat BETWEEN %s AND %s
+                      AND lon BETWEEN %s AND %s
+                    ORDER BY start_date DESC
+                    LIMIT 200
+                    """,
+                    (min_lat, max_lat, min_lon, max_lon),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        projects = []
+        for row in rows:
+            project_id, source, impact_type, title, start_date, end_date, status, lat, lon = row
+            projects.append({
+                "project_id": project_id,
+                "source": source,
+                "impact_type": impact_type,
+                "title": title,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                "status": status,
+                "lat": lat,
+                "lon": lon,
+            })
+        return projects
+    except Exception as exc:
+        log.error("neighborhood bbox query error: %s", exc)
+        return []
+
+
+@app.get("/neighborhood/{slug}")
+def get_neighborhood(slug: str) -> dict:
+    """
+    Return neighborhood metadata and all active disruption projects within
+    the neighborhood bounding box.
+
+    slug:      one of the 8 pre-defined Chicago neighborhood slugs
+    Returns:
+      slug, name, description, center, bbox, projects (list), project_count, mode
+    """
+    neighborhood = _NEIGHBORHOODS.get(slug)
+    if neighborhood is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Neighborhood '{slug}' not found. Valid slugs: {', '.join(_NEIGHBORHOODS)}",
+        )
+
+    bbox = neighborhood["bbox"]
+    projects = _get_projects_in_bbox(
+        bbox["min_lat"], bbox["min_lon"], bbox["max_lat"], bbox["max_lon"]
+    )
+    mode = "live" if _is_db_configured() else "demo"
+
+    return {
+        "slug": slug,
+        "name": neighborhood["name"],
+        "description": neighborhood["description"],
+        "center": neighborhood["center"],
+        "bbox": bbox,
+        "projects": projects,
+        "project_count": len(projects),
+        "mode": mode,
+    }
+
+
+@app.get("/neighborhoods")
+def list_neighborhoods() -> dict:
+    """
+    Return the list of available neighborhood slugs and their names/centers.
+    Used by the frontend to render a neighborhood index.
+    """
+    return {
+        "neighborhoods": [
+            {"slug": slug, "name": n["name"], "description": n["description"], "center": n["center"]}
+            for slug, n in _NEIGHBORHOODS.items()
+        ]
+    }
 
 
 @app.get("/suggest")

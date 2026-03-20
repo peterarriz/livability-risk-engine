@@ -8,6 +8,7 @@ import {
   getMeaningInsights,
   ImpactWindow,
   ScoreHero,
+  ScoreSparkline,
   SeverityMeters,
   TopRiskGrid,
 } from "@/components/score-experience";
@@ -41,6 +42,7 @@ export default function HomePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
@@ -83,6 +85,15 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // data-022: persist address history to localStorage whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // Ignore storage errors (private browsing, quota exceeded, etc.)
+    }
+  }, [addressHistory]);
+
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
   // skipSuggestRef suppresses the effect when address is set programmatically
   // (e.g. suggestion selection) to prevent the dropdown from reopening.
@@ -118,6 +129,12 @@ export default function HomePage() {
     geocodeForMap(result.address).then((coords) => {
       if (coords) setMapCoords(coords);
     });
+  }, [result]);
+
+  // data-025: fetch score history whenever a new result loads.
+  useEffect(() => {
+    if (!result) { setScoreHistory([]); return; }
+    fetchHistory(result.address, 20).then(setScoreHistory);
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
@@ -189,6 +206,40 @@ export default function HomePage() {
     await submitAddress(address);
   }
 
+  async function handleSaveReport() {
+    if (!result) return;
+    setIsSaving(true);
+    setSaveError(null);
+    setSavedReportId(null);
+    try {
+      const saved = await saveReport(result);
+      setSavedReportId(saved.report_id);
+    } catch (err) {
+      setSaveError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not save report. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleCopySavedLink() {
+    if (!savedReportId) return;
+    const url = `${window.location.origin}/report/${savedReportId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  }
+
+  function handleOpenSaveModal() {
+    setSavedReportId(null);
+    setSaveError(null);
+    setShowSaveModal(true);
+  }
+
   return (
     <main className={`page ${workspaceMode ? "page--workspace" : "page--explore"}`}>
       <Container>
@@ -238,6 +289,7 @@ export default function HomePage() {
             <a href="#signals-section">Signals</a>
             <a href="#examples-section">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
 
@@ -425,11 +477,17 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
+                  {scoreHistory.length >= 2 && (
+                    <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
+                  )}
                   <div className="score-actions">
-                    <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
+                    <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
-                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
+                      className="compare-link"
+                    >
                       Compare with another address →
                     </a>
                   </div>
