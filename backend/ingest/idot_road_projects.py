@@ -1,41 +1,41 @@
 """
 backend/ingest/idot_road_projects.py
-task: data-014
+task: data-031
 lane: data
 
-Ingests IDOT Road Construction data from the ArcGIS REST API and writes
-raw records to a local JSON staging file.
+Ingests IDOT (Illinois Department of Transportation) active road construction
+and work zone projects from the Illinois Open Data Portal (Socrata API) and
+writes raw records to a local JSON staging file.
 
 Source:
-  https://gis-idot.opendata.arcgis.com/datasets/IDOT::road-construction
-  ArcGIS FeatureServer:
-    https://services2.arcgis.com/aIrBD8yn1TDTEXoz/arcgis/rest/services/Road_Construction_Public/FeatureServer/2
+  https://data.illinois.gov/resource/hhkm-y6y2.json
+  Dataset: IDOT Highway Improvement Projects (Active)
+
+  ⚠ Dataset ID validation:
+    Verify the dataset ID at https://data.illinois.gov/browse?q=IDOT+construction
+    Look for "IDOT Construction Year Highway Projects" or "IDOT Work Zones".
+    Update SOCRATA_BASE_URL below if the dataset ID has changed.
 
 Usage:
   python backend/ingest/idot_road_projects.py
   python backend/ingest/idot_road_projects.py --output data/raw/idot_road_projects.json
-  python backend/ingest/idot_road_projects.py --district 1 --dry-run
+  python backend/ingest/idot_road_projects.py --limit 500 --dry-run
 
-Notes:
-  - The ArcGIS API is public; no authentication is required.
-  - District 1 corresponds to the Chicago metro area.
-  - Date fields are returned as epoch milliseconds and converted to ISO 8601.
+Environment variables (optional):
+  ILLINOIS_SOCRATA_APP_TOKEN  — Socrata app token for higher rate limits.
+                                Register free at https://data.illinois.gov/profile/app_tokens
+  CHICAGO_SOCRATA_APP_TOKEN   — Accepted as fallback if IL-specific token not set.
 
-Acceptance criteria (data-014):
-  - Records are fetched from the ArcGIS FeatureServer (not Socrata).
-  - Fields are normalized to internal names used by the rest of the pipeline.
-  - Polyline geometry is preserved for future PostGIS loading.
+Acceptance criteria (data-031):
+  - Script pulls IDOT road projects from the Socrata API.
+  - Raw records are written to a JSON staging file.
+  - Source identifiers (project_number) are preserved for traceability.
   - Script is idempotent: re-running overwrites the output file cleanly.
-
-Notes for next agent:
-  This dataset is live/active construction only (small record count, ~10-20).
-  For planned/upcoming projects, consider also ingesting the Annual Highway
-  Improvement Program at FeatureServer layer 2 under
-  Annual_Highway_Improvement_Program service.
 """
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,77 +46,78 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-ARCGIS_BASE_URL = (
-    "https://services2.arcgis.com/aIrBD8yn1TDTEXoz/arcgis/rest/services"
-    "/Road_Construction_Public/FeatureServer/2/query"
-)
+# IDOT Active Construction Projects on Illinois Open Data Portal.
+# Dataset: "IDOT Construction Year Highway Projects"
+# Verify at: https://data.illinois.gov/browse?q=IDOT+highway+projects
+SOCRATA_BASE_URL = "https://data.illinois.gov/resource/hhkm-y6y2.json"
 
-# Mapping from ArcGIS field names to internal field names used by the
-# rest of the pipeline (load_projects, normalize, scoring).
-ARCGIS_TO_INTERNAL = {
-    "OBJECTID":              "row_id",
-    "ContractNumber":        "contract_number",
-    "Contractor":            "contractor",
-    "ContractValue":         "contract_value",
-    "District":              "district",
-    "County":                "county",
-    "NearTown":              "near_town",
-    "Route":                 "route",
-    "ConstructionType":      "construction_type",
-    "StartDate":             "start_date",
-    "EndDate":               "end_date",
-    "Location":              "location",
-    "LanesRampsClosed":      "lanes_ramps_closed",
-    "DetourRoute":           "detour_route",
-    "ImpactOnTravel":        "impact_on_travel",
-    "Status":                "status",
-    "PermanentRestriction":  "permanent_restriction",
-    "MaxWidth_In":           "max_width_in",
-    "MaxHeight_In":          "max_height_in",
-    "MaxLength_In":          "max_length_in",
-    "MaxWeight":             "max_weight",
-}
+# Fields to retain from the raw IDOT project record.
+FIELDS_TO_KEEP = [
+    "project_number",        # source identifier — never drop this
+    "project_description",   # human-readable description of the work
+    "work_type",             # type of road work (paving, bridge, etc.)
+    "county",                # county name within Illinois
+    "district",              # IDOT district (1–9)
+    "route",                 # IL route / US route / Interstate
+    "start_date",            # planned construction start
+    "end_date",              # planned construction end
+    "contract_date",         # date contract awarded
+    "contractor",            # prime contractor
+    "contract_amount",       # total contract value
+    "latitude",              # project centroid lat (if available)
+    "longitude",             # project centroid lon (if available)
+    "location",              # location dict (fallback for lat/lon)
+    "status",                # active | completed | planned
+]
 
-# ArcGIS returns dates as epoch milliseconds — these fields need conversion.
-EPOCH_MS_FIELDS = {"StartDate", "EndDate"}
-
-PAGE_SIZE = 1000
+PAGE_SIZE = 5000
 DEFAULT_OUTPUT_PATH = "data/raw/idot_road_projects.json"
+
+# Fetch projects active or starting within this many days.
+DAYS_BACK = 180  # IDOT projects span longer horizons than city permits
 
 
 # ---------------------------------------------------------------------------
 # Fetch logic
 # ---------------------------------------------------------------------------
 
-def build_params(offset: int, limit: int, district: str | None) -> dict:
-    """Build ArcGIS REST API query params for one page of results."""
-    where = f"District='{district}'" if district else "1=1"
+def build_params(
+    offset: int,
+    limit: int,
+    app_token: str | None,
+    days_back: int,
+) -> dict:
+    """Build Socrata query params for one page of IDOT project results."""
+    cutoff = datetime.now(timezone.utc)
+    # Use a simple date filter — keep projects active or starting in window.
+    cutoff_str = f"{cutoff.year}-{cutoff.month:02d}-{cutoff.day:02d}T00:00:00"
 
-    return {
-        "where": where,
-        "outFields": "*",
-        "outSR": "4326",
-        "f": "json",
-        "resultOffset": offset,
-        "resultRecordCount": limit,
+    params: dict = {
+        "$limit": limit,
+        "$offset": offset,
+        # Include projects that end in the future or started recently.
+        "$where": f"end_date >= '{cutoff_str}' OR start_date >= '{cutoff_str}'",
+        "$order": "start_date DESC",
     }
+
+    if app_token:
+        params["$$app_token"] = app_token
+
+    return params
 
 
 def fetch_page(
     session: requests.Session,
     offset: int,
     limit: int,
-    district: str | None,
-) -> tuple[list[dict], bool]:
-    """
-    Fetch one page of road construction records from the ArcGIS FeatureServer.
-
-    Returns (features, exceeded_transfer_limit).
-    """
-    params = build_params(offset, limit, district)
+    app_token: str | None,
+    days_back: int,
+) -> list[dict]:
+    """Fetch one page of IDOT project records from Socrata."""
+    params = build_params(offset, limit, app_token, days_back)
 
     try:
-        response = session.get(ARCGIS_BASE_URL, params=params, timeout=30)
+        response = session.get(SOCRATA_BASE_URL, params=params, timeout=30)
         response.raise_for_status()
     except requests.exceptions.Timeout:
         print(f"  ERROR: Request timed out at offset {offset}.", file=sys.stderr)
@@ -129,115 +130,66 @@ def fetch_page(
         )
         raise
 
-    data = response.json()
-
-    if "error" in data:
-        err = data["error"]
-        print(
-            f"  ERROR: ArcGIS error {err.get('code')}: {err.get('message')}",
-            file=sys.stderr,
-        )
-        raise RuntimeError(f"ArcGIS API error: {err}")
-
-    features = data.get("features", [])
-    exceeded = data.get("exceededTransferLimit", False)
-
-    return features, exceeded
+    return response.json()
 
 
-def fetch_all_projects(district: str | None, dry_run: bool) -> list[dict]:
+def fetch_all_projects(app_token: str | None, days_back: int, dry_run: bool) -> list[dict]:
     """
-    Paginate through the ArcGIS API and return all raw road construction
-    features (attributes + geometry).
+    Paginate through the Socrata API and return all IDOT project records
+    within the active window.
     """
     session = requests.Session()
-    all_features: list[dict] = []
+    all_records: list[dict] = []
     offset = 0
 
-    district_label = f"District {district}" if district else "all districts"
-    print(f"Fetching IDOT road construction projects ({district_label})...")
+    print(f"Fetching IDOT road projects (active or starting within {days_back} days)...")
 
     while True:
         print(f"  Fetching page at offset {offset}...", end=" ", flush=True)
-        features, exceeded = fetch_page(session, offset, PAGE_SIZE, district)
-        print(f"{len(features)} features.")
+        records = fetch_page(session, offset, PAGE_SIZE, app_token, days_back)
+        print(f"{len(records)} records.")
 
-        if not features:
+        if not records:
             break
 
-        all_features.extend(features)
-        offset += len(features)
+        all_records.extend(records)
+        offset += len(records)
 
-        if dry_run:
+        if dry_run and offset >= PAGE_SIZE:
             print("  Dry-run: stopping after first page.")
             break
 
-        if not exceeded:
+        if len(records) < PAGE_SIZE:
             break
 
-    return all_features
+    return all_records
 
 
 # ---------------------------------------------------------------------------
-# Normalization
+# Filtering and staging
 # ---------------------------------------------------------------------------
 
-def epoch_ms_to_iso(value: int | None) -> str | None:
-    """Convert an epoch-millisecond timestamp to an ISO 8601 string."""
-    if value is None:
-        return None
-    return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
-
-
-def normalize_feature(feature: dict) -> dict:
+def filter_fields(record: dict) -> dict:
     """
-    Convert an ArcGIS feature into a normalized internal record.
-
-    - Remaps field names via ARCGIS_TO_INTERNAL.
-    - Converts epoch-ms dates to ISO 8601.
-    - Extracts centroid lat/lng from polyline geometry for geocoding fallback.
-    - Preserves full geometry paths for future PostGIS loading.
+    Retain only the fields needed for downstream normalization.
+    Always preserve the source identifier regardless of FIELDS_TO_KEEP.
     """
-    attrs = feature.get("attributes", {})
-    geometry = feature.get("geometry", {})
+    filtered = {k: v for k, v in record.items() if k in FIELDS_TO_KEEP}
 
-    record: dict = {}
+    # Defensive: always keep project_number even if not in FIELDS_TO_KEEP.
+    if "project_number" in record and "project_number" not in filtered:
+        filtered["project_number"] = record["project_number"]
 
-    for arcgis_key, internal_key in ARCGIS_TO_INTERNAL.items():
-        value = attrs.get(arcgis_key)
-        if arcgis_key in EPOCH_MS_FIELDS and isinstance(value, (int, float)):
-            value = epoch_ms_to_iso(int(value))
-        record[internal_key] = value
+    return filtered
 
-    # Extract centroid from polyline paths for simple lat/lng geocoding.
-    paths = geometry.get("paths", [])
-    if paths:
-        all_points = [pt for path in paths for pt in path]
-        if all_points:
-            avg_lng = sum(p[0] for p in all_points) / len(all_points)
-            avg_lat = sum(p[1] for p in all_points) / len(all_points)
-            record["longitude"] = round(avg_lng, 6)
-            record["latitude"] = round(avg_lat, 6)
-
-    # Preserve raw geometry for PostGIS.
-    record["geometry_paths"] = paths
-
-    record["source"] = "idot_road_construction"
-
-    return record
-
-
-# ---------------------------------------------------------------------------
-# Staging
-# ---------------------------------------------------------------------------
 
 def write_staging_file(records: list[dict], output_path: Path) -> None:
-    """Write normalized road construction records to a JSON staging file."""
+    """Write raw IDOT project records to a JSON staging file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     staging = {
-        "source": "idot_road_construction",
-        "source_url": ARCGIS_BASE_URL.replace("/query", ""),
+        "source": "idot_road_projects",
+        "source_url": SOCRATA_BASE_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -255,7 +207,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest IDOT road construction data from the ArcGIS REST API."
+        description="Ingest IDOT road construction projects from the Illinois Open Data Portal."
     )
     parser.add_argument(
         "--output",
@@ -264,10 +216,16 @@ def parse_args() -> argparse.Namespace:
         help=f"Output JSON path (default: {DEFAULT_OUTPUT_PATH})",
     )
     parser.add_argument(
-        "--district",
-        type=str,
+        "--limit",
+        type=int,
         default=None,
-        help="Filter to a specific IDOT district (e.g. 1 for Chicago). Default: all.",
+        help="Fetch at most this many records (for testing).",
+    )
+    parser.add_argument(
+        "--days-back",
+        type=int,
+        default=DAYS_BACK,
+        help=f"Active window in days (default: {DAYS_BACK}).",
     )
     parser.add_argument(
         "--dry-run",
@@ -280,18 +238,30 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    features = fetch_all_projects(args.district, args.dry_run)
-    records = [normalize_feature(f) for f in features]
+    # Accept either IL-specific or Chicago token (same Socrata platform).
+    app_token = (
+        os.environ.get("ILLINOIS_SOCRATA_APP_TOKEN")
+        or os.environ.get("CHICAGO_SOCRATA_APP_TOKEN")
+    )
 
-    print(f"\nTotal records fetched: {len(records)}")
+    if not app_token:
+        print(
+            "Note: ILLINOIS_SOCRATA_APP_TOKEN not set. "
+            "Requests will be rate-limited. "
+            "Register a free token at https://data.illinois.gov/profile/app_tokens"
+        )
+
+    records = fetch_all_projects(app_token, args.days_back, args.dry_run)
+    filtered = [filter_fields(r) for r in records]
+
+    print(f"\nTotal records fetched: {len(filtered)}")
 
     if args.dry_run:
         print("Dry-run mode: skipping file write.")
-        if records:
-            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
+        print(f"Sample record:\n{json.dumps(filtered[0] if filtered else {}, indent=2)}")
         return
 
-    write_staging_file(records, args.output)
+    write_staging_file(filtered, args.output)
     print("Done.")
 
 

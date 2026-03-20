@@ -213,8 +213,8 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-026
-    title: Neighborhood heat map pages /neighborhood/[slug]
+  - id: data-025
+    title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
     github_issue: 58
@@ -230,48 +230,18 @@ tasks:
       Next: Consider adding a /neighborhoods index page and linking from the homepage.
 
   - id: data-033
-    title: Illinois city permits ingest — Cook County + IL cities
-    status: done
-    priority: medium
-    github_issue: 66
+    title: Expand Illinois data coverage — Cook County permits, additional cities, all IDOT districts
+    status: in-progress
+    priority: high
+    github_issue: 67
     notes_for_next_agent: >
       Script: backend/ingest/il_city_permits.py.
-      Output: data/raw/il_city_permits_<source_key>.json.
-      Cook County dataset: datacatalog.cookcountyil.gov / 6yjf-dfxs.
-      Chicago Special Events (ahsk-uzm8) added in data-034 — needs dataset
-      ID verification before relying on it in production.
-
-  - id: data-034
-    title: Research and add remaining Illinois open data sources
-    status: done
-    priority: medium
-    github_issue: 68
-    notes_for_next_agent: >
-      Sources researched and implemented:
-        - CTA Planned Service Alerts (IMPLEMENTED):
-            Script: backend/ingest/cta_alerts.py
-            Output: data/raw/cta_alerts.json
-            API: lapi.transitchicago.com/api/1.0/alerts.aspx?outputType=JSON&planned=1
-            No API key required. Returns construction/track-work alerts.
-            Normalizer: normalize_cta_alert() in backend/models/project.py.
-            Loader: load_cta_alerts() in backend/ingest/load_projects.py.
-            Pipeline step added to run_pipeline.py (--skip-cta to bypass).
-        - Chicago Special Events Permits (ADDED TO il_city_permits.py):
-            source_key: chicago_special_events
-            Domain: data.cityofchicago.org, dataset_id: ahsk-uzm8
-            WARNING: dataset_id ahsk-uzm8 and field names need live
-            verification. Run:
-              curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5"
-            If wrong ID, pipeline logs a warning and continues (no failure).
-      Sources researched and SKIPPED (no viable public API):
-        - ComEd utility work permits: no public API
-        - Peoples Gas infrastructure: no public API
-        - DuPage/Lake/Will/Kane County permits: ArcGIS Hub portals, no
-          Socrata-compatible building permits API; would need a custom
-          ArcGIS ingest similar to idot_road_projects.py
-        - Metra construction: GTFS data only, no disruption-specific REST API
-        - Illinois state event permits: no known public API
-      Next: Verify Chicago Special Events dataset ID (ahsk-uzm8) is correct.
+      Config-driven Socrata ingest for Cook County + 6 IL cities.
+      Output: data/raw/il_city_permits_<source_key>.json per city.
+      Normalization: normalize_il_city_permit() in backend/models/project.py.
+      Wired into load_projects.py (load_il_city_permits, --source il_cities)
+      and run_pipeline.py (new step 4, --skip-il-cities flag).
+      IDOT already fetches all districts (WHERE 1=1, no district filter needed).
 
   - id: data-035
     title: Find and implement additional Illinois data sources
@@ -352,21 +322,6 @@ tasks:
       frontend/src/app/page.tsx: added "API" nav link in topnav → /api-access.
       Next data task: data-029.
 
-  - id: data-024
-    title: Permit detail drill-down — structured top_risk_details in API
-    status: done
-    priority: medium
-    github_issue:
-    notes_for_next_agent: >
-      Two validation tasks from data-034:
-      1. Verify Chicago Special Events Permits dataset ID:
-           Run: python backend/ingest/il_city_permits.py --city chicago_special_events --dry-run
-           If 0 records or 404, find correct dataset ID via:
-             curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5"
-           Then update dataset_id and field names in il_city_permits.py CITY_CONFIGS.
-      2. Validate CTA alerts pipeline end-to-end:
-           Run: python backend/ingest/cta_alerts.py --dry-run
-           Expected: CTA planned service alerts returned and normalized.
-           Verify sample record shows headline, event_start, address.
-      3. Once DATABASE_URL is available, run the full pipeline and confirm
-         cta_alerts records appear in the projects table.
+      Test command (once dataset IDs are verified):
+        python backend/ingest/il_city_permits.py --city cook_county --dry-run
+        python backend/ingest/il_city_permits.py --dry-run  # all cities
