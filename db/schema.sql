@@ -218,26 +218,85 @@ COMMENT ON TABLE ingest_runs IS
 
 
 -- ---------------------------------------------------------------------------
--- Saved reports  (data-021)
+-- Score history  (data-025)
 --
--- Stores score results so users can share a persistent URL.
--- Each row is a snapshot of the /score response for a given address.
--- The report_id UUID is used in the shareable /report/<id> URL.
+-- Persists each live /score result so the frontend can surface a sparkline
+-- trend showing whether an address is getting better or worse over time.
+-- Only live-mode scores are written (demo-mode results are excluded).
 -- ---------------------------------------------------------------------------
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-CREATE TABLE IF NOT EXISTS reports (
-    report_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    address     TEXT        NOT NULL,
-    score_json  JSONB       NOT NULL,   -- full /score response payload
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS score_history (
+    id               BIGSERIAL   PRIMARY KEY,
+    address          TEXT        NOT NULL,
+    disruption_score INT         NOT NULL,
+    confidence       TEXT        NOT NULL,
+    mode             TEXT        NOT NULL DEFAULT 'live',
+    scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS reports_created_at_idx
-    ON reports (created_at DESC);
+CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
+    ON score_history (address, scored_at DESC);
 
 COMMENT ON TABLE reports IS
     'Saved score snapshots (data-021). Each row is a /score response stored '
     'so the user can share a persistent /report/<report_id> URL. '
     'score_json is the full API response payload.';
+
+
+-- ---------------------------------------------------------------------------
+-- Score alert watchlist  (data-030)
+--
+-- Users subscribe an email + score threshold to a Chicago address.
+-- When the disruption score crosses that threshold, an entry is written to
+-- alert_log (email delivery is stubbed for the MVP).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS watchlist (
+    id          BIGSERIAL   PRIMARY KEY,
+    email       TEXT        NOT NULL,
+    address     TEXT        NOT NULL,
+    -- threshold is an integer disruption score (0–100).
+    -- An alert fires when the live score meets or exceeds this value.
+    threshold   INT         NOT NULL CHECK (threshold BETWEEN 0 AND 100),
+    -- token is used for unsubscribe links so no auth is required.
+    token       TEXT        NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT watchlist_email_address_unique UNIQUE (email, address)
+);
+
+CREATE INDEX IF NOT EXISTS watchlist_email_idx
+    ON watchlist (email);
+
+CREATE INDEX IF NOT EXISTS watchlist_address_idx
+    ON watchlist (address);
+
+COMMENT ON TABLE watchlist IS
+    'Email alert subscriptions (data-030). Each row subscribes an email address '
+    'to score alerts for a Chicago address when the disruption score crosses threshold. '
+    'token is used in unsubscribe links.';
+
+COMMENT ON COLUMN watchlist.threshold IS
+    'Disruption score (0–100). An alert is triggered when the live score is >= this value.';
+
+COMMENT ON COLUMN watchlist.token IS
+    'Unsubscribe token — included in alert emails so users can opt out without auth.';
+
+
+CREATE TABLE IF NOT EXISTS alert_log (
+    id              BIGSERIAL   PRIMARY KEY,
+    watchlist_id    BIGINT      NOT NULL REFERENCES watchlist(id) ON DELETE CASCADE,
+    score           INT         NOT NULL,
+    triggered_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS alert_log_watchlist_id_idx
+    ON alert_log (watchlist_id);
+
+CREATE INDEX IF NOT EXISTS alert_log_triggered_at_idx
+    ON alert_log (triggered_at DESC);
+
+COMMENT ON TABLE alert_log IS
+    'Log of triggered score alerts (data-030). Each row records when a watchlist '
+    'entry fired because the live score met or exceeded the configured threshold. '
+    'Email delivery is stubbed for the MVP — only logging occurs.';
