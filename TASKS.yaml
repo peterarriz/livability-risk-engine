@@ -213,96 +213,17 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-026
-    title: Neighborhood heat map pages /neighborhood/[slug]
+  - id: data-023
+    title: /compare page — side-by-side address comparison
     status: done
     priority: medium
-    github_issue: 58
+    github_issue: 55
     notes_for_next_agent: >
-      Backend: GET /neighborhood/<slug> returns projects within bbox + metadata.
-               GET /neighborhoods returns list of all 8 neighborhoods.
-               8 bounding boxes defined in _NEIGHBORHOODS dict in backend/app/main.py.
-               Falls back to empty project list when DB is not configured.
-      Frontend: frontend/src/app/neighborhood/[slug]/page.tsx — Leaflet map with
-               circle markers colored by impact_type, project list with color-coded
-               left border, neighborhood summary bar.
-               fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
-      Next: Consider adding a /neighborhoods index page and linking from the homepage.
-
-  - id: data-033
-    title: Illinois city permits ingest — Cook County + IL cities
-    status: done
-    priority: medium
-    github_issue: 66
-    notes_for_next_agent: >
-      Script: backend/ingest/il_city_permits.py.
-      Output: data/raw/il_city_permits_<source_key>.json.
-      Cook County dataset: datacatalog.cookcountyil.gov / 6yjf-dfxs.
-      Chicago Special Events (ahsk-uzm8) added in data-034 — needs dataset
-      ID verification before relying on it in production.
-
-  - id: data-034
-    title: Research and add remaining Illinois open data sources
-    status: done
-    priority: medium
-    github_issue: 68
-    notes_for_next_agent: >
-      Sources researched and implemented:
-        - CTA Planned Service Alerts (IMPLEMENTED):
-            Script: backend/ingest/cta_alerts.py
-            Output: data/raw/cta_alerts.json
-            API: lapi.transitchicago.com/api/1.0/alerts.aspx?outputType=JSON&planned=1
-            No API key required. Returns construction/track-work alerts.
-            Normalizer: normalize_cta_alert() in backend/models/project.py.
-            Loader: load_cta_alerts() in backend/ingest/load_projects.py.
-            Pipeline step added to run_pipeline.py (--skip-cta to bypass).
-        - Chicago Special Events Permits (ADDED TO il_city_permits.py):
-            source_key: chicago_special_events
-            Domain: data.cityofchicago.org, dataset_id: ahsk-uzm8
-            WARNING: dataset_id ahsk-uzm8 and field names need live
-            verification. Run:
-              curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5"
-            If wrong ID, pipeline logs a warning and continues (no failure).
-      Sources researched and SKIPPED (no viable public API):
-        - ComEd utility work permits: no public API
-        - Peoples Gas infrastructure: no public API
-        - DuPage/Lake/Will/Kane County permits: ArcGIS Hub portals, no
-          Socrata-compatible building permits API; would need a custom
-          ArcGIS ingest similar to idot_road_projects.py
-        - Metra construction: GTFS data only, no disruption-specific REST API
-        - Illinois state event permits: no known public API
-      Next: Verify Chicago Special Events dataset ID (ahsk-uzm8) is correct.
-
-  - id: data-028
-    title: Developer portal — /api-access page with endpoint docs and code examples
-    status: done
-    priority: medium
-    github_issue: 61
-    notes_for_next_agent: >
-      backend/app/main.py: added GET /docs/api-access endpoint that returns
-      structured API documentation (all endpoints, params, response fields,
-      curl/Python/JS examples, example responses).
-      frontend/src/app/api-access/page.tsx: developer portal page that fetches
-      /docs/api-access and renders endpoint table, code tabs (curl/Python/JS),
-      auth section, and copy-paste examples. Self-contained styles via <style>.
-      frontend/src/app/page.tsx: added "API" nav link in topnav → /api-access.
-      Next data task: data-029.
-
-  - id: data-024
-    title: Permit detail drill-down — structured top_risk_details in API
-    status: done
-    priority: medium
-    github_issue:
-    notes_for_next_agent: >
-      Two validation tasks from data-034:
-      1. Verify Chicago Special Events Permits dataset ID:
-           Run: python backend/ingest/il_city_permits.py --city chicago_special_events --dry-run
-           If 0 records or 404, find correct dataset ID via:
-             curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5"
-           Then update dataset_id and field names in il_city_permits.py CITY_CONFIGS.
-      2. Validate CTA alerts pipeline end-to-end:
-           Run: python backend/ingest/cta_alerts.py --dry-run
-           Expected: CTA planned service alerts returned and normalized.
-           Verify sample record shows headline, event_start, address.
-      3. Once DATABASE_URL is available, run the full pipeline and confirm
-         cta_alerts records appear in the projects table.
+      frontend/src/app/compare/page.tsx created. Two independent address
+      slots each call /score via fetchScore(). Displays ScoreHero,
+      SeverityMeters, and TopRiskGrid side-by-side. Pre-fills Address A
+      when navigated from main page via /compare?a=<encoded-address>.
+      Compare link in page.tsx updated to /compare?a=<current-address>.
+      CSS for .compare-grid and .compare-slot added to globals.css.
+      Next: data-024 — consider adding visual diff (score delta highlight)
+      or winner/loser badge between the two slots.

@@ -503,10 +503,7 @@ export default function HomePage() {
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
-                    <a
-                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
-                      className="compare-link"
-                    >
+                    <a href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`} className="compare-link">
                       Compare with another address →
                     </a>
                   </div>
