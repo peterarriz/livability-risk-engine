@@ -18,6 +18,24 @@ export type TopRiskDetail = {
   address: string | null;
 };
 
+export type ImpactType =
+  | "closure_full"
+  | "closure_multi_lane"
+  | "closure_single_lane"
+  | "demolition"
+  | "construction"
+  | "light_permit";
+
+export type NearbySignal = {
+  lat: number;
+  lon: number;
+  impact_type: ImpactType;
+  title: string;
+  distance_m: number;
+  severity_hint: string;
+  weight: number;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
