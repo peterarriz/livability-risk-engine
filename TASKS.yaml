@@ -264,3 +264,18 @@ tasks:
       frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
       "View permit details" toggle button that expands a PermitDetailPanel inline.
       Gracefully absent when top_risk_details is not present (demo mode / old backend).
+
+  - id: data-030
+    title: Score alert watchlist — subscribe email + threshold, log alerts
+    status: done
+    priority: medium
+    github_issue: 63
+    notes_for_next_agent: >
+      db/schema.sql: added `watchlist` (email, address, threshold, token) and
+      `alert_log` (watchlist_id FK, score, triggered_at) tables.
+      backend/app/main.py: POST /watch (subscribe), GET /watch/unsubscribe
+      (opt-out by token), POST /admin/watch/check (score all watched addresses,
+      write alert_log rows, stub email log).
+      Frontend modal (Get score alerts button in page.tsx) was requested in the
+      issue but is out of scope per CLAUDE.md (no frontend UI work).
+      Next data task: data-031.

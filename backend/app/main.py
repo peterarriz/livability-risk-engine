@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-030
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -20,6 +20,7 @@ API contract: docs/04_api_contracts.md
 
 import logging
 import os
+import secrets
 from dataclasses import asdict
 
 import requests as _requests
@@ -579,3 +580,207 @@ def get_report(report_id: str) -> dict:
     except Exception as exc:
         log.error("get_report report_id=%r error: %s", report_id, exc)
         raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /watch endpoints (data-030)
+# Score alert watchlist — subscribe an email + threshold to an address.
+# When the score crosses the threshold, an entry is written to alert_log
+# (email delivery is stubbed for MVP; only logging occurs).
+# ---------------------------------------------------------------------------
+
+class WatchRequest(BaseModel):
+    email: str
+    address: str
+    threshold: int  # 0–100 disruption score
+
+
+@app.post("/watch")
+def subscribe_watch(body: WatchRequest) -> dict:
+    """
+    Subscribe an email address to score alerts for a Chicago address.
+
+    When POST /admin/watch/check is called and the live score for `address`
+    meets or exceeds `threshold`, an entry is written to alert_log and a
+    stub log message is emitted (email delivery is not yet implemented).
+
+    Returns the watchlist id and the unsubscribe token.
+    Requires a live DB. Returns 503 when DB is not configured.
+    """
+    if not (0 <= body.threshold <= 100):
+        raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
+
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        token = secrets.token_hex(32)
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO watchlist (email, address, threshold, token)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (email, address)
+                    DO UPDATE SET threshold = EXCLUDED.threshold, token = EXCLUDED.token
+                    RETURNING id, token
+                    """,
+                    (body.email, body.address, body.threshold, token),
+                )
+                row = cur.fetchone()
+                watch_id, stored_token = row[0], row[1]
+            conn.commit()
+        finally:
+            conn.close()
+
+        log.info(
+            "watch subscribe id=%d email=%r address=%r threshold=%d",
+            watch_id, body.email, body.address, body.threshold,
+        )
+        return {
+            "id": watch_id,
+            "email": body.email,
+            "address": body.address,
+            "threshold": body.threshold,
+            "token": stored_token,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("subscribe_watch error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not create watchlist entry.") from exc
+
+
+@app.get("/watch/unsubscribe")
+def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token from watchlist entry")) -> dict:
+    """
+    Remove a watchlist subscription by its unsubscribe token.
+
+    The token is returned by POST /watch and is intended for use in
+    unsubscribe links embedded in alert emails. No auth required.
+    Returns 404 if the token is not found.
+    """
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM watchlist WHERE token = %s RETURNING id, email, address",
+                    (token,),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Watchlist entry not found.")
+
+        watch_id, email, address = row
+        log.info("watch unsubscribe id=%d email=%r address=%r", watch_id, email, address)
+        return {"unsubscribed": True, "id": watch_id, "email": email, "address": address}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("unsubscribe_watch error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not process unsubscribe.") from exc
+
+
+@app.post("/admin/watch/check")
+def check_watchlist() -> dict:
+    """
+    Operator endpoint — score every watched address and fire alerts for entries
+    whose score meets or exceeds their configured threshold.
+
+    For each triggered entry:
+      - Writes a row to alert_log with the current score.
+      - Logs a stub email message (actual email delivery not yet implemented).
+
+    Returns a summary of alerts fired in this run.
+    Intended to be called on a schedule (e.g. daily cron) or manually by ops.
+    Requires a live DB.
+    """
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, email, address, threshold FROM watchlist")
+                entries = cur.fetchall()
+        finally:
+            conn.close()
+
+        alerts_fired = []
+
+        for watch_id, email, address, threshold in entries:
+            try:
+                result = _score_live(address)
+                score = result.get("disruption_score")
+                if score is None:
+                    continue
+
+                if score >= threshold:
+                    # Log alert — email delivery stubbed.
+                    log.info(
+                        "ALERT [stub] watch_id=%d email=%r address=%r "
+                        "score=%d threshold=%d — would send alert email",
+                        watch_id, email, address, score, threshold,
+                    )
+
+                    conn2 = get_db_connection()
+                    try:
+                        with conn2.cursor() as cur2:
+                            cur2.execute(
+                                "INSERT INTO alert_log (watchlist_id, score) VALUES (%s, %s)",
+                                (watch_id, score),
+                            )
+                        conn2.commit()
+                    finally:
+                        conn2.close()
+
+                    alerts_fired.append({
+                        "watch_id": watch_id,
+                        "email": email,
+                        "address": address,
+                        "score": score,
+                        "threshold": threshold,
+                    })
+            except Exception as exc:
+                log.warning("check_watchlist entry id=%d error: %s", watch_id, exc)
+                continue
+
+        log.info("check_watchlist complete entries=%d alerts_fired=%d", len(entries), len(alerts_fired))
+        return {
+            "entries_checked": len(entries),
+            "alerts_fired": len(alerts_fired),
+            "alerts": alerts_fired,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("check_watchlist error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not run watchlist check.") from exc
