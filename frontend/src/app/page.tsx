@@ -545,14 +545,14 @@ export default function HomePage() {
                     <span className="map-badge">OpenStreetMap</span>
                   </div>
                   {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} />
+                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
                   ) : (
                     <div className="map-placeholder" aria-label="Locating address on map…">
                       <div className="map-grid" />
                       <div className="map-pin map-pin--primary" />
                     </div>
                   )}
-                  <p className="map-copy">Use the map to anchor the score geographically and confirm whether the risk is tied to a major corridor or local site context.</p>
+                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
                 </Card>
 
                 <div className="support-stack">

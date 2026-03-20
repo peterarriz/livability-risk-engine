@@ -82,7 +82,7 @@ class ScoreResult:
     severity: dict              # {noise: ..., traffic: ..., dust: ...}
     top_risks: list[str]        # up to 3 plain-English strings
     explanation: str            # 1 short paragraph
-    top_risk_details: list[dict] = None  # data-024: structured project metadata per top risk
+    nearby_signals: list        # list of {lat, lon, impact_type, title, distance_m, severity_hint, weight}
 
 
 # ---------------------------------------------------------------------------
@@ -451,7 +451,7 @@ def compute_score(
                 "No significant construction or closure activity was found "
                 "near this address within the near-term window."
             ),
-            top_risk_details=[],
+            nearby_signals=[],
         )
 
     # Score all nearby projects.
@@ -471,6 +471,23 @@ def compute_score(
     explanation = _build_explanation(top3, severity)
     top_risk_details = _build_top_risk_details(top3)
 
+    # Build nearby_signals for the map heat layer.
+    # Include all scored projects that have valid coordinates (not just top 3).
+    nearby_signals = []
+    for np, weight in scored:
+        p = np.project
+        if p.latitude is None or p.longitude is None:
+            continue
+        nearby_signals.append({
+            "lat": p.latitude,
+            "lon": p.longitude,
+            "impact_type": p.impact_type,
+            "title": p.title,
+            "distance_m": round(np.distance_m),
+            "severity_hint": p.severity_hint,
+            "weight": round(weight, 1),
+        })
+
     return ScoreResult(
         address=address,
         disruption_score=disruption_score,
@@ -478,7 +495,7 @@ def compute_score(
         severity=severity,
         top_risks=top_risks,
         explanation=explanation,
-        top_risk_details=top_risk_details,
+        nearby_signals=nearby_signals,
     )
 
 
