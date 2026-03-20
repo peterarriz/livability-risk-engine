@@ -61,16 +61,22 @@ _ENV = {**os.environ, "PYTHONPATH": _PROJECT_ROOT + os.pathsep + os.environ.get(
 
 STEPS = [
     {
-        "name": "Fetch building permits",
+        "name": "Fetch Chicago building permits",
         "cmd": [sys.executable, "backend/ingest/building_permits.py"],
     },
     {
-        "name": "Fetch street closures",
+        "name": "Fetch Chicago street closures",
         "cmd": [sys.executable, "backend/ingest/street_closures.py"],
     },
     {
         "name": "Fetch IDOT road construction (all districts)",
         "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
+        "skip_key": "skip_statewide",
+    },
+    {
+        "name": "Fetch Cook County permits",
+        "cmd": [sys.executable, "backend/ingest/cook_county_permits.py"],
+        "skip_key": "skip_statewide",
     },
     {
         # Fetches Cook County + IL city permits from their Socrata portals.
@@ -79,13 +85,6 @@ STEPS = [
         "name": "Fetch IL city permits (Cook County + cities)",
         "cmd": [sys.executable, "backend/ingest/il_city_permits.py"],
         "skip_key": "skip_il_cities",
-    },
-    {
-        # Fetches CTA planned service alerts (track work, station closures,
-        # construction-related reroutes). No API key required.
-        "name": "Fetch CTA planned service alerts",
-        "cmd": [sys.executable, "backend/ingest/cta_alerts.py"],
-        "skip_key": "skip_cta",
     },
     {
         "name": "Fill missing geocoordinates",
@@ -153,11 +152,6 @@ def parse_args() -> argparse.Namespace:
         "--skip-il-cities",
         action="store_true",
         help="Skip the IL city permits fetch step (Cook County + cities).",
-    )
-    parser.add_argument(
-        "--skip-cta",
-        action="store_true",
-        help="Skip the CTA planned service alerts fetch step.",
     )
     parser.add_argument(
         "--dry-run",

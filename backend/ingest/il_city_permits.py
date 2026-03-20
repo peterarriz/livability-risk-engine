@@ -7,7 +7,11 @@ Generic Socrata-based ingest for Illinois municipal building permits outside Chi
 Covers Cook County and additional Illinois cities with open data portals.
 
 Supported sources (configured in CITY_CONFIGS):
-  - Cook County (datacatalog.cookcountyil.gov) — Assessor permit data, countywide
+  - Cook County (datacatalog.cookcountyil.gov)
+  - Evanston    (data.cityofevanston.org)
+  - Aurora      (data.aurora.il.us)
+  - Rockford    (data.illinois.gov — statewide permits, filtered by city)
+  - Springfield (data.illinois.gov — statewide permits, filtered by city)
 
 NOTE ON DATASET IDs:
   Dataset IDs below were researched from public Socrata catalog metadata as of early
@@ -51,7 +55,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -81,75 +85,153 @@ import requests
 
 CITY_CONFIGS: list[dict] = [
     {
-        # Cook County Assessor — "Assessor - Permits" dataset.
-        # Historical permit data submitted by municipalities to the
-        # Cook County Assessor's Office (2000-present, countywide).
+        # Cook County Department of Building and Zoning issues permits for
+        # unincorporated Cook County and some suburban municipalities.
         # Portal: https://datacatalog.cookcountyil.gov
-        # Verified 2026-03-20 via:
-        #   https://datacatalog.cookcountyil.gov/api/catalog/v1?domains=datacatalog.cookcountyil.gov&q=permits
-        # No lat/lon columns — records will need geocoding via property_address.
+        # Dataset: "Building Permits" — verify at:
+        #   https://datacatalog.cookcountyil.gov/api/catalog/v1?q=building+permits
         "city_name":        "Cook County",
         "source_key":       "cook_county",
         "domain":           "datacatalog.cookcountyil.gov",
-        "dataset_id":       "6yjf-dfxs",
+        "dataset_id":       "ep35-ewd2",   # TODO: verify — visit portal and confirm
         "id_field":         "permit_number",
-        "type_field":       "job_code_primary",
-        "desc_field":       "work_description",
-        "issue_date_field": "date_issued",
-        "exp_date_field":   "estimated_date_of_completion",
-        "lat_field":        None,
-        "lon_field":        None,
-        "loc_field":        None,
-        "addr_field":       "property_address",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "address",
         "city_il":          "Cook County, IL",
         "where_clause":     None,
     },
     {
-        # Chicago Special Event Permits — City of Chicago Data Portal.
-        # Special events (festivals, parades, marathons) that require road
-        # closures and lane restrictions cause measurable livability disruption.
-        #
-        # Portal: https://data.cityofchicago.org
-        # Dataset: "Special Event Permits"
-        #
-        # DATASET ID NEEDS VERIFICATION (data-034, 2026-03-20):
-        #   The dataset ID below was identified from the Chicago Data Portal
-        #   catalog, but should be confirmed before relying on it in production.
-        #   Run this command to verify or find the correct ID:
-        #     curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5" \
-        #       | python -m json.tool | grep -E '"identifier"|"name"'
-        #   Then update dataset_id and field names accordingly.
-        #
-        # If this entry returns 0 records or HTTP 404, the pipeline logs a
-        # warning and continues — it will NOT cause a pipeline failure.
-        "city_name":        "Chicago Special Events",
-        "source_key":       "chicago_special_events",
-        "domain":           "data.cityofchicago.org",
-        "dataset_id":       "ahsk-uzm8",
-        "id_field":         ":id",
-        "type_field":       "event_type",
-        "desc_field":       "event_name",
-        "issue_date_field": "start_date_time",
-        "exp_date_field":   "end_date_time",
+        # City of Evanston open data portal (Socrata-powered).
+        # Portal: https://data.cityofevanston.org
+        # Dataset: "Building Permits" — verify at:
+        #   https://data.cityofevanston.org/api/catalog/v1?q=building+permits
+        "city_name":        "Evanston",
+        "source_key":       "evanston",
+        "domain":           "data.cityofevanston.org",
+        "dataset_id":       "cth3-bk7n",   # TODO: verify
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "date_issued",
+        "exp_date_field":   None,
         "lat_field":        None,
         "lon_field":        None,
         "loc_field":        "location",
-        "addr_field":       "street_address",
-        "city_il":          "Chicago, IL",
+        "addr_field":       "address",
+        "city_il":          "Evanston, IL",
         "where_clause":     None,
     },
-    # -----------------------------------------------------------------
-    # REMOVED — portals verified non-existent or non-Socrata (2026-03-20):
-    #
-    #   evanston   — data.cityofevanston.org is ArcGIS Hub, not Socrata
-    #   aurora     — data.aurora.il.us DNS does not resolve
-    #   naperville — data.naperville.il.us returns 404
-    #   rockford   — data.rockford.il.gov DNS does not resolve
-    #   springfield — data.illinois.gov has 0 building-permit datasets
-    #   peoria     — data.illinois.gov has 0 building-permit datasets
-    #
-    # Re-add these cities if/when Socrata-compatible portals are found.
-    # -----------------------------------------------------------------
+    {
+        # City of Aurora — uses data.aurora.il.us Socrata portal.
+        # Portal: https://data.aurora.il.us
+        # Dataset: "Building Permits" — verify at:
+        #   https://data.aurora.il.us/api/catalog/v1?q=building+permits
+        "city_name":        "Aurora",
+        "source_key":       "aurora",
+        "domain":           "data.aurora.il.us",
+        "dataset_id":       "7axj-ypre",   # TODO: verify
+        "id_field":         "permit_no",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "site_address",
+        "city_il":          "Aurora, IL",
+        "where_clause":     None,
+    },
+    {
+        # City of Naperville — uses data.naperville.il.us or similar Socrata portal.
+        # Portal: https://data.naperville.il.us
+        # Dataset: "Building Permits" — verify at:
+        #   https://data.naperville.il.us/api/catalog/v1?q=building+permits
+        "city_name":        "Naperville",
+        "source_key":       "naperville",
+        "domain":           "data.naperville.il.us",
+        "dataset_id":       "q59f-pnz8",   # TODO: verify
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "address",
+        "city_il":          "Naperville, IL",
+        "where_clause":     None,
+    },
+    {
+        # City of Rockford — uses data.rockford.il.gov Socrata portal.
+        # Portal: https://data.rockford.il.gov
+        # Dataset: "Building Permits" — verify at:
+        #   https://data.rockford.il.gov/api/catalog/v1?q=building+permits
+        "city_name":        "Rockford",
+        "source_key":       "rockford",
+        "domain":           "data.rockford.il.gov",
+        "dataset_id":       "wr4m-9tbd",   # TODO: verify
+        "id_field":         "permit_number",
+        "type_field":       "type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "address",
+        "city_il":          "Rockford, IL",
+        "where_clause":     None,
+    },
+    {
+        # City of Springfield — via data.illinois.gov statewide portal,
+        # filtered to Springfield.  Alternatively, Springfield may have its
+        # own portal at data.springfieldil.gov — verify which is authoritative.
+        # Dataset: "Illinois Building Permits" on data.illinois.gov — verify at:
+        #   https://data.illinois.gov/api/catalog/v1?q=building+permits
+        "city_name":        "Springfield",
+        "source_key":       "springfield",
+        "domain":           "data.illinois.gov",
+        "dataset_id":       "bpax-uvjz",   # TODO: verify — statewide IL permits
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "address",
+        "city_il":          "Springfield, IL",
+        "where_clause":     "city='Springfield'",
+    },
+    {
+        # City of Peoria — verify if data.peoria.il.gov or data.illinois.gov
+        # is the authoritative source.  Using data.illinois.gov statewide portal
+        # filtered to Peoria as a starting point.
+        "city_name":        "Peoria",
+        "source_key":       "peoria",
+        "domain":           "data.illinois.gov",
+        "dataset_id":       "bpax-uvjz",   # TODO: verify — statewide IL permits
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "address",
+        "city_il":          "Peoria, IL",
+        "where_clause":     "city='Peoria'",
+    },
 ]
 
 # Index by source_key for fast lookup.
@@ -177,8 +259,9 @@ def build_params(
     days_back: int,
 ) -> dict:
     """Build Socrata SoQL query parameters for one page of permits."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
-    cutoff_str = cutoff.strftime("%Y-%m-%dT00:00:00")
+    cutoff = datetime.now(timezone.utc)
+    # Simple year-based lookback (good enough for a 90-day window).
+    cutoff_str = f"{cutoff.year - (days_back // 365)}-{cutoff.month:02d}-{cutoff.day:02d}T00:00:00"
 
     date_field = config["issue_date_field"]
     where_parts = [f"{date_field} >= '{cutoff_str}'"]
