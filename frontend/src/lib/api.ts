@@ -290,6 +290,61 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   return [];
 }
 
+// ---------------------------------------------------------------------------
+// Report save / fetch  (data-021)
+// ---------------------------------------------------------------------------
+
+export type SaveReportResponse = {
+  report_id: string;
+};
+
+export type ReportResponse = ScoreResponse & {
+  report_id: string;
+  created_at: string;
+};
+
+/**
+ * POST /save — persist a score result and return a shareable report UUID.
+ * Falls back to a demo report_id when the backend is not configured.
+ */
+export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    return { report_id: "00000000-0000-0000-0000-000000000001" };
+  }
+  const url = buildApiUrl("/save");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(score),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    throw new ApiError(`Failed to save report: ${resp.status}`);
+  }
+  return resp.json() as Promise<SaveReportResponse>;
+}
+
+/**
+ * GET /report/{reportId} — fetch a saved report by UUID.
+ * Throws ApiError when not found or backend is unavailable.
+ */
+export async function fetchReport(reportId: string): Promise<ReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured — cannot fetch report.");
+  }
+  const url = buildApiUrl(`/report/${reportId}`);
+  const resp = await fetch(url.toString(), { cache: "no-store" });
+  if (resp.status === 404) {
+    throw new ApiError("Report not found.");
+  }
+  if (!resp.ok) {
+    throw new ApiError(`Could not fetch report: ${resp.status}`);
+  }
+  return resp.json() as Promise<ReportResponse>;
+}
+
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 

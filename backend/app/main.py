@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-021
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -20,11 +20,13 @@ API contract: docs/04_api_contracts.md
 
 import logging
 import os
+import uuid
 from dataclasses import asdict
 
 import requests as _requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ if _frontend_origin:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -472,3 +474,117 @@ def suggest_addresses(
         log.warning("suggest q=%r both geocoders failed, last error: %s", q, exc)
 
     return {"suggestions": []}
+
+
+# ---------------------------------------------------------------------------
+# /save endpoint (data-021)
+# Persists a score result as a shareable report. Returns a UUID.
+# When DB is not configured, returns a deterministic demo report_id so the
+# frontend save flow can be exercised without a live database.
+# ---------------------------------------------------------------------------
+
+_DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
+
+
+class SaveReportRequest(BaseModel):
+    """Score JSON payload to persist as a saved report."""
+    address: str
+    disruption_score: int
+    confidence: str
+    severity: dict
+    top_risks: list
+    explanation: str
+    mode: str | None = None
+    fallback_reason: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+@app.post("/save")
+def save_report(body: SaveReportRequest) -> dict:
+    """
+    Store a score result in the reports table and return a shareable UUID.
+
+    When DB is not configured, returns a demo report_id so the frontend
+    save/share flow is exercisable without a live database.
+    """
+    if not _is_db_configured():
+        log.info("save_report address=%r mode=demo", body.address)
+        return {"report_id": _DEMO_REPORT_ID}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        report_id = str(uuid.uuid4())
+        score_json = body.model_dump()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO reports (id, address, score_json) VALUES (%s, %s, %s)",
+                    (report_id, body.address, score_json),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        log.info("save_report address=%r report_id=%s", body.address, report_id)
+        return {"report_id": report_id}
+    except Exception as exc:
+        log.error("save_report error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not save report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /report/{report_id} endpoint (data-021)
+# Fetches a saved report by UUID.
+# ---------------------------------------------------------------------------
+
+@app.get("/report/{report_id}")
+def get_report(report_id: str) -> dict:
+    """
+    Return a saved score report by UUID.
+
+    Returns 404 if the report_id does not exist.
+    When DB is not configured and the demo report_id is requested, returns
+    the canonical demo score so the share flow is exercisable end-to-end.
+    """
+    if not _is_db_configured():
+        if report_id == _DEMO_REPORT_ID:
+            return {
+                **DEMO_RESPONSE,
+                "address": "1600 W Chicago Ave, Chicago, IL",
+                "mode": "demo",
+                "fallback_reason": "db_not_configured",
+                "latitude": 41.8956,
+                "longitude": -87.6606,
+                "report_id": report_id,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT score_json, created_at FROM reports WHERE id = %s",
+                    (report_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Report not found.")
+
+        score_json, created_at = row
+        return {
+            **score_json,
+            "report_id": report_id,
+            "created_at": created_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("get_report report_id=%r error: %s", report_id, exc)
+        raise HTTPException(status_code=503, detail="Could not fetch report.") from exc

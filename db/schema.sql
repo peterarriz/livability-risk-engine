@@ -215,3 +215,25 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 COMMENT ON TABLE ingest_runs IS
     'Tracks each ingestion run for freshness checks (data-010).';
+
+
+-- ---------------------------------------------------------------------------
+-- Reports table  (data-021)
+-- Stores saved score results for shareable report URLs (/report/{id}).
+-- Each row is a snapshot of a /score response at the time of saving.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS reports (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    address     TEXT        NOT NULL,
+    score_json  JSONB       NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS reports_created_at_idx
+    ON reports (created_at DESC);
+
+COMMENT ON TABLE reports IS
+    'Saved score snapshots for shareable report URLs (data-021). '
+    'Each row stores a full /score response as JSONB. '
+    'Accessed via GET /report/{id}; created via POST /save.';

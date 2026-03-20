@@ -212,3 +212,21 @@ tasks:
         3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
+
+  - id: data-021
+    title: Shareable report pages — /save endpoint + /report/[id] page
+    status: done
+    priority: high
+    github_issue: 53
+    notes_for_next_agent: >
+      POST /save and GET /report/{report_id} added to backend/app/main.py.
+      reports table added to db/schema.sql (UUID PK, JSONB score_json).
+      schema.sql must be re-applied (idempotent via IF NOT EXISTS):
+        DATABASE_URL=$SECRET ./scripts/apply_schema.sh
+      saveReport() and fetchReport() added to frontend/src/lib/api.ts.
+      frontend/src/app/report/[id]/page.tsx is a Server Component — fetches
+      report server-side and renders read-only score view.
+      Modal in page.tsx now calls saveReport() and shows a shareable link.
+      CORS updated to allow POST in addition to GET.
+      Demo fallback: /save returns "00000000-0000-0000-0000-000000000001"
+      when DB is not configured; /report/{demo-id} returns demo score.
