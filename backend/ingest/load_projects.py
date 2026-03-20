@@ -75,20 +75,26 @@ except ImportError:
 from backend.models.project import (
     Project,
     normalize_closure,
+    normalize_cta_alert,
+    normalize_divvy_station,
     normalize_idot_road_project,
     normalize_il_city_permit,
     normalize_permit,
+    normalize_traffic_crash,
 )
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERMITS_FILE      = Path("data/raw/building_permits.json")
-DEFAULT_CLOSURES_FILE     = Path("data/raw/street_closures.json")
-DEFAULT_IDOT_ROADS_FILE   = Path("data/raw/idot_road_projects.json")
-DEFAULT_IL_CITIES_DIR     = Path("data/raw")
-IL_CITIES_FILE_GLOB       = "il_city_permits_*.json"
+DEFAULT_PERMITS_FILE           = Path("data/raw/building_permits.json")
+DEFAULT_CLOSURES_FILE          = Path("data/raw/street_closures.json")
+DEFAULT_IDOT_ROADS_FILE        = Path("data/raw/idot_road_projects.json")
+DEFAULT_CTA_ALERTS_FILE        = Path("data/raw/cta_alerts.json")
+DEFAULT_TRAFFIC_CRASHES_FILE   = Path("data/raw/chicago_traffic_crashes.json")
+DEFAULT_DIVVY_STATIONS_FILE    = Path("data/raw/chicago_divvy_stations.json")
+DEFAULT_IL_CITIES_DIR          = Path("data/raw")
+IL_CITIES_FILE_GLOB            = "il_city_permits_*.json"
 
 # Statuses we consider worth loading into the scoring table.
 # Completed records are skipped to keep the projects table focused
@@ -532,6 +538,74 @@ def load_cook_county_permits(
     return stats
 
 
+def load_traffic_crashes(
+    traffic_crashes_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Chicago traffic crash records from staging file into projects table."""
+    print("\nLoading Chicago traffic crashes...")
+    stats = LoadStats(source="chicago_traffic_crashes")
+
+    raw = read_staging_file(traffic_crashes_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_traffic_crash, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "chicago_traffic_crashes")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
+def load_divvy_stations(
+    divvy_stations_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Divvy out-of-service station records from staging file into projects table."""
+    print("\nLoading Divvy bike station closures...")
+    stats = LoadStats(source="chicago_divvy")
+
+    raw = read_staging_file(divvy_stations_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_divvy_station, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "chicago_divvy")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
 def load_il_city_permits(
     il_cities_dir: Path,
     conn=None,
@@ -622,7 +696,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "idot_roads", "il_cities", "all"],
+        choices=[
+            "permits", "closures", "idot_roads", "cta_alerts",
+            "traffic_crashes", "divvy_stations", "il_cities", "all",
+        ],
         default="all",
         help="Which source to load (default: all).",
     )
@@ -649,6 +726,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_COOK_COUNTY_FILE,
         help=f"Path to Cook County permits staging file (default: {DEFAULT_COOK_COUNTY_FILE}).",
+    )
+    parser.add_argument(
+        "--traffic-crashes-file",
+        type=Path,
+        default=DEFAULT_TRAFFIC_CRASHES_FILE,
+        help=f"Path to traffic crashes staging file (default: {DEFAULT_TRAFFIC_CRASHES_FILE}).",
+    )
+    parser.add_argument(
+        "--divvy-stations-file",
+        type=Path,
+        default=DEFAULT_DIVVY_STATIONS_FILE,
+        help=f"Path to Divvy stations staging file (default: {DEFAULT_DIVVY_STATIONS_FILE}).",
     )
     parser.add_argument(
         "--il-cities-dir",
@@ -716,6 +805,14 @@ def main() -> None:
 
         if args.source in ("cook_county", "all"):
             stats = load_cook_county_permits(args.cook_county_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("traffic_crashes", "all"):
+            stats = load_traffic_crashes(args.traffic_crashes_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("divvy_stations", "all"):
+            stats = load_divvy_stations(args.divvy_stations_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.source in ("il_cities", "all"):

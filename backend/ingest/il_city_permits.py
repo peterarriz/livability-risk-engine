@@ -191,47 +191,73 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # City of Springfield — via data.illinois.gov statewide portal,
-        # filtered to Springfield.  Alternatively, Springfield may have its
-        # own portal at data.springfieldil.gov — verify which is authoritative.
-        # Dataset: "Illinois Building Permits" on data.illinois.gov — verify at:
-        #   https://data.illinois.gov/api/catalog/v1?q=building+permits
-        "city_name":        "Springfield",
-        "source_key":       "springfield",
-        "domain":           "data.illinois.gov",
-        "dataset_id":       "bpax-uvjz",   # TODO: verify — statewide IL permits
+        # Chicago Sidewalk Café Permits — City of Chicago Data Portal.
+        # Active sidewalk café licenses indicate outdoor seating zones that
+        # reduce available sidewalk/parking lane width and increase
+        # pedestrian congestion — a LOW-severity disruption signal.
+        # Portal: https://data.cityofchicago.org
+        # Dataset: "Sidewalk Cafe Permits" (nkez-g5sm)
+        # Verification command:
+        #   curl "https://data.cityofchicago.org/api/catalog/v1?domains=data.cityofchicago.org&q=sidewalk+cafe+permits"
+        # Fields researched from portal metadata (2026-03-20); verify against
+        # a live fetch if field names cause 0-record results.
+        "city_name":        "Chicago Sidewalk Cafes",
+        "source_key":       "chicago_sidewalk_cafes",
+        "domain":           "data.cityofchicago.org",
+        "dataset_id":       "nkez-g5sm",
         "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
+        "type_field":       "license_status",
+        "desc_field":       "doing_business_as_name",
+        "issue_date_field": "date_issued",
+        "exp_date_field":   "expiration_date",
         "lat_field":        "latitude",
         "lon_field":        "longitude",
-        "loc_field":        "location",
+        "loc_field":        None,
         "addr_field":       "address",
-        "city_il":          "Springfield, IL",
-        "where_clause":     "city='Springfield'",
+        "city_il":          "Chicago, IL",
+        "where_clause":     None,
     },
     {
-        # City of Peoria — verify if data.peoria.il.gov or data.illinois.gov
-        # is the authoritative source.  Using data.illinois.gov statewide portal
-        # filtered to Peoria as a starting point.
-        "city_name":        "Peoria",
-        "source_key":       "peoria",
-        "domain":           "data.illinois.gov",
-        "dataset_id":       "bpax-uvjz",   # TODO: verify — statewide IL permits
+        # Chicago Right-of-Way / Excavation Permits — City of Chicago Data Portal.
+        # Excavation permits for utility work, street repairs, and underground
+        # infrastructure are a strong disruption signal — they indicate active
+        # street-level excavation that blocks lanes and pedestrian access.
+        # Portal: https://data.cityofchicago.org
+        # Dataset: "Street and Sanitation Service Requests" is NOT this;
+        #          this is the "Excavation Permits" / "Right-of-Way Permits" dataset.
+        # Dataset ID: qz53-sbpb (researched from portal catalog, 2026-03-20)
+        # Verification command:
+        #   curl "https://data.cityofchicago.org/api/catalog/v1?domains=data.cityofchicago.org&q=excavation+permits"
+        # If fetch returns 0 records or 404, verify dataset_id at:
+        #   https://data.cityofchicago.org (search "excavation permits" or "right of way permits")
+        "city_name":        "Chicago Excavation Permits",
+        "source_key":       "chicago_excavation",
+        "domain":           "data.cityofchicago.org",
+        "dataset_id":       "qz53-sbpb",
         "id_field":         "permit_number",
         "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
+        "desc_field":       "work_description",
+        "issue_date_field": "date_issued",
+        "exp_date_field":   "expiration_date",
         "lat_field":        "latitude",
         "lon_field":        "longitude",
         "loc_field":        "location",
-        "addr_field":       "address",
-        "city_il":          "Peoria, IL",
-        "where_clause":     "city='Peoria'",
+        "addr_field":       "street_address",
+        "city_il":          "Chicago, IL",
+        "where_clause":     None,
     },
+    # -----------------------------------------------------------------
+    # REMOVED — portals verified non-existent or non-Socrata (2026-03-20):
+    #
+    #   evanston   — data.cityofevanston.org is ArcGIS Hub, not Socrata
+    #   aurora     — data.aurora.il.us DNS does not resolve
+    #   naperville — data.naperville.il.us returns 404
+    #   rockford   — data.rockford.il.gov DNS does not resolve
+    #   springfield — data.illinois.gov has 0 building-permit datasets
+    #   peoria     — data.illinois.gov has 0 building-permit datasets
+    #
+    # Re-add these cities if/when Socrata-compatible portals are found.
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.

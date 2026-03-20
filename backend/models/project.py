@@ -626,6 +626,292 @@ def normalize_il_city_permit(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
+# CTA service alert normalization  (data-034)
+# ---------------------------------------------------------------------------
+# Handles alerts ingested via backend/ingest/cta_alerts.py.
+# Alerts are filtered for planned/upcoming service changes (track work,
+# station closures, reroutes due to construction).
+
+_CTA_NO_SERVICE = re.compile(
+    r"\b(no service|out of service|suspended)\b",
+    re.IGNORECASE,
+)
+
+_CTA_REDUCED = re.compile(
+    r"\b(reduced|limited|shuttle|single.?track|delay)\b",
+    re.IGNORECASE,
+)
+
+_CTA_CONSTRUCTION = re.compile(
+    r"\b(planned|construction|track.?work|maintenance|renovation|"
+    r"rebuild|replacement|station.?clos)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_cta_alert(impact: str, headline: str) -> str:
+    """
+    Assign an impact_type to a CTA service alert.
+
+    Priority order:
+    1. No service / suspended → closure_full
+    2. Reduced / shuttle / single-track → closure_single_lane
+    3. Planned work / construction keywords → construction
+    4. Default → light_permit
+    """
+    combined = f"{impact} {headline}"
+
+    if _CTA_NO_SERVICE.search(combined):
+        return IMPACT_FULL_CLOSURE
+
+    if _CTA_REDUCED.search(combined):
+        return IMPACT_SINGLE_LANE
+
+    if _CTA_CONSTRUCTION.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    return IMPACT_LIGHT_PERMIT
+
+
+def _cta_alert_status(record: dict) -> str:
+    """Derive normalized status from CTA alert dates."""
+    is_tbd = record.get("is_tbd", "0") == "1"
+    today = date.today()
+
+    start = _parse_date(record.get("event_start"))
+    end   = None if is_tbd else _parse_date(record.get("event_end"))
+
+    if end and end < today:
+        return "completed"
+    if start and start > today:
+        return "planned"
+    if start:
+        return "active"
+
+    return "unknown"
+
+
+def normalize_cta_alert(record: dict) -> Project:
+    """
+    Normalize a CTA service alert record into a canonical Project.
+
+    Args:
+        record: A dict produced by cta_alerts.normalize_alert().
+                Keys are the internal field names (alert_id, headline,
+                impact, event_start, event_end, address, ...).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = record.get("alert_id", "")
+    impact    = record.get("impact", "") or ""
+    headline  = record.get("headline", "") or ""
+
+    impact_type = _classify_cta_alert(impact, headline)
+
+    # Title: use headline truncated for display.
+    title = headline[:150] if headline else f"CTA alert {source_id}"
+
+    # Notes: combine short description + location.
+    notes_parts = []
+    short_desc = (record.get("short_description") or "").strip()
+    if short_desc:
+        notes_parts.append(short_desc)
+    service_loc = (record.get("service_location") or "").strip()
+    if service_loc:
+        notes_parts.append(f"Location: {service_loc}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    address = (record.get("address") or "").strip() or "Chicago, IL"
+
+    return Project(
+        project_id=f"cta_alert:{source_id}",
+        source="cta_alerts",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("event_start")),
+        end_date=_parse_date(record.get("event_end")),
+        status=_cta_alert_status(record),
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Chicago traffic crash normalization  (data-035)
+# ---------------------------------------------------------------------------
+# Handles crashes ingested via backend/ingest/chicago_traffic_crashes.py.
+# Recent crash scenes (last N days) represent active disruption zones.
+
+_CRASH_FATAL = re.compile(
+    r"\b(fatal|fatality)\b",
+    re.IGNORECASE,
+)
+
+_CRASH_INCAPACITATING = re.compile(
+    r"\b(incapacitat)\b",
+    re.IGNORECASE,
+)
+
+_CRASH_INJURY_OR_TOW = re.compile(
+    r"\b(injury|tow)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_crash(crash_type: str, most_severe_injury: str) -> str:
+    """
+    Assign an impact_type to a traffic crash record.
+
+    Priority order:
+    1. Fatal injury → closure_full
+    2. Incapacitating injury → closure_multi_lane
+    3. Any injury or tow-required → construction
+    4. Default → light_permit
+    """
+    combined = f"{crash_type} {most_severe_injury}"
+
+    if _CRASH_FATAL.search(combined) or most_severe_injury.strip().upper() == "FATAL":
+        return IMPACT_FULL_CLOSURE
+
+    if _CRASH_INCAPACITATING.search(combined):
+        return IMPACT_MULTI_LANE
+
+    if _CRASH_INJURY_OR_TOW.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    return IMPACT_LIGHT_PERMIT
+
+
+def normalize_traffic_crash(record: dict) -> Project:
+    """
+    Normalize a raw traffic crash record into a canonical Project.
+
+    Args:
+        record: A single dict from the chicago_traffic_crashes staging file.
+                Fields: crash_record_id, crash_date, crash_type,
+                        most_severe_injury, injuries_total,
+                        street_no, street_direction, street_name,
+                        latitude, longitude.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = record.get("crash_record_id", "")
+    crash_type = (record.get("crash_type") or "").strip()
+    most_severe_injury = (record.get("most_severe_injury") or "").strip()
+
+    impact_type = _classify_crash(crash_type, most_severe_injury)
+
+    # Build address from street fields.
+    addr_parts = [
+        record.get("street_no", ""),
+        record.get("street_direction", ""),
+        record.get("street_name", ""),
+    ]
+    addr_str = " ".join(p.strip() for p in addr_parts if p and str(p).strip())
+    address = f"{addr_str}, Chicago, IL" if addr_str else "Chicago, IL"
+
+    # Title: type + location.
+    short_type = crash_type or "Traffic crash"
+    title = f"{short_type} at {addr_str}" if addr_str else short_type
+
+    # Notes: injury severity + unit count.
+    notes_parts = []
+    if most_severe_injury:
+        notes_parts.append(most_severe_injury)
+    injuries = record.get("injuries_total")
+    if injuries and str(injuries) not in ("0", "0.0", ""):
+        notes_parts.append(f"Injuries: {injuries}")
+    num_units = record.get("num_units")
+    if num_units:
+        notes_parts.append(f"Vehicles: {num_units}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    # Crash date as start. Treat disruption window as same-day (end = start).
+    crash_date = _parse_date(record.get("crash_date"))
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"chicago_crash:{source_id}",
+        source="chicago_traffic_crashes",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title[:200],
+        notes=notes,
+        start_date=crash_date,
+        end_date=crash_date,  # same-day event; loader status logic handles age
+        status="active",      # crashes in the fetch window are considered active
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Divvy bike station closure normalization  (data-035)
+# ---------------------------------------------------------------------------
+# Handles out-of-service station records from chicago_divvy_stations.py.
+# Station closures are LOW-severity (light_permit weight) disruption signals.
+
+def normalize_divvy_station(record: dict) -> Project:
+    """
+    Normalize a Divvy out-of-service station record into a canonical Project.
+
+    Args:
+        record: A dict produced by chicago_divvy_stations.build_records().
+                Keys: station_id, name, address, latitude, longitude,
+                      is_installed, is_renting, is_returning, reason.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = str(record.get("station_id", ""))
+    name      = (record.get("name") or f"Station {source_id}").strip()
+    reason    = (record.get("reason") or "Station closed").strip()
+
+    # Always light_permit — Divvy station closures are low disruption.
+    impact_type = IMPACT_LIGHT_PERMIT
+
+    title = f"{name} Divvy station closed"
+
+    # Build address: prefer station address field; fallback to name + city.
+    addr_raw = (record.get("address") or name).strip()
+    address  = f"{addr_raw}, Chicago, IL" if addr_raw else "Chicago, IL"
+
+    notes = reason[:200]
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"chicago_divvy:{source_id}",
+        source="chicago_divvy",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title[:200],
+        notes=notes,
+        start_date=None,
+        end_date=None,
+        status="active",
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
