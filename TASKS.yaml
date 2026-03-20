@@ -212,3 +212,19 @@ tasks:
         3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
+
+  - id: data-026
+    title: Neighborhood heat map pages /neighborhood/[slug]
+    status: done
+    priority: medium
+    github_issue: 58
+    notes_for_next_agent: >
+      Backend: GET /neighborhood/<slug> returns projects within bbox + metadata.
+               GET /neighborhoods returns list of all 8 neighborhoods.
+               8 bounding boxes defined in _NEIGHBORHOODS dict in backend/app/main.py.
+               Falls back to empty project list when DB is not configured.
+      Frontend: frontend/src/app/neighborhood/[slug]/page.tsx — Leaflet map with
+               circle markers colored by impact_type, project list with color-coded
+               left border, neighborhood summary bar.
+               fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
+      Next: Consider adding a /neighborhoods index page and linking from the homepage.
