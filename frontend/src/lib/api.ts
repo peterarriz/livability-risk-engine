@@ -2,22 +2,20 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
-export type ImpactType =
-  | "closure_full"
-  | "closure_multi_lane"
-  | "closure_single_lane"
-  | "demolition"
-  | "construction"
-  | "light_permit";
-
-export type NearbySignal = {
-  lat: number;
-  lon: number;
-  impact_type: ImpactType | string;
+// Structured metadata for a single top-risk contributor (data-024).
+// Parallel to the plain-English top_risks strings but machine-readable,
+// allowing the frontend to render permit IDs, dates, and source links.
+export type TopRiskDetail = {
+  project_id: string;
+  source: string;
+  source_id: string;
   title: string;
+  impact_type: string;
   distance_m: number;
-  severity_hint: SeverityLevel;
-  weight: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  address: string | null;
 };
 
 export type ScoreResponse = {
@@ -31,6 +29,9 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // Structured per-risk metadata added in data-024. Optional for backward
+  // compatibility with backend builds that predate this field.
+  top_risk_details?: TopRiskDetail[];
   // Optional for backward compatibility with older backend builds.
   mode?: ScoreMode;
   fallback_reason?: string | null;
@@ -115,6 +116,7 @@ function buildDemoScore(address: string): ScoreResponse {
       "Active closure window runs through 2026-03-22",
       "Traffic is the dominant near-term disruption signal at this address",
     ],
+    top_risk_details: [],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
     mode: "demo",
@@ -329,6 +331,101 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   } catch { /* */ }
 
   return [];
+}
+
+/**
+ * Build a URL for the export endpoints (/export/csv or /export/pdf).
+ * Returns an empty string if the backend is not configured.
+ */
+export function getExportUrl(type: "csv" | "pdf", address: string): string {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return "";
+  const url = buildApiUrl(`/export/${type}`);
+  url.searchParams.set("address", address);
+  return url.toString();
+}
+
+export type SaveReportResponse = {
+  report_id: string;
+};
+
+export type FetchReportResponse = ScoreResponse & {
+  report_id: string;
+  created_at: string;
+};
+
+/**
+ * Save a score result to the backend and return a shareable report_id.
+ * Throws ApiError if the backend is unreachable or DB is not configured.
+ */
+export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot save report.");
+  }
+  const url = buildApiUrl("/save-report");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(score),
+  });
+  if (!resp.ok) {
+    throw new ApiError(`Save failed: ${resp.status}`);
+  }
+  return (await resp.json()) as SaveReportResponse;
+}
+
+/**
+ * Fetch a previously saved report by its UUID.
+ * Returns null when not found or the backend is unreachable.
+ */
+export async function fetchReport(reportId: string): Promise<FetchReportResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+  try {
+    const url = buildApiUrl(`/report/${reportId}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as FetchReportResponse;
+  } catch {
+    return null;
+  }
+}
+
+export type HistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: string;
+  scored_at: string;
+};
+
+export type HistoryResponse = {
+  address: string;
+  history: HistoryEntry[];
+};
+
+/**
+ * Fetch recent score history for a given address.
+ * Returns null when the backend is unreachable or not configured.
+ * Returns an empty history array when DB is in demo mode.
+ */
+export async function fetchHistory(
+  address: string,
+  limit = 10,
+): Promise<HistoryResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/history");
+    url.searchParams.set("address", address);
+    url.searchParams.set("limit", String(limit));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as HistoryResponse;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {
