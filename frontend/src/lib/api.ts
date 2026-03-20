@@ -18,6 +18,25 @@ export type TopRiskDetail = {
   address: string | null;
 };
 
+export type ImpactType =
+  | "closure_full"
+  | "closure_multi_lane"
+  | "closure_single_lane"
+  | "demolition"
+  | "construction"
+  | "light_permit";
+
+export type NearbySignal = {
+  lat: number;
+  lon: number;
+  impact_type: ImpactType;
+  title: string;
+  impact_type: string;
+  distance_m: number;
+  severity_hint: string;
+  weight: number;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -345,6 +364,15 @@ export function getExportUrl(type: "csv" | "pdf", address: string): string {
   return url.toString();
 }
 
+export type SaveReportResponse = {
+  report_id: string;
+};
+
+export type FetchReportResponse = ScoreResponse & {
+  report_id: string;
+  created_at: string;
+};
+
 /**
  * Save a score result to the backend and return a shareable report_id.
  * Throws ApiError if the backend is unreachable or DB is not configured.
@@ -354,6 +382,34 @@ export async function saveReport(score: ScoreResponse): Promise<SaveReportRespon
   if (!apiBaseUrl) {
     throw new ApiError("Backend not configured. Cannot save report.");
   }
+  const url = buildApiUrl("/save-report");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(score),
+  });
+  if (!resp.ok) {
+    throw new ApiError(`Save failed: ${resp.status}`);
+  }
+  return (await resp.json()) as SaveReportResponse;
+}
+
+/**
+ * Fetch a previously saved report by its UUID.
+ * Returns null when not found or the backend is unreachable.
+ */
+export async function fetchReport(reportId: string): Promise<FetchReportResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+  try {
+    const url = buildApiUrl(`/report/${reportId}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as FetchReportResponse;
+  } catch {
+    return null;
+  }
+}
 
 export type HistoryEntry = {
   disruption_score: number;
