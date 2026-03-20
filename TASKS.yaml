@@ -273,6 +273,70 @@ tasks:
         - Illinois state event permits: no known public API
       Next: Verify Chicago Special Events dataset ID (ahsk-uzm8) is correct.
 
+  - id: data-035
+    title: Find and implement additional Illinois data sources
+    status: done
+    priority: medium
+    github_issue: 72
+    notes_for_next_agent: >
+      Sources implemented:
+        - Chicago Traffic Crashes (IMPLEMENTED):
+            Script: backend/ingest/chicago_traffic_crashes.py
+            Output: data/raw/chicago_traffic_crashes.json
+            Dataset: data.cityofchicago.org / 85ca-t3if  ← verified, very well known
+            Normalizer: normalize_traffic_crash() in backend/models/project.py
+            Loader: load_traffic_crashes() in backend/ingest/load_projects.py
+            Pipeline: run_pipeline.py step (--skip-traffic-crashes to bypass, non-fatal)
+            Filter: last 30 days; fatal → closure_full, incapacitating → closure_multi_lane,
+                    injury/tow → construction, else → light_permit
+        - Divvy Bike Station Closures (IMPLEMENTED):
+            Script: backend/ingest/chicago_divvy_stations.py
+            Output: data/raw/chicago_divvy_stations.json
+            API: GBFS — gbfs.divvybikes.com (fallback: gbfs.lyft.com/gbfs/1.1/bss_chicago/)
+            Normalizer: normalize_divvy_station() in backend/models/project.py
+            Loader: load_divvy_stations() in backend/ingest/load_projects.py
+            Pipeline: run_pipeline.py step (--skip-divvy to bypass, non-fatal)
+            Only out-of-service stations (is_installed=0 OR both is_renting=0 AND is_returning=0)
+            impact_type: light_permit (LOW severity)
+        - Chicago Sidewalk Café Permits (ADDED TO il_city_permits.py):
+            source_key: chicago_sidewalk_cafes
+            Domain: data.cityofchicago.org, dataset_id: nkez-g5sm
+            WARNING: dataset_id and field names need live verification.
+            Run: python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
+        - Chicago Excavation/ROW Permits (ADDED TO il_city_permits.py):
+            source_key: chicago_excavation
+            Domain: data.cityofchicago.org, dataset_id: qz53-sbpb
+            WARNING: dataset_id needs live verification (unconfirmed ID).
+            Run: python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
+            If wrong ID: search data.cityofchicago.org for "excavation permits"
+      Sources researched and SKIPPED (no viable public API):
+        - Illinois EPA construction notices: no Socrata API found on data.illinois.gov
+        - Chicago taxi/rideshare pickup zone changes: no public API
+        - Chicago alley closures: no confirmed Socrata dataset ID found
+      Next: Verify dataset IDs for chicago_sidewalk_cafes and chicago_excavation
+      with a live --dry-run against the Chicago data portal.
+
+  - id: data-036
+    title: Verify new dataset IDs and run full pipeline with expanded sources
+    status: backlog
+    priority: medium
+    github_issue:
+    notes_for_next_agent: >
+      After data-035 code is merged, verify these dataset IDs with live --dry-run:
+        1. Chicago Sidewalk Cafes (nkez-g5sm):
+             python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
+             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=sidewalk+cafe"
+        2. Chicago Excavation Permits (qz53-sbpb):
+             python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
+             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=excavation+permits"
+        3. Verify Divvy GBFS URL still resolves:
+             python backend/ingest/chicago_divvy_stations.py --dry-run
+        4. Run full pipeline dry-run:
+             python run_pipeline.py --dry-run
+        5. Once DATABASE_URL available, run live pipeline and confirm new sources
+           appear in projects table.
+      If a dataset ID is wrong, update CITY_CONFIGS in il_city_permits.py with correct ID.
+
   - id: data-028
     title: Developer portal — /api-access page with endpoint docs and code examples
     status: done

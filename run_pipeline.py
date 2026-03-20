@@ -88,6 +88,24 @@ STEPS = [
         "skip_key": "skip_cta",
     },
     {
+        # Fetches recent Chicago traffic crashes (last 30 days).
+        # Recent crash scenes are disruption signals. Dataset: 85ca-t3if.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago traffic crashes",
+        "cmd": [sys.executable, "backend/ingest/chicago_traffic_crashes.py"],
+        "skip_key": "skip_traffic_crashes",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Divvy bike station closures via GBFS API.
+        # Out-of-service stations are LOW-severity disruption signals.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Divvy bike station closures",
+        "cmd": [sys.executable, "backend/ingest/chicago_divvy_stations.py"],
+        "skip_key": "skip_divvy",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -133,6 +151,13 @@ def run_step(step: dict, args: argparse.Namespace) -> bool:
 
     result = subprocess.run(cmd, check=False, env=_ENV)
     if result.returncode != 0:
+        if step.get("non_fatal"):
+            print(
+                f"\nWARN: step '{step['name']}' failed with exit code {result.returncode}. "
+                f"This step is non-fatal — continuing pipeline.",
+                file=sys.stderr,
+            )
+            return True  # non-fatal: don't abort pipeline
         print(f"\nERROR: step '{step['name']}' failed with exit code {result.returncode}",
               file=sys.stderr)
         return False
@@ -158,6 +183,16 @@ def parse_args() -> argparse.Namespace:
         "--skip-cta",
         action="store_true",
         help="Skip the CTA planned service alerts fetch step.",
+    )
+    parser.add_argument(
+        "--skip-traffic-crashes",
+        action="store_true",
+        help="Skip the Chicago traffic crashes fetch step.",
+    )
+    parser.add_argument(
+        "--skip-divvy",
+        action="store_true",
+        help="Skip the Divvy bike station closures fetch step.",
     )
     parser.add_argument(
         "--dry-run",

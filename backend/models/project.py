@@ -732,6 +732,173 @@ def normalize_cta_alert(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
+# Chicago traffic crash normalization  (data-035)
+# ---------------------------------------------------------------------------
+# Handles crashes ingested via backend/ingest/chicago_traffic_crashes.py.
+# Recent crash scenes (last N days) represent active disruption zones.
+
+_CRASH_FATAL = re.compile(
+    r"\b(fatal|fatality)\b",
+    re.IGNORECASE,
+)
+
+_CRASH_INCAPACITATING = re.compile(
+    r"\b(incapacitat)\b",
+    re.IGNORECASE,
+)
+
+_CRASH_INJURY_OR_TOW = re.compile(
+    r"\b(injury|tow)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_crash(crash_type: str, most_severe_injury: str) -> str:
+    """
+    Assign an impact_type to a traffic crash record.
+
+    Priority order:
+    1. Fatal injury → closure_full
+    2. Incapacitating injury → closure_multi_lane
+    3. Any injury or tow-required → construction
+    4. Default → light_permit
+    """
+    combined = f"{crash_type} {most_severe_injury}"
+
+    if _CRASH_FATAL.search(combined) or most_severe_injury.strip().upper() == "FATAL":
+        return IMPACT_FULL_CLOSURE
+
+    if _CRASH_INCAPACITATING.search(combined):
+        return IMPACT_MULTI_LANE
+
+    if _CRASH_INJURY_OR_TOW.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    return IMPACT_LIGHT_PERMIT
+
+
+def normalize_traffic_crash(record: dict) -> Project:
+    """
+    Normalize a raw traffic crash record into a canonical Project.
+
+    Args:
+        record: A single dict from the chicago_traffic_crashes staging file.
+                Fields: crash_record_id, crash_date, crash_type,
+                        most_severe_injury, injuries_total,
+                        street_no, street_direction, street_name,
+                        latitude, longitude.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = record.get("crash_record_id", "")
+    crash_type = (record.get("crash_type") or "").strip()
+    most_severe_injury = (record.get("most_severe_injury") or "").strip()
+
+    impact_type = _classify_crash(crash_type, most_severe_injury)
+
+    # Build address from street fields.
+    addr_parts = [
+        record.get("street_no", ""),
+        record.get("street_direction", ""),
+        record.get("street_name", ""),
+    ]
+    addr_str = " ".join(p.strip() for p in addr_parts if p and str(p).strip())
+    address = f"{addr_str}, Chicago, IL" if addr_str else "Chicago, IL"
+
+    # Title: type + location.
+    short_type = crash_type or "Traffic crash"
+    title = f"{short_type} at {addr_str}" if addr_str else short_type
+
+    # Notes: injury severity + unit count.
+    notes_parts = []
+    if most_severe_injury:
+        notes_parts.append(most_severe_injury)
+    injuries = record.get("injuries_total")
+    if injuries and str(injuries) not in ("0", "0.0", ""):
+        notes_parts.append(f"Injuries: {injuries}")
+    num_units = record.get("num_units")
+    if num_units:
+        notes_parts.append(f"Vehicles: {num_units}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    # Crash date as start. Treat disruption window as same-day (end = start).
+    crash_date = _parse_date(record.get("crash_date"))
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"chicago_crash:{source_id}",
+        source="chicago_traffic_crashes",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title[:200],
+        notes=notes,
+        start_date=crash_date,
+        end_date=crash_date,  # same-day event; loader status logic handles age
+        status="active",      # crashes in the fetch window are considered active
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Divvy bike station closure normalization  (data-035)
+# ---------------------------------------------------------------------------
+# Handles out-of-service station records from chicago_divvy_stations.py.
+# Station closures are LOW-severity (light_permit weight) disruption signals.
+
+def normalize_divvy_station(record: dict) -> Project:
+    """
+    Normalize a Divvy out-of-service station record into a canonical Project.
+
+    Args:
+        record: A dict produced by chicago_divvy_stations.build_records().
+                Keys: station_id, name, address, latitude, longitude,
+                      is_installed, is_renting, is_returning, reason.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = str(record.get("station_id", ""))
+    name      = (record.get("name") or f"Station {source_id}").strip()
+    reason    = (record.get("reason") or "Station closed").strip()
+
+    # Always light_permit — Divvy station closures are low disruption.
+    impact_type = IMPACT_LIGHT_PERMIT
+
+    title = f"{name} Divvy station closed"
+
+    # Build address: prefer station address field; fallback to name + city.
+    addr_raw = (record.get("address") or name).strip()
+    address  = f"{addr_raw}, Chicago, IL" if addr_raw else "Chicago, IL"
+
+    notes = reason[:200]
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"chicago_divvy:{source_id}",
+        source="chicago_divvy",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title[:200],
+        notes=notes,
+        start_date=None,
+        end_date=None,
+        status="active",
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 

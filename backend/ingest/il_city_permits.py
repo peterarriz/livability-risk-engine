@@ -132,6 +132,62 @@ CITY_CONFIGS: list[dict] = [
         "city_il":          "Chicago, IL",
         "where_clause":     None,
     },
+    {
+        # Chicago Sidewalk Café Permits — City of Chicago Data Portal.
+        # Active sidewalk café licenses indicate outdoor seating zones that
+        # reduce available sidewalk/parking lane width and increase
+        # pedestrian congestion — a LOW-severity disruption signal.
+        # Portal: https://data.cityofchicago.org
+        # Dataset: "Sidewalk Cafe Permits" (nkez-g5sm)
+        # Verification command:
+        #   curl "https://data.cityofchicago.org/api/catalog/v1?domains=data.cityofchicago.org&q=sidewalk+cafe+permits"
+        # Fields researched from portal metadata (2026-03-20); verify against
+        # a live fetch if field names cause 0-record results.
+        "city_name":        "Chicago Sidewalk Cafes",
+        "source_key":       "chicago_sidewalk_cafes",
+        "domain":           "data.cityofchicago.org",
+        "dataset_id":       "nkez-g5sm",
+        "id_field":         "permit_number",
+        "type_field":       "license_status",
+        "desc_field":       "doing_business_as_name",
+        "issue_date_field": "date_issued",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_il":          "Chicago, IL",
+        "where_clause":     None,
+    },
+    {
+        # Chicago Right-of-Way / Excavation Permits — City of Chicago Data Portal.
+        # Excavation permits for utility work, street repairs, and underground
+        # infrastructure are a strong disruption signal — they indicate active
+        # street-level excavation that blocks lanes and pedestrian access.
+        # Portal: https://data.cityofchicago.org
+        # Dataset: "Street and Sanitation Service Requests" is NOT this;
+        #          this is the "Excavation Permits" / "Right-of-Way Permits" dataset.
+        # Dataset ID: qz53-sbpb (researched from portal catalog, 2026-03-20)
+        # Verification command:
+        #   curl "https://data.cityofchicago.org/api/catalog/v1?domains=data.cityofchicago.org&q=excavation+permits"
+        # If fetch returns 0 records or 404, verify dataset_id at:
+        #   https://data.cityofchicago.org (search "excavation permits" or "right of way permits")
+        "city_name":        "Chicago Excavation Permits",
+        "source_key":       "chicago_excavation",
+        "domain":           "data.cityofchicago.org",
+        "dataset_id":       "qz53-sbpb",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "work_description",
+        "issue_date_field": "date_issued",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        "location",
+        "addr_field":       "street_address",
+        "city_il":          "Chicago, IL",
+        "where_clause":     None,
+    },
     # -----------------------------------------------------------------
     # REMOVED — portals verified non-existent or non-Socrata (2026-03-20):
     #
