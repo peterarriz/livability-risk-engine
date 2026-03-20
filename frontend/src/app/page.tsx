@@ -14,7 +14,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, saveReport, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -37,20 +37,10 @@ export default function HomePage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
+  const [saveReportId, setSaveReportId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [addressHistory, setAddressHistory] = useState<string[]>(() => {
-    // data-022: initialize from localStorage on mount (client-only)
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("lre_address_history");
-      return stored ? (JSON.parse(stored) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const searchShellRef = useRef<HTMLDivElement>(null);
@@ -679,43 +669,65 @@ export default function HomePage() {
       </Container>
 
       {showSaveModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => setShowSaveModal(false)}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>×</button>
             <p className="supporting-kicker">Save report</p>
-
-            {savedReportId ? (
+            {saveReportId ? (
               <>
-                <h3>Report saved!</h3>
-                <p className="modal-copy">Your disruption brief for <strong>{result?.address}</strong> is ready to share.</p>
-                <div className="modal-link-row">
-                  <input
-                    type="text"
-                    readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${savedReportId}`}
-                    aria-label="Shareable report link"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <button type="button" className="modal-cta" onClick={handleCopySavedLink}>
-                    {copiedLink ? "Copied!" : "Copy link"}
-                  </button>
-                </div>
-                <p className="modal-fine-print">Anyone with this link can view the saved score.</p>
-              </>
-            ) : (
-              <>
-                <h3>Save and share this disruption brief.</h3>
-                <p className="modal-copy">Your score for <strong>{result?.address}</strong> will be saved and shareable via a permanent link — no account required.</p>
-                {saveError && <p className="modal-error">{saveError}</p>}
+                <h3>Report saved.</h3>
+                <p className="modal-copy">Share this link with anyone to show the disruption brief for {result?.address}.</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${saveReportId}`}
+                  aria-label="Shareable report link"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
                 <button
                   type="button"
                   className="modal-cta"
-                  onClick={handleSaveReport}
-                  disabled={isSaving}
+                  onClick={() => {
+                    const url = `${window.location.origin}/report/${saveReportId}`;
+                    navigator.clipboard.writeText(url).catch(() => {});
+                  }}
                 >
-                  {isSaving ? "Saving…" : "Save and get shareable link"}
+                  Copy link
                 </button>
-                <p className="modal-fine-print">No account required. The link is permanent and freely shareable.</p>
+              </>
+            ) : (
+              <>
+                <h3>Save and share this report.</h3>
+                <p className="modal-copy">Your disruption brief for {result?.address} will be saved and shareable via a permanent link.</p>
+                {saveError && <p className="modal-fine-print" style={{ color: "red" }}>{saveError}</p>}
+                <input
+                  type="email"
+                  placeholder="your@email.com (optional)"
+                  value={saveEmail}
+                  onChange={(e) => setSaveEmail(e.target.value)}
+                  aria-label="Email address"
+                />
+                <button
+                  type="button"
+                  className="modal-cta"
+                  disabled={isSaving}
+                  onClick={async () => {
+                    if (!result) return;
+                    setIsSaving(true);
+                    setSaveError(null);
+                    try {
+                      const { report_id } = await saveReport(result);
+                      setSaveReportId(report_id);
+                    } catch {
+                      setSaveError("Could not save report. Try again in a moment.");
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                >
+                  {isSaving ? "Saving…" : "Save report"}
+                </button>
+                <p className="modal-fine-print">No account required. Free plan includes unlimited lookups.</p>
               </>
             )}
           </div>

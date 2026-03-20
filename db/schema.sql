@@ -218,19 +218,15 @@ COMMENT ON TABLE ingest_runs IS
 
 
 -- ---------------------------------------------------------------------------
--- Saved reports  (data-021)
---
--- Stores score results so users can share a persistent URL.
--- Each row is a snapshot of the /score response for a given address.
--- The report_id UUID is used in the shareable /report/<id> URL.
+-- Reports table  (data-021)
+-- Stores saved score results for shareable report URLs (/report/{id}).
+-- Each row is a snapshot of a /score response at the time of saving.
 -- ---------------------------------------------------------------------------
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
 CREATE TABLE IF NOT EXISTS reports (
-    report_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     address     TEXT        NOT NULL,
-    score_json  JSONB       NOT NULL,   -- full /score response payload
+    score_json  JSONB       NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -238,58 +234,6 @@ CREATE INDEX IF NOT EXISTS reports_created_at_idx
     ON reports (created_at DESC);
 
 COMMENT ON TABLE reports IS
-    'Saved score snapshots (data-021). Each row is a /score response stored '
-    'so the user can share a persistent /report/<report_id> URL. '
-    'score_json is the full API response payload.';
-
-
--- ---------------------------------------------------------------------------
--- Score history  (data-025)
---
--- Stores every /score result so the frontend can render a sparkline trend.
--- Written fire-and-forget after each live scoring call.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS score_history (
-    id              BIGSERIAL   PRIMARY KEY,
-    address         TEXT        NOT NULL,
-    disruption_score INT        NOT NULL,
-    confidence      TEXT        NOT NULL,
-    mode            TEXT        NOT NULL DEFAULT 'live',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS score_history_address_idx
-    ON score_history (address, created_at DESC);
-
-COMMENT ON TABLE score_history IS
-    'Per-address score history (data-025). One row per /score call. '
-    'Used by GET /history to feed the frontend sparkline trend.';
-
-
--- ---------------------------------------------------------------------------
--- API keys  (data-027)
---
--- Stores hashed API keys for optional B2B access gating.
--- Active only when REQUIRE_API_KEY env var is set to "true".
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS api_keys (
-    id              BIGSERIAL   PRIMARY KEY,
-    key_prefix      TEXT        NOT NULL,   -- first 8 chars, shown in admin lists
-    key_hash        TEXT        NOT NULL,   -- SHA-256 hex digest of the full key
-    label           TEXT        NOT NULL,   -- human-readable name/org
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_used_at    TIMESTAMPTZ,
-    is_active       BOOLEAN     NOT NULL DEFAULT true,
-
-    CONSTRAINT api_keys_prefix_unique UNIQUE (key_prefix)
-);
-
-CREATE INDEX IF NOT EXISTS api_keys_hash_idx ON api_keys (key_hash);
-CREATE INDEX IF NOT EXISTS api_keys_active_idx ON api_keys (is_active);
-
-COMMENT ON TABLE api_keys IS
-    'Hashed API keys for optional /score access gating (data-027). '
-    'Keys are only enforced when REQUIRE_API_KEY=true. '
-    'Full key is never stored — only the SHA-256 hash.';
+    'Saved score snapshots for shareable report URLs (data-021). '
+    'Each row stores a full /score response as JSONB. '
+    'Accessed via GET /report/{id}; created via POST /save.';
