@@ -31,6 +31,7 @@ export type NearbySignal = {
   lon: number;
   impact_type: ImpactType;
   title: string;
+  impact_type: string;
   distance_m: number;
   severity_hint: string;
   weight: number;
