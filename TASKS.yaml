@@ -228,3 +228,29 @@ tasks:
                left border, neighborhood summary bar.
                fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
       Next: Consider adding a /neighborhoods index page and linking from the homepage.
+
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, additional cities, all IDOT districts
+    status: in-progress
+    priority: high
+    github_issue: 67
+    notes_for_next_agent: >
+      Script: backend/ingest/il_city_permits.py.
+      Config-driven Socrata ingest for Cook County + 6 IL cities.
+      Output: data/raw/il_city_permits_<source_key>.json per city.
+      Normalization: normalize_il_city_permit() in backend/models/project.py.
+      Wired into load_projects.py (load_il_city_permits, --source il_cities)
+      and run_pipeline.py (new step 4, --skip-il-cities flag).
+      IDOT already fetches all districts (WHERE 1=1, no district filter needed).
+
+      IMPORTANT — Dataset IDs need manual verification:
+        Each CITY_CONFIGS entry has a dataset_id marked "# TODO: verify".
+        To verify: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5" | python -m json.tool
+        Or visit the portal URL and search for "building permits" to confirm the 4x4 ID.
+        Cities configured: cook_county, evanston, aurora, naperville, rockford, springfield, peoria.
+        Some smaller cities (Naperville, Rockford) may not have active Socrata portals —
+        the script will warn and skip cleanly if a dataset is inaccessible.
+
+      Test command (once dataset IDs are verified):
+        python backend/ingest/il_city_permits.py --city cook_county --dry-run
+        python backend/ingest/il_city_permits.py --dry-run  # all cities
