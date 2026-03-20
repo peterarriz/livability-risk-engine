@@ -8,12 +8,13 @@ import {
   getMeaningInsights,
   ImpactWindow,
   ScoreHero,
+  ScoreSparkline,
   SeverityMeters,
   TopRiskGrid,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, geocodeForMap, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -36,6 +37,9 @@ export default function HomePage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
+  const [saveReportId, setSaveReportId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -78,6 +82,25 @@ export default function HomePage() {
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [isDemoResult, result, scoredAt]);
+
+  // Hydrate address history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      if (stored) setAddressHistory(JSON.parse(stored));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Persist address history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [addressHistory]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -161,6 +184,12 @@ export default function HomePage() {
     });
   }, [result]);
 
+  // data-025: fetch score history whenever a new result loads.
+  useEffect(() => {
+    if (!result) { setScoreHistory([]); return; }
+    fetchHistory(result.address, 20).then(setScoreHistory);
+  }, [result]);
+
   function handleSuggestionSelect(suggestion: string) {
     skipSuggestRef.current = true;
     hasUserTyped.current = false;   // treat the fill as programmatic
@@ -232,6 +261,40 @@ export default function HomePage() {
     await submitAddress(address);
   }
 
+  async function handleSaveReport() {
+    if (!result) return;
+    setIsSaving(true);
+    setSaveError(null);
+    setSavedReportId(null);
+    try {
+      const saved = await saveReport(result);
+      setSavedReportId(saved.report_id);
+    } catch (err) {
+      setSaveError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not save report. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleCopySavedLink() {
+    if (!savedReportId) return;
+    const url = `${window.location.origin}/report/${savedReportId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  }
+
+  function handleOpenSaveModal() {
+    setSavedReportId(null);
+    setSaveError(null);
+    setShowSaveModal(true);
+  }
+
   return (
     <main className={`page ${workspaceMode ? "page--workspace" : "page--explore"}`}>
       <a href="#address" className="skip-link">Skip to address search</a>
@@ -282,6 +345,7 @@ export default function HomePage() {
             <a href="#signals-section" className="topnav-aux-link">Signals</a>
             <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
 
@@ -492,8 +556,11 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
+                  {scoreHistory.length >= 2 && (
+                    <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
+                  )}
                   <div className="score-actions">
-                    <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
+                    <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
                     <a
@@ -687,9 +754,9 @@ export default function HomePage() {
       </Container>
 
       {showSaveModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => setShowSaveModal(false)}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>×</button>
             <p className="supporting-kicker">Save report</p>
             <h3>Create a free account to save and share this report.</h3>
             <p className="modal-copy">Your disruption brief for {result?.address} will be saved to your account and shareable via link.</p>
