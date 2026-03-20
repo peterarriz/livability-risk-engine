@@ -87,7 +87,7 @@ def fetch_alerts(planned_only: bool = True) -> list[dict]:
     """
     params: dict = {"outputType": "JSON"}
     if planned_only:
-        params["planned"] = "1"
+        params["planned"] = "true"
 
     label = "planned alerts" if planned_only else "all alerts"
     print(f"Fetching CTA service alerts ({label})...")

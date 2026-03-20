@@ -48,6 +48,7 @@ Acceptance criteria (data-033):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -105,36 +106,29 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Chicago Special Event Permits — City of Chicago Data Portal.
-        # Special events (festivals, parades, marathons) that require road
-        # closures and lane restrictions cause measurable livability disruption.
-        #
+        # Chicago Special Events — City of Chicago Data Portal.
+        # Upcoming special events (block parties, festivals, parades) managed
+        # by the Office of Emergency Management and Communications.
         # Portal: https://data.cityofchicago.org
-        # Dataset: "Special Event Permits"
+        # Dataset: "Special Events" (xgse-8eg7)
+        # Verified 2026-03-20 via:
+        #   https://data.cityofchicago.org/api/catalog/v1?domains=data.cityofchicago.org&q=special+events
         #
-        # DATASET ID NEEDS VERIFICATION (data-034, 2026-03-20):
-        #   The dataset ID below was identified from the Chicago Data Portal
-        #   catalog, but should be confirmed before relying on it in production.
-        #   Run this command to verify or find the correct ID:
-        #     curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5" \
-        #       | python -m json.tool | grep -E '"identifier"|"name"'
-        #   Then update dataset_id and field names accordingly.
-        #
-        # If this entry returns 0 records or HTTP 404, the pipeline logs a
-        # warning and continues — it will NOT cause a pipeline failure.
+        # Location is GeoJSON Point: {"type":"Point","coordinates":[-87.65,41.68]}
+        # The _extract_lat_lon helper handles this via loc_field.
         "city_name":        "Chicago Special Events",
         "source_key":       "chicago_special_events",
         "domain":           "data.cityofchicago.org",
-        "dataset_id":       "ahsk-uzm8",
+        "dataset_id":       "xgse-8eg7",
         "id_field":         ":id",
         "type_field":       "event_type",
-        "desc_field":       "event_name",
-        "issue_date_field": "start_date_time",
-        "exp_date_field":   "end_date_time",
+        "desc_field":       "event_details",
+        "issue_date_field": "date",
+        "exp_date_field":   None,
         "lat_field":        None,
         "lon_field":        None,
         "loc_field":        "location",
-        "addr_field":       "street_address",
+        "addr_field":       "venue_address",
         "city_il":          "Chicago, IL",
         "where_clause":     None,
     },
@@ -303,8 +297,15 @@ def _extract_lat_lon(record: dict, config: dict) -> tuple[str | None, str | None
     if (lat is None or lon is None) and loc_field:
         loc = record.get(loc_field)
         if isinstance(loc, dict):
-            lat = lat or loc.get("latitude") or loc.get("lat")
-            lon = lon or loc.get("longitude") or loc.get("lon")
+            # GeoJSON Point: {"type":"Point","coordinates":[-87.65, 41.68]}
+            # Note: GeoJSON coordinates are [longitude, latitude].
+            coords = loc.get("coordinates")
+            if isinstance(coords, list) and len(coords) >= 2:
+                lon = lon or str(coords[0])
+                lat = lat or str(coords[1])
+            else:
+                lat = lat or loc.get("latitude") or loc.get("lat")
+                lon = lon or loc.get("longitude") or loc.get("lon")
         elif isinstance(loc, str) and "," in loc:
             # Some portals encode location as "lat, lon" string.
             parts = loc.split(",", 1)
@@ -315,6 +316,28 @@ def _extract_lat_lon(record: dict, config: dict) -> tuple[str | None, str | None
                 pass
 
     return lat, lon
+
+
+def _extract_source_id(record: dict, config: dict) -> str:
+    """
+    Extract a stable source ID from a raw Socrata record.
+
+    Falls back to a hash of key fields when the configured id_field
+    (e.g. Socrata system field ':id') is not present in the JSON response.
+    """
+    id_field = config["id_field"]
+    raw_id = str(record.get(id_field, "") or "").strip()
+    if raw_id:
+        return raw_id
+
+    # Build a deterministic hash from date + address + description.
+    parts = [
+        record.get(config["issue_date_field"], ""),
+        record.get(config["addr_field"], ""),
+        record.get(config["desc_field"], ""),
+    ]
+    key = "|".join(str(p or "") for p in parts)
+    return hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
 def normalize_raw_record(record: dict, config: dict) -> dict:
@@ -331,7 +354,7 @@ def normalize_raw_record(record: dict, config: dict) -> dict:
         "source_key":    config["source_key"],
         "city_name":     config["city_name"],
         "city_il":       config["city_il"],
-        "source_id":     str(record.get(config["id_field"], "") or ""),
+        "source_id":     _extract_source_id(record, config),
         "permit_type":   record.get(config["type_field"], "") or "",
         "description":   record.get(config["desc_field"], "") or "",
         "issue_date":    record.get(config["issue_date_field"], "") or "",
