@@ -111,6 +111,33 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches Chicago 311 infrastructure service requests:
+        # potholes, water main breaks, cave-ins, tree emergencies.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago 311 infrastructure requests",
+        "cmd": [sys.executable, "backend/ingest/chicago_311_requests.py"],
+        "skip_key": "skip_311",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago Film Permits (DCASE).
+        # Film shoots cause street closures and parking restrictions.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago film permits",
+        "cmd": [sys.executable, "backend/ingest/chicago_film_permits.py"],
+        "skip_key": "skip_film",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago Special Events Permits (DCASE).
+        # Festivals, parades, and marathons cause major traffic disruption.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago special events permits",
+        "cmd": [sys.executable, "backend/ingest/chicago_special_events.py"],
+        "skip_key": "skip_events",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -198,6 +225,21 @@ def parse_args() -> argparse.Namespace:
         "--skip-divvy",
         action="store_true",
         help="Skip the Divvy bike station closures fetch step.",
+    )
+    parser.add_argument(
+        "--skip-311",
+        action="store_true",
+        help="Skip the Chicago 311 infrastructure requests fetch step.",
+    )
+    parser.add_argument(
+        "--skip-film",
+        action="store_true",
+        help="Skip the Chicago film permits fetch step.",
+    )
+    parser.add_argument(
+        "--skip-events",
+        action="store_true",
+        help="Skip the Chicago special events permits fetch step.",
     )
     parser.add_argument(
         "--dry-run",
