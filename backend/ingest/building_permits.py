@@ -35,6 +35,8 @@ from pathlib import Path
 
 import requests
 
+from datetime import timedelta
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -85,8 +87,8 @@ def build_params(
     """Build Socrata query params for one page of results."""
     # Filter to permits issued or updated within the lookback window so
     # the raw file stays focused on the MVP near-term scoring window.
-    cutoff = datetime.now(timezone.utc)
-    cutoff_str = f"{cutoff.year - (days_back // 365)}-{cutoff.month:02d}-{cutoff.day:02d}T00:00:00"
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+    cutoff_str = cutoff.strftime("%Y-%m-%dT00:00:00")
 
     params: dict = {
         "$limit": limit,

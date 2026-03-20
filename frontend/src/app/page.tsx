@@ -14,7 +14,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -25,7 +25,7 @@ const EXAMPLE_ADDRESSES = [
 ];
 
 export default function HomePage() {
-  const [address, setAddress] = useState(DEFAULT_ADDRESS);
+  const [address, setAddress] = useState("");
   const [result, setResult] = useState<ScoreResponse | null>(null);
   const [scoreSource, setScoreSource] = useState<ScoreSource>("live");
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -37,25 +37,18 @@ export default function HomePage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
+  const [saveReportId, setSaveReportId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [addressHistory, setAddressHistory] = useState<string[]>(() => {
-    // data-022: initialize from localStorage on mount (client-only)
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("lre_address_history");
-      return stored ? (JSON.parse(stored) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
+  // Only fetch suggestions after the user has actually typed — prevents the
+  // dropdown firing on mount or when an address is set programmatically.
+  const hasUserTyped = useRef(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
@@ -66,9 +59,9 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Demo fallback" : "Live score";
+  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
   const statusMessage = isDemoResult
-    ? (statusNote ?? "Showing the approved Chicago fallback while live scoring is unavailable.")
+    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -83,6 +76,25 @@ export default function HomePage() {
       { label: "Sources", value: "Chicago permits • Street closures" },
     ];
   }, [isDemoResult, result]);
+
+  // Hydrate address history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      if (stored) setAddressHistory(JSON.parse(stored));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Persist address history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [addressHistory]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -105,9 +117,11 @@ export default function HomePage() {
   }, [addressHistory]);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
-  // skipSuggestRef suppresses the effect when address is set programmatically
-  // (e.g. suggestion selection) to prevent the dropdown from reopening.
+  // Only runs when hasUserTyped is true — prevents the dropdown from opening
+  // on mount or when an address is set programmatically (suggestion selection).
+  // skipSuggestRef suppresses a single effect run after programmatic selection.
   useEffect(() => {
+    if (!hasUserTyped.current) return;
     if (skipSuggestRef.current) {
       skipSuggestRef.current = false;
       return;
@@ -120,11 +134,15 @@ export default function HomePage() {
     }
     const timer = setTimeout(async () => {
       const results = await fetchSuggestions(address);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
-      setActiveSuggestionIndex(-1);
+      // Only update if the input is still focused when results arrive.
+      if (isFocused) {
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+        setActiveSuggestionIndex(-1);
+      }
     }, 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
   useEffect(() => {
@@ -149,6 +167,7 @@ export default function HomePage() {
 
   function handleSuggestionSelect(suggestion: string) {
     skipSuggestRef.current = true;
+    hasUserTyped.current = false;   // treat the fill as programmatic
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -300,6 +319,7 @@ export default function HomePage() {
             <a href="#examples-section">Examples</a>
             <a href="/api-access">API</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
 
@@ -331,9 +351,15 @@ export default function HomePage() {
                     name="address"
                     type="text"
                     value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onChange={(event) => {
+                      hasUserTyped.current = true;
+                      setAddress(event.target.value);
+                    }}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => {
+                      setIsFocused(false);
+                      setTimeout(() => setShowSuggestions(false), 150);
+                    }}
                     onKeyDown={handleInputKeyDown}
                     placeholder={PREMIUM_PLACEHOLDER}
                     autoComplete="off"
@@ -428,14 +454,24 @@ export default function HomePage() {
               : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
           headerAction={workspaceMode && result ? (
-            <button
-              type="button"
-              className="icon-btn"
-              title="PDF export is available on the Pro plan"
-              onClick={() => alert("PDF export is available on the Pro plan — see Pricing for details.")}
-            >
-              ↓ Export PDF
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <a
+                href={getExportUrl("csv", result.address)}
+                className="icon-btn"
+                title="Download score as CSV"
+              >
+                ↓ CSV
+              </a>
+              <a
+                href={getExportUrl("pdf", result.address)}
+                target="_blank"
+                rel="noreferrer"
+                className="icon-btn"
+                title="Open print-ready PDF"
+              >
+                ↓ PDF
+              </a>
+            </div>
           ) : undefined}
         >
           <div id="score-section" className="anchor-target" />
@@ -494,10 +530,7 @@ export default function HomePage() {
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
-                    <a
-                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
-                      className="compare-link"
-                    >
+                    <a href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`} className="compare-link">
                       Compare with another address →
                     </a>
                   </div>
@@ -555,14 +588,14 @@ export default function HomePage() {
                     <span className="map-badge">OpenStreetMap</span>
                   </div>
                   {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} />
+                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
                   ) : (
                     <div className="map-placeholder" aria-label="Locating address on map…">
                       <div className="map-grid" />
                       <div className="map-pin map-pin--primary" />
                     </div>
                   )}
-                  <p className="map-copy">Use the map to anchor the score geographically and confirm whether the risk is tied to a major corridor or local site context.</p>
+                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
                 </Card>
 
                 <div className="support-stack">
@@ -679,43 +712,65 @@ export default function HomePage() {
       </Container>
 
       {showSaveModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => setShowSaveModal(false)}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>×</button>
             <p className="supporting-kicker">Save report</p>
-
-            {savedReportId ? (
+            {saveReportId ? (
               <>
-                <h3>Report saved!</h3>
-                <p className="modal-copy">Your disruption brief for <strong>{result?.address}</strong> is ready to share.</p>
-                <div className="modal-link-row">
-                  <input
-                    type="text"
-                    readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${savedReportId}`}
-                    aria-label="Shareable report link"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <button type="button" className="modal-cta" onClick={handleCopySavedLink}>
-                    {copiedLink ? "Copied!" : "Copy link"}
-                  </button>
-                </div>
-                <p className="modal-fine-print">Anyone with this link can view the saved score.</p>
-              </>
-            ) : (
-              <>
-                <h3>Save and share this disruption brief.</h3>
-                <p className="modal-copy">Your score for <strong>{result?.address}</strong> will be saved and shareable via a permanent link — no account required.</p>
-                {saveError && <p className="modal-error">{saveError}</p>}
+                <h3>Report saved.</h3>
+                <p className="modal-copy">Share this link with anyone to show the disruption brief for {result?.address}.</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${saveReportId}`}
+                  aria-label="Shareable report link"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
                 <button
                   type="button"
                   className="modal-cta"
-                  onClick={handleSaveReport}
-                  disabled={isSaving}
+                  onClick={() => {
+                    const url = `${window.location.origin}/report/${saveReportId}`;
+                    navigator.clipboard.writeText(url).catch(() => {});
+                  }}
                 >
-                  {isSaving ? "Saving…" : "Save and get shareable link"}
+                  Copy link
                 </button>
-                <p className="modal-fine-print">No account required. The link is permanent and freely shareable.</p>
+              </>
+            ) : (
+              <>
+                <h3>Save and share this report.</h3>
+                <p className="modal-copy">Your disruption brief for {result?.address} will be saved and shareable via a permanent link.</p>
+                {saveError && <p className="modal-fine-print" style={{ color: "red" }}>{saveError}</p>}
+                <input
+                  type="email"
+                  placeholder="your@email.com (optional)"
+                  value={saveEmail}
+                  onChange={(e) => setSaveEmail(e.target.value)}
+                  aria-label="Email address"
+                />
+                <button
+                  type="button"
+                  className="modal-cta"
+                  disabled={isSaving}
+                  onClick={async () => {
+                    if (!result) return;
+                    setIsSaving(true);
+                    setSaveError(null);
+                    try {
+                      const { report_id } = await saveReport(result);
+                      setSaveReportId(report_id);
+                    } catch {
+                      setSaveError("Could not save report. Try again in a moment.");
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                >
+                  {isSaving ? "Saving…" : "Save report"}
+                </button>
+                <p className="modal-fine-print">No account required. Free plan includes unlimited lookups.</p>
               </>
             )}
           </div>

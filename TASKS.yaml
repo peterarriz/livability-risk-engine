@@ -213,96 +213,105 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-021
-    title: Shareable report pages — /save endpoint + /report/[id] page
-    status: done
-    priority: high
-    github_issue: 53
-    notes_for_next_agent: >
-      Implements persistent shareable report URLs (fixes dead "Save report" CTA).
-      Changes:
-        - db/schema.sql: added `reports` table (UUID PK, address, score_json JSONB, created_at)
-        - backend/app/main.py: POST /save (store report), GET /report/{id} (fetch report)
-        - frontend/src/lib/api.ts: saveReport(), fetchReport(), SaveReportResponse, FetchReportResponse types
-        - frontend/src/app/report/[id]/page.tsx: new shareable report page (renders saved score)
-        - frontend/src/app/page.tsx: Save Report modal wired — posts to /save, shows copyable link
-      When DB is not configured: /save returns 503 with a clear message; modal shows the error.
-      Next data task: data-025.
-
-  - id: data-022
-    title: Persist address history to localStorage
-    status: done
-    priority: medium
-    github_issue: 54
-    notes_for_next_agent: >
-      frontend/src/app/page.tsx: addressHistory state initialized from
-      localStorage("lre_address_history") on mount; written back on every change.
-      No backend dependency.
-
-  - id: data-023
-    title: /compare page — side-by-side address comparison
-    status: done
-    priority: high
-    github_issue: 55
-    notes_for_next_agent: >
-      frontend/src/app/compare/page.tsx: new page at /compare.
-      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
-      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
-      Verdict card shows which address has lower disruption risk and by how many points.
-      Dead link in page.tsx updated to /compare?a=<current-address>.
-
-  - id: data-024
-    title: Permit detail drill-down — structured top_risk_details in API
-    status: done
-    priority: medium
-    github_issue: 56
-    notes_for_next_agent: >
-      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
-      Each dict has project_id, source, source_id, impact_type, title, notes,
-      status, start_date, end_date, address, distance_m, weighted_score.
-      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
-      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
-      "View permit details" toggle button that expands a PermitDetailPanel inline.
-      Gracefully absent when top_risk_details is not present (demo mode / old backend).
-
   - id: data-025
-    title: Score history table + sparkline trend
+    title: Score history table + sparkline trend (data layer)
     status: done
-    priority: high
-    github_issue: 57
-    notes_for_next_agent: >
-      db/schema.sql: score_history table (address, disruption_score, confidence, mode, created_at).
-      backend/app/main.py: _record_score_history() fires after every live /score call;
-      GET /history?address=&limit= returns history array (newest first, empty list on error).
-      frontend/src/lib/api.ts: ScoreHistoryEntry type + fetchHistory() function.
-      frontend/src/components/score-experience.tsx: ScoreSparkline SVG component —
-        renders chronological line chart, shows reading count + trend delta (↑/↓/stable).
-      frontend/src/app/page.tsx: scoreHistory state, useEffect fetches after result loads,
-        ScoreSparkline rendered below ScoreHero when >= 2 historical readings exist.
-
-  - id: data-026
-    title: Neighborhood heat map pages /neighborhood/[slug]
-    status: done
-    priority: high
+    priority: medium
     github_issue: 58
     notes_for_next_agent: >
-      8 Chicago neighborhoods defined with bounding boxes in backend/app/main.py (NEIGHBORHOODS dict):
-        west-loop, wicker-park, logan-square, river-north, lincoln-park, pilsen, bronzeville, uptown.
-      backend/app/main.py: GET /neighborhood/{slug} — ST_Within bbox query against projects table,
-        returns projects sorted by impact severity + available_neighborhoods list.
-      frontend/src/app/neighborhood/[slug]/page.tsx: new page with:
-        - Neighborhood nav chips linking to all 8 neighborhoods
-        - Summary chips (total count + breakdown by impact type)
-        - MapView centered on neighborhood bbox center
-        - Filterable project list with impact badge, status, dates, notes
-        - "Score this address →" link per project back to main page
-      To add more neighborhoods: extend NEIGHBORHOODS dict in main.py + add slug to SLUGS array in page.tsx.
+      Backend: GET /neighborhood/<slug> returns projects within bbox + metadata.
+               GET /neighborhoods returns list of all 8 neighborhoods.
+               8 bounding boxes defined in _NEIGHBORHOODS dict in backend/app/main.py.
+               Falls back to empty project list when DB is not configured.
+      Frontend: frontend/src/app/neighborhood/[slug]/page.tsx — Leaflet map with
+               circle markers colored by impact_type, project list with color-coded
+               left border, neighborhood summary bar.
+               fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
+      Next: Consider adding a /neighborhoods index page and linking from the homepage.
 
-  - id: data-027
-    title: API key auth middleware
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, additional cities, all IDOT districts
+    status: in-progress
+    priority: high
+    github_issue: 67
+    notes_for_next_agent: >
+      Script: backend/ingest/il_city_permits.py.
+      Config-driven Socrata ingest for Cook County + 6 IL cities.
+      Output: data/raw/il_city_permits_<source_key>.json per city.
+      Normalization: normalize_il_city_permit() in backend/models/project.py.
+      Wired into load_projects.py (load_il_city_permits, --source il_cities)
+      and run_pipeline.py (new step 4, --skip-il-cities flag).
+      IDOT already fetches all districts (WHERE 1=1, no district filter needed).
+
+  - id: data-035
+    title: Find and implement additional Illinois data sources
     status: done
     priority: medium
-    github_issue: 59
+    github_issue: 72
+    notes_for_next_agent: >
+      Sources implemented:
+        - Chicago Traffic Crashes (IMPLEMENTED):
+            Script: backend/ingest/chicago_traffic_crashes.py
+            Output: data/raw/chicago_traffic_crashes.json
+            Dataset: data.cityofchicago.org / 85ca-t3if  ← verified, very well known
+            Normalizer: normalize_traffic_crash() in backend/models/project.py
+            Loader: load_traffic_crashes() in backend/ingest/load_projects.py
+            Pipeline: run_pipeline.py step (--skip-traffic-crashes to bypass, non-fatal)
+            Filter: last 30 days; fatal → closure_full, incapacitating → closure_multi_lane,
+                    injury/tow → construction, else → light_permit
+        - Divvy Bike Station Closures (IMPLEMENTED):
+            Script: backend/ingest/chicago_divvy_stations.py
+            Output: data/raw/chicago_divvy_stations.json
+            API: GBFS — gbfs.divvybikes.com (fallback: gbfs.lyft.com/gbfs/1.1/bss_chicago/)
+            Normalizer: normalize_divvy_station() in backend/models/project.py
+            Loader: load_divvy_stations() in backend/ingest/load_projects.py
+            Pipeline: run_pipeline.py step (--skip-divvy to bypass, non-fatal)
+            Only out-of-service stations (is_installed=0 OR both is_renting=0 AND is_returning=0)
+            impact_type: light_permit (LOW severity)
+        - Chicago Sidewalk Café Permits (ADDED TO il_city_permits.py):
+            source_key: chicago_sidewalk_cafes
+            Domain: data.cityofchicago.org, dataset_id: nkez-g5sm
+            WARNING: dataset_id and field names need live verification.
+            Run: python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
+        - Chicago Excavation/ROW Permits (ADDED TO il_city_permits.py):
+            source_key: chicago_excavation
+            Domain: data.cityofchicago.org, dataset_id: qz53-sbpb
+            WARNING: dataset_id needs live verification (unconfirmed ID).
+            Run: python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
+            If wrong ID: search data.cityofchicago.org for "excavation permits"
+      Sources researched and SKIPPED (no viable public API):
+        - Illinois EPA construction notices: no Socrata API found on data.illinois.gov
+        - Chicago taxi/rideshare pickup zone changes: no public API
+        - Chicago alley closures: no confirmed Socrata dataset ID found
+      Next: Verify dataset IDs for chicago_sidewalk_cafes and chicago_excavation
+      with a live --dry-run against the Chicago data portal.
+
+  - id: data-036
+    title: Verify new dataset IDs and run full pipeline with expanded sources
+    status: backlog
+    priority: medium
+    github_issue:
+    notes_for_next_agent: >
+      After data-035 code is merged, verify these dataset IDs with live --dry-run:
+        1. Chicago Sidewalk Cafes (nkez-g5sm):
+             python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
+             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=sidewalk+cafe"
+        2. Chicago Excavation Permits (qz53-sbpb):
+             python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
+             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=excavation+permits"
+        3. Verify Divvy GBFS URL still resolves:
+             python backend/ingest/chicago_divvy_stations.py --dry-run
+        4. Run full pipeline dry-run:
+             python run_pipeline.py --dry-run
+        5. Once DATABASE_URL available, run live pipeline and confirm new sources
+           appear in projects table.
+      If a dataset ID is wrong, update CITY_CONFIGS in il_city_permits.py with correct ID.
+
+  - id: data-028
+    title: Developer portal — /api-access page with endpoint docs and code examples
+    status: done
+    priority: medium
+    github_issue: 61
     notes_for_next_agent: >
       db/schema.sql: api_keys table (key_prefix TEXT, key_hash TEXT SHA-256, label, timestamps, is_active).
       backend/app/main.py:

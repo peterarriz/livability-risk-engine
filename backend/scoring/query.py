@@ -82,7 +82,7 @@ class ScoreResult:
     severity: dict              # {noise: ..., traffic: ..., dust: ...}
     top_risks: list[str]        # up to 3 plain-English strings
     explanation: str            # 1 short paragraph
-    top_risk_details: list[dict] = None  # data-024: structured project metadata per top risk
+    top_risk_details: list      # list[dict] — structured metadata per top risk (data-024)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +305,32 @@ def _derive_confidence(contributions: list[tuple[NearbyProject, float]]) -> str:
     return "LOW"
 
 
+def _build_top_risk_details(
+    contributions: list[tuple[NearbyProject, float]],
+) -> list[dict]:
+    """
+    Build structured metadata dicts for the top 3 contributors (data-024).
+    Parallel to _build_top_risks() but machine-readable so the frontend can
+    render permit IDs, dates, distance, and source links in expandable cards.
+    """
+    details = []
+    for nearby, _ in contributions[:3]:
+        p = nearby.project
+        details.append({
+            "project_id": p.project_id,
+            "source": p.source,
+            "source_id": p.source_id,
+            "title": p.title,
+            "impact_type": p.impact_type,
+            "distance_m": int(nearby.distance_m),
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
+            "status": p.status,
+            "address": p.address,
+        })
+    return details
+
+
 def _build_top_risks(
     contributions: list[tuple[NearbyProject, float]],
 ) -> list[str]:
@@ -468,8 +494,26 @@ def compute_score(
     severity = _derive_severity(top3)
     confidence = _derive_confidence(top3)
     top_risks = _build_top_risks(top3)
+    top_risk_details = _build_top_risk_details(top3)
     explanation = _build_explanation(top3, severity)
     top_risk_details = _build_top_risk_details(top3)
+
+    # Build nearby_signals for the map heat layer.
+    # Include all scored projects that have valid coordinates (not just top 3).
+    nearby_signals = []
+    for np, weight in scored:
+        p = np.project
+        if p.latitude is None or p.longitude is None:
+            continue
+        nearby_signals.append({
+            "lat": p.latitude,
+            "lon": p.longitude,
+            "impact_type": p.impact_type,
+            "title": p.title,
+            "distance_m": round(np.distance_m),
+            "severity_hint": p.severity_hint,
+            "weight": round(weight, 1),
+        })
 
     return ScoreResult(
         address=address,
