@@ -74,6 +74,25 @@ export default function HomePage() {
     ];
   }, [isDemoResult, result]);
 
+  // Hydrate address history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      if (stored) setAddressHistory(JSON.parse(stored));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Persist address history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [addressHistory]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchShellRef.current && !searchShellRef.current.contains(event.target as Node)) {
