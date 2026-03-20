@@ -43,19 +43,23 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_URL = "https://data.cityofchicago.org/resource/ivkd-2m2v.json"
+SOCRATA_URL = "https://data.cityofchicago.org/resource/c2az-nhru.json"
 
 # Fields to retain from the raw film permit record.
+# Dataset: "Filming Permits - Transportation Department" (c2az-nhru)
+# Verified 2026-03-20 via catalog API.
 FIELDS_TO_KEEP = [
-    "id",               # stable unique identifier
-    "startdate",        # permit start date/time
-    "enddate",          # permit end date/time
-    "permittype",       # type of film permit (Feature, TV, etc.)
-    "streetname",       # street being used
-    "fromlocation",     # cross-street or block number start
-    "tolocation",       # cross-street or block number end
-    "community",        # Chicago community area name
-    "zipcode",
+    "applicationnumber",        # stable unique identifier
+    "applicationstartdate",     # permit start date/time
+    "applicationenddate",       # permit end date/time
+    "applicationtype",          # type (e.g. "Filming")
+    "applicationdescription",   # description of filming activity
+    "applicationstatus",        # status (Issued, Complete, etc.)
+    "streetname",               # street being used
+    "streetnumberfrom",         # block number start
+    "streetnumberto",           # block number end
+    "direction",                # street direction
+    "streetclosure",            # whether street is closed
     "latitude",
     "longitude",
 ]
@@ -64,7 +68,7 @@ PAGE_SIZE = 5000
 DEFAULT_OUTPUT_PATH = Path("data/raw/chicago_film_permits.json")
 
 # Lookback + forward window. Film permits are filed in advance;
-# fetch permits active within the window (startdate through now + 30 days).
+# fetch permits active within the window (applicationstartdate through now + 30 days).
 DAYS_BACK = 90
 DAYS_FORWARD = 30
 
@@ -92,7 +96,7 @@ def fetch_permits(
     cutoff_end   = (now + timedelta(days=days_forward)).strftime("%Y-%m-%dT23:59:59")
 
     # Fetch permits where the start is within our window (not yet expired).
-    where_clause = f"startdate >= '{cutoff_start}' AND startdate <= '{cutoff_end}'"
+    where_clause = f"applicationstartdate >= '{cutoff_start}' AND applicationstartdate <= '{cutoff_end}'"
 
     print(f"Fetching Chicago film permits (last {days_back} days + next {days_forward} days)...")
 
@@ -101,7 +105,7 @@ def fetch_permits(
             "$limit":  PAGE_SIZE,
             "$offset": offset,
             "$where":  where_clause,
-            "$order":  "startdate DESC",
+            "$order":  "applicationstartdate DESC",
         }
         if app_token:
             params["$$app_token"] = app_token

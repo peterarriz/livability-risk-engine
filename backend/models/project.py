@@ -1086,8 +1086,8 @@ def _classify_film_permit(permit_type: str) -> str:
 def _film_permit_status(record: dict) -> str:
     """Derive normalized status from film permit dates."""
     today = date.today()
-    start = _parse_date(record.get("startdate") or record.get("start_date"))
-    end   = _parse_date(record.get("enddate") or record.get("end_date"))
+    start = _parse_date(record.get("applicationstartdate") or record.get("startdate"))
+    end   = _parse_date(record.get("applicationenddate") or record.get("enddate"))
 
     if end and end < today:
         return "completed"
@@ -1110,11 +1110,12 @@ def normalize_film_permit(record: dict) -> Project:
     Returns:
         A Project dataclass ready for upsert into the `projects` table.
     """
-    source_id   = str(record.get("id", ""))
-    permit_type = (record.get("permittype") or "").strip()
+    source_id   = str(record.get("applicationnumber") or record.get("id", ""))
+    permit_type = (record.get("applicationtype") or record.get("permittype") or "").strip()
     street      = (record.get("streetname") or "").strip()
-    from_loc    = (record.get("fromlocation") or "").strip()
-    to_loc      = (record.get("tolocation") or "").strip()
+    direction   = (record.get("direction") or "").strip()
+    from_loc    = str(record.get("streetnumberfrom") or record.get("fromlocation") or "").strip()
+    to_loc      = str(record.get("streetnumberto") or record.get("tolocation") or "").strip()
     community   = (record.get("community") or "").strip()
 
     impact_type = _classify_film_permit(permit_type)
@@ -1129,10 +1130,11 @@ def normalize_film_permit(record: dict) -> Project:
             title_parts.append(f"({from_loc} to {to_loc})")
     title = " ".join(title_parts) if title_parts else f"Film permit {source_id}"
 
-    # Address: street + cross streets + community.
+    # Address: direction + street + community.
     addr_parts = []
-    if street:
-        addr_parts.append(street)
+    street_full = f"{direction} {street}".strip() if direction else street
+    if street_full:
+        addr_parts.append(street_full)
     if community:
         addr_parts.append(community)
     addr_parts.append("Chicago, IL")
@@ -1148,8 +1150,8 @@ def normalize_film_permit(record: dict) -> Project:
     lat = _safe_float(record.get("latitude"))
     lon = _safe_float(record.get("longitude"))
 
-    start = _parse_date(record.get("startdate") or record.get("start_date"))
-    end   = _parse_date(record.get("enddate") or record.get("end_date"))
+    start = _parse_date(record.get("applicationstartdate") or record.get("startdate"))
+    end   = _parse_date(record.get("applicationenddate") or record.get("enddate"))
 
     return Project(
         project_id=f"chicago_film:{source_id}",

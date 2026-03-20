@@ -45,31 +45,22 @@ import requests
 
 SOCRATA_URL = "https://data.cityofchicago.org/resource/r5kz-chrr.json"
 
-# Fields to retain from the raw special events permit record.
+# Fields to retain from the raw special events license record.
+# Dataset r5kz-chrr is the Chicago Business Licenses dataset, filtered
+# to special-event license types. Verified 2026-03-20.
 FIELDS_TO_KEEP = [
-    "permit_id",           # stable unique identifier
-    "event_name",          # name of the event
-    "start_date",          # event start date
-    "end_date",            # event end date
-    "event_type",          # type of event (festival, parade, etc.)
-    "location",            # venue / address string
-    "community_area",      # Chicago community area
+    "id",                    # stable unique identifier
+    "license_description",   # e.g. "Special Event Food"
+    "doing_business_as_name",# event/vendor name
+    "date_issued",           # license issue date
+    "expiration_date",       # license expiration
+    "license_start_date",    # when the event/license starts
+    "license_status",        # AAI, AAC, etc.
+    "address",               # venue address
+    "community_area_name",   # Chicago community area
     "latitude",
     "longitude",
-    "street_name",
-    "street_from",
-    "street_to",
 ]
-
-# Alternative field names used by some versions of the dataset.
-ALT_FIELD_MAP = {
-    "permit_id":    ["permit_id", "id", "event_id"],
-    "event_name":   ["event_name", "name", "title"],
-    "start_date":   ["start_date", "startdate", "event_start"],
-    "end_date":     ["end_date", "enddate", "event_end"],
-    "event_type":   ["event_type", "permittype", "type"],
-    "location":     ["location", "address"],
-}
 
 PAGE_SIZE = 5000
 DEFAULT_OUTPUT_PATH = Path("data/raw/chicago_special_events.json")
@@ -101,8 +92,11 @@ def fetch_events(
     cutoff_start = (now - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00")
     cutoff_end   = (now + timedelta(days=days_forward)).strftime("%Y-%m-%dT23:59:59")
 
-    # Broad time window — fetch events that start within the window.
-    where_clause = f"start_date >= '{cutoff_start}' AND start_date <= '{cutoff_end}'"
+    # Filter to special-event license types within the date window.
+    where_clause = (
+        f"date_issued >= '{cutoff_start}' AND date_issued <= '{cutoff_end}' "
+        f"AND license_description like '%Special Event%'"
+    )
 
     print(f"Fetching Chicago special events permits (last {days_back} days + next {days_forward} days)...")
 
@@ -111,7 +105,7 @@ def fetch_events(
             "$limit":  PAGE_SIZE,
             "$offset": offset,
             "$where":  where_clause,
-            "$order":  "start_date DESC",
+            "$order":  "date_issued DESC",
         }
         if app_token:
             params["$$app_token"] = app_token
@@ -155,37 +149,18 @@ def fetch_events(
 # Filtering and staging
 # ---------------------------------------------------------------------------
 
-def normalize_raw_record(record: dict) -> dict:
-    """
-    Map raw Socrata field names to consistent internal field names,
-    handling alternative column names across dataset versions.
-    """
-    out = {}
+def filter_fields(record: dict) -> dict:
+    """Retain only the fields needed for downstream normalization."""
+    filtered = {k: v for k, v in record.items() if k in FIELDS_TO_KEEP}
 
-    for canonical, alternatives in ALT_FIELD_MAP.items():
-        for alt in alternatives:
-            if alt in record and record[alt] is not None:
-                out[canonical] = record[alt]
-                break
+    # Extract lat/lon from nested location dict if top-level is absent.
+    if "latitude" not in filtered or "longitude" not in filtered:
+        loc = record.get("location", {})
+        if isinstance(loc, dict):
+            filtered.setdefault("latitude", loc.get("latitude"))
+            filtered.setdefault("longitude", loc.get("longitude"))
 
-    # Preserve all FIELDS_TO_KEEP that weren't mapped via ALT_FIELD_MAP.
-    for field in FIELDS_TO_KEEP:
-        if field not in out and field in record:
-            out[field] = record[field]
-
-    # Extract lat/lon from nested location dict if available.
-    loc = record.get("location", {})
-    if isinstance(loc, dict):
-        if "latitude" not in out and "latitude" in loc:
-            out["latitude"] = loc["latitude"]
-        if "longitude" not in out and "longitude" in loc:
-            out["longitude"] = loc["longitude"]
-        coords = loc.get("coordinates", [])
-        if len(coords) == 2:
-            out.setdefault("longitude", str(coords[0]))
-            out.setdefault("latitude",  str(coords[1]))
-
-    return out
+    return filtered
 
 
 def write_staging_file(records: list[dict], output_path: Path) -> None:
@@ -257,7 +232,7 @@ def main() -> None:
         print(f"ERROR: fetch failed — {exc}", file=sys.stderr)
         sys.exit(1)
 
-    normalized = [normalize_raw_record(r) for r in records]
+    normalized = [filter_fields(r) for r in records]
     print(f"\nTotal records fetched: {len(normalized)}")
 
     if args.dry_run:
