@@ -59,6 +59,11 @@ RETRY_DELAY_S = 1.0
 CHICAGO_LAT_MIN, CHICAGO_LAT_MAX = 41.6445, 42.0230
 CHICAGO_LON_MIN, CHICAGO_LON_MAX = -87.9401, -87.5240
 
+# Illinois statewide bounding box — used for non-Chicago IL address geocoding.
+# Covers the full state: from Cairo (southern tip) to the Wisconsin border.
+ILLINOIS_LAT_MIN, ILLINOIS_LAT_MAX = 36.97, 42.51
+ILLINOIS_LON_MIN, ILLINOIS_LON_MAX = -91.51, -87.02
+
 # ---------------------------------------------------------------------------
 # Local coordinate cache — instant resolution for known Chicago addresses.
 # Used as a zero-latency fallback when external geocoding APIs are unavailable
@@ -182,6 +187,14 @@ def _is_in_chicago(lat: float, lon: float) -> bool:
     )
 
 
+def _is_in_illinois(lat: float, lon: float) -> bool:
+    """Statewide Illinois bounding box check for non-Chicago IL addresses."""
+    return (
+        ILLINOIS_LAT_MIN <= lat <= ILLINOIS_LAT_MAX
+        and ILLINOIS_LON_MIN <= lon <= ILLINOIS_LON_MAX
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public geocoding interface
 # ---------------------------------------------------------------------------
@@ -189,16 +202,22 @@ def _is_in_chicago(lat: float, lon: float) -> bool:
 def geocode_address(
     address: str,
     session: Optional[requests.Session] = None,
+    statewide: bool = False,
 ) -> Optional[tuple[float, float]]:
     """
-    Geocode a single Chicago address string to (latitude, longitude).
+    Geocode an address string to (latitude, longitude).
 
     Tries Census geocoder first, falls back to Nominatim.
-    Returns None if both fail or the result falls outside Chicago.
+    By default validates that the result falls within Illinois
+    (Chicago is a subset of Illinois, so Chicago addresses pass too).
 
     Args:
         address: Full address string, e.g. "1600 W Chicago Ave, Chicago, IL"
+                 or "123 Main St, Evanston, IL"
         session: Optional requests.Session for connection reuse in batch mode.
+        statewide: If True, accept any Illinois coordinate (not just Chicago).
+                   Automatically set to True when the address contains ", IL"
+                   but not ", Chicago".
 
     Returns:
         (latitude, longitude) tuple or None.
@@ -211,11 +230,19 @@ def geocode_address(
     if local:
         return local
 
+    # Auto-detect statewide: IL address but not explicitly Chicago.
+    addr_upper = address.upper()
+    if not statewide and ", IL" in addr_upper and "CHICAGO" not in addr_upper:
+        statewide = True
+
+    # Choose validator: statewide uses Illinois bbox; Chicago-only uses tighter bbox.
+    validator = _is_in_illinois if statewide else _is_in_chicago
+
     _session = session or requests.Session()
 
     for attempt in range(MAX_RETRIES):
         result = _geocode_census(address, _session)
-        if result and _is_in_chicago(*result):
+        if result and validator(*result):
             return result
 
         # Brief backoff before retry or fallback.
@@ -224,7 +251,7 @@ def geocode_address(
 
     # Census geocoder failed — try Nominatim.
     result = _geocode_nominatim(address, _session)
-    if result and _is_in_chicago(*result):
+    if result and validator(*result):
         return result
 
     return None

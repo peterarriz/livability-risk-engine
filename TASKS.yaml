@@ -249,17 +249,60 @@ tasks:
       "View permit details" toggle button that expands a PermitDetailPanel inline.
       Gracefully absent when top_risk_details is not present (demo mode / old backend).
 
-  - id: data-029
-    title: CSV and PDF export endpoints
+  - id: data-031
+    title: Research and implement Illinois statewide data sources
     status: done
     priority: medium
-    github_issue: 62
+    github_issue: 64
     notes_for_next_agent: >
-      backend/app/main.py: GET /export/csv?address= returns CSV download (Content-Disposition
-      attachment); GET /export/pdf?address= returns print-ready HTML that auto-triggers
-      window.print(). Both endpoints call live scoring when DB is configured, fall back to
-      demo data otherwise. HTML output is properly escaped against XSS.
-      frontend/src/lib/api.ts: getExportUrl(type, address) helper builds backend export URLs.
-      frontend/src/app/page.tsx: headerAction now shows "↓ CSV" and "↓ PDF" links when a
-      score is loaded (replaces the dead alert button). PDF opens in new tab.
-      frontend/src/app/report/[id]/page.tsx: report-actions area has CSV + PDF export links.
+      New ingest scripts added (data-031):
+        - backend/ingest/idot_road_projects.py: IDOT Active Construction Projects
+          from data.illinois.gov Socrata API (dataset ID: hhkm-y6y2 — verify at
+          https://data.illinois.gov/browse?q=IDOT+highway+projects).
+        - backend/ingest/cook_county_permits.py: Cook County Building Permits
+          from datacatalog.cookcountyil.gov Socrata API (dataset ID: ydr8-5enu —
+          verify at https://datacatalog.cookcountyil.gov/browse?q=building+permits).
+      New normalization functions in backend/models/project.py:
+        - normalize_idot_project(): IDOT → Project, source='idot_road_projects'
+        - normalize_cook_county_permit(): Cook County → Project, source='cook_county_permits'
+      Updated files:
+        - backend/ingest/geocode.py: added ILLINOIS bounding box constants and
+          _is_in_illinois(); geocode_address() now auto-detects IL statewide
+          addresses and uses the wider bounding box.
+        - backend/ingest/load_projects.py: added load_idot_projects() and
+          load_cook_county_permits(); --source now accepts 'idot', 'cook_county', 'all'.
+        - run_pipeline.py: added IDOT and Cook County fetch steps; --skip-statewide
+          flag available to run Chicago-only pipeline.
+      ⚠ Dataset IDs need operator verification before first run:
+        1. Check data.illinois.gov for current IDOT construction dataset ID.
+        2. Check datacatalog.cookcountyil.gov for current Cook County permits ID.
+        3. Update SOCRATA_BASE_URL constants in both ingest scripts if IDs changed.
+      New env vars (all optional):
+        - ILLINOIS_SOCRATA_APP_TOKEN: for data.illinois.gov rate limits
+        - COOK_COUNTY_SOCRATA_APP_TOKEN: for Cook County portal rate limits
+      Next data task: data-032.
+
+  - id: data-032
+    title: Validate statewide ingest — verify IDOT and Cook County dataset IDs and run end-to-end
+    status: backlog
+    priority: medium
+    github_issue: null
+    notes_for_next_agent: >
+      data-031 implemented the ingest scripts but dataset IDs need confirmation.
+      Steps to complete data-032:
+        1. Verify IDOT dataset ID at https://data.illinois.gov/browse?q=IDOT+construction
+           Update SOCRATA_BASE_URL in backend/ingest/idot_road_projects.py if needed.
+        2. Verify Cook County permits dataset ID at
+           https://datacatalog.cookcountyil.gov/browse?q=building+permits
+           Update SOCRATA_BASE_URL in backend/ingest/cook_county_permits.py if needed.
+        3. Run dry-run fetch:
+             python backend/ingest/idot_road_projects.py --dry-run
+             python backend/ingest/cook_county_permits.py --dry-run
+        4. Inspect sample records and adjust FIELDS_TO_KEEP / SOCRATA_TO_INTERNAL
+           column mappings if portal field names differ from expected.
+        5. Run full pipeline:
+             python run_pipeline.py --dry-run
+           Then with live DB:
+             python run_pipeline.py
+        6. Validate /score returns statewide records for an Evanston or Naperville address.
+      Once validated, close this task and create data-033.

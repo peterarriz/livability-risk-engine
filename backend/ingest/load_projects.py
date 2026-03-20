@@ -75,9 +75,8 @@ except ImportError:
 from backend.models.project import (
     Project,
     normalize_closure,
-    normalize_cta_alert,
-    normalize_idot_road_project,
-    normalize_il_city_permit,
+    normalize_cook_county_permit,
+    normalize_idot_project,
     normalize_permit,
 )
 
@@ -85,12 +84,10 @@ from backend.models.project import (
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERMITS_FILE      = Path("data/raw/building_permits.json")
-DEFAULT_CLOSURES_FILE     = Path("data/raw/street_closures.json")
-DEFAULT_IDOT_ROADS_FILE   = Path("data/raw/idot_road_projects.json")
-DEFAULT_CTA_ALERTS_FILE   = Path("data/raw/cta_alerts.json")
-DEFAULT_IL_CITIES_DIR     = Path("data/raw")
-IL_CITIES_FILE_GLOB       = "il_city_permits_*.json"
+DEFAULT_PERMITS_FILE       = Path("data/raw/building_permits.json")
+DEFAULT_CLOSURES_FILE      = Path("data/raw/street_closures.json")
+DEFAULT_IDOT_FILE          = Path("data/raw/idot_road_projects.json")
+DEFAULT_COOK_COUNTY_FILE   = Path("data/raw/cook_county_permits.json")
 
 # Statuses we consider worth loading into the scoring table.
 # Completed records are skipped to keep the projects table focused
@@ -466,20 +463,20 @@ def load_closures(
     return stats
 
 
-def load_idot_roads(
-    idot_roads_file: Path,
+def load_idot_projects(
+    idot_file: Path,
     conn=None,
     dry_run: bool = False,
 ) -> LoadStats:
-    """Load IDOT road construction records from staging file into projects table."""
-    print("\nLoading IDOT road construction projects...")
-    stats = LoadStats(source="idot_road_construction")
+    """Load IDOT road construction projects from staging file into projects table."""
+    print("\nLoading IDOT road projects...")
+    stats = LoadStats(source="idot_road_projects")
 
-    raw = read_staging_file(idot_roads_file)
+    raw = read_staging_file(idot_file)
     if not raw:
         return stats
 
-    projects = normalize_records(raw, normalize_idot_road_project, stats)
+    projects = normalize_records(raw, normalize_idot_project, stats)
     print(f"  Normalized to {len(projects)} scoreable projects")
 
     if dry_run:
@@ -489,7 +486,7 @@ def load_idot_roads(
             print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
         return stats
 
-    run_id = log_run_start(conn, "idot_road_construction")
+    run_id = log_run_start(conn, "idot_road_projects")
     try:
         upsert_projects(projects, conn, stats)
         log_run_finish(conn, run_id, stats, "done")
@@ -500,20 +497,20 @@ def load_idot_roads(
     return stats
 
 
-def load_cta_alerts(
-    cta_alerts_file: Path,
+def load_cook_county_permits(
+    cook_county_file: Path,
     conn=None,
     dry_run: bool = False,
 ) -> LoadStats:
-    """Load CTA service alert records from staging file into projects table."""
-    print("\nLoading CTA service alerts...")
-    stats = LoadStats(source="cta_alerts")
+    """Load Cook County building permits from staging file into projects table."""
+    print("\nLoading Cook County permits...")
+    stats = LoadStats(source="cook_county_permits")
 
-    raw = read_staging_file(cta_alerts_file)
+    raw = read_staging_file(cook_county_file)
     if not raw:
         return stats
 
-    projects = normalize_records(raw, normalize_cta_alert, stats)
+    projects = normalize_records(raw, normalize_cook_county_permit, stats)
     print(f"  Normalized to {len(projects)} scoreable projects")
 
     if dry_run:
@@ -523,7 +520,7 @@ def load_cta_alerts(
             print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
         return stats
 
-    run_id = log_run_start(conn, "cta_alerts")
+    run_id = log_run_start(conn, "cook_county_permits")
     try:
         upsert_projects(projects, conn, stats)
         log_run_finish(conn, run_id, stats, "done")
@@ -532,61 +529,6 @@ def load_cta_alerts(
         raise
 
     return stats
-
-
-def load_il_city_permits(
-    il_cities_dir: Path,
-    conn=None,
-    dry_run: bool = False,
-) -> list[LoadStats]:
-    """
-    Load Illinois city/county permit records from all il_city_permits_*.json
-    staging files found in il_cities_dir.
-
-    Returns one LoadStats per staging file processed.
-    """
-    staging_files = sorted(il_cities_dir.glob(IL_CITIES_FILE_GLOB))
-
-    if not staging_files:
-        print(f"\nNo IL city permit staging files found in {il_cities_dir} "
-              f"(pattern: {IL_CITIES_FILE_GLOB}). Skipping.")
-        return []
-
-    all_stats: list[LoadStats] = []
-
-    for staging_path in staging_files:
-        # Derive a short source label from the filename.
-        source_label = staging_path.stem  # e.g. "il_city_permits_cook_county"
-        print(f"\nLoading {source_label}...")
-        stats = LoadStats(source=source_label)
-
-        raw = read_staging_file(staging_path)
-        if not raw:
-            all_stats.append(stats)
-            continue
-
-        projects = normalize_records(raw, normalize_il_city_permit, stats)
-        print(f"  Normalized to {len(projects)} scoreable projects")
-
-        if dry_run:
-            print("  Dry-run: skipping DB write.")
-            if projects:
-                sample = _project_to_db_params(projects[0])
-                print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
-            all_stats.append(stats)
-            continue
-
-        run_id = log_run_start(conn, source_label)
-        try:
-            upsert_projects(projects, conn, stats)
-            log_run_finish(conn, run_id, stats, "done")
-        except Exception as exc:
-            log_run_finish(conn, run_id, stats, "failed", str(exc))
-            raise
-
-        all_stats.append(stats)
-
-    return all_stats
 
 
 # ---------------------------------------------------------------------------
@@ -624,7 +566,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "idot_roads", "cta_alerts", "il_cities", "all"],
+        choices=["permits", "closures", "idot", "cook_county", "all"],
         default="all",
         help="Which source to load (default: all).",
     )
@@ -641,25 +583,16 @@ def parse_args() -> argparse.Namespace:
         help=f"Path to street closures staging file (default: {DEFAULT_CLOSURES_FILE}).",
     )
     parser.add_argument(
-        "--idot-roads-file",
+        "--idot-file",
         type=Path,
-        default=DEFAULT_IDOT_ROADS_FILE,
-        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_ROADS_FILE}).",
+        default=DEFAULT_IDOT_FILE,
+        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_FILE}).",
     )
     parser.add_argument(
-        "--cta-alerts-file",
+        "--cook-county-file",
         type=Path,
-        default=DEFAULT_CTA_ALERTS_FILE,
-        help=f"Path to CTA alerts staging file (default: {DEFAULT_CTA_ALERTS_FILE}).",
-    )
-    parser.add_argument(
-        "--il-cities-dir",
-        type=Path,
-        default=DEFAULT_IL_CITIES_DIR,
-        help=(
-            f"Directory containing il_city_permits_*.json staging files "
-            f"(default: {DEFAULT_IL_CITIES_DIR})."
-        ),
+        default=DEFAULT_COOK_COUNTY_FILE,
+        help=f"Path to Cook County permits staging file (default: {DEFAULT_COOK_COUNTY_FILE}).",
     )
     parser.add_argument(
         "--dry-run",
@@ -712,17 +645,13 @@ def main() -> None:
             stats = load_closures(args.closures_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("idot_roads", "all"):
-            stats = load_idot_roads(args.idot_roads_file, conn, args.dry_run)
+        if args.source in ("idot", "all"):
+            stats = load_idot_projects(args.idot_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("cta_alerts", "all"):
-            stats = load_cta_alerts(args.cta_alerts_file, conn, args.dry_run)
+        if args.source in ("cook_county", "all"):
+            stats = load_cook_county_permits(args.cook_county_file, conn, args.dry_run)
             all_stats.append(stats)
-
-        if args.source in ("il_cities", "all"):
-            il_stats = load_il_city_permits(args.il_cities_dir, conn, args.dry_run)
-            all_stats.extend(il_stats)
 
         if args.prune_days is not None and conn is not None:
             print(f"\nPruning completed records older than {args.prune_days} days...")
