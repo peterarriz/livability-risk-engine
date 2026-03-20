@@ -212,3 +212,55 @@ tasks:
         3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
+
+  - id: data-021
+    title: Shareable report pages — /save endpoint + /report/[id] page
+    status: done
+    priority: high
+    github_issue: 53
+    notes_for_next_agent: >
+      Implements persistent shareable report URLs (fixes dead "Save report" CTA).
+      Changes:
+        - db/schema.sql: added `reports` table (UUID PK, address, score_json JSONB, created_at)
+        - backend/app/main.py: POST /save (store report), GET /report/{id} (fetch report)
+        - frontend/src/lib/api.ts: saveReport(), fetchReport(), SaveReportResponse, FetchReportResponse types
+        - frontend/src/app/report/[id]/page.tsx: new shareable report page (renders saved score)
+        - frontend/src/app/page.tsx: Save Report modal wired — posts to /save, shows copyable link
+      When DB is not configured: /save returns 503 with a clear message; modal shows the error.
+      Next data task: data-025.
+
+  - id: data-022
+    title: Persist address history to localStorage
+    status: done
+    priority: medium
+    github_issue: 54
+    notes_for_next_agent: >
+      frontend/src/app/page.tsx: addressHistory state initialized from
+      localStorage("lre_address_history") on mount; written back on every change.
+      No backend dependency.
+
+  - id: data-023
+    title: /compare page — side-by-side address comparison
+    status: done
+    priority: high
+    github_issue: 55
+    notes_for_next_agent: >
+      frontend/src/app/compare/page.tsx: new page at /compare.
+      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
+      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
+      Verdict card shows which address has lower disruption risk and by how many points.
+      Dead link in page.tsx updated to /compare?a=<current-address>.
+
+  - id: data-024
+    title: Permit detail drill-down — structured top_risk_details in API
+    status: done
+    priority: medium
+    github_issue: 56
+    notes_for_next_agent: >
+      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
+      Each dict has project_id, source, source_id, impact_type, title, notes,
+      status, start_date, end_date, address, distance_m, weighted_score.
+      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
+      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
+      "View permit details" toggle button that expands a PermitDetailPanel inline.
+      Gracefully absent when top_risk_details is not present (demo mode / old backend).

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ScoreResponse, SeverityLevel } from "@/lib/api";
+import type { ScoreResponse, SeverityLevel, TopRiskDetail } from "@/lib/api";
 
 type ScoreHeroProps = {
   result: ScoreResponse;
@@ -501,40 +501,152 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
   );
 }
 
+const IMPACT_TYPE_LABELS: Record<string, string> = {
+  closure_full: "Full street closure",
+  closure_multi_lane: "Multi-lane closure",
+  closure_single_lane: "Single-lane closure",
+  demolition: "Demolition / excavation",
+  construction: "Construction permit",
+  light_permit: "Light permit",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  chicago_closures: "CDOT Street Closures",
+  chicago_permits: "Chicago Building Permits",
+};
+
+function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  function formatDate(iso: string | null): string {
+    if (!iso) return "Unknown";
+    const [year, month, day] = iso.split("-");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[Number(month) - 1]} ${Number(day)}, ${year}`;
+  }
+
+  return (
+    <div ref={ref} className="permit-detail-panel" role="region" aria-label="Permit details">
+      <div className="permit-detail-head">
+        <p className="permit-detail-label">Permit / closure detail</p>
+        <button type="button" className="permit-detail-close" onClick={onClose} aria-label="Close details">×</button>
+      </div>
+      <dl className="permit-detail-dl">
+        <div>
+          <dt>Project ID</dt>
+          <dd className="permit-detail-id">{detail.project_id}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{SOURCE_LABELS[detail.source] ?? detail.source}</dd>
+        </div>
+        <div>
+          <dt>Type</dt>
+          <dd>{IMPACT_TYPE_LABELS[detail.impact_type] ?? detail.impact_type}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd className={`permit-status permit-status--${detail.status}`}>{detail.status}</dd>
+        </div>
+        {detail.notes && (
+          <div>
+            <dt>Notes</dt>
+            <dd>{detail.notes}</dd>
+          </div>
+        )}
+        {detail.address && (
+          <div>
+            <dt>Location</dt>
+            <dd>{detail.address}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Distance from address</dt>
+          <dd>~{detail.distance_m.toLocaleString()} m ({Math.round(detail.distance_m * 3.28084).toLocaleString()} ft)</dd>
+        </div>
+        <div>
+          <dt>Start date</dt>
+          <dd>{formatDate(detail.start_date)}</dd>
+        </div>
+        <div>
+          <dt>End date</dt>
+          <dd>{formatDate(detail.end_date)}</dd>
+        </div>
+        <div>
+          <dt>Weighted contribution</dt>
+          <dd>{detail.weighted_score} pts</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 export function TopRiskGrid({ result }: TopRiskGridProps) {
   const riskCards = useMemo(() => buildRiskCards(result), [result]);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const details = result.top_risk_details ?? [];
 
   return (
     <div className="risk-card-grid">
-      {riskCards.map((risk, index) => (
-        <article
-          key={risk.id}
-          className="risk-card card-entrance"
-          style={{ animationDelay: `${index * 90}ms` }}
-        >
-          <div className="risk-card-head">
-            <div>
-              <p className="risk-card-index">{risk.eyebrow}</p>
-              <h3>{risk.title}</h3>
+      {riskCards.map((risk, index) => {
+        const detail = details[index] ?? null;
+        const isExpanded = expandedIndex === index;
+        return (
+          <article
+            key={risk.id}
+            className="risk-card card-entrance"
+            style={{ animationDelay: `${index * 90}ms` }}
+          >
+            <div className="risk-card-head">
+              <div>
+                <p className="risk-card-index">{risk.eyebrow}</p>
+                <h3>{risk.title}</h3>
+              </div>
+              <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
             </div>
-            <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
-          </div>
-          <p className="risk-card-rationale">{risk.rationale}</p>
-          <div className="risk-chip-row" aria-label="Driver metadata">
-            {risk.chips.map((chip) => (
-              <span key={chip} className="risk-chip">
-                {chip}
-              </span>
-            ))}
-          </div>
-          <dl className="risk-card-meta">
-            <div>
-              <dt>Evidence</dt>
-              <dd>{risk.evidence}</dd>
+            <p className="risk-card-rationale">{risk.rationale}</p>
+            <div className="risk-chip-row" aria-label="Driver metadata">
+              {risk.chips.map((chip) => (
+                <span key={chip} className="risk-chip">
+                  {chip}
+                </span>
+              ))}
             </div>
-          </dl>
-        </article>
-      ))}
+            <dl className="risk-card-meta">
+              <div>
+                <dt>Evidence</dt>
+                <dd>{risk.evidence}</dd>
+              </div>
+            </dl>
+            {detail && (
+              <div className="risk-card-drill">
+                <button
+                  type="button"
+                  className="risk-drill-btn"
+                  onClick={() => setExpandedIndex(isExpanded ? null : index)}
+                  aria-expanded={isExpanded}
+                >
+                  {isExpanded ? "Hide permit details ↑" : "View permit details ↓"}
+                </button>
+                {isExpanded && (
+                  <PermitDetailPanel
+                    detail={detail}
+                    onClose={() => setExpandedIndex(null)}
+                  />
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }

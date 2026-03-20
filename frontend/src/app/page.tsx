@@ -13,7 +13,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, geocodeForMap, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -36,7 +36,20 @@ export default function HomePage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
-  const [addressHistory, setAddressHistory] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedReportId, setSavedReportId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [addressHistory, setAddressHistory] = useState<string[]>(() => {
+    // data-022: initialize from localStorage on mount (client-only)
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      return stored ? (JSON.parse(stored) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showHistory, setShowHistory] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +92,15 @@ export default function HomePage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // data-022: persist address history to localStorage whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // Ignore storage errors (private browsing, quota exceeded, etc.)
+    }
+  }, [addressHistory]);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
   // skipSuggestRef suppresses the effect when address is set programmatically
@@ -184,6 +206,40 @@ export default function HomePage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitAddress(address);
+  }
+
+  async function handleSaveReport() {
+    if (!result) return;
+    setIsSaving(true);
+    setSaveError(null);
+    setSavedReportId(null);
+    try {
+      const saved = await saveReport(result);
+      setSavedReportId(saved.report_id);
+    } catch (err) {
+      setSaveError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not save report. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleCopySavedLink() {
+    if (!savedReportId) return;
+    const url = `${window.location.origin}/report/${savedReportId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  }
+
+  function handleOpenSaveModal() {
+    setSavedReportId(null);
+    setSaveError(null);
+    setShowSaveModal(true);
   }
 
   return (
@@ -423,10 +479,13 @@ export default function HomePage() {
                 <Card className="score-card">
                   <ScoreHero result={result} />
                   <div className="score-actions">
-                    <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
+                    <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
-                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
+                      className="compare-link"
+                    >
                       Compare with another address →
                     </a>
                   </div>
@@ -612,17 +671,41 @@ export default function HomePage() {
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
             <p className="supporting-kicker">Save report</p>
-            <h3>Create a free account to save and share this report.</h3>
-            <p className="modal-copy">Your disruption brief for {result?.address} will be saved to your account and shareable via link.</p>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={saveEmail}
-              onChange={(e) => setSaveEmail(e.target.value)}
-              aria-label="Email address"
-            />
-            <button type="button" className="modal-cta">Create free account</button>
-            <p className="modal-fine-print">No credit card required. Free plan includes unlimited lookups.</p>
+
+            {savedReportId ? (
+              <>
+                <h3>Report saved!</h3>
+                <p className="modal-copy">Your disruption brief for <strong>{result?.address}</strong> is ready to share.</p>
+                <div className="modal-link-row">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${savedReportId}`}
+                    aria-label="Shareable report link"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <button type="button" className="modal-cta" onClick={handleCopySavedLink}>
+                    {copiedLink ? "Copied!" : "Copy link"}
+                  </button>
+                </div>
+                <p className="modal-fine-print">Anyone with this link can view the saved score.</p>
+              </>
+            ) : (
+              <>
+                <h3>Save and share this disruption brief.</h3>
+                <p className="modal-copy">Your score for <strong>{result?.address}</strong> will be saved and shareable via a permanent link — no account required.</p>
+                {saveError && <p className="modal-error">{saveError}</p>}
+                <button
+                  type="button"
+                  className="modal-cta"
+                  onClick={handleSaveReport}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving…" : "Save and get shareable link"}
+                </button>
+                <p className="modal-fine-print">No account required. The link is permanent and freely shareable.</p>
+              </>
+            )}
           </div>
         </div>
       )}
