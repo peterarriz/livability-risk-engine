@@ -51,7 +51,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -143,9 +143,8 @@ def build_params(
     days_back: int,
 ) -> dict:
     """Build Socrata SoQL query parameters for one page of permits."""
-    cutoff = datetime.now(timezone.utc)
-    # Simple year-based lookback (good enough for a 90-day window).
-    cutoff_str = f"{cutoff.year - (days_back // 365)}-{cutoff.month:02d}-{cutoff.day:02d}T00:00:00"
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+    cutoff_str = cutoff.strftime("%Y-%m-%dT00:00:00")
 
     date_field = config["issue_date_field"]
     where_parts = [f"{date_field} >= '{cutoff_str}'"]
