@@ -404,3 +404,48 @@ tasks:
       <body> (in layout.tsx or page.tsx). Style it to appear only on focus
       using a .skip-link CSS class in globals.css. This is a WCAG 2.1 AA
       requirement.
+
+  - id: data-036
+    title: Implement Chicago 311 requests, film permits, and special events data sources
+    status: done
+    priority: high
+    github_issue: 91
+    notes_for_next_agent: >
+      Three new ingest scripts added:
+        - backend/ingest/chicago_311_requests.py — pothole, water main break,
+          cave-in, tree emergency from Socrata v6vf-nfxy (last 90 days).
+        - backend/ingest/chicago_film_permits.py — film permit street holds
+          from Socrata ivkd-2m2v (last 90 days + next 30 days).
+        - backend/ingest/chicago_special_events.py — festivals, parades,
+          marathons from Socrata r5kz-chrr (last 60 days + next 90 days).
+      Three new normalizers added to backend/models/project.py:
+        normalize_311_request(), normalize_film_permit(), normalize_special_event()
+      Three new load functions added to backend/ingest/load_projects.py:
+        load_311_requests(), load_film_permits(), load_special_events()
+      run_pipeline.py updated with three new non-fatal steps:
+        --skip-311, --skip-film, --skip-events flags added.
+      Skipped for now:
+        - Red light / speed camera violations (historical aggregates, not active disruptions)
+        - Illinois Tollway construction (separate portal, needs ArcGIS research → data-037)
+      Next: validate dataset IDs by running dry-run after DB is live,
+      then create data-037 for Illinois Tollway construction.
+
+  - id: data-037
+    title: Research and implement Illinois Tollway construction data source
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Illinois Tollway construction data is NOT on the Chicago Data Portal.
+      The Illinois Tollway publishes project data at:
+        https://www.illinoistollway.com/road-projects (HTML page, not API)
+        https://www.illinoistollway.com/roadwork/construction (alternative)
+      Potential approaches:
+        1. Check if IDOT ArcGIS REST API includes tollway projects
+           (the existing idot_road_projects.py covers IDOT districts 1-9).
+        2. Scrape illinoistollway.com — requires HTML parsing, fragile.
+        3. Check https://gis.idot.illinois.gov for tollway layer.
+      The IDOT ingest already covers state road construction near Chicago
+      (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
+      If no clean API is found, consider using IDOT District 1 as sufficient
+      coverage and marking this task as won't-fix.

@@ -74,12 +74,15 @@ except ImportError:
 
 from backend.models.project import (
     Project,
+    normalize_311_request,
     normalize_closure,
     normalize_cta_alert,
     normalize_divvy_station,
+    normalize_film_permit,
     normalize_idot_project,
     normalize_il_city_permit,
     normalize_permit,
+    normalize_special_event,
     normalize_traffic_crash,
 )
 
@@ -93,6 +96,9 @@ DEFAULT_IDOT_ROADS_FILE        = Path("data/raw/idot_road_projects.json")
 DEFAULT_CTA_ALERTS_FILE        = Path("data/raw/cta_alerts.json")
 DEFAULT_TRAFFIC_CRASHES_FILE   = Path("data/raw/chicago_traffic_crashes.json")
 DEFAULT_DIVVY_STATIONS_FILE    = Path("data/raw/chicago_divvy_stations.json")
+DEFAULT_311_REQUESTS_FILE      = Path("data/raw/chicago_311_requests.json")
+DEFAULT_FILM_PERMITS_FILE      = Path("data/raw/chicago_film_permits.json")
+DEFAULT_SPECIAL_EVENTS_FILE    = Path("data/raw/chicago_special_events.json")
 DEFAULT_IL_CITIES_DIR          = Path("data/raw")
 IL_CITIES_FILE_GLOB            = "il_city_permits_*.json"
 
@@ -606,6 +612,108 @@ def load_divvy_stations(
     return stats
 
 
+def load_311_requests(
+    requests_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Chicago 311 service request records from staging file into projects table."""
+    print("\nLoading Chicago 311 infrastructure requests...")
+    stats = LoadStats(source="chicago_311_requests")
+
+    raw = read_staging_file(requests_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_311_request, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "chicago_311_requests")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
+def load_film_permits(
+    film_permits_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Chicago film permit records from staging file into projects table."""
+    print("\nLoading Chicago film permits...")
+    stats = LoadStats(source="chicago_film_permits")
+
+    raw = read_staging_file(film_permits_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_film_permit, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "chicago_film_permits")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
+def load_special_events(
+    special_events_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Chicago special event permit records from staging file into projects table."""
+    print("\nLoading Chicago special events permits...")
+    stats = LoadStats(source="chicago_special_events")
+
+    raw = read_staging_file(special_events_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_special_event, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "chicago_special_events")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
 def load_il_city_permits(
     il_cities_dir: Path,
     conn=None,
@@ -698,7 +806,8 @@ def parse_args() -> argparse.Namespace:
         "--source",
         choices=[
             "permits", "closures", "idot_roads", "cta_alerts",
-            "traffic_crashes", "divvy_stations", "il_cities", "all",
+            "traffic_crashes", "divvy_stations", "il_cities",
+            "requests_311", "film_permits", "special_events", "all",
         ],
         default="all",
         help="Which source to load (default: all).",
@@ -734,6 +843,24 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_DIVVY_STATIONS_FILE,
         help=f"Path to Divvy stations staging file (default: {DEFAULT_DIVVY_STATIONS_FILE}).",
+    )
+    parser.add_argument(
+        "--requests-311-file",
+        type=Path,
+        default=DEFAULT_311_REQUESTS_FILE,
+        help=f"Path to 311 requests staging file (default: {DEFAULT_311_REQUESTS_FILE}).",
+    )
+    parser.add_argument(
+        "--film-permits-file",
+        type=Path,
+        default=DEFAULT_FILM_PERMITS_FILE,
+        help=f"Path to film permits staging file (default: {DEFAULT_FILM_PERMITS_FILE}).",
+    )
+    parser.add_argument(
+        "--special-events-file",
+        type=Path,
+        default=DEFAULT_SPECIAL_EVENTS_FILE,
+        help=f"Path to special events staging file (default: {DEFAULT_SPECIAL_EVENTS_FILE}).",
     )
     parser.add_argument(
         "--il-cities-dir",
@@ -808,6 +935,18 @@ def main() -> None:
 
         if args.source in ("divvy_stations", "all"):
             stats = load_divvy_stations(args.divvy_stations_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("requests_311", "all"):
+            stats = load_311_requests(args.requests_311_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("film_permits", "all"):
+            stats = load_film_permits(args.film_permits_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("special_events", "all"):
+            stats = load_special_events(args.special_events_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.source in ("il_cities", "all"):
