@@ -510,49 +510,72 @@ def normalize_idot_project(record: dict) -> Project:
     Returns:
         A Project dataclass ready for upsert into the `projects` table.
     """
-    source_id = (
-        record.get("project_number")
+    # ArcGIS data uses row_id (int) and contract_number; Socrata used project_number.
+    source_id = str(
+        record.get("row_id")
+        or record.get("contract_number")
+        or record.get("project_number")
         or record.get("source_id")
         or ""
     )
-    work_type = record.get("work_type", "")
-    description = record.get("project_description", "")
+    construction_type = record.get("construction_type", "") or ""
+    lanes_closed = record.get("lanes_ramps_closed", "") or ""
+    impact_on_travel = record.get("impact_on_travel", "") or ""
+    # For classification, combine construction_type with any description field.
+    work_type = construction_type or record.get("work_type", "") or ""
+    description = (
+        record.get("location", "")  # ArcGIS "location" is a description string
+        or record.get("project_description", "")
+        or ""
+    )
 
     impact_type = _classify_idot_project(work_type, description)
 
-    # Title: route + work type for quick scanning.
+    # Title: route + location for human-readable display.
     route = (record.get("route") or "").strip()
-    county = (record.get("county") or "").strip()
+    location = (record.get("location") or "").strip() if isinstance(record.get("location"), str) else ""
+    near_town = (record.get("near_town") or "").strip()
     title_parts = []
     if route:
-        title_parts.append(route)
-    if county:
-        title_parts.append(f"({county} Co.)")
-    if work_type:
-        title_parts.append(f"— {work_type}")
-    title = " ".join(title_parts) if title_parts else f"IDOT project {source_id}"
+        title_parts.append(f"Route {route}")
+    if location:
+        title_parts.append(location)
+    elif near_town:
+        title_parts.append(f"near {near_town}")
+    title = " — ".join(title_parts) if title_parts else f"IDOT project {source_id}"
 
-    notes = description[:200] if description else None
+    # Notes: combine construction type, closure info, and detour.
+    notes_parts = []
+    if construction_type:
+        notes_parts.append(construction_type)
+    if lanes_closed:
+        notes_parts.append(f"Lanes/ramps closed: {lanes_closed}")
+    detour = record.get("detour_route") or ""
+    if detour:
+        notes_parts.append(f"Detour: {detour}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
 
     lat = _safe_float(record.get("latitude"))
     lon = _safe_float(record.get("longitude"))
 
-    # Fallback: extract from nested location dict.
-    if (lat is None or lon is None) and isinstance(record.get("location"), dict):
-        loc = record["location"]
-        lat = _safe_float(loc.get("latitude"))
-        lon = _safe_float(loc.get("longitude"))
-
-    address_str = _idot_address(record)
+    # Address from location + near_town (ArcGIS doesn't provide street addresses).
+    if location and near_town:
+        address_str = f"{location}, {near_town}, IL"
+    elif location:
+        address_str = f"{location}, IL"
+    elif near_town:
+        address_str = f"{near_town}, IL"
+    else:
+        address_str = _idot_address(record)
 
     return Project(
-        project_id=f"idot_road_projects:{source_id}",
-        source="idot_road_projects",
+        project_id=f"idot_road:{source_id}",
+        source="idot_road_construction",
         source_id=source_id,
         impact_type=impact_type,
         title=title,
         notes=notes,
-        start_date=_parse_date(record.get("start_date") or record.get("contract_date")),
+        start_date=_parse_date(record.get("start_date")),
         end_date=_parse_date(record.get("end_date")),
         status=_idot_status(record),
         address=address_str,

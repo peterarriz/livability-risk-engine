@@ -795,7 +795,7 @@ def main() -> None:
             stats = load_closures(args.closures_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("idot", "all"):
+        if args.source in ("idot_roads", "all"):
             stats = load_idot_projects(args.idot_file, conn, args.dry_run)
             all_stats.append(stats)
 
