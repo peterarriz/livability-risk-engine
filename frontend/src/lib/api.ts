@@ -254,7 +254,20 @@ type PhotonFeature = {
   properties: { countrycode?: string; housenumber?: string; street?: string };
 };
 
-function _parseNominatim(items: NominatimItem[]): string[] {
+/**
+ * Extract the bare partial street-name fragment from a raw autocomplete query
+ * so results can be post-filtered to only streets that start with that text.
+ * e.g. "679 North Pe" → "pe",  "100 W Rand" → "rand"
+ */
+function _streetPrefix(query: string): string | null {
+  let q = query.trim();
+  q = q.replace(/,?\s*chicago.*$/i, "").replace(/,?\s*il\b.*$/i, "");
+  q = q.replace(/^\d+\s*/, "");
+  q = q.replace(/^(?:north|south|east|west|n\.?|s\.?|e\.?|w\.?)\s+/i, "").trim();
+  return q.length >= 2 ? q.toLowerCase() : null;
+}
+
+function _parseNominatim(items: NominatimItem[], streetFrag?: string | null): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const r of items) {
@@ -263,6 +276,7 @@ function _parseNominatim(items: NominatimItem[]): string[] {
     const a = r.address;
     const road = a.road ?? a.pedestrian ?? a.highway ?? "";
     if (!road) continue;
+    if (streetFrag && !road.toLowerCase().startsWith(streetFrag)) continue;
     const house = a.house_number ?? "";
     const s = house ? `${house} ${road}, Chicago, IL` : `${road}, Chicago, IL`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
@@ -270,7 +284,7 @@ function _parseNominatim(items: NominatimItem[]): string[] {
   return out.slice(0, 5);
 }
 
-function _parsePhoton(features: PhotonFeature[]): string[] {
+function _parsePhoton(features: PhotonFeature[], streetFrag?: string | null): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const f of features) {
@@ -279,6 +293,7 @@ function _parsePhoton(features: PhotonFeature[]): string[] {
     if (!_inChicago(lat, lon)) continue;
     const street = f.properties.street ?? "";
     if (!street) continue;
+    if (streetFrag && !street.toLowerCase().startsWith(streetFrag)) continue;
     const house = f.properties.housenumber ?? "";
     const s = house ? `${house} ${street}, Chicago, IL` : `${street}, Chicago, IL`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
@@ -298,7 +313,13 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
 
-  // 1. Backend endpoint (tries Nominatim then Photon server-side).
+  // Pre-compute the partial street-name fragment for post-filtering results.
+  // e.g. "679 North Pe" → "pe" so only streets starting with "pe" (e.g.
+  // Peoria) are returned, not Michigan, Milwaukee, etc.
+  const streetFrag = _streetPrefix(q);
+
+  // 1. Backend endpoint (tries Nominatim then Photon server-side; already
+  //    applies its own street-fragment filter).
   const apiBaseUrl = getApiBaseUrl();
   if (apiBaseUrl) {
     try {
@@ -316,12 +337,12 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
 
   const biasedQ = q.toLowerCase().includes("chicago") ? q : `${q}, Chicago, IL`;
 
-  // 2. Browser-side Nominatim.
+  // 2. Browser-side Nominatim (with street-fragment post-filter).
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("q", biasedQ);
     url.searchParams.set("format", "json");
-    url.searchParams.set("limit", "8");
+    url.searchParams.set("limit", "10");
     url.searchParams.set("countrycodes", "us");
     url.searchParams.set("bounded", "1");
     url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
@@ -331,22 +352,22 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
       cache: "no-store",
     });
     if (resp.ok) {
-      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[]);
+      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[], streetFrag);
       if (suggestions.length) return suggestions;
     }
   } catch { /* fall through */ }
 
-  // 3. Browser-side Photon fallback.
+  // 3. Browser-side Photon fallback (with street-fragment post-filter).
   try {
     const photonQ = q.toLowerCase().includes("chicago") ? q : `${q} Chicago`;
     const url = new URL("https://photon.komoot.io/api/");
     url.searchParams.set("q", photonQ);
-    url.searchParams.set("limit", "8");
+    url.searchParams.set("limit", "10");
     url.searchParams.set("bbox", _PHOTON_BBOX);
     url.searchParams.set("lang", "en");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (resp.ok) {
-      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? []);
+      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? [], streetFrag);
     }
   } catch { /* */ }
 

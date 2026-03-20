@@ -80,7 +80,23 @@ export default function HomePage() {
       { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
-      { label: "Sources", value: "Chicago permits • Street closures" },
+      { label: "Sources", value: (() => {
+        const IMPACT_LABELS: Record<string, string> = {
+          closure_full: "Full street closure",
+          closure_multi_lane: "Multi-lane closure",
+          closure_single_lane: "Lane closure",
+          demolition: "Demolition permit",
+          construction: "Construction permit",
+          light_permit: "Minor permit",
+        };
+        const signals = result.nearby_signals ?? [];
+        const details = result.top_risk_details ?? [];
+        const types = new Set<string>();
+        for (const s of signals) if (s.impact_type) types.add(s.impact_type);
+        for (const d of details) if (d.impact_type) types.add(d.impact_type);
+        if (types.size === 0) return "Chicago permits • Street closures";
+        return [...types].map(t => IMPACT_LABELS[t] ?? t).join(" • ");
+      })() },
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [isDemoResult, result, scoredAt]);
@@ -478,6 +494,7 @@ export default function HomePage() {
                 <span className="status-badge">{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
+                  {" "}
                   <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
