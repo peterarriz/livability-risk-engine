@@ -35,6 +35,7 @@ type RiskCardModel = {
   rationale: string;
   evidence: string;
   chips: string[];
+  rawText: string;        // humanized full signal text for expanded detail
 };
 
 type TimelineSummary = {
@@ -227,6 +228,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
       rationale: deriveDriverRationale(humanized),
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
+      rawText: humanized,
     };
   });
 }
@@ -503,38 +505,97 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
 
 export function TopRiskGrid({ result }: TopRiskGridProps) {
   const riskCards = useMemo(() => buildRiskCards(result), [result]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const expandedCard = riskCards.find((r) => r.id === expandedId) ?? null;
+
+  function toggle(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
 
   return (
-    <div className="risk-card-grid">
-      {riskCards.map((risk, index) => (
-        <article
-          key={risk.id}
-          className="risk-card card-entrance"
-          style={{ animationDelay: `${index * 90}ms` }}
+    <div className="risk-card-section">
+      <div className="risk-card-grid">
+        {riskCards.map((risk, index) => {
+          const isOpen = expandedId === risk.id;
+          return (
+            <article
+              key={risk.id}
+              className={`risk-card card-entrance${isOpen ? " risk-card--active" : ""}`}
+              style={{ animationDelay: `${index * 90}ms` }}
+            >
+              <div className="risk-card-head">
+                <div className="risk-card-head-text">
+                  <p className="risk-card-index">{risk.eyebrow}</p>
+                  <h3>{risk.title}</h3>
+                </div>
+                <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
+              </div>
+
+              <div className="risk-chip-row" aria-label="Driver metadata">
+                {risk.chips.map((chip) => (
+                  <span key={chip} className="risk-chip">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="risk-card-expand-btn"
+                onClick={() => toggle(risk.id)}
+                aria-expanded={isOpen}
+                aria-controls={`risk-detail-${index}`}
+              >
+                {isOpen ? "Hide detail ↑" : "Show detail ↓"}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+
+      {expandedCard && (
+        <div
+          className="risk-card-detail card-entrance"
+          id={`risk-detail-${riskCards.findIndex((r) => r.id === expandedCard.id)}`}
+          role="region"
+          aria-label={`Detail for ${expandedCard.eyebrow}`}
         >
-          <div className="risk-card-head">
+          <div className="risk-detail-header">
             <div>
-              <p className="risk-card-index">{risk.eyebrow}</p>
-              <h3>{risk.title}</h3>
+              <p className="risk-card-index">{expandedCard.eyebrow}</p>
+              <h3 className="risk-detail-title">{expandedCard.title}</h3>
             </div>
-            <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
+            <span className={`impact-badge impact-badge--${expandedCard.impact.toLowerCase()}`}>
+              {expandedCard.impact} impact
+            </span>
           </div>
-          <p className="risk-card-rationale">{risk.rationale}</p>
-          <div className="risk-chip-row" aria-label="Driver metadata">
-            {risk.chips.map((chip) => (
-              <span key={chip} className="risk-chip">
-                {chip}
-              </span>
-            ))}
-          </div>
-          <dl className="risk-card-meta">
-            <div>
-              <dt>Evidence</dt>
-              <dd>{risk.evidence}</dd>
+
+          <div className="risk-detail-body">
+            <div className="risk-detail-section">
+              <p className="risk-detail-label">Signal detail</p>
+              <p className="risk-detail-text">{expandedCard.rawText}</p>
             </div>
-          </dl>
-        </article>
-      ))}
+
+            <div className="risk-detail-section">
+              <p className="risk-detail-label">Why this matters</p>
+              <p className="risk-detail-text">{expandedCard.rationale}</p>
+            </div>
+
+            <div className="risk-detail-section">
+              <p className="risk-detail-label">Data source</p>
+              <p className="risk-detail-text">{expandedCard.evidence}</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="risk-detail-close"
+            onClick={() => setExpandedId(null)}
+          >
+            Close ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
