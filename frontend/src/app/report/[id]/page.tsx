@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ExplanationPanel,
+  getConfidenceReasons,
   getMeaningInsights,
   ScoreHero,
   SeverityMeters,
@@ -49,6 +50,11 @@ export default function ReportPage({ params }: { params: { id: string } }) {
 
   const meaningInsights = useMemo(
     () => (report ? getMeaningInsights(report) : []),
+    [report],
+  );
+
+  const confidenceReasons = useMemo(
+    () => (report ? getConfidenceReasons(report) : []),
     [report],
   );
 
@@ -157,7 +163,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
               <SeverityMeters
                 severity={report.severity}
                 confidence={report.confidence}
-                confidenceReasons={[]}
+                confidenceReasons={confidenceReasons}
               />
             </Card>
             <Card className="detail-card supporting-card">

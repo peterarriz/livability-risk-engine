@@ -380,14 +380,13 @@ export default function HomePage() {
               : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
           headerAction={workspaceMode && result ? (
-            <button
-              type="button"
+            <a
+              href="#pricing-section"
               className="icon-btn"
               title="PDF export is available on the Pro plan"
-              onClick={() => alert("PDF export is available on the Pro plan — see Pricing for details.")}
             >
               ↓ Export PDF
-            </button>
+            </a>
           ) : undefined}
         >
           <div id="score-section" className="anchor-target" />
@@ -443,7 +442,15 @@ export default function HomePage() {
                     <button type="button" className="action-btn" onClick={() => setShowSaveModal(true)}>
                       Save report
                     </button>
-                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="#"
+                      className="compare-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        inputRef.current?.focus();
+                        inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
+                    >
                       Compare with another address →
                     </a>
                   </div>
@@ -597,8 +604,8 @@ export default function HomePage() {
                     type="button"
                     className="example-chip"
                     onClick={() => {
-                      setAddress(example);
-                      window.location.hash = "#score-section";
+                      handleSuggestionSelect(example);
+                      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
                     }}
                   >
                     {example}
