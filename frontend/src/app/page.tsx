@@ -188,7 +188,18 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
-    fetchHistory(result.address, 20).then(setScoreHistory);
+    fetchHistory(result.address, 20).then((r) =>
+      setScoreHistory(
+        r
+          ? r.history.map((h) => ({
+              disruption_score: h.disruption_score,
+              confidence: h.confidence,
+              mode: h.mode as import("../lib/api").ScoreMode,
+              created_at: h.scored_at,
+            }))
+          : [],
+      ),
+    );
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
