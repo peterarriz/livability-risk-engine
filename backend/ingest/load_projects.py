@@ -71,14 +71,22 @@ try:
 except ImportError:
     HAS_PSYCOPG2 = False
 
-from backend.models.project import Project, normalize_closure, normalize_permit
+from backend.models.project import (
+    Project,
+    normalize_closure,
+    normalize_cook_county_permit,
+    normalize_idot_project,
+    normalize_permit,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERMITS_FILE  = Path("data/raw/building_permits.json")
-DEFAULT_CLOSURES_FILE = Path("data/raw/street_closures.json")
+DEFAULT_PERMITS_FILE       = Path("data/raw/building_permits.json")
+DEFAULT_CLOSURES_FILE      = Path("data/raw/street_closures.json")
+DEFAULT_IDOT_FILE          = Path("data/raw/idot_road_projects.json")
+DEFAULT_COOK_COUNTY_FILE   = Path("data/raw/cook_county_permits.json")
 
 # Statuses we consider worth loading into the scoring table.
 # Completed records are skipped to keep the projects table focused
@@ -454,6 +462,74 @@ def load_closures(
     return stats
 
 
+def load_idot_projects(
+    idot_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load IDOT road construction projects from staging file into projects table."""
+    print("\nLoading IDOT road projects...")
+    stats = LoadStats(source="idot_road_projects")
+
+    raw = read_staging_file(idot_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_idot_project, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "idot_road_projects")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
+def load_cook_county_permits(
+    cook_county_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Cook County building permits from staging file into projects table."""
+    print("\nLoading Cook County permits...")
+    stats = LoadStats(source="cook_county_permits")
+
+    raw = read_staging_file(cook_county_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_cook_county_permit, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "cook_county_permits")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
 # ---------------------------------------------------------------------------
 # DB connection
 # ---------------------------------------------------------------------------
@@ -489,9 +565,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "both"],
-        default="both",
-        help="Which source to load (default: both).",
+        choices=["permits", "closures", "idot", "cook_county", "all"],
+        default="all",
+        help="Which source to load (default: all).",
     )
     parser.add_argument(
         "--permits-file",
@@ -504,6 +580,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_CLOSURES_FILE,
         help=f"Path to street closures staging file (default: {DEFAULT_CLOSURES_FILE}).",
+    )
+    parser.add_argument(
+        "--idot-file",
+        type=Path,
+        default=DEFAULT_IDOT_FILE,
+        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_FILE}).",
+    )
+    parser.add_argument(
+        "--cook-county-file",
+        type=Path,
+        default=DEFAULT_COOK_COUNTY_FILE,
+        help=f"Path to Cook County permits staging file (default: {DEFAULT_COOK_COUNTY_FILE}).",
     )
     parser.add_argument(
         "--dry-run",
@@ -548,12 +636,20 @@ def main() -> None:
     total_pruned = 0
 
     try:
-        if args.source in ("permits", "both"):
+        if args.source in ("permits", "all"):
             stats = load_permits(args.permits_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("closures", "both"):
+        if args.source in ("closures", "all"):
             stats = load_closures(args.closures_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("idot", "all"):
+            stats = load_idot_projects(args.idot_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("cook_county", "all"):
+            stats = load_cook_county_permits(args.cook_county_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.prune_days is not None and conn is not None:

@@ -37,7 +37,7 @@ class Project:
     """
 
     project_id: str          # stable display ID: "source:source_id"
-    source: str              # 'chicago_permits' | 'chicago_closures'
+    source: str              # 'chicago_permits' | 'chicago_closures' | 'idot_road_projects' | 'cook_county_permits'
     source_id: str           # original record key
 
     # Classification — drives base weight in scoring engine
@@ -404,6 +404,246 @@ def normalize_closure(record: dict) -> Project:
         start_date=_parse_date(record.get("start_date")),
         end_date=_parse_date(record.get("end_date")),
         status=_closure_status(record),
+        address=address_str,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# IDOT road project normalization  (data-031)
+# ---------------------------------------------------------------------------
+
+_IDOT_BRIDGE_TERMS = re.compile(
+    r"\b(bridge|overpass|viaduct|underpass|culvert)\b",
+    re.IGNORECASE,
+)
+
+_IDOT_RECONSTRUCTION_TERMS = re.compile(
+    r"\b(reconstruction|reconstruct|rebuilding|rebuild|resurfacing|resurface|"
+    r"full.?depth|fdr|mill.?and.?overlay|widening|interchange)\b",
+    re.IGNORECASE,
+)
+
+_IDOT_MAINTENANCE_TERMS = re.compile(
+    r"\b(patching|crack.?seal|joint.?repair|guardrail|signage|pavement.?marking|"
+    r"landscaping|lighting|signal|striping)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_idot_project(work_type: str, description: str) -> str:
+    """
+    Assign an impact_type to an IDOT road project.
+
+    Priority order:
+    1. Bridge/overpass work (high disruption)
+    2. Reconstruction/resurfacing (medium-high disruption)
+    3. Maintenance items (low disruption)
+    4. Default: construction
+
+    Returns one of the IMPACT_* constants.
+    """
+    combined = " ".join([work_type or "", description or ""])
+
+    if _IDOT_BRIDGE_TERMS.search(combined):
+        return IMPACT_CONSTRUCTION  # Bridges close lanes but rarely full streets
+
+    if _IDOT_RECONSTRUCTION_TERMS.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    if _IDOT_MAINTENANCE_TERMS.search(combined):
+        return IMPACT_LIGHT_PERMIT
+
+    return IMPACT_CONSTRUCTION
+
+
+def _idot_status(record: dict) -> str:
+    """Derive normalized status from IDOT project dates and status field."""
+    src_status = (record.get("status") or "").lower()
+    today = date.today()
+
+    if "complet" in src_status or "close" in src_status:
+        return "completed"
+    if "cancel" in src_status:
+        return "completed"
+
+    start = _parse_date(record.get("start_date"))
+    end = _parse_date(record.get("end_date"))
+
+    if end and end < today:
+        return "completed"
+    if start and start > today:
+        return "planned"
+    if start:
+        return "active"
+
+    return "unknown"
+
+
+def _idot_address(record: dict) -> str:
+    """Build an address string from IDOT route and county fields."""
+    route = (record.get("route") or "").strip()
+    county = (record.get("county") or "").strip()
+
+    parts = []
+    if route:
+        parts.append(route)
+    if county:
+        parts.append(f"{county} County")
+    parts.append("IL")
+
+    return ", ".join(parts) if parts else "Illinois"
+
+
+def normalize_idot_project(record: dict) -> Project:
+    """
+    Normalize a raw IDOT road project record into a canonical Project.
+
+    Args:
+        record: A single dict from the raw_idot_road_projects staging file.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = (
+        record.get("project_number")
+        or record.get("source_id")
+        or ""
+    )
+    work_type = record.get("work_type", "")
+    description = record.get("project_description", "")
+
+    impact_type = _classify_idot_project(work_type, description)
+
+    # Title: route + work type for quick scanning.
+    route = (record.get("route") or "").strip()
+    county = (record.get("county") or "").strip()
+    title_parts = []
+    if route:
+        title_parts.append(route)
+    if county:
+        title_parts.append(f"({county} Co.)")
+    if work_type:
+        title_parts.append(f"— {work_type}")
+    title = " ".join(title_parts) if title_parts else f"IDOT project {source_id}"
+
+    notes = description[:200] if description else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    # Fallback: extract from nested location dict.
+    if (lat is None or lon is None) and isinstance(record.get("location"), dict):
+        loc = record["location"]
+        lat = _safe_float(loc.get("latitude"))
+        lon = _safe_float(loc.get("longitude"))
+
+    address_str = _idot_address(record)
+
+    return Project(
+        project_id=f"idot_road_projects:{source_id}",
+        source="idot_road_projects",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("start_date") or record.get("contract_date")),
+        end_date=_parse_date(record.get("end_date")),
+        status=_idot_status(record),
+        address=address_str,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cook County permit normalization  (data-031)
+# ---------------------------------------------------------------------------
+
+def normalize_cook_county_permit(record: dict) -> Project:
+    """
+    Normalize a raw Cook County building permit record into a canonical Project.
+
+    Cook County permits use a similar schema to Chicago permits (both Socrata),
+    so we reuse the Chicago permit classification logic with a county-aware
+    address builder.
+
+    Args:
+        record: A single dict from the raw_cook_county_permits staging file.
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = (
+        record.get("permit_number")
+        or record.get("source_id")
+        or ""
+    )
+    permit_type = record.get("permit_type", "")
+    work_desc = record.get("work_description", "")
+
+    impact_type = _classify_permit(permit_type, work_desc)
+
+    # Build address — Cook County records may have a full_address field.
+    full_addr = (record.get("full_address") or "").strip()
+    if full_addr:
+        # Ensure state suffix.
+        city = (record.get("city") or "").strip()
+        if city and city.upper() not in full_addr.upper():
+            address_str = f"{full_addr}, {city}, IL"
+        else:
+            address_str = full_addr if ", IL" in full_addr else f"{full_addr}, IL"
+    else:
+        # Assemble from parts.
+        city = (record.get("city") or "").strip()
+        parts = [
+            record.get("street_number", ""),
+            record.get("street_direction", ""),
+            record.get("street_name", ""),
+        ]
+        street = " ".join(p.strip() for p in parts if p and p.strip())
+        if street and city:
+            address_str = f"{street}, {city}, IL"
+        elif street:
+            address_str = f"{street}, Cook County, IL"
+        else:
+            address_str = "Cook County, IL"
+
+    # Title: short label.
+    title_parts = []
+    if permit_type:
+        short_type = re.sub(r"^PERMIT\s*-\s*", "", permit_type, flags=re.IGNORECASE).strip()
+        title_parts.append(short_type)
+    if address_str not in ("Cook County, IL",):
+        title_parts.append(f"at {address_str}")
+    title = " ".join(title_parts) if title_parts else f"Cook County permit {source_id}"
+
+    notes = work_desc[:200] if work_desc else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    if (lat is None or lon is None) and isinstance(record.get("location"), dict):
+        loc = record["location"]
+        lat = _safe_float(loc.get("latitude"))
+        lon = _safe_float(loc.get("longitude"))
+
+    # Derive status from issue/expiration dates (same logic as Chicago permits).
+    status = _permit_status(record)
+
+    return Project(
+        project_id=f"cook_county_permits:{source_id}",
+        source="cook_county_permits",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("issue_date") or record.get("application_start_date")),
+        end_date=_parse_date(record.get("expiration_date")),
+        status=status,
         address=address_str,
         latitude=lat,
         longitude=lon,

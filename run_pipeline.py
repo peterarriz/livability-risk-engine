@@ -59,12 +59,22 @@ _ENV = {**os.environ, "PYTHONPATH": _PROJECT_ROOT + os.pathsep + os.environ.get(
 
 STEPS = [
     {
-        "name": "Fetch building permits",
+        "name": "Fetch Chicago building permits",
         "cmd": [sys.executable, "backend/ingest/building_permits.py"],
     },
     {
-        "name": "Fetch street closures",
+        "name": "Fetch Chicago street closures",
         "cmd": [sys.executable, "backend/ingest/street_closures.py"],
+    },
+    {
+        "name": "Fetch IDOT road projects (statewide IL)",
+        "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
+        "skip_key": "skip_statewide",
+    },
+    {
+        "name": "Fetch Cook County permits",
+        "cmd": [sys.executable, "backend/ingest/cook_county_permits.py"],
+        "skip_key": "skip_statewide",
     },
     {
         "name": "Fill missing geocoordinates",
@@ -127,6 +137,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-geocode",
         action="store_true",
         help="Skip the geocode_fill step (use if staging files already have coordinates).",
+    )
+    parser.add_argument(
+        "--skip-statewide",
+        action="store_true",
+        help="Skip IDOT and Cook County ingest steps (Chicago-only pipeline).",
     )
     parser.add_argument(
         "--dry-run",
