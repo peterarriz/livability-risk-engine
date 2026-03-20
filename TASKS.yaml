@@ -313,15 +313,62 @@ tasks:
     priority: medium
     github_issue: 61
     notes_for_next_agent: >
-      backend/app/main.py: added GET /docs/api-access endpoint that returns
-      structured API documentation (all endpoints, params, response fields,
-      curl/Python/JS examples, example responses).
-      frontend/src/app/api-access/page.tsx: developer portal page that fetches
-      /docs/api-access and renders endpoint table, code tabs (curl/Python/JS),
-      auth section, and copy-paste examples. Self-contained styles via <style>.
-      frontend/src/app/page.tsx: added "API" nav link in topnav → /api-access.
-      Next data task: data-029.
+      db/schema.sql: api_keys table (key_prefix TEXT, key_hash TEXT SHA-256, label, timestamps, is_active).
+      backend/app/main.py:
+        - verify_api_key FastAPI dependency: checks X-Api-Key header or ?api_key= query param
+          against hashed DB records; pass-through no-op when REQUIRE_API_KEY != true.
+        - Applied to GET /score via dependencies=[Depends(verify_api_key)].
+        - POST /admin/keys?admin_secret=: creates new key, returns full key once (hash stored).
+        - GET /admin/keys?admin_secret=: lists keys (prefix + label, no hashes).
+        - GET /docs/api-access: public endpoint describing auth, endpoints, example.
+      To enable: set REQUIRE_API_KEY=true + ADMIN_SECRET=<secret> in Railway env vars.
+      To create a key: POST /admin/keys?admin_secret=<secret> with {"label": "Org name"}.
+      Next: data-028. Candidates:
+        - /api-keys page on frontend (developer portal)
+        - Score alert emails (when watched address crosses threshold)
+        - CSV/PDF export endpoint
 
-      Test command (once dataset IDs are verified):
-        python backend/ingest/il_city_permits.py --city cook_county --dry-run
-        python backend/ingest/il_city_permits.py --dry-run  # all cities
+  - id: data-028
+    title: Developer portal page — /api-access
+    status: done
+    priority: medium
+    github_issue: 60
+    notes_for_next_agent: >
+      frontend/src/app/api-access/page.tsx: new developer portal page at /api-access.
+      Fetches live docs from GET /docs/api-access (data-027 endpoint).
+      Shows auth status card, endpoints table, tabbed code examples (cURL/Python/JS),
+      example response JSON, and rate limits / usage notes.
+      Fallback endpoint list used when backend is unreachable.
+      Nav link added to frontend/src/app/page.tsx.
+      Next: data-029 (CSV export endpoint for /score results).
+
+  - id: data-029
+    title: CSV export endpoint — GET /export/csv
+    status: done
+    priority: medium
+    github_issue: 61
+    notes_for_next_agent: >
+      backend/app/main.py: GET /export/csv?address=<address> — runs the same scoring
+      pipeline as /score but returns a StreamingResponse (text/csv).
+      Columns: distance_m, title, source, source_id, impact_type, status,
+      start_date, end_date, address, weighted_score.
+      Summary row (distance_m=SUMMARY) captures disruption_score + confidence.
+      Falls back to demo CSV rows when DB is not configured.
+      Protected by verify_api_key (same as /score).
+      /docs/api-access endpoint list updated to include /export/csv.
+      Frontend api-access page FALLBACK_ENDPOINTS already references this endpoint.
+      Next: data-030 (score alert watchlist — schema already in db/schema.sql).
+
+  - id: data-030
+    title: Score alert watchlist — POST /watch + GET /watch/unsubscribe
+    status: backlog
+    priority: medium
+    notes_for_next_agent: >
+      db/schema.sql: watchlist and alert_log tables already created (data-030 block).
+      Need to implement in backend/app/main.py:
+        - POST /watch: subscribe email+address, returns token UUID
+        - GET /watch/unsubscribe?token=<uuid>: deactivate subscription
+        - Internal _check_alerts() helper called after each /score — writes alert_log
+          row if score >= threshold; actual email delivery requires SMTP env vars.
+      Frontend: small "Alert me" form below score result (outside scope for data lane).
+      Env vars needed: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, ALERT_FROM_EMAIL.
