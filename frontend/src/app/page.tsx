@@ -39,7 +39,9 @@ export default function HomePage() {
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [scoredAt, setScoredAt] = useState<Date | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
+  const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
   // Only fetch suggestions after the user has actually typed — prevents the
@@ -65,13 +67,17 @@ export default function HomePage() {
   type DetailItem = { label: string; value: string; isConfidence?: boolean };
   const supportingDetails = useMemo((): DetailItem[] => {
     if (!result) return [];
+    const timeStr = scoredAt
+      ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
+      : null;
     return [
       { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: "Chicago permits • Street closures" },
+      ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
-  }, [isDemoResult, result]);
+  }, [isDemoResult, result, scoredAt]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -79,9 +85,31 @@ export default function HomePage() {
         setShowSuggestions(false);
         setActiveSuggestionIndex(-1);
       }
+      if (historyShellRef.current && !historyShellRef.current.contains(event.target as Node)) {
+        setShowHistory(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowSaveModal(false);
+        setShowHistory(false);
+      }
+      if (
+        event.key === "/" &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes((document.activeElement as HTMLElement)?.tagName ?? "")
+      ) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
@@ -112,6 +140,12 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
+
+  useEffect(() => {
+    document.title = result
+      ? `${result.address} — Livability Risk Engine`
+      : "Livability Risk Engine";
+  }, [result]);
 
   useEffect(() => {
     if (!result) {
@@ -168,6 +202,7 @@ export default function HomePage() {
     try {
       const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
+      setScoredAt(new Date());
       setScoreSource(scoreResult.source);
       if ("note" in scoreResult && scoreResult.note) {
         setStatusNote(scoreResult.note);
@@ -199,6 +234,7 @@ export default function HomePage() {
 
   return (
     <main className={`page ${workspaceMode ? "page--workspace" : "page--explore"}`}>
+      <a href="#address" className="skip-link">Skip to address search</a>
       <Container>
         <Header className={`topbar ${workspaceMode ? "topbar--workspace" : ""}`}>
           <div className="brand-lockup">
@@ -211,7 +247,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <nav className="topnav" aria-label="Primary">
+          <nav className={`topnav${workspaceMode ? " topnav--workspace" : ""}`} aria-label="Primary">
             {workspaceMode ? <span className="topnav-label">Viewing</span> : null}
             {workspaceMode ? (
               <a href="#" className="topnav-address" onClick={(e: React.MouseEvent) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} title="Scroll to top">
@@ -219,7 +255,7 @@ export default function HomePage() {
               </a>
             ) : null}
             {workspaceMode && addressHistory.length > 1 ? (
-              <div className="history-dropdown-shell">
+              <div className="history-dropdown-shell" ref={historyShellRef}>
                 <button
                   type="button"
                   className="history-btn"
@@ -242,9 +278,9 @@ export default function HomePage() {
                 ) : null}
               </div>
             ) : null}
-            <a href="#score-section">Score</a>
-            <a href="#signals-section">Signals</a>
-            <a href="#examples-section">Examples</a>
+            <a href="#score-section" className="topnav-aux-link">Score</a>
+            <a href="#signals-section" className="topnav-aux-link">Signals</a>
+            <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
           </nav>
         </Header>
@@ -295,7 +331,24 @@ export default function HomePage() {
                     aria-activedescendant={activeSuggestionId}
                     aria-autocomplete="list"
                     required
+                    style={address.length > 0 && !isLoading ? { paddingRight: "44px" } : undefined}
                   />
+                  {address.length > 0 && !isLoading && (
+                    <button
+                      type="button"
+                      className="input-clear-btn"
+                      aria-label="Clear address"
+                      onClick={() => {
+                        setAddress("");
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        hasUserTyped.current = false;
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                   {hasSuggestions ? (
                     <ul id="address-suggestions" className="suggestion-list" role="listbox" aria-label="Address suggestions">
                       {suggestions.map((suggestion, index) => (
@@ -390,6 +443,7 @@ export default function HomePage() {
           ) : undefined}
         >
           <div id="score-section" className="anchor-target" />
+          <div aria-live="polite" aria-atomic="false">
           {isLoading ? (
             <section className="results results--loading">
               <Card className="score-card skeleton-card loading-card">
@@ -549,6 +603,7 @@ export default function HomePage() {
               </Card>
             </section>
           )}
+          </div>
         </Section>
 
         <Section
@@ -645,7 +700,13 @@ export default function HomePage() {
               onChange={(e) => setSaveEmail(e.target.value)}
               aria-label="Email address"
             />
-            <button type="button" className="modal-cta">Create free account</button>
+            <button
+              type="button"
+              className="modal-cta"
+              disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saveEmail)}
+            >
+              Create free account
+            </button>
             <p className="modal-fine-print">No credit card required. Free plan includes unlimited lookups.</p>
           </div>
         </div>
