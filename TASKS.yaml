@@ -213,24 +213,8 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-021
-    title: Shareable report pages — /save endpoint + /report/[id] page
-    status: done
-    priority: high
-    github_issue: 53
-    notes_for_next_agent: >
-      Implements persistent shareable report URLs (fixes dead "Save report" CTA).
-      Changes:
-        - db/schema.sql: added `reports` table (UUID PK, address, score_json JSONB, created_at)
-        - backend/app/main.py: POST /save (store report), GET /report/{id} (fetch report)
-        - frontend/src/lib/api.ts: saveReport(), fetchReport(), SaveReportResponse, FetchReportResponse types
-        - frontend/src/app/report/[id]/page.tsx: new shareable report page (renders saved score)
-        - frontend/src/app/page.tsx: Save Report modal wired — posts to /save, shows copyable link
-      When DB is not configured: /save returns 503 with a clear message; modal shows the error.
-      Next data task: data-025.
-
-  - id: data-022
-    title: Persist address history to localStorage
+  - id: data-025
+    title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
     github_issue: 54

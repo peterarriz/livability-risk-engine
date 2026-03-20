@@ -69,6 +69,7 @@ IMPACT_MULTI_LANE       = "closure_multi_lane"
 IMPACT_SINGLE_LANE      = "closure_single_lane"
 IMPACT_DEMOLITION       = "demolition"
 IMPACT_CONSTRUCTION     = "construction"
+IMPACT_ROAD_CONSTRUCTION = "road_construction"
 IMPACT_LIGHT_PERMIT     = "light_permit"
 
 # Base weights per docs/03_scoring_model.md
@@ -77,8 +78,9 @@ BASE_WEIGHTS: dict[str, int] = {
     IMPACT_MULTI_LANE:    38,
     IMPACT_SINGLE_LANE:   28,
     IMPACT_DEMOLITION:    24,
-    IMPACT_CONSTRUCTION:  16,
-    IMPACT_LIGHT_PERMIT:   8,
+    IMPACT_CONSTRUCTION:      16,
+    IMPACT_ROAD_CONSTRUCTION: 20,
+    IMPACT_LIGHT_PERMIT:       8,
 }
 
 # Severity hints derived from impact type for normalization pre-computation.
@@ -87,8 +89,9 @@ IMPACT_SEVERITY: dict[str, str] = {
     IMPACT_MULTI_LANE:    "HIGH",
     IMPACT_SINGLE_LANE:   "MEDIUM",
     IMPACT_DEMOLITION:    "HIGH",
-    IMPACT_CONSTRUCTION:  "MEDIUM",
-    IMPACT_LIGHT_PERMIT:  "LOW",
+    IMPACT_CONSTRUCTION:      "MEDIUM",
+    IMPACT_ROAD_CONSTRUCTION: "MEDIUM",
+    IMPACT_LIGHT_PERMIT:      "LOW",
 }
 
 
@@ -731,5 +734,26 @@ if __name__ == "__main__":
     lp = normalize_permit(light_permit)
     print(f"Light permit → impact_type: {lp.impact_type} (expected: light_permit)")
     print(f"              severity_hint: {lp.severity_hint} (expected: LOW)\n")
+
+    test_idot = {
+        "row_id": "42",
+        "contract_number": "68B42",
+        "construction_type": "Road Closed",
+        "route": "S001",
+        "location": "CRETE-RICHTON RD TO UNION AVE-RR",
+        "near_town": "CRETE",
+        "lanes_ramps_closed": "2",
+        "start_date": "2026-02-26T12:00:00+00:00",
+        "end_date": "2026-04-01T12:00:00+00:00",
+        "latitude": 41.460073,
+        "longitude": -87.634594,
+    }
+
+    idot = normalize_idot_road_project(test_idot)
+    print(f"IDOT road → impact_type: {idot.impact_type} (expected: closure_full)")
+    print(f"            severity_hint: {idot.severity_hint} (expected: HIGH)")
+    print(f"            title: {idot.title}")
+    print(f"            status: {idot.status}")
+    print(f"            project_id: {idot.project_id}\n")
 
     print("Smoke test complete.")

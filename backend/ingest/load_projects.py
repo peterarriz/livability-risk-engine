@@ -6,16 +6,17 @@ lane: data
 DB loader — reads raw staging JSON files and upserts normalized
 Project records into the canonical `projects` table.
 
-This is the bridge between the ingest scripts (data-002, data-004)
+This is the bridge between the ingest scripts (data-002, data-004, data-014)
 and the scoring engine (data-009). Once this runs successfully,
 the /score endpoint returns real data.
 
 End-to-end pipeline:
   1. python backend/ingest/building_permits.py    → data/raw/building_permits.json
   2. python backend/ingest/street_closures.py     → data/raw/street_closures.json
-  3. python backend/ingest/geocode_fill.py        → fills missing lat/lon in staging files
-  4. python backend/ingest/load_projects.py       → upserts into `projects` table
-  5. uvicorn app.main:app --reload                → live /score endpoint
+  3. python backend/ingest/idot_road_projects.py  → data/raw/idot_road_projects.json
+  4. python backend/ingest/geocode_fill.py        → fills missing lat/lon in staging files
+  5. python backend/ingest/load_projects.py       → upserts into `projects` table
+  6. uvicorn app.main:app --reload                → live /score endpoint
 
 Usage:
   # Load both sources
