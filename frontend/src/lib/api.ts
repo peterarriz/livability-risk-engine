@@ -450,16 +450,13 @@ export async function fetchHistory(
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
-  // No backend URL means the frontend must fabricate the approved demo response.
+  // No backend URL — throw so the caller surfaces a clear error rather than
+  // silently showing demo data the user didn't ask for.
   if (!apiBaseUrl) {
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_api_not_configured",
-        "Showing the approved demo scenario while the live backend URL is being configured.",
-      ),
-    };
+    logFrontendFallback("frontend_api_not_configured", "NEXT_PUBLIC_API_URL not set");
+    throw new ApiError(
+      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to enable live scoring.",
+    );
   }
 
   const url = buildApiUrl("/score");
@@ -467,56 +464,42 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-  } catch {
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_network_error",
-        "Showing the approved demo scenario while live scoring is temporarily unavailable.",
-      ),
-    };
+    response = await fetch(url.toString(), { cache: "no-store" });
+  } catch (err) {
+    logFrontendFallback("frontend_network_error", String(err));
+    throw new ApiError(
+      "Could not reach the scoring backend. Check your connection or try again in a moment.",
+    );
   }
 
   if (!response.ok) {
     console.warn(`[LRE] backend score request failed: status=${response.status}`);
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_backend_error",
-        response.status >= 500
-          ? "Showing the approved demo scenario while the scoring service is temporarily unavailable."
-          : "Showing the approved demo scenario because this lookup could not be completed right now.",
-      ),
-    };
+    if (response.status === 404) {
+      throw new ApiError("Address not found. Try including a ZIP code or nearby intersection.");
+    }
+    throw new ApiError(
+      response.status >= 500
+        ? "The scoring service returned an error. Try again in a moment."
+        : `Scoring request failed (${response.status}).`,
+    );
   }
 
-  try {
-    const score = (await response.json()) as ScoreResponse;
-    if (score.fallback_reason) {
-      console.log("[LRE] backend fallback_reason:", score.fallback_reason);
-    }
+  const score = (await response.json()) as ScoreResponse;
+  if (score.fallback_reason) {
+    console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+  }
 
-    // Historically, repeated 62s usually meant demo fallback was active somewhere.
-    // Prefer the backend's explicit mode when present so a 200 demo response is not
-    // mislabeled as a live result by the frontend fetch layer.
-    const source: ScoreSource = score.mode ?? "live";
-    if (source === "demo") {
-      return { score, source: "demo" };
-    }
-    return { score, source: "live" };
-  } catch {
+  // When the backend explicitly marks this as demo, pass that through.
+  // This is the backend's intentional decision (e.g. DB not yet configured).
+  const source: ScoreSource = score.mode ?? "live";
+  if (source === "demo") {
     return {
-      score: buildDemoScore(address),
+      score,
       source: "demo",
-      note: logFrontendFallback(
-        "frontend_invalid_response",
-        "Showing the approved demo scenario because the scoring response could not be validated.",
-      ),
+      note: score.fallback_reason === "db_not_configured"
+        ? "Backend is live but the database is not yet connected — showing sample data."
+        : undefined,
     };
   }
+  return { score, source: "live" };
 }
