@@ -550,6 +550,69 @@ def normalize_idot_road_project(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
+# Illinois city / Cook County permit normalization  (data-033)
+# ---------------------------------------------------------------------------
+# Handles permits from Cook County and additional IL cities ingested via
+# backend/ingest/il_city_permits.py.  Field names have already been mapped
+# to a consistent internal schema by normalize_raw_record() in that module.
+
+def normalize_il_city_permit(record: dict) -> Project:
+    """
+    Normalize a pre-mapped Illinois city/county permit record into a
+    canonical Project.
+
+    Args:
+        record: A dict produced by il_city_permits.normalize_raw_record().
+                Keys are always the internal field names (source_key, city_name,
+                source_id, permit_type, description, issue_date, …).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_key = record.get("source_key", "il_city")
+    city_name  = record.get("city_name", "Illinois")
+    source_id  = record.get("source_id", "")
+
+    permit_type = record.get("permit_type", "") or ""
+    description = record.get("description", "") or ""
+
+    impact_type = _classify_permit(permit_type, description)
+
+    # Title: strip "PERMIT - " prefix for brevity, append city if useful.
+    short_type = re.sub(r"^PERMIT\s*-\s*", "", permit_type, flags=re.IGNORECASE).strip()
+    address_raw = (record.get("address") or "").strip()
+    address_str = f"{address_raw}, {record.get('city_il', city_name + ', IL')}" if address_raw else f"{city_name}, IL"
+
+    title_parts = []
+    if short_type:
+        title_parts.append(short_type)
+    if address_raw:
+        title_parts.append(f"at {address_raw}")
+    title = " ".join(title_parts) if title_parts else f"{city_name} permit {source_id}"
+
+    notes = description[:200] if description else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"{source_key}:{source_id}",
+        source=source_key,
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("issue_date")),
+        end_date=_parse_date(record.get("expiration_date")),
+        status=_permit_status(record),
+        address=address_str,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
