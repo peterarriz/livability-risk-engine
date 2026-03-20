@@ -600,9 +600,20 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
+  if (riskCards.length === 0) {
+    return (
+      <div className="risk-no-signals">
+        <p className="risk-no-signals-kicker">No disruptions detected</p>
+        <p>No active construction or closure signals were found near this address at the time of lookup. The surrounding area appears clear for the current planning window.</p>
+      </div>
+    );
+  }
+
+  const colClass = riskCards.length < 3 ? ` risk-card-grid--${riskCards.length}col` : "";
+
   return (
     <div className="risk-card-section">
-      <div className="risk-card-grid">
+      <div className={`risk-card-grid${colClass}`}>
         {riskCards.map((risk, index) => {
           const isOpen = expandedId === risk.id;
           return (

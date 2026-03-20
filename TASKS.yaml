@@ -213,162 +213,194 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-025
-    title: Score history table + sparkline trend (data layer)
-    status: done
-    priority: medium
-    github_issue: 58
-    notes_for_next_agent: >
-      Backend: GET /neighborhood/<slug> returns projects within bbox + metadata.
-               GET /neighborhoods returns list of all 8 neighborhoods.
-               8 bounding boxes defined in _NEIGHBORHOODS dict in backend/app/main.py.
-               Falls back to empty project list when DB is not configured.
-      Frontend: frontend/src/app/neighborhood/[slug]/page.tsx — Leaflet map with
-               circle markers colored by impact_type, project list with color-coded
-               left border, neighborhood summary bar.
-               fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
-      Next: Consider adding a /neighborhoods index page and linking from the homepage.
+# ---------------------------------------------------------------------------
+# App lane — product / UX tasks
+# Lane: app
+# Format mirrors data lane above.
+# ---------------------------------------------------------------------------
 
-  - id: data-033
-    title: Expand Illinois data coverage — Cook County permits, additional cities, all IDOT districts
-    status: in-progress
+  - id: app-009
+    title: Fix 4 small UX bugs (confidence reasons, alert, demo chips, compare link)
+    status: done
     priority: high
-    github_issue: 67
+    github_issue: ~
     notes_for_next_agent: >
-      Script: backend/ingest/il_city_permits.py.
-      Config-driven Socrata ingest for Cook County + 6 IL cities.
-      Output: data/raw/il_city_permits_<source_key>.json per city.
-      Normalization: normalize_il_city_permit() in backend/models/project.py.
-      Wired into load_projects.py (load_il_city_permits, --source il_cities)
-      and run_pipeline.py (new step 4, --skip-il-cities flag).
-      IDOT already fetches all districts (WHERE 1=1, no district filter needed).
+      Committed on branch claude/improve-livability-ux-i8yCL.
+      1. Report page now calls getConfidenceReasons() instead of passing [].
+      2. Export PDF button is now an <a href="#pricing-section"> not alert().
+      3. Demo section chips use handleSuggestionSelect + scrollIntoView.
+      4. Compare link focuses + scrolls to address input.
 
-  - id: data-035
-    title: Find and implement additional Illinois data sources
+  - id: app-010
+    title: Fix icon-btn anchor tag missing text-decoration none
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      After app-009, the "Export PDF" button is an <a> using class icon-btn.
+      The .icon-btn CSS was written for <button> elements — it does not set
+      text-decoration: none or display: inline-flex, so some browsers will
+      render a visible underline and the layout may shift.
+      Fix: add text-decoration: none and ensure display: inline-flex to
+      .icon-btn in globals.css, and audit any other .action-btn usage on <a>.
+
+  - id: app-011
+    title: Escape key closes save report modal
+    status: done
+    priority: high
+    notes_for_next_agent: >
+      The save modal (showSaveModal) in page.tsx has no Escape key handler.
+      Keyboard users cannot dismiss it without clicking the close button.
+      Fix: add a useEffect in page.tsx that listens for keydown "Escape"
+      and calls setShowSaveModal(false) when the modal is open.
+      Also add email validation before enabling the CTA button so it is not
+      always clickable regardless of input.
+
+  - id: app-012
+    title: Risk card grid empty columns when fewer than 3 risks
     status: done
     priority: medium
-    github_issue: 72
     notes_for_next_agent: >
-      Sources implemented:
-        - Chicago Traffic Crashes (IMPLEMENTED):
-            Script: backend/ingest/chicago_traffic_crashes.py
-            Output: data/raw/chicago_traffic_crashes.json
-            Dataset: data.cityofchicago.org / 85ca-t3if  ← verified, very well known
-            Normalizer: normalize_traffic_crash() in backend/models/project.py
-            Loader: load_traffic_crashes() in backend/ingest/load_projects.py
-            Pipeline: run_pipeline.py step (--skip-traffic-crashes to bypass, non-fatal)
-            Filter: last 30 days; fatal → closure_full, incapacitating → closure_multi_lane,
-                    injury/tow → construction, else → light_permit
-        - Divvy Bike Station Closures (IMPLEMENTED):
-            Script: backend/ingest/chicago_divvy_stations.py
-            Output: data/raw/chicago_divvy_stations.json
-            API: GBFS — gbfs.divvybikes.com (fallback: gbfs.lyft.com/gbfs/1.1/bss_chicago/)
-            Normalizer: normalize_divvy_station() in backend/models/project.py
-            Loader: load_divvy_stations() in backend/ingest/load_projects.py
-            Pipeline: run_pipeline.py step (--skip-divvy to bypass, non-fatal)
-            Only out-of-service stations (is_installed=0 OR both is_renting=0 AND is_returning=0)
-            impact_type: light_permit (LOW severity)
-        - Chicago Sidewalk Café Permits (ADDED TO il_city_permits.py):
-            source_key: chicago_sidewalk_cafes
-            Domain: data.cityofchicago.org, dataset_id: nkez-g5sm
-            WARNING: dataset_id and field names need live verification.
-            Run: python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
-        - Chicago Excavation/ROW Permits (ADDED TO il_city_permits.py):
-            source_key: chicago_excavation
-            Domain: data.cityofchicago.org, dataset_id: qz53-sbpb
-            WARNING: dataset_id needs live verification (unconfirmed ID).
-            Run: python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
-            If wrong ID: search data.cityofchicago.org for "excavation permits"
-      Sources researched and SKIPPED (no viable public API):
-        - Illinois EPA construction notices: no Socrata API found on data.illinois.gov
-        - Chicago taxi/rideshare pickup zone changes: no public API
-        - Chicago alley closures: no confirmed Socrata dataset ID found
-      Next: Verify dataset IDs for chicago_sidewalk_cafes and chicago_excavation
-      with a live --dry-run against the Chicago data portal.
+      .risk-card-grid uses grid-template-columns: repeat(3, minmax(0, 1fr)).
+      When top_risks has 1 or 2 items the grid renders empty columns that
+      look like layout bugs.
+      Fix: in score-experience.tsx, set the grid column count dynamically
+      based on the number of risk cards (clamp to 1–3). Either via an inline
+      style or a BEM modifier class (risk-card-grid--1col, --2col, --3col).
 
-  - id: data-036
-    title: Verify new dataset IDs and run full pipeline with expanded sources
-    status: backlog
-    priority: medium
-    github_issue:
-    notes_for_next_agent: >
-      After data-035 code is merged, verify these dataset IDs with live --dry-run:
-        1. Chicago Sidewalk Cafes (nkez-g5sm):
-             python backend/ingest/il_city_permits.py --city chicago_sidewalk_cafes --dry-run
-             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=sidewalk+cafe"
-        2. Chicago Excavation Permits (qz53-sbpb):
-             python backend/ingest/il_city_permits.py --city chicago_excavation --dry-run
-             If 0 records/404: curl "https://data.cityofchicago.org/api/catalog/v1?q=excavation+permits"
-        3. Verify Divvy GBFS URL still resolves:
-             python backend/ingest/chicago_divvy_stations.py --dry-run
-        4. Run full pipeline dry-run:
-             python run_pipeline.py --dry-run
-        5. Once DATABASE_URL available, run live pipeline and confirm new sources
-           appear in projects table.
-      If a dataset ID is wrong, update CITY_CONFIGS in il_city_permits.py with correct ID.
-
-  - id: data-028
-    title: Developer portal — /api-access page with endpoint docs and code examples
+  - id: app-013
+    title: Update document.title when address result loads
     status: done
     priority: medium
-    github_issue: 61
     notes_for_next_agent: >
-      db/schema.sql: api_keys table (key_prefix TEXT, key_hash TEXT SHA-256, label, timestamps, is_active).
-      backend/app/main.py:
-        - verify_api_key FastAPI dependency: checks X-Api-Key header or ?api_key= query param
-          against hashed DB records; pass-through no-op when REQUIRE_API_KEY != true.
-        - Applied to GET /score via dependencies=[Depends(verify_api_key)].
-        - POST /admin/keys?admin_secret=: creates new key, returns full key once (hash stored).
-        - GET /admin/keys?admin_secret=: lists keys (prefix + label, no hashes).
-        - GET /docs/api-access: public endpoint describing auth, endpoints, example.
-      To enable: set REQUIRE_API_KEY=true + ADMIN_SECRET=<secret> in Railway env vars.
-      To create a key: POST /admin/keys?admin_secret=<secret> with {"label": "Org name"}.
-      Next: data-028. Candidates:
-        - /api-keys page on frontend (developer portal)
-        - Score alert emails (when watched address crosses threshold)
-        - CSV/PDF export endpoint
+      layout.tsx exports a static metadata title "Livability Risk Engine".
+      In workspace mode the browser tab gives no address context.
+      Fix: in page.tsx, add a useEffect that watches `result` and sets
+      document.title to "<address> — Livability Risk Engine" when a result
+      loads, and resets to the default when result is cleared.
+      This is a client-side update; the static metadata in layout.tsx is fine
+      for SSR and does not need to change.
 
-  - id: data-028
-    title: Developer portal page — /api-access
+  - id: app-014
+    title: Add clear button to address input
     status: done
     priority: medium
-    github_issue: 60
     notes_for_next_agent: >
-      frontend/src/app/api-access/page.tsx: new developer portal page at /api-access.
-      Fetches live docs from GET /docs/api-access (data-027 endpoint).
-      Shows auth status card, endpoints table, tabbed code examples (cURL/Python/JS),
-      example response JSON, and rate limits / usage notes.
-      Fallback endpoint list used when backend is unreachable.
-      Nav link added to frontend/src/app/page.tsx.
-      Next: data-029 (CSV export endpoint for /score results).
+      The address input has no way to clear its value without manually
+      selecting all text. Add a small × button that appears inside the input
+      shell when address.length > 0. Clicking it should clear address, reset
+      suggestions, and refocus the input. Style it with absolute positioning
+      inside .search-input-stack, similar to the suggestion dropdown anchor.
+      Do not show the clear button while isLoading.
 
-  - id: data-029
-    title: CSV export endpoint — GET /export/csv
+  - id: app-015
+    title: Accordion behavior for risk detail panels
     status: done
     priority: medium
-    github_issue: 61
     notes_for_next_agent: >
-      backend/app/main.py: GET /export/csv?address=<address> — runs the same scoring
-      pipeline as /score but returns a StreamingResponse (text/csv).
-      Columns: distance_m, title, source, source_id, impact_type, status,
-      start_date, end_date, address, weighted_score.
-      Summary row (distance_m=SUMMARY) captures disruption_score + confidence.
-      Falls back to demo CSV rows when DB is not configured.
-      Protected by verify_api_key (same as /score).
-      /docs/api-access endpoint list updated to include /export/csv.
-      Frontend api-access page FALLBACK_ENDPOINTS already references this endpoint.
-      Next: data-030 (score alert watchlist — schema already in db/schema.sql).
+      In TopRiskGrid (score-experience.tsx), each risk card has an expand
+      button. Currently all three can be open simultaneously, which pushes
+      content far down the page.
+      Fix: track a single activeCard ID in the TopRiskGrid component.
+      Opening one card closes any previously open card. The expand button
+      toggles: clicking an already-open card closes it, clicking a different
+      card opens that one and closes the previous.
 
-  - id: data-030
-    title: Score alert watchlist — POST /watch + GET /watch/unsubscribe
-    status: backlog
-    priority: medium
+  - id: app-016
+    title: Show score timestamp in Quick Read card
+    status: done
+    priority: low
     notes_for_next_agent: >
-      db/schema.sql: watchlist and alert_log tables already created (data-030 block).
-      Need to implement in backend/app/main.py:
-        - POST /watch: subscribe email+address, returns token UUID
-        - GET /watch/unsubscribe?token=<uuid>: deactivate subscription
-        - Internal _check_alerts() helper called after each /score — writes alert_log
-          row if score >= threshold; actual email delivery requires SMTP env vars.
-      Frontend: small "Alert me" form below score result (outside scope for data lane).
-      Env vars needed: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, ALERT_FROM_EMAIL.
+      The Quick Read supporting list (page.tsx) shows Data mode, Confidence,
+      Active signals, Sources — but no indication of when the score was run.
+      Fix: capture a scoredAt timestamp (new Date()) when setResult() is
+      called in submitAddress(). Add it to supportingDetails as a new item:
+      label "Scored at", value formatted as "h:mm a" (e.g. "2:34 PM").
+      Use Intl.DateTimeFormat for formatting — no date library needed.
+
+  - id: app-017
+    title: Keyboard shortcut — slash key focuses address input
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      Add a global keydown listener in page.tsx that focuses inputRef when
+      the user presses "/" and no input/textarea/select is currently focused
+      (check document.activeElement.tagName). Prevent the "/" character from
+      being inserted into the input by calling event.preventDefault() before
+      focusing. This is a standard pattern for search-first tools.
+
+  - id: app-018
+    title: Good-news empty state when no risks detected
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      If the backend returns top_risks: [] the TopRiskGrid renders an empty
+      grid with no message. This looks broken.
+      Fix: in TopRiskGrid (score-experience.tsx), if riskCards.length === 0,
+      render a small informational panel: "No active disruption signals
+      detected near this address." with a note that the score reflects
+      conditions at time of lookup.
+
+  - id: app-019
+    title: History dropdown closes on Escape key
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      The history dropdown (showHistory) in page.tsx has no Escape key
+      handler. Add one to the existing handleInputKeyDown or as a separate
+      document-level listener scoped to when showHistory is true.
+      Also close the dropdown when the user clicks outside the
+      .history-dropdown-shell (extend the existing handleClickOutside
+      useEffect or add a separate ref for the shell).
+
+  - id: app-020
+    title: Confidence dot color fix — LOW confidence should not look green/safe
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      In globals.css, .confidence-dot--low is #3ce5b3 (mint green) and
+      .confidence-dot--high is #ff7070 (red). These colors suggest low
+      confidence is "safe" and high confidence is "dangerous", which is the
+      wrong semantic — confidence is about certainty, not risk level.
+      Fix: change .confidence-dot--low to rgba(255,255,255,0.35) (neutral
+      grey-white) and .confidence-dot--medium to var(--warning) (#ffd497).
+      Leave .confidence-dot--high as the brand blue (#8da5ff) — high
+      confidence is a good, strong signal. Update any legend/tooltip copy
+      that refers to these colors.
+
+  - id: app-021
+    title: Add aria-live region around score result section
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      When a new score loads, screen reader users get no announcement.
+      The loading state has aria-live="polite" on .loading-step-list but
+      the results section has no equivalent.
+      Fix: wrap the <section className="results results--loaded ..."> in a
+      <div aria-live="polite" aria-atomic="false">. Also ensure the score
+      number element has a meaningful aria-label like
+      aria-label="Disruption score: 62 out of 100".
+
+  - id: app-022
+    title: Mobile topnav cleanup in workspace mode
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      On screens ≤640px in workspace mode, the topnav shows: brand lockup +
+      (Viewing + address + Recent + Score + Signals + Examples + Pricing).
+      This overflows and wraps badly.
+      Fix: at ≤640px in workspace mode, hide the Score/Signals/Examples
+      anchor links from the topnav (they still exist in the page for larger
+      screens). Keep Pricing and Recent. Use a CSS class toggled by
+      workspaceMode or a media-query modifier on .topnav in globals.css.
+
+  - id: app-023
+    title: Add skip-to-main-content link for keyboard accessibility
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      There is no skip nav link, so keyboard users must tab through the
+      entire header before reaching the address input.
+      Fix: add a visually-hidden <a href="#address"> as the first child of
+      <body> (in layout.tsx or page.tsx). Style it to appear only on focus
+      using a .skip-link CSS class in globals.css. This is a WCAG 2.1 AA
+      requirement.
