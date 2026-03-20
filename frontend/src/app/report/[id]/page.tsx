@@ -14,7 +14,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Section } from "@/components/shell";
-import { fetchReport, FetchReportResponse, ApiError } from "@/lib/api";
+import { fetchReport, FetchReportResponse, ApiError, getExportUrl } from "@/lib/api";
 
 export default function ReportPage({ params }: { params: { id: string } }) {
   const [report, setReport] = useState<FetchReportResponse | null>(null);
@@ -105,6 +105,22 @@ export default function ReportPage({ params }: { params: { id: string } }) {
                 <button type="button" className="action-btn" onClick={handleCopyLink}>
                   {copied ? "Link copied!" : "Copy shareable link"}
                 </button>
+                <a
+                  href={getExportUrl("csv", score.address)}
+                  className="action-btn"
+                  title="Download score as CSV"
+                >
+                  ↓ CSV
+                </a>
+                <a
+                  href={getExportUrl("pdf", score.address)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="action-btn"
+                  title="Open print-ready PDF"
+                >
+                  ↓ PDF
+                </a>
                 <a href="/" className="compare-link">Score another address →</a>
               </div>
 

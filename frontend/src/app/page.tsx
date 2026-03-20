@@ -13,7 +13,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -419,14 +419,24 @@ export default function HomePage() {
               : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
           headerAction={workspaceMode && result ? (
-            <button
-              type="button"
-              className="icon-btn"
-              title="PDF export is available on the Pro plan"
-              onClick={() => alert("PDF export is available on the Pro plan — see Pricing for details.")}
-            >
-              ↓ Export PDF
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <a
+                href={getExportUrl("csv", result.address)}
+                className="icon-btn"
+                title="Download score as CSV"
+              >
+                ↓ CSV
+              </a>
+              <a
+                href={getExportUrl("pdf", result.address)}
+                target="_blank"
+                rel="noreferrer"
+                className="icon-btn"
+                title="Open print-ready PDF"
+              >
+                ↓ PDF
+              </a>
+            </div>
           ) : undefined}
         >
           <div id="score-section" className="anchor-target" />

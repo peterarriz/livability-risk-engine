@@ -264,3 +264,18 @@ tasks:
       frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
       "View permit details" toggle button that expands a PermitDetailPanel inline.
       Gracefully absent when top_risk_details is not present (demo mode / old backend).
+
+  - id: data-029
+    title: CSV and PDF export endpoints
+    status: done
+    priority: medium
+    github_issue: 62
+    notes_for_next_agent: >
+      backend/app/main.py: GET /export/csv?address= returns CSV download (Content-Disposition
+      attachment); GET /export/pdf?address= returns print-ready HTML that auto-triggers
+      window.print(). Both endpoints call live scoring when DB is configured, fall back to
+      demo data otherwise. HTML output is properly escaped against XSS.
+      frontend/src/lib/api.ts: getExportUrl(type, address) helper builds backend export URLs.
+      frontend/src/app/page.tsx: headerAction now shows "↓ CSV" and "↓ PDF" links when a
+      score is loaded (replaces the dead alert button). PDF opens in new tab.
+      frontend/src/app/report/[id]/page.tsx: report-actions area has CSV + PDF export links.

@@ -18,6 +18,9 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
+import csv
+import html as _html
+import io
 import logging
 import os
 from dataclasses import asdict
@@ -25,6 +28,7 @@ from dataclasses import asdict
 import requests as _requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -579,3 +583,140 @@ def get_report(report_id: str) -> dict:
     except Exception as exc:
         log.error("get_report report_id=%r error: %s", report_id, exc)
         raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /export/csv endpoint (data-029)
+# Returns a CSV download for a scored address.
+# ---------------------------------------------------------------------------
+
+@app.get("/export/csv")
+def export_csv(
+    address: str = Query(..., description="Chicago address to export"),
+) -> Response:
+    """
+    Return a CSV download for a scored address.
+    Calls live scoring when DB is configured; falls back to demo data otherwise.
+    """
+    if not _is_db_configured():
+        data = _build_demo_response(address, "db_not_configured")
+    else:
+        try:
+            data = _score_live(address)
+        except Exception as exc:
+            log.error("export_csv address=%r error: %s", address, exc)
+            data = _build_demo_response(address, "scoring_error")
+
+    severity = data.get("severity", {})
+    top_risks = data.get("top_risks", [])
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["field", "value"])
+    writer.writerow(["address", data.get("address", address)])
+    writer.writerow(["disruption_score", data.get("disruption_score", "")])
+    writer.writerow(["confidence", data.get("confidence", "")])
+    writer.writerow(["severity_noise", severity.get("noise", "")])
+    writer.writerow(["severity_traffic", severity.get("traffic", "")])
+    writer.writerow(["severity_dust", severity.get("dust", "")])
+    for i, risk in enumerate(top_risks, 1):
+        writer.writerow([f"top_risk_{i}", risk])
+    writer.writerow(["explanation", data.get("explanation", "")])
+    writer.writerow(["mode", data.get("mode", "")])
+
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in address)[:50].strip()
+    filename = f"livability_score_{safe_name}.csv"
+
+    log.info("export_csv address=%r", address)
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# /export/pdf endpoint (data-029)
+# Returns a print-ready HTML page for a scored address.
+# Opens in a new browser tab; window.print() triggers automatically.
+# ---------------------------------------------------------------------------
+
+@app.get("/export/pdf")
+def export_pdf(
+    address: str = Query(..., description="Chicago address to export"),
+) -> HTMLResponse:
+    """
+    Return a print-ready HTML page for a scored address.
+    The page auto-triggers window.print() so the user is prompted to save as PDF.
+    """
+    if not _is_db_configured():
+        data = _build_demo_response(address, "db_not_configured")
+    else:
+        try:
+            data = _score_live(address)
+        except Exception as exc:
+            log.error("export_pdf address=%r error: %s", address, exc)
+            data = _build_demo_response(address, "scoring_error")
+
+    severity = data.get("severity", {})
+    top_risks = data.get("top_risks", [])
+    score_val = data.get("disruption_score", 0)
+    confidence = data.get("confidence", "N/A")
+    mode_label = "Demo" if data.get("mode") == "demo" else "Live"
+    explanation = data.get("explanation", "")
+
+    safe_address = _html.escape(address)
+    safe_mode = _html.escape(mode_label)
+    safe_confidence = _html.escape(confidence)
+    safe_explanation = _html.escape(explanation)
+    risks_html = "".join(f"<li>{_html.escape(r)}</li>" for r in top_risks)
+    severity_rows = "".join(
+        f"<tr><td>{_html.escape(k.capitalize())}</td><td>{_html.escape(str(v))}</td></tr>"
+        for k, v in severity.items()
+    )
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Livability Risk Report — {safe_address}</title>
+  <style>
+    body {{ font-family: Georgia, serif; margin: 40px; color: #111; max-width: 720px; }}
+    h1 {{ font-size: 1.4rem; margin-bottom: 4px; }}
+    h2 {{ font-size: 1.1rem; margin: 24px 0 8px; }}
+    .meta {{ color: #555; font-size: 0.85rem; margin-bottom: 24px; }}
+    .score-block {{ border: 2px solid #111; display: inline-block; padding: 12px 24px; margin-bottom: 24px; }}
+    .score-block .num {{ font-size: 3rem; font-weight: bold; line-height: 1; }}
+    .score-block .label {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; }}
+    table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
+    th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; }}
+    th {{ background: #f5f5f5; }}
+    ul {{ padding-left: 18px; }}
+    li {{ margin-bottom: 6px; }}
+    .footer {{ margin-top: 40px; font-size: 0.75rem; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }}
+    @media print {{ body {{ margin: 20px; }} }}
+  </style>
+</head>
+<body>
+  <h1>Livability Risk Report</h1>
+  <p class="meta">{safe_address} &mdash; Data mode: {safe_mode} &mdash; Confidence: {safe_confidence}</p>
+  <div class="score-block">
+    <div class="num">{score_val}</div>
+    <div class="label">Disruption Score</div>
+  </div>
+  <h2>Severity</h2>
+  <table>
+    <tr><th>Category</th><th>Level</th></tr>
+    {severity_rows}
+  </table>
+  <h2>Top Risk Signals</h2>
+  <ul>{risks_html}</ul>
+  <h2>Explanation</h2>
+  <p>{safe_explanation}</p>
+  <div class="footer">Generated by Livability Risk Engine &mdash; Chicago disruption intelligence</div>
+  <script>window.print();</script>
+</body>
+</html>"""
+
+    log.info("export_pdf address=%r", address)
+    return HTMLResponse(content=html_content)
