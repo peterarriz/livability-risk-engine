@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-021
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-027
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -25,7 +25,7 @@ import secrets
 from dataclasses import asdict
 
 import requests as _requests
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -140,6 +140,178 @@ def _is_db_configured() -> bool:
     return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
 
 
+# ---------------------------------------------------------------------------
+# API key auth  (data-027)
+#
+# Enabled by setting REQUIRE_API_KEY=true (or 1/yes) in the environment.
+# Off by default so existing usage is unaffected.
+#
+# Key format:  lre_<64 random hex chars>
+# Storage:     prefix (first 8 hex chars) + sha256(full key)
+# Header:      X-API-Key: lre_<...>
+# ---------------------------------------------------------------------------
+
+def _require_api_key_enabled() -> bool:
+    return os.environ.get("REQUIRE_API_KEY", "").lower() in ("1", "true", "yes")
+
+
+def _hash_key(full_key: str) -> str:
+    return hashlib.sha256(full_key.encode()).hexdigest()
+
+
+def _generate_api_key() -> tuple[str, str, str]:
+    """
+    Generate a new API key.
+    Returns (full_key, prefix, key_hash).
+      full_key:  returned to the operator once — never stored
+      prefix:    first 8 hex chars of random portion — stored for O(1) lookup
+      key_hash:  sha256(full_key) — stored for verification
+    """
+    random_portion = secrets.token_hex(32)   # 64 hex chars
+    prefix = random_portion[:8]
+    full_key = f"lre_{random_portion}"
+    return full_key, prefix, _hash_key(full_key)
+
+
+async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    """
+    FastAPI dependency for optional API key authentication.
+
+    When REQUIRE_API_KEY is not set (the default), this is a no-op and every
+    request passes through.  When enabled, the caller must supply a valid key
+    in the X-API-Key header.
+    """
+    if not _require_api_key_enabled():
+        return
+
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    random_portion = x_api_key[4:]    # strip "lre_"
+    if len(random_portion) < 8:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = random_portion[:8]
+    submitted_hash = _hash_key(x_api_key)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+                if row and row[1]:
+                    # Update last_used_at asynchronously — best-effort, non-blocking
+                    try:
+                        cur.execute(
+                            "UPDATE api_keys SET last_used_at = now() WHERE prefix = %s",
+                            (prefix,),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("verify_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
+
+    if not row or not row[1] or row[0] != submitted_hash:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+
+# ---------------------------------------------------------------------------
+# /admin/keys endpoint  (data-027)
+# Protected by ADMIN_SECRET header. Creates a new API key and returns it
+# once. The raw key is never stored — only the sha256 hash is persisted.
+# ---------------------------------------------------------------------------
+
+@app.post("/admin/keys")
+def create_api_key(
+    label: str = Query(..., description="Human-readable label for this key"),
+    x_admin_secret: str | None = Header(None),
+) -> dict:
+    """
+    Create a new API key.
+
+    Requires the X-Admin-Secret header to match the ADMIN_SECRET env var.
+    Returns the raw key once — it cannot be retrieved again.
+
+    The key is stored as a sha256 hash; only the prefix is kept for lookup.
+    Activate API key enforcement by setting REQUIRE_API_KEY=true on the backend.
+    """
+    admin_secret = os.environ.get("ADMIN_SECRET", "")
+    if not admin_secret or x_admin_secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    full_key, prefix, key_hash = _generate_api_key()
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO api_keys (prefix, key_hash, label)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (prefix, key_hash, label.strip()),
+                )
+                conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("create_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not persist API key") from exc
+
+    log.info("create_api_key label=%r prefix=%s", label, prefix)
+    return {
+        "key": full_key,
+        "prefix": prefix,
+        "label": label.strip(),
+        "note": "Store this key securely — it cannot be retrieved again.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /docs/api-access endpoint  (data-027)
+# Public — returns information about how to obtain and use an API key.
+# ---------------------------------------------------------------------------
+
+@app.get("/docs/api-access")
+def api_access_info() -> dict:
+    """
+    Public documentation endpoint for B2B API access.
+
+    Returns information about how to authenticate requests when API key
+    enforcement is active.  Does not require auth.
+    """
+    return {
+        "auth_required": _require_api_key_enabled(),
+        "header": "X-API-Key",
+        "key_format": "lre_<64 hex chars>",
+        "how_to_obtain": (
+            "Contact the platform operator to request an API key. "
+            "Keys are provisioned via POST /admin/keys."
+        ),
+        "usage_example": "curl -H 'X-API-Key: lre_...' '<base_url>/score?address=...'",
+        "docs": "https://github.com/peterarriz/livability-risk-engine",
+    }
+
+
 def _score_live(address: str) -> dict:
     """
     Full live scoring path:
@@ -180,6 +352,7 @@ def _score_live(address: str) -> dict:
 @app.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
     address: str = Query(..., description="Chicago address to score"),
+    _auth: None = Depends(verify_api_key),
 ) -> dict:
     """
     Return a near-term construction disruption risk score for a Chicago address.

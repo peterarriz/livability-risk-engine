@@ -218,22 +218,33 @@ COMMENT ON TABLE ingest_runs IS
 
 
 -- ---------------------------------------------------------------------------
--- Reports table  (data-021)
--- Stores saved score results for shareable report URLs (/report/{id}).
--- Each row is a snapshot of a /score response at the time of saving.
+-- API keys  (data-027)
+--
+-- Enables optional B2B API key gating for /score. Auth is off by default
+-- (REQUIRE_API_KEY env var must be set to enable it). Keys are stored as
+-- sha256 hashes; the raw key is shown only once at creation time.
+--
+-- Key format:  lre_<64 hex chars>
+-- prefix:      first 8 chars of the random portion — used for O(1) lookup
+-- key_hash:    sha256(full_key) — compared during verification
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS reports (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    address     TEXT        NOT NULL,
-    score_json  JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS api_keys (
+    id           BIGSERIAL   PRIMARY KEY,
+    prefix       TEXT        NOT NULL UNIQUE,  -- first 8 hex chars of random portion
+    key_hash     TEXT        NOT NULL,          -- sha256(full key string)
+    label        TEXT        NOT NULL,          -- human-readable description
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at TIMESTAMPTZ,                  -- updated on each successful auth
+    is_active    BOOLEAN     NOT NULL DEFAULT true
 );
 
-CREATE INDEX IF NOT EXISTS reports_created_at_idx
-    ON reports (created_at DESC);
+CREATE INDEX IF NOT EXISTS api_keys_prefix_idx
+    ON api_keys (prefix)
+    WHERE is_active = true;
 
-COMMENT ON TABLE reports IS
-    'Saved score snapshots for shareable report URLs (data-021). '
-    'Each row stores a full /score response as JSONB. '
-    'Accessed via GET /report/{id}; created via POST /save.';
+COMMENT ON TABLE api_keys IS
+    'Hashed API keys for optional B2B access gating (data-027). '
+    'Activated by setting REQUIRE_API_KEY=true on the backend. '
+    'Keys are created via POST /admin/keys and verified by the '
+    'verify_api_key FastAPI dependency in backend/app/main.py.';
