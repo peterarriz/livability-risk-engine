@@ -218,33 +218,26 @@ COMMENT ON TABLE ingest_runs IS
 
 
 -- ---------------------------------------------------------------------------
--- API keys  (data-027)
+-- Score history  (data-025)
 --
--- Enables optional B2B API key gating for /score. Auth is off by default
--- (REQUIRE_API_KEY env var must be set to enable it). Keys are stored as
--- sha256 hashes; the raw key is shown only once at creation time.
---
--- Key format:  lre_<64 hex chars>
--- prefix:      first 8 chars of the random portion — used for O(1) lookup
--- key_hash:    sha256(full_key) — compared during verification
+-- Persists each live /score result so the frontend can surface a sparkline
+-- trend showing whether an address is getting better or worse over time.
+-- Only live-mode scores are written (demo-mode results are excluded).
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS api_keys (
-    id           BIGSERIAL   PRIMARY KEY,
-    prefix       TEXT        NOT NULL UNIQUE,  -- first 8 hex chars of random portion
-    key_hash     TEXT        NOT NULL,          -- sha256(full key string)
-    label        TEXT        NOT NULL,          -- human-readable description
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_used_at TIMESTAMPTZ,                  -- updated on each successful auth
-    is_active    BOOLEAN     NOT NULL DEFAULT true
+CREATE TABLE IF NOT EXISTS score_history (
+    id               BIGSERIAL   PRIMARY KEY,
+    address          TEXT        NOT NULL,
+    disruption_score INT         NOT NULL,
+    confidence       TEXT        NOT NULL,
+    mode             TEXT        NOT NULL DEFAULT 'live',
+    scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS api_keys_prefix_idx
-    ON api_keys (prefix)
-    WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
+    ON score_history (address, scored_at DESC);
 
-COMMENT ON TABLE api_keys IS
-    'Hashed API keys for optional B2B access gating (data-027). '
-    'Activated by setting REQUIRE_API_KEY=true on the backend. '
-    'Keys are created via POST /admin/keys and verified by the '
-    'verify_api_key FastAPI dependency in backend/app/main.py.';
+COMMENT ON TABLE score_history IS
+    'Records each live /score result for trend analysis (data-025). '
+    'Populated by fire-and-forget background writes in the /score endpoint. '
+    'Demo-mode scores are excluded. Query via GET /history?address=&limit=.';

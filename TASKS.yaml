@@ -213,19 +213,18 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-027
-    title: API key auth middleware for /score (B2B access gating)
+  - id: data-025
+    title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
-    github_issue: 59
+    github_issue: 57
     notes_for_next_agent: >
-      db/schema.sql: api_keys table (prefix, sha256 hash, label, timestamps, is_active).
-      backend/app/main.py: verify_api_key FastAPI dependency on /score;
-        POST /admin/keys (protected by X-Admin-Secret header = ADMIN_SECRET env var);
-        GET /docs/api-access (public info endpoint).
-      Auth is OFF by default — set REQUIRE_API_KEY=true to enable enforcement.
-      Set ADMIN_SECRET env var on Railway before creating keys.
-      Apply updated schema: ./scripts/apply_schema.sh (idempotent, uses CREATE TABLE IF NOT EXISTS).
-      Key format: lre_<64 hex random chars>; prefix (first 8 chars) stored for O(1) lookup;
-        sha256(full_key) stored for verification; raw key returned once at creation only.
-      Next: data-028 — consider rate limiting or usage analytics per API key.
+      DB: score_history table added to db/schema.sql (run apply_schema.sh to apply).
+      Backend: _write_score_history() fires as a BackgroundTask after each live /score.
+               GET /history?address=&limit= endpoint added to main.py.
+      Frontend (data layer only): fetchHistory() + HistoryResponse/HistoryEntry types
+               added to frontend/src/lib/api.ts.
+      Frontend UI (out of data lane): ScoreSparkline SVG component and page.tsx wiring
+               were NOT implemented — those are app-lane tasks.
+               Next app-lane task: consume fetchHistory() + render sparkline in
+               frontend/src/components/score-experience.tsx and frontend/src/app/page.tsx.
