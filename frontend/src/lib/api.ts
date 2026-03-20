@@ -290,6 +290,46 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   return [];
 }
 
+// ---------------------------------------------------------------------------
+// Score history  (data-025)
+// ---------------------------------------------------------------------------
+
+export type HistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: string;
+  scored_at: string;
+};
+
+export type HistoryResponse = {
+  address: string;
+  history: HistoryEntry[];
+};
+
+/**
+ * Fetch recent score history for a given address.
+ * Returns null when the backend is unreachable or not configured.
+ * Returns an empty history array when DB is in demo mode.
+ */
+export async function fetchHistory(
+  address: string,
+  limit = 10,
+): Promise<HistoryResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/history");
+    url.searchParams.set("address", address);
+    url.searchParams.set("limit", String(limit));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as HistoryResponse;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 

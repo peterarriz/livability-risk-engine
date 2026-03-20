@@ -23,7 +23,7 @@ import os
 from dataclasses import asdict
 
 import requests as _requests
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 log = logging.getLogger(__name__)
@@ -135,6 +135,43 @@ def _score_live(address: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Score history helpers  (data-025)
+# ---------------------------------------------------------------------------
+
+def _write_score_history(address: str, result: dict) -> None:
+    """
+    Persist a live /score result to the score_history table.
+    Intended for use as a BackgroundTask — failures are logged but not raised.
+    Only live-mode scores are written; demo results are silently skipped.
+    """
+    if result.get("mode") != "live":
+        return
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO score_history (address, disruption_score, confidence, mode)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        address,
+                        result["disruption_score"],
+                        result["confidence"],
+                        result.get("mode", "live"),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        log.debug("score_history written address=%r score=%s", address, result["disruption_score"])
+    except Exception as exc:
+        log.warning("score_history write failed address=%r error=%s", address, exc)
+
+
+# ---------------------------------------------------------------------------
 # /suggest endpoint (data-016)
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
 # Used by the frontend search bar autocomplete.
@@ -147,6 +184,7 @@ def _score_live(address: str) -> dict:
 @app.get("/score")
 def get_score(
     address: str = Query(..., description="Chicago address to score"),
+    background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
     Return a near-term construction disruption risk score for a Chicago address.
@@ -181,6 +219,8 @@ def get_score(
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
+        if background_tasks is not None:
+            background_tasks.add_task(_write_score_history, address, result)
         return result
     except ValueError as exc:
         log.warning("score address=%r geocode_failed error=%s", address, exc)
@@ -193,6 +233,73 @@ def get_score(
         raise HTTPException(
             status_code=503,
             detail="Scoring service temporarily unavailable.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# /history endpoint  (data-025)
+# Returns recent score history for a given address, newest first.
+# Used by the frontend sparkline component to visualise score trend.
+# ---------------------------------------------------------------------------
+
+@app.get("/history")
+def get_history(
+    address: str = Query(..., description="Chicago address to look up"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
+) -> dict:
+    """
+    Return the most recent score history entries for a given address.
+
+    Response shape:
+      {
+        "address": "<address>",
+        "history": [
+          { "disruption_score": 62, "confidence": "MEDIUM", "mode": "live", "scored_at": "<iso>" },
+          ...
+        ]
+      }
+
+    Returns an empty history list when the DB is not configured (demo mode).
+    """
+    if not _is_db_configured():
+        return {"address": address, "history": []}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT disruption_score, confidence, mode, scored_at
+                    FROM score_history
+                    WHERE address = %s
+                    ORDER BY scored_at DESC
+                    LIMIT %s
+                    """,
+                    (address, limit),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        history = [
+            {
+                "disruption_score": row[0],
+                "confidence": row[1],
+                "mode": row[2],
+                "scored_at": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3]),
+            }
+            for row in rows
+        ]
+        log.info("history address=%r returned=%d rows", address, len(history))
+        return {"address": address, "history": history}
+
+    except Exception as exc:
+        log.error("history address=%r error=%s", address, exc)
+        raise HTTPException(
+            status_code=503,
+            detail="History service temporarily unavailable.",
         ) from exc
 
 

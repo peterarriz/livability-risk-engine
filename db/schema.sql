@@ -215,3 +215,29 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 COMMENT ON TABLE ingest_runs IS
     'Tracks each ingestion run for freshness checks (data-010).';
+
+
+-- ---------------------------------------------------------------------------
+-- Score history  (data-025)
+--
+-- Persists each live /score result so the frontend can surface a sparkline
+-- trend showing whether an address is getting better or worse over time.
+-- Only live-mode scores are written (demo-mode results are excluded).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS score_history (
+    id               BIGSERIAL   PRIMARY KEY,
+    address          TEXT        NOT NULL,
+    disruption_score INT         NOT NULL,
+    confidence       TEXT        NOT NULL,
+    mode             TEXT        NOT NULL DEFAULT 'live',
+    scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
+    ON score_history (address, scored_at DESC);
+
+COMMENT ON TABLE score_history IS
+    'Records each live /score result for trend analysis (data-025). '
+    'Populated by fire-and-forget background writes in the /score endpoint. '
+    'Demo-mode scores are excluded. Query via GET /history?address=&limit=.';

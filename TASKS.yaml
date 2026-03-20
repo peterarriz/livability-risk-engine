@@ -212,3 +212,19 @@ tasks:
         3. Copy Railway public URL → set as NEXT_PUBLIC_API_URL in Vercel
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
+
+  - id: data-025
+    title: Score history table + sparkline trend (data layer)
+    status: done
+    priority: medium
+    github_issue: 57
+    notes_for_next_agent: >
+      DB: score_history table added to db/schema.sql (run apply_schema.sh to apply).
+      Backend: _write_score_history() fires as a BackgroundTask after each live /score.
+               GET /history?address=&limit= endpoint added to main.py.
+      Frontend (data layer only): fetchHistory() + HistoryResponse/HistoryEntry types
+               added to frontend/src/lib/api.ts.
+      Frontend UI (out of data lane): ScoreSparkline SVG component and page.tsx wiring
+               were NOT implemented — those are app-lane tasks.
+               Next app-lane task: consume fetchHistory() + render sparkline in
+               frontend/src/components/score-experience.tsx and frontend/src/app/page.tsx.
