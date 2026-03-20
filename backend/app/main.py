@@ -23,6 +23,7 @@ import hashlib
 import io
 import logging
 import os
+import re
 import secrets
 from dataclasses import asdict
 
@@ -684,8 +685,42 @@ def _in_chicago(lat: float, lon: float) -> bool:
     return _CHI_LAT[0] <= lat <= _CHI_LAT[1] and _CHI_LON[0] <= lon <= _CHI_LON[1]
 
 
-def _parse_nominatim(results: list) -> list[str]:
-    """Format Nominatim results as 'number road, Chicago, IL' strings."""
+# Directional prefixes to strip when extracting the bare street-name fragment.
+_DIRECTIONAL = re.compile(
+    r"^(?:north|south|east|west|n\.?|s\.?|e\.?|w\.?)\s+",
+    re.IGNORECASE,
+)
+
+
+def _street_prefix(query: str) -> str | None:
+    """
+    Extract the partial street-name fragment from a raw query so suggestions
+    can be post-filtered to only streets whose name starts with that fragment.
+
+    '679 North Peo'  → 'peo'
+    '100 W Rand'     → 'rand'
+    'Michigan Ave'   → 'michigan'
+    '1600 W Chicago' → 'chicago'   (fragment long enough to be useful)
+    """
+    q = query.strip()
+    # Drop trailing ', Chicago…' or ', IL…' the caller may have appended.
+    q = re.sub(r",?\s*chicago.*$", "", q, flags=re.IGNORECASE)
+    q = re.sub(r",?\s*il\b.*$", "", q, flags=re.IGNORECASE)
+    # Drop leading house number.
+    q = re.sub(r"^\d+\s*", "", q)
+    # Drop directional prefix (North, S, W., etc.).
+    q = _DIRECTIONAL.sub("", q).strip()
+    # Only use the fragment if it's at least 2 chars (avoids over-filtering).
+    return q.lower() if len(q) >= 2 else None
+
+
+def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]:
+    """Format Nominatim results as 'number road, Chicago, IL' strings.
+
+    If *street_frag* is given, only keep results whose road name starts with
+    that fragment (case-insensitive). This prevents Nominatim from returning
+    Milwaukee Ave when the user typed 'Peo' (→ Peoria).
+    """
     suggestions: list[str] = []
     seen: set[str] = set()
     for r in results:
@@ -699,6 +734,8 @@ def _parse_nominatim(results: list) -> list[str]:
         road = addr.get("road") or addr.get("pedestrian") or addr.get("highway") or ""
         if not road:
             continue
+        if street_frag and not road.lower().startswith(street_frag):
+            continue
         formatted = f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
         if formatted not in seen:
             seen.add(formatted)
@@ -706,8 +743,12 @@ def _parse_nominatim(results: list) -> list[str]:
     return suggestions[:5]
 
 
-def _parse_photon(features: list) -> list[str]:
-    """Format Photon GeoJSON features as 'number road, Chicago, IL' strings."""
+def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
+    """Format Photon GeoJSON features as 'number road, Chicago, IL' strings.
+
+    If *street_frag* is given, only keep results whose street name starts with
+    that fragment (case-insensitive).
+    """
     suggestions: list[str] = []
     seen: set[str] = set()
     for f in features:
@@ -723,6 +764,8 @@ def _parse_photon(features: list) -> list[str]:
             continue
         street = props.get("street", "")
         if not street:
+            continue
+        if street_frag and not street.lower().startswith(street_frag):
             continue
         house = props.get("housenumber", "")
         formatted = f"{house} {street}, Chicago, IL" if house else f"{street}, Chicago, IL"
@@ -908,29 +951,61 @@ def suggest_addresses(
     nominatim_q = query if "chicago" in query.lower() else f"{query}, Chicago, IL"
     photon_q = query if "chicago" in query.lower() else f"{query} Chicago"
 
-    # 1. Nominatim
+    # Extract the partial street-name fragment so results can be post-filtered.
+    # e.g. "679 North Peo" → "peo", preventing Milwaukee/Michigan/etc. showing up.
+    street_frag = _street_prefix(query)
+
+    _nom_headers = {"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"}
+    _nom_common = {
+        "format": "json",
+        "limit": 10,
+        "countrycodes": "us",
+        "bounded": "1",
+        "viewbox": _NOMINATIM_VIEWBOX,
+        "addressdetails": "1",
+    }
+
+    # 1a. Nominatim free-text search with post-filtering on the street fragment.
     try:
         resp = _requests.get(
             "https://nominatim.openstreetmap.org/search",
-            params={
-                "q": nominatim_q,
-                "format": "json",
-                "limit": 8,
-                "countrycodes": "us",
-                "bounded": "1",
-                "viewbox": _NOMINATIM_VIEWBOX,
-                "addressdetails": "1",
-            },
-            headers={"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"},
+            params={"q": nominatim_q, **_nom_common},
+            headers=_nom_headers,
             timeout=4,
         )
         if resp.ok:
-            suggestions = _parse_nominatim(resp.json())
+            suggestions = _parse_nominatim(resp.json(), street_frag)
             if suggestions:
                 log.info("suggest q=%r source=nominatim results=%d", q, len(suggestions))
                 return {"suggestions": suggestions}
     except Exception as exc:
-        log.debug("suggest q=%r nominatim error: %s", q, exc)
+        log.debug("suggest q=%r nominatim free-text error: %s", q, exc)
+
+    # 1b. Nominatim structured search — better for partial street names.
+    #     Strip leading house number and pass it separately so Nominatim
+    #     can do a more focused road-name lookup.
+    try:
+        m = re.match(r"^(\d+)\s+(.*)", query)
+        structured_street = m.group(2) if m else query
+        resp = _requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "street": structured_street,
+                "city": "Chicago",
+                "state": "IL",
+                "country": "US",
+                **_nom_common,
+            },
+            headers=_nom_headers,
+            timeout=4,
+        )
+        if resp.ok:
+            suggestions = _parse_nominatim(resp.json(), street_frag)
+            if suggestions:
+                log.info("suggest q=%r source=nominatim-structured results=%d", q, len(suggestions))
+                return {"suggestions": suggestions}
+    except Exception as exc:
+        log.debug("suggest q=%r nominatim structured error: %s", q, exc)
 
     # 2. Photon fallback
     try:
@@ -938,14 +1013,14 @@ def suggest_addresses(
             "https://photon.komoot.io/api/",
             params={
                 "q": photon_q,
-                "limit": 8,
+                "limit": 10,
                 "bbox": _PHOTON_BBOX,
                 "lang": "en",
             },
             timeout=4,
         )
         if resp.ok:
-            suggestions = _parse_photon(resp.json().get("features", []))
+            suggestions = _parse_photon(resp.json().get("features", []), street_frag)
             log.info("suggest q=%r source=photon results=%d", q, len(suggestions))
             return {"suggestions": suggestions}
     except Exception as exc:
