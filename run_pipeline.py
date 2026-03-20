@@ -81,6 +81,13 @@ STEPS = [
         "skip_key": "skip_il_cities",
     },
     {
+        # Fetches CTA planned service alerts (track work, station closures,
+        # construction-related reroutes). No API key required.
+        "name": "Fetch CTA planned service alerts",
+        "cmd": [sys.executable, "backend/ingest/cta_alerts.py"],
+        "skip_key": "skip_cta",
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -146,6 +153,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-il-cities",
         action="store_true",
         help="Skip the IL city permits fetch step (Cook County + cities).",
+    )
+    parser.add_argument(
+        "--skip-cta",
+        action="store_true",
+        help="Skip the CTA planned service alerts fetch step.",
     )
     parser.add_argument(
         "--dry-run",
