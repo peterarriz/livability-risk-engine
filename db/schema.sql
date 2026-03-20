@@ -218,24 +218,24 @@ COMMENT ON TABLE ingest_runs IS
 
 
 -- ---------------------------------------------------------------------------
--- Saved reports  (data-021)
+-- Score history  (data-025)
 --
--- Stores score results so users can share a persistent URL.
--- Each row is a snapshot of the /score response for a given address.
--- The report_id UUID is used in the shareable /report/<id> URL.
+-- Persists each live /score result so the frontend can surface a sparkline
+-- trend showing whether an address is getting better or worse over time.
+-- Only live-mode scores are written (demo-mode results are excluded).
 -- ---------------------------------------------------------------------------
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-CREATE TABLE IF NOT EXISTS reports (
-    report_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    address     TEXT        NOT NULL,
-    score_json  JSONB       NOT NULL,   -- full /score response payload
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS score_history (
+    id               BIGSERIAL   PRIMARY KEY,
+    address          TEXT        NOT NULL,
+    disruption_score INT         NOT NULL,
+    confidence       TEXT        NOT NULL,
+    mode             TEXT        NOT NULL DEFAULT 'live',
+    scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS reports_created_at_idx
-    ON reports (created_at DESC);
+CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
+    ON score_history (address, scored_at DESC);
 
 COMMENT ON TABLE reports IS
     'Saved score snapshots (data-021). Each row is a /score response stored '

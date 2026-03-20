@@ -59,8 +59,11 @@ from backend.ingest.geocode import geocode_address
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERMITS_FILE  = Path("data/raw/building_permits.json")
-DEFAULT_CLOSURES_FILE = Path("data/raw/street_closures.json")
+DEFAULT_PERMITS_FILE    = Path("data/raw/building_permits.json")
+DEFAULT_CLOSURES_FILE   = Path("data/raw/street_closures.json")
+DEFAULT_CTA_ALERTS_FILE = Path("data/raw/cta_alerts.json")
+DEFAULT_IL_CITIES_DIR   = Path("data/raw")
+IL_CITIES_FILE_GLOB     = "il_city_permits_*.json"
 
 # Seconds to sleep between geocoding requests to respect rate limits.
 GEOCODE_SLEEP_S = 0.25
@@ -99,6 +102,33 @@ def _closure_address(record: dict) -> str | None:
     if not address:
         return None
     return f"{address}, Chicago, IL"
+
+
+def _cta_alert_address(record: dict) -> str | None:
+    """
+    Return the address string from a CTA alert record.
+    The address was built by cta_alerts._resolve_coords() during ingest
+    and may be a station address or a bus route street name.
+    """
+    addr = (record.get("address") or "").strip()
+    if not addr or addr == "Chicago, IL":
+        return None
+    return addr
+
+
+def _il_city_permit_address(record: dict) -> str | None:
+    """
+    Build an address string from an IL city permit record.
+    These records use 'address' and 'city_il' fields set by
+    il_city_permits.normalize_raw_record().
+    """
+    addr = (record.get("address") or "").strip()
+    if not addr:
+        return None
+    city_il = (record.get("city_il") or "").strip()
+    if city_il:
+        return f"{addr}, {city_il}"
+    return addr
 
 
 def _has_coords(record: dict) -> bool:
@@ -248,10 +278,25 @@ def parse_args() -> argparse.Namespace:
         help="Geocode at most N records per source (useful for testing).",
     )
     parser.add_argument(
+        "--cta-alerts-file",
+        type=Path,
+        default=DEFAULT_CTA_ALERTS_FILE,
+        help=f"Path to CTA alerts staging file (default: {DEFAULT_CTA_ALERTS_FILE})",
+    )
+    parser.add_argument(
+        "--il-cities-dir",
+        type=Path,
+        default=DEFAULT_IL_CITIES_DIR,
+        help=(
+            f"Directory containing il_city_permits_*.json staging files "
+            f"(default: {DEFAULT_IL_CITIES_DIR})."
+        ),
+    )
+    parser.add_argument(
         "--source",
-        choices=["permits", "closures", "both"],
-        default="both",
-        help="Which staging file to fill (default: both).",
+        choices=["permits", "closures", "cta_alerts", "il_cities", "all"],
+        default="all",
+        help="Which staging file(s) to fill (default: all).",
     )
     return parser.parse_args()
 
@@ -264,7 +309,7 @@ def main() -> None:
 
     all_stats = []
 
-    if args.source in ("permits", "both"):
+    if args.source in ("permits", "all"):
         print(f"\nFilling building permits: {args.permits_file}")
         stats = fill_staging_file(
             args.permits_file,
@@ -274,7 +319,7 @@ def main() -> None:
         )
         all_stats.append(("Building permits", stats))
 
-    if args.source in ("closures", "both"):
+    if args.source in ("closures", "all"):
         print(f"\nFilling street closures: {args.closures_file}")
         stats = fill_staging_file(
             args.closures_file,
@@ -283,6 +328,31 @@ def main() -> None:
             args.max_fill,
         )
         all_stats.append(("Street closures", stats))
+
+    if args.source in ("cta_alerts", "all"):
+        print(f"\nFilling CTA alerts: {args.cta_alerts_file}")
+        stats = fill_staging_file(
+            args.cta_alerts_file,
+            _cta_alert_address,
+            args.dry_run,
+            args.max_fill,
+        )
+        all_stats.append(("CTA alerts", stats))
+
+    if args.source in ("il_cities", "all"):
+        staging_files = sorted(args.il_cities_dir.glob(IL_CITIES_FILE_GLOB))
+        if not staging_files:
+            print(f"\nNo IL city permit staging files in {args.il_cities_dir}. Skipping.")
+        for sf in staging_files:
+            label = sf.stem  # e.g. "il_city_permits_cook_county"
+            print(f"\nFilling {label}: {sf}")
+            stats = fill_staging_file(
+                sf,
+                _il_city_permit_address,
+                args.dry_run,
+                args.max_fill,
+            )
+            all_stats.append((label, stats))
 
     print("\n══ GEOCODE-FILL SUMMARY ═════════════════════════════")
     for label, s in all_stats:
