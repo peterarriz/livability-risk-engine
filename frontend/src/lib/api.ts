@@ -2,6 +2,13 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
+export type ScoreHistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: ScoreMode;
+  created_at: string | null;
+};
+
 export type SaveReportResponse = {
   report_id: string;
   address: string;
@@ -376,6 +383,26 @@ export async function fetchReport(reportId: string): Promise<FetchReportResponse
   }
 
   return (await response.json()) as FetchReportResponse;
+}
+
+/**
+ * Fetch score history for an address (most recent first).
+ * Returns an empty array when the backend is not configured or has no data.
+ */
+export async function fetchHistory(address: string, limit = 10): Promise<ScoreHistoryEntry[]> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return [];
+  try {
+    const url = buildApiUrl("/history");
+    url.searchParams.set("address", address);
+    url.searchParams.set("limit", String(limit));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as { address: string; history: ScoreHistoryEntry[] };
+    return data.history ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {

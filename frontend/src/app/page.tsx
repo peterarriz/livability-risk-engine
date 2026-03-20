@@ -8,12 +8,13 @@ import {
   getMeaningInsights,
   ImpactWindow,
   ScoreHero,
+  ScoreSparkline,
   SeverityMeters,
   TopRiskGrid,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -51,6 +52,7 @@ export default function HomePage() {
     }
   });
   const [showHistory, setShowHistory] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
@@ -137,6 +139,12 @@ export default function HomePage() {
     geocodeForMap(result.address).then((coords) => {
       if (coords) setMapCoords(coords);
     });
+  }, [result]);
+
+  // data-025: fetch score history whenever a new result loads.
+  useEffect(() => {
+    if (!result) { setScoreHistory([]); return; }
+    fetchHistory(result.address, 20).then(setScoreHistory);
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
@@ -478,6 +486,9 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
+                  {scoreHistory.length >= 2 && (
+                    <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
+                  )}
                   <div className="score-actions">
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
