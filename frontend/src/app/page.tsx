@@ -24,7 +24,7 @@ const EXAMPLE_ADDRESSES = [
 ];
 
 export default function HomePage() {
-  const [address, setAddress] = useState(DEFAULT_ADDRESS);
+  const [address, setAddress] = useState("");
   const [result, setResult] = useState<ScoreResponse | null>(null);
   const [scoreSource, setScoreSource] = useState<ScoreSource>("live");
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -38,9 +38,13 @@ export default function HomePage() {
   const [saveEmail, setSaveEmail] = useState("");
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
+  // Only fetch suggestions after the user has actually typed — prevents the
+  // dropdown firing on mount or when an address is set programmatically.
+  const hasUserTyped = useRef(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
@@ -51,9 +55,9 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Demo fallback" : "Live score";
+  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
   const statusMessage = isDemoResult
-    ? (statusNote ?? "Showing the approved Chicago fallback while live scoring is unavailable.")
+    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -81,9 +85,11 @@ export default function HomePage() {
   }, []);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
-  // skipSuggestRef suppresses the effect when address is set programmatically
-  // (e.g. suggestion selection) to prevent the dropdown from reopening.
+  // Only runs when hasUserTyped is true — prevents the dropdown from opening
+  // on mount or when an address is set programmatically (suggestion selection).
+  // skipSuggestRef suppresses a single effect run after programmatic selection.
   useEffect(() => {
+    if (!hasUserTyped.current) return;
     if (skipSuggestRef.current) {
       skipSuggestRef.current = false;
       return;
@@ -96,11 +102,15 @@ export default function HomePage() {
     }
     const timer = setTimeout(async () => {
       const results = await fetchSuggestions(address);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
-      setActiveSuggestionIndex(-1);
+      // Only update if the input is still focused when results arrive.
+      if (isFocused) {
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+        setActiveSuggestionIndex(-1);
+      }
     }, 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
   useEffect(() => {
@@ -119,6 +129,7 @@ export default function HomePage() {
 
   function handleSuggestionSelect(suggestion: string) {
     skipSuggestRef.current = true;
+    hasUserTyped.current = false;   // treat the fill as programmatic
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -266,9 +277,15 @@ export default function HomePage() {
                     name="address"
                     type="text"
                     value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onChange={(event) => {
+                      hasUserTyped.current = true;
+                      setAddress(event.target.value);
+                    }}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => {
+                      setIsFocused(false);
+                      setTimeout(() => setShowSuggestions(false), 150);
+                    }}
                     onKeyDown={handleInputKeyDown}
                     placeholder={PREMIUM_PLACEHOLDER}
                     autoComplete="off"
