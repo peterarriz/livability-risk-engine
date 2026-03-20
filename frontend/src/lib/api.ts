@@ -313,6 +313,14 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
 
+  // 0. Static Chicago street list — instant, works offline, no geocoder needed.
+  //    Geocoders can't do real-time partial-name matching ("Pe" → Peoria), but
+  //    the static list can. Return immediately when we get matches so the
+  //    network calls are skipped entirely.
+  const { suggestFromStaticList } = await import("./chicago-streets");
+  const staticHits = suggestFromStaticList(q);
+  if (staticHits.length) return staticHits;
+
   // Pre-compute the partial street-name fragment for post-filtering results.
   // e.g. "679 North Pe" → "pe" so only streets starting with "pe" (e.g.
   // Peoria) are returned, not Michigan, Milwaukee, etc.
