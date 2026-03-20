@@ -40,7 +40,16 @@ export default function HomePage() {
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [addressHistory, setAddressHistory] = useState<string[]>([]);
+  const [addressHistory, setAddressHistory] = useState<string[]>(() => {
+    // data-022: initialize from localStorage on mount (client-only)
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      return stored ? (JSON.parse(stored) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showHistory, setShowHistory] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +92,15 @@ export default function HomePage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // data-022: persist address history to localStorage whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // Ignore storage errors (private browsing, quota exceeded, etc.)
+    }
+  }, [addressHistory]);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
   // skipSuggestRef suppresses the effect when address is set programmatically
@@ -464,7 +482,10 @@ export default function HomePage() {
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
                       Save report
                     </button>
-                    <a href="#" className="compare-link" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
+                      className="compare-link"
+                    >
                       Compare with another address →
                     </a>
                   </div>

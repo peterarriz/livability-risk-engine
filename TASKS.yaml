@@ -227,7 +227,40 @@ tasks:
         - frontend/src/app/report/[id]/page.tsx: new shareable report page (renders saved score)
         - frontend/src/app/page.tsx: Save Report modal wired — posts to /save, shows copyable link
       When DB is not configured: /save returns 503 with a clear message; modal shows the error.
-      Next data task: data-022. Candidates:
-        - localStorage address history persistence
-        - /compare page (side-by-side address comparison)
-        - Permit detail drill-down (clickable top_risks)
+      Next data task: data-025.
+
+  - id: data-022
+    title: Persist address history to localStorage
+    status: done
+    priority: medium
+    github_issue: 54
+    notes_for_next_agent: >
+      frontend/src/app/page.tsx: addressHistory state initialized from
+      localStorage("lre_address_history") on mount; written back on every change.
+      No backend dependency.
+
+  - id: data-023
+    title: /compare page — side-by-side address comparison
+    status: done
+    priority: high
+    github_issue: 55
+    notes_for_next_agent: >
+      frontend/src/app/compare/page.tsx: new page at /compare.
+      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
+      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
+      Verdict card shows which address has lower disruption risk and by how many points.
+      Dead link in page.tsx updated to /compare?a=<current-address>.
+
+  - id: data-024
+    title: Permit detail drill-down — structured top_risk_details in API
+    status: done
+    priority: medium
+    github_issue: 56
+    notes_for_next_agent: >
+      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
+      Each dict has project_id, source, source_id, impact_type, title, notes,
+      status, start_date, end_date, address, distance_m, weighted_score.
+      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
+      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
+      "View permit details" toggle button that expands a PermitDetailPanel inline.
+      Gracefully absent when top_risk_details is not present (demo mode / old backend).
