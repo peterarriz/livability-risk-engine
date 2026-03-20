@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -200,7 +200,7 @@ export default function HomePage() {
     inputRef.current?.focus();
   }
 
-  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!hasSuggestions) {
       if (event.key === "ArrowDown" && suggestions.length > 0) {
         setShowSuggestions(true);
