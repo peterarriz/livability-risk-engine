@@ -264,3 +264,57 @@ tasks:
       frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
       "View permit details" toggle button that expands a PermitDetailPanel inline.
       Gracefully absent when top_risk_details is not present (demo mode / old backend).
+
+  - id: data-025
+    title: Score history table + sparkline trend
+    status: done
+    priority: high
+    github_issue: 57
+    notes_for_next_agent: >
+      db/schema.sql: score_history table (address, disruption_score, confidence, mode, created_at).
+      backend/app/main.py: _record_score_history() fires after every live /score call;
+      GET /history?address=&limit= returns history array (newest first, empty list on error).
+      frontend/src/lib/api.ts: ScoreHistoryEntry type + fetchHistory() function.
+      frontend/src/components/score-experience.tsx: ScoreSparkline SVG component —
+        renders chronological line chart, shows reading count + trend delta (↑/↓/stable).
+      frontend/src/app/page.tsx: scoreHistory state, useEffect fetches after result loads,
+        ScoreSparkline rendered below ScoreHero when >= 2 historical readings exist.
+
+  - id: data-026
+    title: Neighborhood heat map pages /neighborhood/[slug]
+    status: done
+    priority: high
+    github_issue: 58
+    notes_for_next_agent: >
+      8 Chicago neighborhoods defined with bounding boxes in backend/app/main.py (NEIGHBORHOODS dict):
+        west-loop, wicker-park, logan-square, river-north, lincoln-park, pilsen, bronzeville, uptown.
+      backend/app/main.py: GET /neighborhood/{slug} — ST_Within bbox query against projects table,
+        returns projects sorted by impact severity + available_neighborhoods list.
+      frontend/src/app/neighborhood/[slug]/page.tsx: new page with:
+        - Neighborhood nav chips linking to all 8 neighborhoods
+        - Summary chips (total count + breakdown by impact type)
+        - MapView centered on neighborhood bbox center
+        - Filterable project list with impact badge, status, dates, notes
+        - "Score this address →" link per project back to main page
+      To add more neighborhoods: extend NEIGHBORHOODS dict in main.py + add slug to SLUGS array in page.tsx.
+
+  - id: data-027
+    title: API key auth middleware
+    status: done
+    priority: medium
+    github_issue: 59
+    notes_for_next_agent: >
+      db/schema.sql: api_keys table (key_prefix TEXT, key_hash TEXT SHA-256, label, timestamps, is_active).
+      backend/app/main.py:
+        - verify_api_key FastAPI dependency: checks X-Api-Key header or ?api_key= query param
+          against hashed DB records; pass-through no-op when REQUIRE_API_KEY != true.
+        - Applied to GET /score via dependencies=[Depends(verify_api_key)].
+        - POST /admin/keys?admin_secret=: creates new key, returns full key once (hash stored).
+        - GET /admin/keys?admin_secret=: lists keys (prefix + label, no hashes).
+        - GET /docs/api-access: public endpoint describing auth, endpoints, example.
+      To enable: set REQUIRE_API_KEY=true + ADMIN_SECRET=<secret> in Railway env vars.
+      To create a key: POST /admin/keys?admin_secret=<secret> with {"label": "Org name"}.
+      Next: data-028. Candidates:
+        - /api-keys page on frontend (developer portal)
+        - Score alert emails (when watched address crosses threshold)
+        - CSV/PDF export endpoint
