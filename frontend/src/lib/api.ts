@@ -326,80 +326,72 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   return [];
 }
 
+// ---------------------------------------------------------------------------
+// Neighborhood types and fetch (data-026)
+// ---------------------------------------------------------------------------
+
+export type NeighborhoodProject = {
+  project_id: string;
+  source: string;
+  impact_type: string | null;
+  title: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  lat: number | null;
+  lon: number | null;
+};
+
+export type NeighborhoodResponse = {
+  slug: string;
+  name: string;
+  description: string;
+  center: { lat: number; lon: number };
+  bbox: { min_lat: number; min_lon: number; max_lat: number; max_lon: number };
+  projects: NeighborhoodProject[];
+  project_count: number;
+  mode: "live" | "demo";
+};
+
+export type NeighborhoodSummary = {
+  slug: string;
+  name: string;
+  description: string;
+  center: { lat: number; lon: number };
+};
+
 /**
- * Save a score result to the backend and return a shareable report_id.
- * Throws ApiError if the backend is unreachable or DB is not configured.
+ * Fetch neighborhood metadata and active disruption projects for a given slug.
+ * Returns null when the backend is not configured.
  */
-export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+export async function fetchNeighborhood(slug: string): Promise<NeighborhoodResponse | null> {
   const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) {
-    throw new ApiError("Backend not configured. Cannot save report.");
-  }
+  if (!apiBaseUrl) return null;
 
-  const url = buildApiUrl("/save");
-  let response: Response;
   try {
-    response = await fetch(url.toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: score.address, score_json: score }),
-    });
+    const url = buildApiUrl(`/neighborhood/${encodeURIComponent(slug)}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as NeighborhoodResponse;
   } catch {
-    throw new ApiError("Network error. Could not reach the backend to save report.");
+    return null;
   }
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "Unknown error");
-    throw new ApiError(`Save failed (${response.status}): ${detail}`);
-  }
-
-  return (await response.json()) as SaveReportResponse;
 }
 
 /**
- * Fetch a previously saved report by its UUID.
- * Returns null if not found (404).
- * Throws ApiError on network or server errors.
+ * Fetch the list of all available neighborhoods.
+ * Returns an empty array when the backend is not configured or unreachable.
  */
-export async function fetchReport(reportId: string): Promise<FetchReportResponse | null> {
-  const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) {
-    throw new ApiError("Backend not configured. Cannot fetch report.");
-  }
-
-  const url = buildApiUrl(`/report/${encodeURIComponent(reportId)}`);
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), { cache: "no-store" });
-  } catch {
-    throw new ApiError("Network error. Could not reach the backend to fetch report.");
-  }
-
-  if (response.status === 404) return null;
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "Unknown error");
-    throw new ApiError(`Fetch report failed (${response.status}): ${detail}`);
-  }
-
-  return (await response.json()) as FetchReportResponse;
-}
-
-/**
- * Fetch score history for an address (most recent first).
- * Returns an empty array when the backend is not configured or has no data.
- */
-export async function fetchHistory(address: string, limit = 10): Promise<ScoreHistoryEntry[]> {
+export async function fetchNeighborhoods(): Promise<NeighborhoodSummary[]> {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) return [];
+
   try {
-    const url = buildApiUrl("/history");
-    url.searchParams.set("address", address);
-    url.searchParams.set("limit", String(limit));
+    const url = buildApiUrl("/neighborhoods");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (!resp.ok) return [];
-    const data = (await resp.json()) as { address: string; history: ScoreHistoryEntry[] };
-    return data.history ?? [];
+    const data = (await resp.json()) as { neighborhoods: NeighborhoodSummary[] };
+    return data.neighborhoods ?? [];
   } catch {
     return [];
   }

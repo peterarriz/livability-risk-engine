@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-026
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -489,6 +489,166 @@ def _parse_photon(features: list) -> list[str]:
             seen.add(formatted)
             suggestions.append(formatted)
     return suggestions[:5]
+
+
+# ---------------------------------------------------------------------------
+# /neighborhood/<slug> endpoint (data-026)
+# Returns all live disruption projects within a neighborhood bounding box
+# plus neighborhood metadata. Used by the /neighborhood/[slug] frontend pages.
+#
+# Bounding boxes are defined as (min_lat, min_lon, max_lat, max_lon).
+# Neighborhoods were chosen to cover the most active permit/closure corridors.
+# ---------------------------------------------------------------------------
+
+_NEIGHBORHOODS: dict[str, dict] = {
+    "wicker-park": {
+        "name": "Wicker Park",
+        "description": "Dense mixed-use neighborhood with high permit activity along Milwaukee Ave.",
+        "center": {"lat": 41.9088, "lon": -87.6776},
+        "bbox": {"min_lat": 41.8990, "min_lon": -87.6950, "max_lat": 41.9180, "max_lon": -87.6600},
+    },
+    "logan-square": {
+        "name": "Logan Square",
+        "description": "Rapidly developing neighborhood with significant construction along the 606 trail corridor.",
+        "center": {"lat": 41.9217, "lon": -87.7082},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.7250, "max_lat": 41.9330, "max_lon": -87.6900},
+    },
+    "river-north": {
+        "name": "River North",
+        "description": "High-density commercial and residential construction zone north of the Chicago River.",
+        "center": {"lat": 41.8940, "lon": -87.6340},
+        "bbox": {"min_lat": 41.8850, "min_lon": -87.6500, "max_lat": 41.9030, "max_lon": -87.6200},
+    },
+    "lincoln-park": {
+        "name": "Lincoln Park",
+        "description": "Affluent lakefront neighborhood with ongoing street and utility work.",
+        "center": {"lat": 41.9240, "lon": -87.6450},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.6630, "max_lat": 41.9380, "max_lon": -87.6270},
+    },
+    "pilsen": {
+        "name": "Pilsen",
+        "description": "Arts and manufacturing district with active infrastructure upgrades.",
+        "center": {"lat": 41.8560, "lon": -87.6640},
+        "bbox": {"min_lat": 41.8470, "min_lon": -87.6850, "max_lat": 41.8650, "max_lon": -87.6430},
+    },
+    "loop": {
+        "name": "The Loop",
+        "description": "Chicago's downtown core with continuous street closure and utility activity.",
+        "center": {"lat": 41.8827, "lon": -87.6323},
+        "bbox": {"min_lat": 41.8740, "min_lon": -87.6480, "max_lat": 41.8920, "max_lon": -87.6180},
+    },
+    "uptown": {
+        "name": "Uptown",
+        "description": "Dense lakeside neighborhood undergoing significant transit corridor improvements.",
+        "center": {"lat": 41.9650, "lon": -87.6540},
+        "bbox": {"min_lat": 41.9540, "min_lon": -87.6680, "max_lat": 41.9750, "max_lon": -87.6390},
+    },
+    "bridgeport": {
+        "name": "Bridgeport",
+        "description": "South Side industrial-residential neighborhood with ongoing utility and road work.",
+        "center": {"lat": 41.8350, "lon": -87.6444},
+        "bbox": {"min_lat": 41.8250, "min_lon": -87.6600, "max_lat": 41.8460, "max_lon": -87.6300},
+    },
+}
+
+
+def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> list[dict]:
+    """
+    Query active projects within a bounding box from the canonical projects table.
+    Returns a list of JSON-serializable project dicts.
+    Falls back to an empty list when DB is not configured.
+    """
+    if not _is_db_configured():
+        return []
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT project_id, source, impact_type, title,
+                           start_date, end_date, status, lat, lon
+                    FROM projects
+                    WHERE status = 'active'
+                      AND lat BETWEEN %s AND %s
+                      AND lon BETWEEN %s AND %s
+                    ORDER BY start_date DESC
+                    LIMIT 200
+                    """,
+                    (min_lat, max_lat, min_lon, max_lon),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        projects = []
+        for row in rows:
+            project_id, source, impact_type, title, start_date, end_date, status, lat, lon = row
+            projects.append({
+                "project_id": project_id,
+                "source": source,
+                "impact_type": impact_type,
+                "title": title,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                "status": status,
+                "lat": lat,
+                "lon": lon,
+            })
+        return projects
+    except Exception as exc:
+        log.error("neighborhood bbox query error: %s", exc)
+        return []
+
+
+@app.get("/neighborhood/{slug}")
+def get_neighborhood(slug: str) -> dict:
+    """
+    Return neighborhood metadata and all active disruption projects within
+    the neighborhood bounding box.
+
+    slug:      one of the 8 pre-defined Chicago neighborhood slugs
+    Returns:
+      slug, name, description, center, bbox, projects (list), project_count, mode
+    """
+    neighborhood = _NEIGHBORHOODS.get(slug)
+    if neighborhood is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Neighborhood '{slug}' not found. Valid slugs: {', '.join(_NEIGHBORHOODS)}",
+        )
+
+    bbox = neighborhood["bbox"]
+    projects = _get_projects_in_bbox(
+        bbox["min_lat"], bbox["min_lon"], bbox["max_lat"], bbox["max_lon"]
+    )
+    mode = "live" if _is_db_configured() else "demo"
+
+    return {
+        "slug": slug,
+        "name": neighborhood["name"],
+        "description": neighborhood["description"],
+        "center": neighborhood["center"],
+        "bbox": bbox,
+        "projects": projects,
+        "project_count": len(projects),
+        "mode": mode,
+    }
+
+
+@app.get("/neighborhoods")
+def list_neighborhoods() -> dict:
+    """
+    Return the list of available neighborhood slugs and their names/centers.
+    Used by the frontend to render a neighborhood index.
+    """
+    return {
+        "neighborhoods": [
+            {"slug": slug, "name": n["name"], "description": n["description"], "center": n["center"]}
+            for slug, n in _NEIGHBORHOODS.items()
+        ]
+    }
 
 
 @app.get("/suggest")

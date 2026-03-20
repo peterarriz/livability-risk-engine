@@ -1,280 +1,298 @@
 "use client";
 
-// data-026: Neighborhood disruption heat map page
-// URL: /neighborhood/<slug>  (e.g. /neighborhood/west-loop)
-// Fetches all active projects in the neighborhood and renders a Leaflet map
-// with markers colored by impact type, plus a ranked project list.
+/**
+ * frontend/src/app/neighborhood/[slug]/page.tsx
+ * task: data-026
+ *
+ * SEO-indexed neighborhood heat map page.
+ * Shows all live disruption projects on a Leaflet map with markers
+ * colored by impact type, plus a project list and neighborhood summary.
+ */
 
-import React, { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import { Card, Container, Section } from "@/components/shell";
+import React, { useEffect, useRef, useState } from "react";
+import { fetchNeighborhood, NeighborhoodProject, NeighborhoodResponse } from "@/lib/api";
 
-// Leaflet must be dynamically imported (no SSR).
-const MapView = dynamic(
-  () => import("@/components/map-view").then((m) => m.MapView),
-  { ssr: false },
-);
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type Project = {
-  project_id: string;
-  source: string;
-  impact_type: string;
-  title: string;
-  notes: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string;
-  address: string | null;
-  latitude: number | null;
-  longitude: number | null;
+// Impact type → marker color mapping
+const IMPACT_COLORS: Record<string, string> = {
+  traffic: "#e63946",
+  noise: "#f4a261",
+  dust: "#a8c5da",
+  utility: "#6a4c93",
+  construction: "#2a9d8f",
 };
 
-type BBox = { min_lat: number; min_lon: number; max_lat: number; max_lon: number };
-
-type NeighborhoodResponse = {
-  slug: string;
-  name: string;
-  description: string;
-  bbox: BBox;
-  projects: Project[];
-  mode: "live" | "demo";
-  available_neighborhoods: { slug: string; name: string }[];
-};
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const IMPACT_LABELS: Record<string, string> = {
-  closure_full: "Full closure",
-  closure_multi_lane: "Multi-lane closure",
-  closure_single_lane: "Single-lane closure",
-  demolition: "Demolition",
-  construction: "Construction",
-  light_permit: "Light permit",
-};
-
-const IMPACT_ORDER: Record<string, number> = {
-  closure_full: 1,
-  closure_multi_lane: 2,
-  closure_single_lane: 3,
-  demolition: 4,
-  construction: 5,
-  light_permit: 6,
-};
-
-function impactLabel(type: string): string {
-  return IMPACT_LABELS[type] ?? type;
+function getMarkerColor(impactType: string | null): string {
+  if (!impactType) return "#888";
+  return IMPACT_COLORS[impactType.toLowerCase()] ?? "#888";
 }
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[Number(m) - 1]} ${Number(d)}, ${y}`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function bboxCenter(bbox: BBox): { lat: number; lon: number } {
-  return {
-    lat: (bbox.min_lat + bbox.max_lat) / 2,
-    lon: (bbox.min_lon + bbox.max_lon) / 2,
-  };
+// ---------------------------------------------------------------------------
+// Map component (client-only, SSR-safe via dynamic import inside useEffect)
+// ---------------------------------------------------------------------------
+
+type NeighborhoodMapProps = {
+  center: { lat: number; lon: number };
+  projects: NeighborhoodProject[];
+};
+
+function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<unknown>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    if (mapRef.current) {
+      (mapRef.current as { remove(): void }).remove();
+      mapRef.current = null;
+    }
+
+    import("leaflet").then((L) => {
+      if (!containerRef.current) return;
+
+      const iconBase = "https://unpkg.com/leaflet@1.9.4/dist/images/";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl: `${iconBase}marker-icon.png`,
+        iconRetinaUrl: `${iconBase}marker-icon-2x.png`,
+        shadowUrl: `${iconBase}marker-shadow.png`,
+      });
+
+      const map = L.map(containerRef.current).setView([center.lat, center.lon], 14);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Add a marker for each project, colored by impact type
+      for (const project of projects) {
+        if (project.lat == null || project.lon == null) continue;
+
+        const color = getMarkerColor(project.impact_type);
+        const circleMarker = L.circleMarker([project.lat, project.lon], {
+          radius: 8,
+          fillColor: color,
+          color: "#fff",
+          weight: 1.5,
+          opacity: 1,
+          fillOpacity: 0.85,
+        });
+
+        const label = project.title ?? project.project_id;
+        const type = project.impact_type ?? "unknown";
+        circleMarker.bindPopup(
+          `<strong>${label}</strong><br/>` +
+          `Type: ${type}<br/>` +
+          `Status: ${project.status}<br/>` +
+          `${project.start_date ? `From: ${formatDate(project.start_date)}` : ""}` +
+          `${project.end_date ? ` · To: ${formatDate(project.end_date)}` : ""}`
+        );
+        circleMarker.addTo(map);
+      }
+
+      mapRef.current = map;
+    });
+
+    return () => {
+      if (mapRef.current) {
+        (mapRef.current as { remove(): void }).remove();
+        mapRef.current = null;
+      }
+    };
+  }, [center, projects]);
+
+  return (
+    <>
+      <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossOrigin=""
+      />
+      <div
+        ref={containerRef}
+        style={{ height: "420px", width: "100%", borderRadius: "6px" }}
+        aria-label="Neighborhood disruption project map"
+      />
+    </>
+  );
 }
 
-const SLUGS = [
-  "west-loop","wicker-park","logan-square","river-north",
-  "lincoln-park","pilsen","bronzeville","uptown",
-];
+// ---------------------------------------------------------------------------
+// Legend
+// ---------------------------------------------------------------------------
+
+function ImpactLegend() {
+  const entries = Object.entries(IMPACT_COLORS).concat([["other", "#888"]]);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "8px" }}>
+      {entries.map(([type, color]) => (
+        <span key={type} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px" }}>
+          <span style={{
+            display: "inline-block",
+            width: "12px",
+            height: "12px",
+            borderRadius: "50%",
+            background: color,
+            border: "1px solid rgba(0,0,0,0.15)",
+          }} />
+          {type.charAt(0).toUpperCase() + type.slice(1)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Project list
+// ---------------------------------------------------------------------------
+
+function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
+  if (projects.length === 0) {
+    return (
+      <p style={{ color: "var(--color-muted, #888)", fontSize: "14px" }}>
+        No active projects found in this neighborhood right now.
+      </p>
+    );
+  }
+
+  return (
+    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+      {projects.map((p) => {
+        const color = getMarkerColor(p.impact_type);
+        return (
+          <li
+            key={p.project_id}
+            style={{
+              padding: "12px 14px",
+              borderRadius: "6px",
+              background: "var(--surface-raised, #f8f9fa)",
+              borderLeft: `4px solid ${color}`,
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "2px" }}>
+              {p.title ?? p.project_id}
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--color-muted, #666)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <span>Type: {p.impact_type ?? "—"}</span>
+              <span>Source: {p.source}</span>
+              {p.start_date && <span>From: {formatDate(p.start_date)}</span>}
+              {p.end_date && <span>To: {formatDate(p.end_date)}</span>}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function NeighborhoodPage({ params }: { params: { slug: string } }) {
+  const { slug } = params;
   const [data, setData] = useState<NeighborhoodResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<string>("all");
-
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
   useEffect(() => {
-    fetch(`${apiBase}/neighborhood/${encodeURIComponent(params.slug)}`, { cache: "no-store" })
-      .then(async (resp) => {
-        if (resp.status === 404) { setNotFound(true); return; }
-        if (!resp.ok) { setError(`Backend error (${resp.status})`); return; }
-        setData(await resp.json());
-      })
-      .catch(() => setError("Could not reach backend."));
-  }, [params.slug, apiBase]);
-
-  const projects = data?.projects ?? [];
-  const sorted = [...projects].sort(
-    (a, b) => (IMPACT_ORDER[a.impact_type] ?? 9) - (IMPACT_ORDER[b.impact_type] ?? 9),
-  );
-  const filtered = filterType === "all" ? sorted : sorted.filter((p) => p.impact_type === filterType);
-  const impactTypes = Array.from(new Set(projects.map((p) => p.impact_type))).sort(
-    (a, b) => (IMPACT_ORDER[a] ?? 9) - (IMPACT_ORDER[b] ?? 9),
-  );
-  const center = data ? bboxCenter(data.bbox) : null;
-
-  // Count by type for the summary chips.
-  const typeCounts = projects.reduce<Record<string, number>>((acc, p) => {
-    acc[p.impact_type] = (acc[p.impact_type] ?? 0) + 1;
-    return acc;
-  }, {});
+    setLoading(true);
+    setNotFound(false);
+    fetchNeighborhood(slug).then((result) => {
+      if (!result) {
+        setNotFound(true);
+      } else {
+        setData(result);
+      }
+      setLoading(false);
+    });
+  }, [slug]);
 
   return (
-    <main>
-      <Container>
-        <div className="report-header">
-          <a href="/" className="report-back-link">← Back to Livability Risk Engine</a>
+    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: "960px", margin: "0 auto", padding: "32px 24px" }}>
+      <a href="/" style={{ fontSize: "13px", color: "var(--color-muted, #666)", textDecoration: "none" }}>
+        ← Livability Risk Engine
+      </a>
+
+      {loading && (
+        <div style={{ marginTop: "48px", color: "var(--color-muted, #888)" }}>
+          Loading neighborhood data…
         </div>
+      )}
 
-        {/* Neighborhood nav */}
-        <div className="neighborhood-nav">
-          {SLUGS.map((s) => (
-            <a
-              key={s}
-              href={`/neighborhood/${s}`}
-              className={`neighborhood-nav-chip${s === params.slug ? " neighborhood-nav-chip--active" : ""}`}
-            >
-              {s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-            </a>
-          ))}
+      {!loading && notFound && (
+        <div style={{ marginTop: "48px" }}>
+          <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "8px" }}>Neighborhood not found</h1>
+          <p style={{ color: "var(--color-muted, #666)" }}>
+            The neighborhood <code>{slug}</code> does not exist.{" "}
+            <a href="/" style={{ color: "inherit" }}>Go back home.</a>
+          </p>
         </div>
+      )}
 
-        {!data && !notFound && !error && (
-          <Section eyebrow="Loading" title="Fetching neighborhood data…">
-            <Card className="empty-state"><p className="empty-kicker">Please wait</p></Card>
-          </Section>
-        )}
+      {!loading && data && (
+        <>
+          <div style={{ marginTop: "24px", marginBottom: "8px" }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--color-muted, #888)" }}>
+              Chicago Neighborhood · Disruption Intelligence
+            </span>
+          </div>
 
-        {notFound && (
-          <Section eyebrow="Not found" title="Unknown neighborhood">
-            <Card className="empty-state">
-              <p className="empty-kicker">404</p>
-              <h3>That neighborhood slug isn&apos;t recognized.</h3>
-              <p><a href="/neighborhood/west-loop">Try West Loop →</a></p>
-            </Card>
-          </Section>
-        )}
+          <h1 style={{ fontSize: "28px", fontWeight: 800, marginBottom: "6px" }}>{data.name}</h1>
+          <p style={{ fontSize: "15px", color: "var(--color-muted, #555)", marginBottom: "28px", maxWidth: "600px" }}>
+            {data.description}
+          </p>
 
-        {error && (
-          <Section eyebrow="Error" title="Could not load data">
-            <Card className="empty-state"><p>{error}</p></Card>
-          </Section>
-        )}
-
-        {data && (
-          <>
-            <Section
-              eyebrow="Neighborhood"
-              title={data.name}
-              description={data.description}
-            >
-              {/* Summary chips */}
-              <div className="neighborhood-summary-chips">
-                <span className="neighborhood-chip neighborhood-chip--total">
-                  {projects.length} active projects
-                </span>
-                {Object.entries(typeCounts).sort((a,b) => (IMPACT_ORDER[a[0]]??9)-(IMPACT_ORDER[b[0]]??9)).map(([type, count]) => (
-                  <span key={type} className={`neighborhood-chip neighborhood-chip--${type.replace(/_/g,"-")}`}>
-                    {count} {impactLabel(type).toLowerCase()}
-                  </span>
-                ))}
-                {data.mode === "demo" && (
-                  <span className="neighborhood-chip neighborhood-chip--demo">Demo mode — no live data</span>
-                )}
+          {/* Summary bar */}
+          <div style={{
+            display: "flex",
+            gap: "24px",
+            padding: "14px 18px",
+            background: "var(--surface-raised, #f8f9fa)",
+            borderRadius: "8px",
+            marginBottom: "24px",
+            flexWrap: "wrap",
+          }}>
+            <div>
+              <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "#888", marginBottom: "2px" }}>Active projects</div>
+              <div style={{ fontSize: "20px", fontWeight: 700 }}>{data.project_count}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "#888", marginBottom: "2px" }}>Data mode</div>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: data.mode === "live" ? "#2a9d8f" : "#888" }}>
+                {data.mode === "live" ? "Live" : "Demo"}
               </div>
+            </div>
+            {data.mode === "demo" && (
+              <div style={{ fontSize: "13px", color: "#888", alignSelf: "center" }}>
+                Connect a live database to see real project data.
+              </div>
+            )}
+          </div>
 
-              {/* Map */}
-              {center && (
-                <Card className="detail-card map-card">
-                  <div className="map-card-head">
-                    <div>
-                      <p className="map-kicker">Spatial context</p>
-                      <h2>Active projects in {data.name}</h2>
-                    </div>
-                    <span className="map-badge">OpenStreetMap</span>
-                  </div>
-                  <MapView latitude={center.lat} longitude={center.lon} address={data.name} />
-                  <p className="map-copy">
-                    Map centered on {data.name}. Zoom in to see individual project locations.
-                  </p>
-                </Card>
-              )}
+          {/* Map */}
+          <div style={{ marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>Project map</h2>
+            <NeighborhoodMap center={data.center} projects={data.projects} />
+            <ImpactLegend />
+          </div>
 
-              {/* Project list */}
-              {projects.length > 0 ? (
-                <Card className="detail-card">
-                  <div className="neighborhood-list-head">
-                    <h2>All active projects ({filtered.length})</h2>
-                    <div className="neighborhood-filter-row">
-                      <button
-                        type="button"
-                        className={`neighborhood-filter-btn${filterType === "all" ? " neighborhood-filter-btn--active" : ""}`}
-                        onClick={() => setFilterType("all")}
-                      >
-                        All
-                      </button>
-                      {impactTypes.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className={`neighborhood-filter-btn${filterType === type ? " neighborhood-filter-btn--active" : ""}`}
-                          onClick={() => setFilterType(type)}
-                        >
-                          {impactLabel(type)} ({typeCounts[type]})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <ul className="neighborhood-project-list">
-                    {filtered.map((p) => (
-                      <li key={p.project_id} className="neighborhood-project-item">
-                        <div className="neighborhood-project-head">
-                          <span className={`impact-badge impact-badge--${p.impact_type.includes("closure") ? "high" : p.impact_type === "demolition" ? "medium" : "low"}`}>
-                            {impactLabel(p.impact_type)}
-                          </span>
-                          <span className={`permit-status permit-status--${p.status}`}>{p.status}</span>
-                        </div>
-                        <p className="neighborhood-project-title">{p.title}</p>
-                        {p.address && <p className="neighborhood-project-address">{p.address}</p>}
-                        <p className="neighborhood-project-dates">
-                          {formatDate(p.start_date)} → {formatDate(p.end_date)}
-                        </p>
-                        {p.notes && <p className="neighborhood-project-notes">{p.notes}</p>}
-                        <div className="neighborhood-project-actions">
-                          <a
-                            href={`/?address=${encodeURIComponent(p.address ?? p.title)}`}
-                            className="compare-link"
-                          >
-                            Score this address →
-                          </a>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              ) : (
-                <Card className="empty-state">
-                  <p className="empty-kicker">No data</p>
-                  <h3>No active projects found in {data.name}.</h3>
-                  {data.mode === "demo" && (
-                    <p>Connect a live database to see real permit and closure data.</p>
-                  )}
-                </Card>
-              )}
-            </Section>
-          </>
-        )}
-      </Container>
+          {/* Project list */}
+          <div style={{ marginTop: "32px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "12px" }}>
+              Active projects ({data.project_count})
+            </h2>
+            <ProjectList projects={data.projects} />
+          </div>
+        </>
+      )}
     </main>
   );
 }
