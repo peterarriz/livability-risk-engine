@@ -38,6 +38,7 @@ export default function HomePage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
   const [saveReportId, setSaveReportId] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
@@ -277,10 +278,10 @@ export default function HomePage() {
     if (!result) return;
     setIsSaving(true);
     setSaveError(null);
-    setSavedReportId(null);
+    setSaveReportId(null);
     try {
       const saved = await saveReport(result);
-      setSavedReportId(saved.report_id);
+      setSaveReportId(saved.report_id);
     } catch (err) {
       setSaveError(
         err instanceof ApiError
@@ -293,8 +294,8 @@ export default function HomePage() {
   }
 
   function handleCopySavedLink() {
-    if (!savedReportId) return;
-    const url = `${window.location.origin}/report/${savedReportId}`;
+    if (!saveReportId) return;
+    const url = `${window.location.origin}/report/${saveReportId}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
@@ -302,7 +303,7 @@ export default function HomePage() {
   }
 
   function handleOpenSaveModal() {
-    setSavedReportId(null);
+    setSaveReportId(null);
     setSaveError(null);
     setShowSaveModal(true);
   }
