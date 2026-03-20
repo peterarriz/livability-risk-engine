@@ -215,3 +215,36 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 COMMENT ON TABLE ingest_runs IS
     'Tracks each ingestion run for freshness checks (data-010).';
+
+
+-- ---------------------------------------------------------------------------
+-- API keys  (data-027)
+--
+-- Enables optional B2B API key gating for /score. Auth is off by default
+-- (REQUIRE_API_KEY env var must be set to enable it). Keys are stored as
+-- sha256 hashes; the raw key is shown only once at creation time.
+--
+-- Key format:  lre_<64 hex chars>
+-- prefix:      first 8 chars of the random portion — used for O(1) lookup
+-- key_hash:    sha256(full_key) — compared during verification
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    id           BIGSERIAL   PRIMARY KEY,
+    prefix       TEXT        NOT NULL UNIQUE,  -- first 8 hex chars of random portion
+    key_hash     TEXT        NOT NULL,          -- sha256(full key string)
+    label        TEXT        NOT NULL,          -- human-readable description
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at TIMESTAMPTZ,                  -- updated on each successful auth
+    is_active    BOOLEAN     NOT NULL DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS api_keys_prefix_idx
+    ON api_keys (prefix)
+    WHERE is_active = true;
+
+COMMENT ON TABLE api_keys IS
+    'Hashed API keys for optional B2B access gating (data-027). '
+    'Activated by setting REQUIRE_API_KEY=true on the backend. '
+    'Keys are created via POST /admin/keys and verified by the '
+    'verify_api_key FastAPI dependency in backend/app/main.py.';
