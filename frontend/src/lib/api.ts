@@ -2,6 +2,24 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
+export type ImpactType =
+  | "closure_full"
+  | "closure_multi_lane"
+  | "closure_single_lane"
+  | "demolition"
+  | "construction"
+  | "light_permit";
+
+export type NearbySignal = {
+  lat: number;
+  lon: number;
+  impact_type: ImpactType | string;
+  title: string;
+  distance_m: number;
+  severity_hint: SeverityLevel;
+  weight: number;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -19,6 +37,8 @@ export type ScoreResponse = {
   // Coordinates returned by the backend for map display.
   latitude?: number | null;
   longitude?: number | null;
+  // Nearby permit/closure signals for the map heat layer.
+  nearby_signals?: NearbySignal[];
 };
 
 export type ScoreSource = ScoreMode;
@@ -102,6 +122,27 @@ function buildDemoScore(address: string): ScoreResponse {
     // Include coordinates for the demo address so the map pin shows immediately.
     latitude: KNOWN_COORDS[address]?.lat ?? null,
     longitude: KNOWN_COORDS[address]?.lon ?? null,
+    // Demo heat signals near 1600 W Chicago Ave for map visualisation.
+    nearby_signals: [
+      {
+        lat: 41.8959, lon: -87.6594,
+        impact_type: "closure_multi_lane",
+        title: "W Chicago Ave 2-lane eastbound closure",
+        distance_m: 120, severity_hint: "HIGH", weight: 30.4,
+      },
+      {
+        lat: 41.8962, lon: -87.6618,
+        impact_type: "construction",
+        title: "Active construction permit at 1550 W Chicago Ave",
+        distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
+      },
+      {
+        lat: 41.8948, lon: -87.6602,
+        impact_type: "closure_single_lane",
+        title: "Curb lane closure on S Ashland Ave",
+        distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
+      },
+    ],
   };
 }
 
