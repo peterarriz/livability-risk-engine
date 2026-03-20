@@ -14,10 +14,11 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
+import { track } from "@vercel/analytics";
 import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const PREMIUM_PLACEHOLDER = "Search a Chicago address";
+const PREMIUM_PLACEHOLDER = "Search an Illinois address";
 const EXAMPLE_ADDRESSES = [
   "1600 W Chicago Ave, Chicago, IL",
   "700 W Grand Ave, Chicago, IL",
@@ -220,6 +221,7 @@ export default function HomePage() {
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
+    track("suggestion_selected", { address: suggestion });
     skipSuggestRef.current = true;
     hasUserTyped.current = false;   // treat the fill as programmatic
     setAddress(suggestion);
@@ -255,6 +257,7 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
+    track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
     try {
@@ -335,7 +338,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Chicago disruption intelligence</p>
+              <p className="brand-subtitle">Illinois disruption intelligence</p>
             </div>
           </div>
 
@@ -381,11 +384,11 @@ export default function HomePage() {
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Chicago address intelligence</p>
+              <p className="eyebrow">Illinois address intelligence</p>
               <h1>
                 {workspaceMode
                   ? "A decision-ready disruption brief for the current address."
-                  : "Instant disruption intelligence for any Chicago address."}
+                  : "Instant disruption intelligence for any Illinois address."}
               </h1>
               <p className="lede">
                 {workspaceMode
@@ -396,7 +399,7 @@ export default function HomePage() {
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                Enter a Chicago address
+                Enter an Illinois address
               </label>
               <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
                 <div className="search-input-stack">
@@ -455,7 +458,7 @@ export default function HomePage() {
                           onMouseEnter={() => setActiveSuggestionIndex(index)}
                         >
                           <span className="suggestion-item-label">{suggestion}</span>
-                          <span className="suggestion-item-meta">Chicago address</span>
+                          <span className="suggestion-item-meta">Illinois address</span>
                         </li>
                       ))}
                     </ul>
@@ -467,9 +470,9 @@ export default function HomePage() {
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
-                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Chicago address.
+                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Illinois address.
                 </p>
-                <p className="form-disclaimer">Currently covers Chicago, IL addresses only.</p>
+                <p className="form-disclaimer">Covers Illinois addresses. Live risk data currently available for Chicago.</p>
 
                 <div className="example-row">
                   <span className="example-label">Quick examples</span>
@@ -509,7 +512,7 @@ export default function HomePage() {
                 </p>
                 <p>
                   {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
-                    ? "We couldn't find that address in Chicago. Try including a ZIP code."
+                    ? "We couldn't find that address in Illinois. Try including a ZIP code."
                     : error}
                 </p>
               </div>
@@ -693,7 +696,7 @@ export default function HomePage() {
             <section className="results">
               <Card className="empty-state">
                 <p className="empty-kicker">Ready for analysis</p>
-                <h3>Enter a Chicago address above to get an instant disruption score.</h3>
+                <h3>Enter an Illinois address above to get an instant disruption score.</h3>
                 <p>
                   The score is powered by live city permit and street closure data. Results return in under 10 seconds.
                 </p>
@@ -747,7 +750,7 @@ export default function HomePage() {
         >
           <div className="demo-grid demo-grid--compressed">
             <Card className="detail-card demo-card">
-              <p className="supporting-kicker">Chicago examples</p>
+              <p className="supporting-kicker">Example addresses</p>
               <h2>Load a known address quickly</h2>
               <div className="example-chip-group example-chip-group--demo">
                 {EXAMPLE_ADDRESSES.map((example) => (

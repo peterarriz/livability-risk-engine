@@ -673,16 +673,16 @@ def debug_score(
 # ---------------------------------------------------------------------------
 
 # Nominatim: viewbox = left,top,right,bottom = minLon,maxLat,maxLon,minLat
-_NOMINATIM_VIEWBOX = "-87.9401,42.0230,-87.5240,41.6445"
+_NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700"
 # Photon: bbox = minLon,minLat,maxLon,maxLat
-_PHOTON_BBOX = "-87.9401,41.6445,-87.5240,42.0230"
-# Chicago lat/lon bounds for bbox-based filtering (avoids strict city-name check)
-_CHI_LAT = (41.6445, 42.0230)
-_CHI_LON = (-87.9401, -87.5240)
+_PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100"
+# Illinois lat/lon bounds for bbox-based filtering
+_IL_LAT = (36.9700, 42.5100)
+_IL_LON = (-91.5100, -87.0200)
 
 
-def _in_chicago(lat: float, lon: float) -> bool:
-    return _CHI_LAT[0] <= lat <= _CHI_LAT[1] and _CHI_LON[0] <= lon <= _CHI_LON[1]
+def _in_illinois(lat: float, lon: float) -> bool:
+    return _IL_LAT[0] <= lat <= _IL_LAT[1] and _IL_LON[0] <= lon <= _IL_LON[1]
 
 
 # Directional prefixes to strip when extracting the bare street-name fragment.
@@ -703,8 +703,9 @@ def _street_prefix(query: str) -> str | None:
     '1600 W Chicago' → 'chicago'   (fragment long enough to be useful)
     """
     q = query.strip()
-    # Drop trailing ', Chicago…' or ', IL…' the caller may have appended.
-    q = re.sub(r",?\s*chicago.*$", "", q, flags=re.IGNORECASE)
+    # Drop trailing city/state suffixes the caller may have appended.
+    q = re.sub(r",?\s*illinois.*$", "", q, flags=re.IGNORECASE)
+    q = re.sub(r",?\s*[a-z ]+,\s*il\b.*$", "", q, flags=re.IGNORECASE)
     q = re.sub(r",?\s*il\b.*$", "", q, flags=re.IGNORECASE)
     # Drop leading house number.
     q = re.sub(r"^\d+\s*", "", q)
@@ -715,7 +716,7 @@ def _street_prefix(query: str) -> str | None:
 
 
 def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]:
-    """Format Nominatim results as 'number road, Chicago, IL' strings.
+    """Format Nominatim results as 'number road, City, IL' strings.
 
     If *street_frag* is given, only keep results whose road name starts with
     that fragment (case-insensitive). This prevents Nominatim from returning
@@ -725,7 +726,7 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
     seen: set[str] = set()
     for r in results:
         try:
-            if not _in_chicago(float(r["lat"]), float(r["lon"])):
+            if not _in_illinois(float(r["lat"]), float(r["lon"])):
                 continue
         except (KeyError, ValueError):
             continue
@@ -736,7 +737,9 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
             continue
         if street_frag and not road.lower().startswith(street_frag):
             continue
-        formatted = f"{house} {road}, Chicago, IL" if house else f"{road}, Chicago, IL"
+        city = addr.get("city") or addr.get("town") or addr.get("village") or ""
+        loc = f"{city}, IL" if city else "IL"
+        formatted = f"{house} {road}, {loc}" if house else f"{road}, {loc}"
         if formatted not in seen:
             seen.add(formatted)
             suggestions.append(formatted)
@@ -744,7 +747,7 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
 
 
 def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
-    """Format Photon GeoJSON features as 'number road, Chicago, IL' strings.
+    """Format Photon GeoJSON features as 'number road, City, IL' strings.
 
     If *street_frag* is given, only keep results whose street name starts with
     that fragment (case-insensitive).
@@ -758,7 +761,7 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
         coords = f.get("geometry", {}).get("coordinates", [])
         try:
             lon, lat = float(coords[0]), float(coords[1])
-            if not _in_chicago(lat, lon):
+            if not _in_illinois(lat, lon):
                 continue
         except (IndexError, ValueError, TypeError):
             continue
@@ -768,7 +771,9 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
         if street_frag and not street.lower().startswith(street_frag):
             continue
         house = props.get("housenumber", "")
-        formatted = f"{house} {street}, Chicago, IL" if house else f"{street}, Chicago, IL"
+        city = props.get("city", "")
+        loc = f"{city}, IL" if city else "IL"
+        formatted = f"{house} {street}, {loc}" if house else f"{street}, {loc}"
         if formatted not in seen:
             seen.add(formatted)
             suggestions.append(formatted)
@@ -944,12 +949,13 @@ def suggest_addresses(
     Used by the frontend autocomplete input.
 
     Tries Nominatim first; falls back to Photon (komoot) if Nominatim is
-    unreachable or returns no results within the Chicago bbox.
+    unreachable or returns no results within the Illinois bbox.
     """
     query = q.strip()
-    # Bias both geocoders toward Chicago without altering short queries.
-    nominatim_q = query if "chicago" in query.lower() else f"{query}, Chicago, IL"
-    photon_q = query if "chicago" in query.lower() else f"{query} Chicago"
+    # Bias both geocoders toward Illinois without altering queries that already
+    # specify a city/state.
+    nominatim_q = query if ", il" in query.lower() else f"{query}, IL"
+    photon_q = query if ", il" in query.lower() else f"{query}, IL"
 
     # Extract the partial street-name fragment so results can be post-filtered.
     # e.g. "679 North Peo" → "peo", preventing Milwaukee/Michigan/etc. showing up.
@@ -991,7 +997,6 @@ def suggest_addresses(
             "https://nominatim.openstreetmap.org/search",
             params={
                 "street": structured_street,
-                "city": "Chicago",
                 "state": "IL",
                 "country": "US",
                 **_nom_common,
