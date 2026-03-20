@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-027
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -18,13 +18,16 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
+import hashlib
 import logging
 import os
+import secrets
 from dataclasses import asdict
 
 import requests as _requests
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ if _frontend_origin:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -78,6 +81,36 @@ DEMO_RESPONSE = {
         "elevated short-term traffic disruption even though noise and dust "
         "are limited."
     ),
+    # Demo signals near 1600 W Chicago Ave (41.8956, -87.6606) for map heat layer.
+    "nearby_signals": [
+        {
+            "lat": 41.8959,
+            "lon": -87.6594,
+            "impact_type": "closure_multi_lane",
+            "title": "W Chicago Ave 2-lane eastbound closure",
+            "distance_m": 120,
+            "severity_hint": "HIGH",
+            "weight": 30.4,
+        },
+        {
+            "lat": 41.8962,
+            "lon": -87.6618,
+            "impact_type": "construction",
+            "title": "Active construction permit at 1550 W Chicago Ave",
+            "distance_m": 210,
+            "severity_hint": "MEDIUM",
+            "weight": 8.8,
+        },
+        {
+            "lat": 41.8948,
+            "lon": -87.6602,
+            "impact_type": "closure_single_lane",
+            "title": "Curb lane closure on S Ashland Ave",
+            "distance_m": 380,
+            "severity_hint": "MEDIUM",
+            "weight": 5.3,
+        },
+    ],
 }
 
 
@@ -105,6 +138,178 @@ def _build_demo_response(address: str, fallback_reason: str, lat: float | None =
 
 def _is_db_configured() -> bool:
     return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
+
+
+# ---------------------------------------------------------------------------
+# API key auth  (data-027)
+#
+# Enabled by setting REQUIRE_API_KEY=true (or 1/yes) in the environment.
+# Off by default so existing usage is unaffected.
+#
+# Key format:  lre_<64 random hex chars>
+# Storage:     prefix (first 8 hex chars) + sha256(full key)
+# Header:      X-API-Key: lre_<...>
+# ---------------------------------------------------------------------------
+
+def _require_api_key_enabled() -> bool:
+    return os.environ.get("REQUIRE_API_KEY", "").lower() in ("1", "true", "yes")
+
+
+def _hash_key(full_key: str) -> str:
+    return hashlib.sha256(full_key.encode()).hexdigest()
+
+
+def _generate_api_key() -> tuple[str, str, str]:
+    """
+    Generate a new API key.
+    Returns (full_key, prefix, key_hash).
+      full_key:  returned to the operator once — never stored
+      prefix:    first 8 hex chars of random portion — stored for O(1) lookup
+      key_hash:  sha256(full_key) — stored for verification
+    """
+    random_portion = secrets.token_hex(32)   # 64 hex chars
+    prefix = random_portion[:8]
+    full_key = f"lre_{random_portion}"
+    return full_key, prefix, _hash_key(full_key)
+
+
+async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    """
+    FastAPI dependency for optional API key authentication.
+
+    When REQUIRE_API_KEY is not set (the default), this is a no-op and every
+    request passes through.  When enabled, the caller must supply a valid key
+    in the X-API-Key header.
+    """
+    if not _require_api_key_enabled():
+        return
+
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    random_portion = x_api_key[4:]    # strip "lre_"
+    if len(random_portion) < 8:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = random_portion[:8]
+    submitted_hash = _hash_key(x_api_key)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+                if row and row[1]:
+                    # Update last_used_at asynchronously — best-effort, non-blocking
+                    try:
+                        cur.execute(
+                            "UPDATE api_keys SET last_used_at = now() WHERE prefix = %s",
+                            (prefix,),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("verify_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
+
+    if not row or not row[1] or row[0] != submitted_hash:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+
+# ---------------------------------------------------------------------------
+# /admin/keys endpoint  (data-027)
+# Protected by ADMIN_SECRET header. Creates a new API key and returns it
+# once. The raw key is never stored — only the sha256 hash is persisted.
+# ---------------------------------------------------------------------------
+
+@app.post("/admin/keys")
+def create_api_key(
+    label: str = Query(..., description="Human-readable label for this key"),
+    x_admin_secret: str | None = Header(None),
+) -> dict:
+    """
+    Create a new API key.
+
+    Requires the X-Admin-Secret header to match the ADMIN_SECRET env var.
+    Returns the raw key once — it cannot be retrieved again.
+
+    The key is stored as a sha256 hash; only the prefix is kept for lookup.
+    Activate API key enforcement by setting REQUIRE_API_KEY=true on the backend.
+    """
+    admin_secret = os.environ.get("ADMIN_SECRET", "")
+    if not admin_secret or x_admin_secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    full_key, prefix, key_hash = _generate_api_key()
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO api_keys (prefix, key_hash, label)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (prefix, key_hash, label.strip()),
+                )
+                conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("create_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not persist API key") from exc
+
+    log.info("create_api_key label=%r prefix=%s", label, prefix)
+    return {
+        "key": full_key,
+        "prefix": prefix,
+        "label": label.strip(),
+        "note": "Store this key securely — it cannot be retrieved again.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /docs/api-access endpoint  (data-027)
+# Public — returns information about how to obtain and use an API key.
+# ---------------------------------------------------------------------------
+
+@app.get("/docs/api-access")
+def api_access_info() -> dict:
+    """
+    Public documentation endpoint for B2B API access.
+
+    Returns information about how to authenticate requests when API key
+    enforcement is active.  Does not require auth.
+    """
+    return {
+        "auth_required": _require_api_key_enabled(),
+        "header": "X-API-Key",
+        "key_format": "lre_<64 hex chars>",
+        "how_to_obtain": (
+            "Contact the platform operator to request an API key. "
+            "Keys are provisioned via POST /admin/keys."
+        ),
+        "usage_example": "curl -H 'X-API-Key: lre_...' '<base_url>/score?address=...'",
+        "docs": "https://github.com/peterarriz/livability-risk-engine",
+    }
 
 
 def _score_live(address: str) -> dict:
@@ -181,7 +386,7 @@ def _write_score_history(address: str, result: dict) -> None:
 # /score endpoint
 # ---------------------------------------------------------------------------
 
-@app.get("/score")
+@app.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
     address: str = Query(..., description="Chicago address to score"),
     background_tasks: BackgroundTasks = None,
@@ -519,6 +724,166 @@ def _parse_photon(features: list) -> list[str]:
     return suggestions[:5]
 
 
+# ---------------------------------------------------------------------------
+# /neighborhood/<slug> endpoint (data-026)
+# Returns all live disruption projects within a neighborhood bounding box
+# plus neighborhood metadata. Used by the /neighborhood/[slug] frontend pages.
+#
+# Bounding boxes are defined as (min_lat, min_lon, max_lat, max_lon).
+# Neighborhoods were chosen to cover the most active permit/closure corridors.
+# ---------------------------------------------------------------------------
+
+_NEIGHBORHOODS: dict[str, dict] = {
+    "wicker-park": {
+        "name": "Wicker Park",
+        "description": "Dense mixed-use neighborhood with high permit activity along Milwaukee Ave.",
+        "center": {"lat": 41.9088, "lon": -87.6776},
+        "bbox": {"min_lat": 41.8990, "min_lon": -87.6950, "max_lat": 41.9180, "max_lon": -87.6600},
+    },
+    "logan-square": {
+        "name": "Logan Square",
+        "description": "Rapidly developing neighborhood with significant construction along the 606 trail corridor.",
+        "center": {"lat": 41.9217, "lon": -87.7082},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.7250, "max_lat": 41.9330, "max_lon": -87.6900},
+    },
+    "river-north": {
+        "name": "River North",
+        "description": "High-density commercial and residential construction zone north of the Chicago River.",
+        "center": {"lat": 41.8940, "lon": -87.6340},
+        "bbox": {"min_lat": 41.8850, "min_lon": -87.6500, "max_lat": 41.9030, "max_lon": -87.6200},
+    },
+    "lincoln-park": {
+        "name": "Lincoln Park",
+        "description": "Affluent lakefront neighborhood with ongoing street and utility work.",
+        "center": {"lat": 41.9240, "lon": -87.6450},
+        "bbox": {"min_lat": 41.9100, "min_lon": -87.6630, "max_lat": 41.9380, "max_lon": -87.6270},
+    },
+    "pilsen": {
+        "name": "Pilsen",
+        "description": "Arts and manufacturing district with active infrastructure upgrades.",
+        "center": {"lat": 41.8560, "lon": -87.6640},
+        "bbox": {"min_lat": 41.8470, "min_lon": -87.6850, "max_lat": 41.8650, "max_lon": -87.6430},
+    },
+    "loop": {
+        "name": "The Loop",
+        "description": "Chicago's downtown core with continuous street closure and utility activity.",
+        "center": {"lat": 41.8827, "lon": -87.6323},
+        "bbox": {"min_lat": 41.8740, "min_lon": -87.6480, "max_lat": 41.8920, "max_lon": -87.6180},
+    },
+    "uptown": {
+        "name": "Uptown",
+        "description": "Dense lakeside neighborhood undergoing significant transit corridor improvements.",
+        "center": {"lat": 41.9650, "lon": -87.6540},
+        "bbox": {"min_lat": 41.9540, "min_lon": -87.6680, "max_lat": 41.9750, "max_lon": -87.6390},
+    },
+    "bridgeport": {
+        "name": "Bridgeport",
+        "description": "South Side industrial-residential neighborhood with ongoing utility and road work.",
+        "center": {"lat": 41.8350, "lon": -87.6444},
+        "bbox": {"min_lat": 41.8250, "min_lon": -87.6600, "max_lat": 41.8460, "max_lon": -87.6300},
+    },
+}
+
+
+def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> list[dict]:
+    """
+    Query active projects within a bounding box from the canonical projects table.
+    Returns a list of JSON-serializable project dicts.
+    Falls back to an empty list when DB is not configured.
+    """
+    if not _is_db_configured():
+        return []
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT project_id, source, impact_type, title,
+                           start_date, end_date, status, lat, lon
+                    FROM projects
+                    WHERE status = 'active'
+                      AND lat BETWEEN %s AND %s
+                      AND lon BETWEEN %s AND %s
+                    ORDER BY start_date DESC
+                    LIMIT 200
+                    """,
+                    (min_lat, max_lat, min_lon, max_lon),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        projects = []
+        for row in rows:
+            project_id, source, impact_type, title, start_date, end_date, status, lat, lon = row
+            projects.append({
+                "project_id": project_id,
+                "source": source,
+                "impact_type": impact_type,
+                "title": title,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                "status": status,
+                "lat": lat,
+                "lon": lon,
+            })
+        return projects
+    except Exception as exc:
+        log.error("neighborhood bbox query error: %s", exc)
+        return []
+
+
+@app.get("/neighborhood/{slug}")
+def get_neighborhood(slug: str) -> dict:
+    """
+    Return neighborhood metadata and all active disruption projects within
+    the neighborhood bounding box.
+
+    slug:      one of the 8 pre-defined Chicago neighborhood slugs
+    Returns:
+      slug, name, description, center, bbox, projects (list), project_count, mode
+    """
+    neighborhood = _NEIGHBORHOODS.get(slug)
+    if neighborhood is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Neighborhood '{slug}' not found. Valid slugs: {', '.join(_NEIGHBORHOODS)}",
+        )
+
+    bbox = neighborhood["bbox"]
+    projects = _get_projects_in_bbox(
+        bbox["min_lat"], bbox["min_lon"], bbox["max_lat"], bbox["max_lon"]
+    )
+    mode = "live" if _is_db_configured() else "demo"
+
+    return {
+        "slug": slug,
+        "name": neighborhood["name"],
+        "description": neighborhood["description"],
+        "center": neighborhood["center"],
+        "bbox": bbox,
+        "projects": projects,
+        "project_count": len(projects),
+        "mode": mode,
+    }
+
+
+@app.get("/neighborhoods")
+def list_neighborhoods() -> dict:
+    """
+    Return the list of available neighborhood slugs and their names/centers.
+    Used by the frontend to render a neighborhood index.
+    """
+    return {
+        "neighborhoods": [
+            {"slug": slug, "name": n["name"], "description": n["description"], "center": n["center"]}
+            for slug, n in _NEIGHBORHOODS.items()
+        ]
+    }
+
+
 @app.get("/suggest")
 def suggest_addresses(
     q: str = Query(..., min_length=2, description="Partial Chicago address query"),
@@ -579,3 +944,117 @@ def suggest_addresses(
         log.warning("suggest q=%r both geocoders failed, last error: %s", q, exc)
 
     return {"suggestions": []}
+
+
+# ---------------------------------------------------------------------------
+# /save endpoint (data-021)
+# Persists a score result as a shareable report. Returns a UUID.
+# When DB is not configured, returns a deterministic demo report_id so the
+# frontend save flow can be exercised without a live database.
+# ---------------------------------------------------------------------------
+
+_DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
+
+
+class SaveReportRequest(BaseModel):
+    """Score JSON payload to persist as a saved report."""
+    address: str
+    disruption_score: int
+    confidence: str
+    severity: dict
+    top_risks: list
+    explanation: str
+    mode: str | None = None
+    fallback_reason: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+@app.post("/save")
+def save_report(body: SaveReportRequest) -> dict:
+    """
+    Store a score result in the reports table and return a shareable UUID.
+
+    When DB is not configured, returns a demo report_id so the frontend
+    save/share flow is exercisable without a live database.
+    """
+    if not _is_db_configured():
+        log.info("save_report address=%r mode=demo", body.address)
+        return {"report_id": _DEMO_REPORT_ID}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        report_id = str(uuid.uuid4())
+        score_json = body.model_dump()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO reports (id, address, score_json) VALUES (%s, %s, %s)",
+                    (report_id, body.address, score_json),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        log.info("save_report address=%r report_id=%s", body.address, report_id)
+        return {"report_id": report_id}
+    except Exception as exc:
+        log.error("save_report error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not save report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /report/{report_id} endpoint (data-021)
+# Fetches a saved report by UUID.
+# ---------------------------------------------------------------------------
+
+@app.get("/report/{report_id}")
+def get_report(report_id: str) -> dict:
+    """
+    Return a saved score report by UUID.
+
+    Returns 404 if the report_id does not exist.
+    When DB is not configured and the demo report_id is requested, returns
+    the canonical demo score so the share flow is exercisable end-to-end.
+    """
+    if not _is_db_configured():
+        if report_id == _DEMO_REPORT_ID:
+            return {
+                **DEMO_RESPONSE,
+                "address": "1600 W Chicago Ave, Chicago, IL",
+                "mode": "demo",
+                "fallback_reason": "db_not_configured",
+                "latitude": 41.8956,
+                "longitude": -87.6606,
+                "report_id": report_id,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT score_json, created_at FROM reports WHERE id = %s",
+                    (report_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Report not found.")
+
+        score_json, created_at = row
+        return {
+            **score_json,
+            "report_id": report_id,
+            "created_at": created_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("get_report report_id=%r error: %s", report_id, exc)
+        raise HTTPException(status_code=503, detail="Could not fetch report.") from exc
