@@ -579,3 +579,296 @@ def get_report(report_id: str) -> dict:
     except Exception as exc:
         log.error("get_report report_id=%r error: %s", report_id, exc)
         raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /docs/api-access endpoint (data-028)
+# Returns structured API documentation for the developer portal page.
+# No auth required for MVP.
+# ---------------------------------------------------------------------------
+
+@app.get("/docs/api-access")
+def api_access_docs() -> dict:
+    """
+    Return structured API documentation consumed by the /api-access developer portal page.
+
+    Includes all public endpoints, parameter specs, response shapes, and
+    copy-paste code examples in curl, Python, and JavaScript.
+    No authentication required for MVP.
+    """
+    base_url = os.environ.get("NEXT_PUBLIC_API_URL", "https://livability-risk-engine.up.railway.app")
+
+    return {
+        "title": "Livability Risk Engine API",
+        "version": "1.0",
+        "description": (
+            "REST API for querying near-term construction disruption risk scores "
+            "for Chicago addresses. All endpoints are public — no API key is required for MVP."
+        ),
+        "base_url": base_url,
+        "auth": {
+            "type": "none",
+            "note": (
+                "The API is open for MVP. A key-based auth layer is planned for "
+                "production. Rate limits may be applied in a future release."
+            ),
+        },
+        "endpoints": [
+            {
+                "id": "score",
+                "method": "GET",
+                "path": "/score",
+                "summary": "Score a Chicago address",
+                "description": (
+                    "Returns a near-term construction disruption risk score for a Chicago address. "
+                    "Geocodes the address, queries nearby permits and closures within 500 meters, "
+                    "and computes a weighted disruption score."
+                ),
+                "params": [
+                    {
+                        "name": "address",
+                        "in": "query",
+                        "required": True,
+                        "type": "string",
+                        "description": "Full Chicago address (e.g. '1600 W Chicago Ave, Chicago, IL').",
+                    }
+                ],
+                "response_fields": [
+                    {"name": "address", "type": "string", "description": "Normalized address echoed from the request."},
+                    {"name": "disruption_score", "type": "integer (0–100)", "description": "Near-term disruption risk score."},
+                    {"name": "confidence", "type": "LOW | MEDIUM | HIGH", "description": "Quality and specificity of evidence."},
+                    {"name": "severity.noise", "type": "LOW | MEDIUM | HIGH", "description": "Audible construction disruption level."},
+                    {"name": "severity.traffic", "type": "LOW | MEDIUM | HIGH", "description": "Access friction including lane/curb impacts."},
+                    {"name": "severity.dust", "type": "LOW | MEDIUM | HIGH", "description": "Dust/vibration disruption from nearby site work."},
+                    {"name": "top_risks", "type": "string[]", "description": "Up to 3 plain-English risk bullets."},
+                    {"name": "explanation", "type": "string", "description": "Short paragraph explaining the dominant disruption driver."},
+                    {"name": "mode", "type": "live | demo", "description": "'live' when scored from the DB; 'demo' when the fallback response is used."},
+                    {"name": "fallback_reason", "type": "string | null", "description": "Reason for demo mode, or null when live."},
+                    {"name": "latitude", "type": "number | null", "description": "Geocoded latitude of the address."},
+                    {"name": "longitude", "type": "number | null", "description": "Geocoded longitude of the address."},
+                ],
+                "examples": {
+                    "curl": (
+                        f'curl "{base_url}/score?address=1600+W+Chicago+Ave%2C+Chicago%2C+IL"'
+                    ),
+                    "python": (
+                        "import requests\n\n"
+                        f'url = "{base_url}/score"\n'
+                        'params = {"address": "1600 W Chicago Ave, Chicago, IL"}\n'
+                        "resp = requests.get(url, params=params)\n"
+                        "data = resp.json()\n"
+                        'print(data["disruption_score"])  # e.g. 62'
+                    ),
+                    "javascript": (
+                        f'const res = await fetch(\n'
+                        f'  "{base_url}/score?address=" +\n'
+                        f'  encodeURIComponent("1600 W Chicago Ave, Chicago, IL")\n'
+                        f');\n'
+                        f'const data = await res.json();\n'
+                        f'console.log(data.disruption_score); // e.g. 62'
+                    ),
+                },
+                "example_response": {
+                    "address": "1600 W Chicago Ave, Chicago, IL",
+                    "disruption_score": 62,
+                    "confidence": "MEDIUM",
+                    "severity": {"noise": "LOW", "traffic": "HIGH", "dust": "LOW"},
+                    "top_risks": [
+                        "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+                        "Active closure window runs through 2026-03-22",
+                        "Traffic and curb access are the dominant near-term disruption signals",
+                    ],
+                    "explanation": (
+                        "A nearby 2-lane closure is the main driver, so this address has "
+                        "elevated short-term traffic and curb access disruption."
+                    ),
+                    "mode": "live",
+                    "fallback_reason": None,
+                    "latitude": 41.8956,
+                    "longitude": -87.6606,
+                },
+            },
+            {
+                "id": "suggest",
+                "method": "GET",
+                "path": "/suggest",
+                "summary": "Autocomplete a Chicago address",
+                "description": (
+                    "Returns up to 5 Chicago address suggestions for a partial query string. "
+                    "Useful for building address autocomplete inputs. "
+                    "Uses Nominatim (OpenStreetMap) with a Photon fallback."
+                ),
+                "params": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": True,
+                        "type": "string",
+                        "description": "Partial address query (minimum 2 characters).",
+                    }
+                ],
+                "response_fields": [
+                    {"name": "suggestions", "type": "string[]", "description": "Up to 5 matching Chicago address strings."},
+                ],
+                "examples": {
+                    "curl": f'curl "{base_url}/suggest?q=1600+W+Chicago"',
+                    "python": (
+                        "import requests\n\n"
+                        f'resp = requests.get("{base_url}/suggest", params={{"q": "1600 W Chicago"}})\n'
+                        "print(resp.json()['suggestions'])"
+                    ),
+                    "javascript": (
+                        f'const res = await fetch("{base_url}/suggest?q=" + encodeURIComponent("1600 W Chicago"));\n'
+                        "const { suggestions } = await res.json();\n"
+                        "console.log(suggestions);"
+                    ),
+                },
+                "example_response": {
+                    "suggestions": [
+                        "1600 W Chicago Ave, Chicago, IL",
+                        "1601 W Chicago Ave, Chicago, IL",
+                    ]
+                },
+            },
+            {
+                "id": "save",
+                "method": "POST",
+                "path": "/save",
+                "summary": "Save a score report",
+                "description": (
+                    "Persists a score result and returns a shareable UUID. "
+                    "The UUID can be used to build a permanent /report/<id> link. "
+                    "Requires a live database — returns 503 in demo mode."
+                ),
+                "params": [
+                    {
+                        "name": "address",
+                        "in": "body",
+                        "required": True,
+                        "type": "string",
+                        "description": "Address that was scored.",
+                    },
+                    {
+                        "name": "score_json",
+                        "in": "body",
+                        "required": True,
+                        "type": "object",
+                        "description": "Full score response object to persist.",
+                    },
+                ],
+                "response_fields": [
+                    {"name": "report_id", "type": "string (UUID)", "description": "UUID for the saved report."},
+                    {"name": "address", "type": "string", "description": "Address that was saved."},
+                ],
+                "examples": {
+                    "curl": (
+                        f'curl -X POST "{base_url}/save" \\\n'
+                        '  -H "Content-Type: application/json" \\\n'
+                        '  -d \'{"address": "1600 W Chicago Ave", "score_json": {"disruption_score": 62}}\''
+                    ),
+                    "python": (
+                        "import requests\n\n"
+                        f'resp = requests.post("{base_url}/save", json={{\n'
+                        '    "address": "1600 W Chicago Ave, Chicago, IL",\n'
+                        '    "score_json": score_data,\n'
+                        "}})\n"
+                        "report_id = resp.json()['report_id']"
+                    ),
+                    "javascript": (
+                        f'const res = await fetch("{base_url}/save", {{\n'
+                        '  method: "POST",\n'
+                        '  headers: { "Content-Type": "application/json" },\n'
+                        '  body: JSON.stringify({ address, score_json: scoreData }),\n'
+                        "});\n"
+                        "const { report_id } = await res.json();"
+                    ),
+                },
+                "example_response": {
+                    "report_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+                    "address": "1600 W Chicago Ave, Chicago, IL",
+                },
+            },
+            {
+                "id": "report",
+                "method": "GET",
+                "path": "/report/{report_id}",
+                "summary": "Fetch a saved report",
+                "description": "Retrieves a previously saved score snapshot by its UUID.",
+                "params": [
+                    {
+                        "name": "report_id",
+                        "in": "path",
+                        "required": True,
+                        "type": "string (UUID)",
+                        "description": "UUID returned by POST /save.",
+                    }
+                ],
+                "response_fields": [
+                    {"name": "report_id", "type": "string (UUID)", "description": "UUID of the report."},
+                    {"name": "address", "type": "string", "description": "Scored address."},
+                    {"name": "score", "type": "object", "description": "Full persisted score snapshot."},
+                    {"name": "created_at", "type": "ISO 8601 string | null", "description": "When the report was saved."},
+                ],
+                "examples": {
+                    "curl": f'curl "{base_url}/report/3f2504e0-4f89-11d3-9a0c-0305e82c3301"',
+                    "python": (
+                        "import requests\n\n"
+                        'report_id = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"\n'
+                        f'resp = requests.get(f"{base_url}/report/{{report_id}}")\n'
+                        "print(resp.json()['score']['disruption_score'])"
+                    ),
+                    "javascript": (
+                        'const reportId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";\n'
+                        f'const res = await fetch(`{base_url}/report/${{reportId}}`);\n'
+                        "const report = await res.json();\n"
+                        "console.log(report.score.disruption_score);"
+                    ),
+                },
+                "example_response": {
+                    "report_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+                    "address": "1600 W Chicago Ave, Chicago, IL",
+                    "score": {"disruption_score": 62, "confidence": "MEDIUM"},
+                    "created_at": "2026-03-20T12:00:00.000000",
+                },
+            },
+            {
+                "id": "health",
+                "method": "GET",
+                "path": "/health",
+                "summary": "Backend readiness check",
+                "description": (
+                    "Returns the operational status of the backend. "
+                    "Indicates whether a live database is configured and connected. "
+                    "Never returns 5xx — DB issues are reflected in the response body."
+                ),
+                "params": [],
+                "response_fields": [
+                    {"name": "status", "type": "string", "description": "Always 'ok'."},
+                    {"name": "mode", "type": "live | unconfigured", "description": "'live' if DATABASE_URL is set."},
+                    {"name": "db_configured", "type": "boolean", "description": "True if DATABASE_URL env var is present."},
+                    {"name": "db_connection", "type": "boolean", "description": "True if a live DB ping succeeded."},
+                    {"name": "last_ingest_status", "type": "null", "description": "Reserved for future ingest tracking."},
+                ],
+                "examples": {
+                    "curl": f'curl "{base_url}/health"',
+                    "python": (
+                        "import requests\n\n"
+                        f'resp = requests.get("{base_url}/health")\n'
+                        "print(resp.json())"
+                    ),
+                    "javascript": (
+                        f'const res = await fetch("{base_url}/health");\n'
+                        "const status = await res.json();\n"
+                        "console.log(status.db_connection);"
+                    ),
+                },
+                "example_response": {
+                    "status": "ok",
+                    "mode": "live",
+                    "db_configured": True,
+                    "db_connection": True,
+                    "last_ingest_status": None,
+                },
+            },
+        ],
+    }
