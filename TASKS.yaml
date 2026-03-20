@@ -432,20 +432,42 @@ tasks:
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
+    status: done
+    priority: medium
+    github_issue: 96
+    notes_for_next_agent: >
+      DECISION: won't-fix. No public REST API exists for Illinois Tollway
+      (ITSHA) construction data. Research findings:
+        1. IDOT ArcGIS (idot_road_projects.py) covers IDOT-managed construction
+           only. Illinois Tollway (ITSHA) is a separate authority — their projects
+           do NOT systematically appear in the IDOT dataset.
+        2. illinoistollway.com/road-projects is HTML-only (no API, no JSON feed).
+           Scraping would be fragile and is not a recommended approach.
+        3. gis.idot.illinois.gov is IDOT's own GIS, separate from ITSHA.
+           No tollway-specific construction layer is available publicly.
+      Coverage rationale: Tollways (I-90/Jane Addams, I-88/Reagan, I-294/Veterans,
+      I-190) are limited-access expressways. Construction on them does not directly
+      affect neighborhood-level livability at the address level the way arterial
+      street closures, building permits, or 311 requests do. IDOT District 1 data
+      provides sufficient coverage for state/federal road construction impacting
+      Chicago neighborhoods. Next: data-038.
+
+  - id: data-038
+    title: Add CDOT traffic signal outage data source
     status: backlog
     priority: medium
     github_issue: ~
     notes_for_next_agent: >
-      Illinois Tollway construction data is NOT on the Chicago Data Portal.
-      The Illinois Tollway publishes project data at:
-        https://www.illinoistollway.com/road-projects (HTML page, not API)
-        https://www.illinoistollway.com/roadwork/construction (alternative)
-      Potential approaches:
-        1. Check if IDOT ArcGIS REST API includes tollway projects
-           (the existing idot_road_projects.py covers IDOT districts 1-9).
-        2. Scrape illinoistollway.com — requires HTML parsing, fragile.
-        3. Check https://gis.idot.illinois.gov for tollway layer.
-      The IDOT ingest already covers state road construction near Chicago
-      (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
-      If no clean API is found, consider using IDOT District 1 as sufficient
-      coverage and marking this task as won't-fix.
+      Add Chicago CDOT Traffic Signal Outages as a disruption signal source.
+      Dataset: Chicago Data Portal "Traffic Signal Status" (Socrata).
+      Dataset ID to verify: search data.cityofchicago.org for "traffic signal"
+      or "signal outage" — the canonical active outages dataset.
+      Signal outages cause intersection-level disruption similar to street
+      closures and are relevant to livability scoring.
+      Implementation pattern mirrors chicago_311_requests.py:
+        - Fetch active outages from Socrata (filter status = 'Active' or similar)
+        - Normalize to internal schema (normalize_signal_outage() in project.py)
+        - Add load_signal_outages() to load_projects.py
+        - Add --skip-signals flag to run_pipeline.py
+        - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
+      Verify dataset ID and field names via dry-run before wiring into pipeline.
