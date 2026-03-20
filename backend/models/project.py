@@ -1006,7 +1006,7 @@ if __name__ == "__main__":
         "longitude": -87.634594,
     }
 
-    idot = normalize_idot_road_project(test_idot)
+    idot = normalize_idot_project(test_idot)
     print(f"IDOT road → impact_type: {idot.impact_type} (expected: closure_full)")
     print(f"            severity_hint: {idot.severity_hint} (expected: HIGH)")
     print(f"            title: {idot.title}")

@@ -77,7 +77,7 @@ from backend.models.project import (
     normalize_closure,
     normalize_cta_alert,
     normalize_divvy_station,
-    normalize_idot_road_project,
+    normalize_idot_project,
     normalize_il_city_permit,
     normalize_permit,
     normalize_traffic_crash,
@@ -718,15 +718,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--idot-file",
         type=Path,
-        default=DEFAULT_IDOT_FILE,
-        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_FILE}).",
+        default=DEFAULT_IDOT_ROADS_FILE,
+        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_ROADS_FILE}).",
     )
-    parser.add_argument(
-        "--cook-county-file",
-        type=Path,
-        default=DEFAULT_COOK_COUNTY_FILE,
-        help=f"Path to Cook County permits staging file (default: {DEFAULT_COOK_COUNTY_FILE}).",
-    )
+    # Cook County permits are loaded via il_city_permits_cook_county.json
+    # (handled by the il_cities loader). No standalone file needed.
     parser.add_argument(
         "--traffic-crashes-file",
         type=Path,
@@ -803,9 +799,8 @@ def main() -> None:
             stats = load_idot_projects(args.idot_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("cook_county", "all"):
-            stats = load_cook_county_permits(args.cook_county_file, conn, args.dry_run)
-            all_stats.append(stats)
+        # Cook County permits are loaded via il_city_permits_cook_county.json
+        # (handled by the il_cities loader below). No standalone loader needed.
 
         if args.source in ("traffic_crashes", "all"):
             stats = load_traffic_crashes(args.traffic_crashes_file, conn, args.dry_run)

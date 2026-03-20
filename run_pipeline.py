@@ -73,11 +73,10 @@ STEPS = [
         "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
         "skip_key": "skip_statewide",
     },
-    {
-        "name": "Fetch Cook County permits",
-        "cmd": [sys.executable, "backend/ingest/cook_county_permits.py"],
-        "skip_key": "skip_statewide",
-    },
+    # Cook County permits are handled by il_city_permits.py (dataset 6yjf-dfxs).
+    # The standalone cook_county_permits.py has an incorrect dataset ID and is
+    # skipped to avoid pipeline failures. Remove this comment when the
+    # standalone script is fixed or deleted.
     {
         # Fetches Cook County + IL city permits from their Socrata portals.
         # Individual city failures are logged as warnings but do not abort
