@@ -45,7 +45,7 @@ function AddressSlot({
   onFocus: () => void;
   onBlur: () => void;
   onSuggestionHover: (index: number) => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
+  inputRef: React.RefObject<HTMLInputElement>;
 }) {
   const hasSuggestions = slot.showSuggestions && slot.suggestions.length > 0;
   const activeSuggestionId = slot.activeSuggestionIndex >= 0 ? `suggestion-${label}-${slot.activeSuggestionIndex}` : undefined;

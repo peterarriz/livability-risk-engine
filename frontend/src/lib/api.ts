@@ -16,6 +16,8 @@ export type TopRiskDetail = {
   end_date: string | null;
   status: string;
   address: string | null;
+  notes?: string | null;
+  weighted_score: number;
 };
 
 export type ImpactType =
@@ -31,7 +33,6 @@ export type NearbySignal = {
   lon: number;
   impact_type: ImpactType;
   title: string;
-  impact_type: string;
   distance_m: number;
   severity_hint: string;
   weight: number;
@@ -442,6 +443,54 @@ export async function fetchHistory(
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (!resp.ok) return null;
     return (await resp.json()) as HistoryResponse;
+  } catch {
+    return null;
+  }
+}
+
+// Score history entry returned by /history (data-025).
+export type ScoreHistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: ScoreMode;
+  created_at: string | null;
+};
+
+// Neighborhood page types (data-026).
+export type NeighborhoodProject = {
+  project_id: string;
+  source: string;
+  title: string | null;
+  impact_type: string | null;
+  status: string;
+  lat: number | null;
+  lon: number | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type NeighborhoodResponse = {
+  name: string;
+  slug: string;
+  description: string;
+  center: { lat: number; lon: number };
+  project_count: number;
+  projects: NeighborhoodProject[];
+  mode: "live" | "demo";
+};
+
+/**
+ * Fetch neighborhood disruption data by slug.
+ * Returns null when the backend is unreachable or the neighborhood is not found.
+ */
+export async function fetchNeighborhood(slug: string): Promise<NeighborhoodResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+  try {
+    const url = buildApiUrl(`/neighborhood/${slug}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as NeighborhoodResponse;
   } catch {
     return null;
   }

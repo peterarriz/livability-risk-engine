@@ -51,9 +51,14 @@ _frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").strip()
 if _frontend_origin:
     _allowed_origins.append(_frontend_origin)
 
+# Allow all Vercel preview/production deployments automatically so the
+# frontend works before FRONTEND_ORIGIN is explicitly configured in Railway.
+_allow_origin_regex = r"https://.*\.vercel\.app"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_origin_regex=_allow_origin_regex,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
