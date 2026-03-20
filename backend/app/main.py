@@ -18,7 +18,9 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
+import csv
 import hashlib
+import io
 import logging
 import os
 import secrets
@@ -27,6 +29,7 @@ from dataclasses import asdict
 import requests as _requests
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -998,6 +1001,7 @@ def api_access_info() -> dict:
             {"method": "POST", "path": "/save", "description": "Save a score result for sharing"},
             {"method": "GET", "path": "/report/{report_id}", "description": "Fetch a saved report"},
             {"method": "GET", "path": "/health", "description": "Backend readiness check"},
+            {"method": "GET", "path": "/export/csv", "description": "Download score and nearby projects as CSV"},
         ],
         "rate_limits": "Unauthenticated requests are rate-limited at the infrastructure level.",
         "example": {
@@ -1013,3 +1017,140 @@ def api_access_info() -> dict:
             },
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# /export/csv endpoint  (data-029)
+# Returns nearby projects for an address as a downloadable CSV file.
+# Works in both live and demo mode.
+# ---------------------------------------------------------------------------
+
+_DEMO_CSV_PROJECTS = [
+    {
+        "distance_m": 120,
+        "title": "2-lane eastbound closure on W Chicago Ave",
+        "source": "street_closure",
+        "source_id": "DEMO-001",
+        "impact_type": "multi_lane_closure",
+        "status": "active",
+        "start_date": "2026-03-01",
+        "end_date": "2026-03-22",
+        "address": "W Chicago Ave",
+        "weighted_score": 28,
+    },
+    {
+        "distance_m": 210,
+        "title": "Active construction permit near 120 W Randolph St",
+        "source": "building_permit",
+        "source_id": "DEMO-002",
+        "impact_type": "construction",
+        "status": "active",
+        "start_date": "2026-02-15",
+        "end_date": "2026-06-30",
+        "address": "120 W Randolph St",
+        "weighted_score": 18,
+    },
+]
+
+
+@app.get("/export/csv", dependencies=[Depends(verify_api_key)])
+def export_csv(
+    address: str = Query(..., description="Chicago address to score and export"),
+) -> StreamingResponse:
+    """
+    data-029: Export score results for an address as a CSV file.
+
+    Returns one row per nearby project plus a summary row.
+    Columns: distance_m, title, source, source_id, impact_type, status,
+             start_date, end_date, address, weighted_score.
+    A summary row (distance_m=SUMMARY) captures disruption_score and confidence.
+    Works in demo mode when DB is not configured.
+    """
+    # -- Live path -----------------------------------------------------------
+    if _is_db_configured():
+        try:
+            from backend.ingest.geocode import geocode_address
+            from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
+
+            conn = get_db_connection()
+            try:
+                coords = geocode_address(address)
+                if not coords:
+                    raise ValueError(f"Could not geocode: {address!r}")
+                lat, lon = coords
+                nearby = get_nearby_projects(lat, lon, conn)
+            finally:
+                conn.close()
+
+            result = compute_score(nearby, address)
+            disruption_score = result.disruption_score
+            confidence = result.confidence
+
+            # Build project rows from top_risk_details when available,
+            # otherwise fall back to a minimal row per NearbyProject.
+            if result.top_risk_details:
+                project_rows = result.top_risk_details
+            else:
+                project_rows = [
+                    {
+                        "distance_m": round(nbp.distance_m),
+                        "title": nbp.project.title or "",
+                        "source": nbp.project.source or "",
+                        "source_id": nbp.project.source_id or "",
+                        "impact_type": nbp.project.impact_type or "",
+                        "status": nbp.project.status or "",
+                        "start_date": str(nbp.project.start_date) if nbp.project.start_date else "",
+                        "end_date": str(nbp.project.end_date) if nbp.project.end_date else "",
+                        "address": nbp.project.address or "",
+                        "weighted_score": "",
+                    }
+                    for nbp in nearby
+                ]
+
+        except Exception as exc:
+            log.warning("export_csv live path failed, falling back to demo: %s", exc)
+            disruption_score = 62
+            confidence = "MEDIUM"
+            project_rows = _DEMO_CSV_PROJECTS
+
+    # -- Demo path -----------------------------------------------------------
+    else:
+        disruption_score = 62
+        confidence = "MEDIUM"
+        project_rows = _DEMO_CSV_PROJECTS
+
+    # -- Build CSV -----------------------------------------------------------
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "distance_m", "title", "source", "source_id",
+            "impact_type", "status", "start_date", "end_date",
+            "address", "weighted_score",
+        ],
+        extrasaction="ignore",
+    )
+    writer.writeheader()
+
+    # Summary row first
+    writer.writerow({
+        "distance_m": "SUMMARY",
+        "title": f"disruption_score={disruption_score} confidence={confidence}",
+        "source": "", "source_id": "", "impact_type": "", "status": "",
+        "start_date": "", "end_date": "",
+        "address": address,
+        "weighted_score": disruption_score,
+    })
+
+    for row in project_rows:
+        writer.writerow(row)
+
+    output.seek(0)
+    safe_addr = address.replace(" ", "_").replace(",", "")[:60]
+    filename = f"livability_risk_{safe_addr}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -293,3 +293,49 @@ COMMENT ON TABLE api_keys IS
     'Hashed API keys for optional /score access gating (data-027). '
     'Keys are only enforced when REQUIRE_API_KEY=true. '
     'Full key is never stored — only the SHA-256 hash.';
+
+
+-- ---------------------------------------------------------------------------
+-- Score alert watchlist  (data-030)
+--
+-- Users subscribe to score alerts for a specific address + email.
+-- When the disruption score crosses threshold_score, an entry is written
+-- to alert_log. Actual email delivery requires SMTP configuration.
+-- Unsubscribe via GET /watch/unsubscribe?token=<token>.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS watchlist (
+    id              BIGSERIAL   PRIMARY KEY,
+    address         TEXT        NOT NULL,
+    email           TEXT        NOT NULL,
+    token           UUID        NOT NULL DEFAULT gen_random_uuid(),
+    threshold_score INT         NOT NULL DEFAULT 50,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active       BOOLEAN     NOT NULL DEFAULT true,
+
+    CONSTRAINT watchlist_email_address_unique UNIQUE (email, address)
+);
+
+CREATE INDEX IF NOT EXISTS watchlist_token_idx ON watchlist (token);
+CREATE INDEX IF NOT EXISTS watchlist_active_idx ON watchlist (is_active, address);
+
+COMMENT ON TABLE watchlist IS
+    'Score alert subscriptions (data-030). Subscribe by email + address. '
+    'When disruption_score >= threshold_score an alert_log row is written. '
+    'Unsubscribe via GET /watch/unsubscribe?token=<uuid>.';
+
+
+CREATE TABLE IF NOT EXISTS alert_log (
+    id              BIGSERIAL   PRIMARY KEY,
+    watchlist_id    BIGINT      NOT NULL REFERENCES watchlist(id),
+    disruption_score INT        NOT NULL,
+    triggered_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS alert_log_watchlist_idx
+    ON alert_log (watchlist_id, triggered_at DESC);
+
+COMMENT ON TABLE alert_log IS
+    'Records of triggered score alerts (data-030). One row per alert check '
+    'that crossed the threshold. Used to prevent duplicate alerts and track '
+    'notification history.';

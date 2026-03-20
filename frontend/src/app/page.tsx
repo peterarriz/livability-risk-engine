@@ -298,6 +298,7 @@ export default function HomePage() {
             <a href="#score-section">Score</a>
             <a href="#signals-section">Signals</a>
             <a href="#examples-section">Examples</a>
+            <a href="/api-access">API</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
           </nav>
         </Header>

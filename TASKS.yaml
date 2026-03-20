@@ -318,3 +318,48 @@ tasks:
         - /api-keys page on frontend (developer portal)
         - Score alert emails (when watched address crosses threshold)
         - CSV/PDF export endpoint
+
+  - id: data-028
+    title: Developer portal page — /api-access
+    status: done
+    priority: medium
+    github_issue: 60
+    notes_for_next_agent: >
+      frontend/src/app/api-access/page.tsx: new developer portal page at /api-access.
+      Fetches live docs from GET /docs/api-access (data-027 endpoint).
+      Shows auth status card, endpoints table, tabbed code examples (cURL/Python/JS),
+      example response JSON, and rate limits / usage notes.
+      Fallback endpoint list used when backend is unreachable.
+      Nav link added to frontend/src/app/page.tsx.
+      Next: data-029 (CSV export endpoint for /score results).
+
+  - id: data-029
+    title: CSV export endpoint — GET /export/csv
+    status: done
+    priority: medium
+    github_issue: 61
+    notes_for_next_agent: >
+      backend/app/main.py: GET /export/csv?address=<address> — runs the same scoring
+      pipeline as /score but returns a StreamingResponse (text/csv).
+      Columns: distance_m, title, source, source_id, impact_type, status,
+      start_date, end_date, address, weighted_score.
+      Summary row (distance_m=SUMMARY) captures disruption_score + confidence.
+      Falls back to demo CSV rows when DB is not configured.
+      Protected by verify_api_key (same as /score).
+      /docs/api-access endpoint list updated to include /export/csv.
+      Frontend api-access page FALLBACK_ENDPOINTS already references this endpoint.
+      Next: data-030 (score alert watchlist — schema already in db/schema.sql).
+
+  - id: data-030
+    title: Score alert watchlist — POST /watch + GET /watch/unsubscribe
+    status: backlog
+    priority: medium
+    notes_for_next_agent: >
+      db/schema.sql: watchlist and alert_log tables already created (data-030 block).
+      Need to implement in backend/app/main.py:
+        - POST /watch: subscribe email+address, returns token UUID
+        - GET /watch/unsubscribe?token=<uuid>: deactivate subscription
+        - Internal _check_alerts() helper called after each /score — writes alert_log
+          row if score >= threshold; actual email delivery requires SMTP env vars.
+      Frontend: small "Alert me" form below score result (outside scope for data lane).
+      Env vars needed: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, ALERT_FROM_EMAIL.
