@@ -333,9 +333,27 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   return [];
 }
 
-// ---------------------------------------------------------------------------
-// Score history  (data-025)
-// ---------------------------------------------------------------------------
+/**
+ * Build a URL for the export endpoints (/export/csv or /export/pdf).
+ * Returns an empty string if the backend is not configured.
+ */
+export function getExportUrl(type: "csv" | "pdf", address: string): string {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return "";
+  const url = buildApiUrl(`/export/${type}`);
+  url.searchParams.set("address", address);
+  return url.toString();
+}
+
+/**
+ * Save a score result to the backend and return a shareable report_id.
+ * Throws ApiError if the backend is unreachable or DB is not configured.
+ */
+export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot save report.");
+  }
 
 export type HistoryEntry = {
   disruption_score: number;

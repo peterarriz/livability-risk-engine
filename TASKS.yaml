@@ -249,17 +249,17 @@ tasks:
       "View permit details" toggle button that expands a PermitDetailPanel inline.
       Gracefully absent when top_risk_details is not present (demo mode / old backend).
 
-  - id: data-030
-    title: Score alert watchlist — subscribe email + threshold, log alerts
+  - id: data-029
+    title: CSV and PDF export endpoints
     status: done
     priority: medium
-    github_issue: 63
+    github_issue: 62
     notes_for_next_agent: >
-      db/schema.sql: added `watchlist` (email, address, threshold, token) and
-      `alert_log` (watchlist_id FK, score, triggered_at) tables.
-      backend/app/main.py: POST /watch (subscribe), GET /watch/unsubscribe
-      (opt-out by token), POST /admin/watch/check (score all watched addresses,
-      write alert_log rows, stub email log).
-      Frontend modal (Get score alerts button in page.tsx) was requested in the
-      issue but is out of scope per CLAUDE.md (no frontend UI work).
-      Next data task: data-031.
+      backend/app/main.py: GET /export/csv?address= returns CSV download (Content-Disposition
+      attachment); GET /export/pdf?address= returns print-ready HTML that auto-triggers
+      window.print(). Both endpoints call live scoring when DB is configured, fall back to
+      demo data otherwise. HTML output is properly escaped against XSS.
+      frontend/src/lib/api.ts: getExportUrl(type, address) helper builds backend export URLs.
+      frontend/src/app/page.tsx: headerAction now shows "↓ CSV" and "↓ PDF" links when a
+      score is loaded (replaces the dead alert button). PDF opens in new tab.
+      frontend/src/app/report/[id]/page.tsx: report-actions area has CSV + PDF export links.
