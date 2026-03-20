@@ -217,14 +217,49 @@ tasks:
     title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
-    github_issue: 57
+    github_issue: 54
     notes_for_next_agent: >
-      DB: score_history table added to db/schema.sql (run apply_schema.sh to apply).
-      Backend: _write_score_history() fires as a BackgroundTask after each live /score.
-               GET /history?address=&limit= endpoint added to main.py.
-      Frontend (data layer only): fetchHistory() + HistoryResponse/HistoryEntry types
-               added to frontend/src/lib/api.ts.
-      Frontend UI (out of data lane): ScoreSparkline SVG component and page.tsx wiring
-               were NOT implemented — those are app-lane tasks.
-               Next app-lane task: consume fetchHistory() + render sparkline in
-               frontend/src/components/score-experience.tsx and frontend/src/app/page.tsx.
+      frontend/src/app/page.tsx: addressHistory state initialized from
+      localStorage("lre_address_history") on mount; written back on every change.
+      No backend dependency.
+
+  - id: data-023
+    title: /compare page — side-by-side address comparison
+    status: done
+    priority: high
+    github_issue: 55
+    notes_for_next_agent: >
+      frontend/src/app/compare/page.tsx: new page at /compare.
+      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
+      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
+      Verdict card shows which address has lower disruption risk and by how many points.
+      Dead link in page.tsx updated to /compare?a=<current-address>.
+
+  - id: data-024
+    title: Permit detail drill-down — structured top_risk_details in API
+    status: done
+    priority: medium
+    github_issue: 56
+    notes_for_next_agent: >
+      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
+      Each dict has project_id, source, source_id, impact_type, title, notes,
+      status, start_date, end_date, address, distance_m, weighted_score.
+      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
+      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
+      "View permit details" toggle button that expands a PermitDetailPanel inline.
+      Gracefully absent when top_risk_details is not present (demo mode / old backend).
+
+  - id: data-030
+    title: Score alert watchlist — subscribe email + threshold, log alerts
+    status: done
+    priority: medium
+    github_issue: 63
+    notes_for_next_agent: >
+      db/schema.sql: added `watchlist` (email, address, threshold, token) and
+      `alert_log` (watchlist_id FK, score, triggered_at) tables.
+      backend/app/main.py: POST /watch (subscribe), GET /watch/unsubscribe
+      (opt-out by token), POST /admin/watch/check (score all watched addresses,
+      write alert_log rows, stub email log).
+      Frontend modal (Get score alerts button in page.tsx) was requested in the
+      issue but is out of scope per CLAUDE.md (no frontend UI work).
+      Next data task: data-031.
