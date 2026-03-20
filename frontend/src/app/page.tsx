@@ -14,7 +14,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -42,6 +42,7 @@ export default function HomePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
