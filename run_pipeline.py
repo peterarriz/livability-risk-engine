@@ -69,7 +69,7 @@ STEPS = [
         "cmd": [sys.executable, "backend/ingest/street_closures.py"],
     },
     {
-        "name": "Fetch IDOT road projects (statewide IL)",
+        "name": "Fetch IDOT road construction (all districts)",
         "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
         "skip_key": "skip_statewide",
     },
@@ -77,6 +77,14 @@ STEPS = [
         "name": "Fetch Cook County permits",
         "cmd": [sys.executable, "backend/ingest/cook_county_permits.py"],
         "skip_key": "skip_statewide",
+    },
+    {
+        # Fetches Cook County + IL city permits from their Socrata portals.
+        # Individual city failures are logged as warnings but do not abort
+        # the pipeline — the step exits 0 as long as at least one city succeeds.
+        "name": "Fetch IL city permits (Cook County + cities)",
+        "cmd": [sys.executable, "backend/ingest/il_city_permits.py"],
+        "skip_key": "skip_il_cities",
     },
     {
         "name": "Fill missing geocoordinates",
@@ -141,9 +149,9 @@ def parse_args() -> argparse.Namespace:
         help="Skip the geocode_fill step (use if staging files already have coordinates).",
     )
     parser.add_argument(
-        "--skip-statewide",
+        "--skip-il-cities",
         action="store_true",
-        help="Skip IDOT and Cook County ingest steps (Chicago-only pipeline).",
+        help="Skip the IL city permits fetch step (Cook County + cities).",
     )
     parser.add_argument(
         "--dry-run",

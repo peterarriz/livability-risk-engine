@@ -217,92 +217,40 @@ tasks:
     title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
-    github_issue: 54
+    github_issue: 58
     notes_for_next_agent: >
-      frontend/src/app/page.tsx: addressHistory state initialized from
-      localStorage("lre_address_history") on mount; written back on every change.
-      No backend dependency.
+      Backend: GET /neighborhood/<slug> returns projects within bbox + metadata.
+               GET /neighborhoods returns list of all 8 neighborhoods.
+               8 bounding boxes defined in _NEIGHBORHOODS dict in backend/app/main.py.
+               Falls back to empty project list when DB is not configured.
+      Frontend: frontend/src/app/neighborhood/[slug]/page.tsx — Leaflet map with
+               circle markers colored by impact_type, project list with color-coded
+               left border, neighborhood summary bar.
+               fetchNeighborhood() and fetchNeighborhoods() added to frontend/src/lib/api.ts.
+      Next: Consider adding a /neighborhoods index page and linking from the homepage.
 
-  - id: data-023
-    title: /compare page — side-by-side address comparison
-    status: done
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, additional cities, all IDOT districts
+    status: in-progress
     priority: high
-    github_issue: 55
+    github_issue: 67
     notes_for_next_agent: >
-      frontend/src/app/compare/page.tsx: new page at /compare.
-      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
-      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
-      Verdict card shows which address has lower disruption risk and by how many points.
-      Dead link in page.tsx updated to /compare?a=<current-address>.
+      Script: backend/ingest/il_city_permits.py.
+      Config-driven Socrata ingest for Cook County + 6 IL cities.
+      Output: data/raw/il_city_permits_<source_key>.json per city.
+      Normalization: normalize_il_city_permit() in backend/models/project.py.
+      Wired into load_projects.py (load_il_city_permits, --source il_cities)
+      and run_pipeline.py (new step 4, --skip-il-cities flag).
+      IDOT already fetches all districts (WHERE 1=1, no district filter needed).
 
-  - id: data-024
-    title: Permit detail drill-down — structured top_risk_details in API
-    status: done
-    priority: medium
-    github_issue: 56
-    notes_for_next_agent: >
-      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
-      Each dict has project_id, source, source_id, impact_type, title, notes,
-      status, start_date, end_date, address, distance_m, weighted_score.
-      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
-      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
-      "View permit details" toggle button that expands a PermitDetailPanel inline.
-      Gracefully absent when top_risk_details is not present (demo mode / old backend).
+      IMPORTANT — Dataset IDs need manual verification:
+        Each CITY_CONFIGS entry has a dataset_id marked "# TODO: verify".
+        To verify: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5" | python -m json.tool
+        Or visit the portal URL and search for "building permits" to confirm the 4x4 ID.
+        Cities configured: cook_county, evanston, aurora, naperville, rockford, springfield, peoria.
+        Some smaller cities (Naperville, Rockford) may not have active Socrata portals —
+        the script will warn and skip cleanly if a dataset is inaccessible.
 
-  - id: data-031
-    title: Research and implement Illinois statewide data sources
-    status: done
-    priority: medium
-    github_issue: 64
-    notes_for_next_agent: >
-      New ingest scripts added (data-031):
-        - backend/ingest/idot_road_projects.py: IDOT Active Construction Projects
-          from data.illinois.gov Socrata API (dataset ID: hhkm-y6y2 — verify at
-          https://data.illinois.gov/browse?q=IDOT+highway+projects).
-        - backend/ingest/cook_county_permits.py: Cook County Building Permits
-          from datacatalog.cookcountyil.gov Socrata API (dataset ID: ydr8-5enu —
-          verify at https://datacatalog.cookcountyil.gov/browse?q=building+permits).
-      New normalization functions in backend/models/project.py:
-        - normalize_idot_project(): IDOT → Project, source='idot_road_projects'
-        - normalize_cook_county_permit(): Cook County → Project, source='cook_county_permits'
-      Updated files:
-        - backend/ingest/geocode.py: added ILLINOIS bounding box constants and
-          _is_in_illinois(); geocode_address() now auto-detects IL statewide
-          addresses and uses the wider bounding box.
-        - backend/ingest/load_projects.py: added load_idot_projects() and
-          load_cook_county_permits(); --source now accepts 'idot', 'cook_county', 'all'.
-        - run_pipeline.py: added IDOT and Cook County fetch steps; --skip-statewide
-          flag available to run Chicago-only pipeline.
-      ⚠ Dataset IDs need operator verification before first run:
-        1. Check data.illinois.gov for current IDOT construction dataset ID.
-        2. Check datacatalog.cookcountyil.gov for current Cook County permits ID.
-        3. Update SOCRATA_BASE_URL constants in both ingest scripts if IDs changed.
-      New env vars (all optional):
-        - ILLINOIS_SOCRATA_APP_TOKEN: for data.illinois.gov rate limits
-        - COOK_COUNTY_SOCRATA_APP_TOKEN: for Cook County portal rate limits
-      Next data task: data-032.
-
-  - id: data-032
-    title: Validate statewide ingest — verify IDOT and Cook County dataset IDs and run end-to-end
-    status: backlog
-    priority: medium
-    github_issue: null
-    notes_for_next_agent: >
-      data-031 implemented the ingest scripts but dataset IDs need confirmation.
-      Steps to complete data-032:
-        1. Verify IDOT dataset ID at https://data.illinois.gov/browse?q=IDOT+construction
-           Update SOCRATA_BASE_URL in backend/ingest/idot_road_projects.py if needed.
-        2. Verify Cook County permits dataset ID at
-           https://datacatalog.cookcountyil.gov/browse?q=building+permits
-           Update SOCRATA_BASE_URL in backend/ingest/cook_county_permits.py if needed.
-        3. Run dry-run fetch:
-             python backend/ingest/idot_road_projects.py --dry-run
-             python backend/ingest/cook_county_permits.py --dry-run
-        4. Inspect sample records and adjust FIELDS_TO_KEEP / SOCRATA_TO_INTERNAL
-           column mappings if portal field names differ from expected.
-        5. Run full pipeline:
-             python run_pipeline.py --dry-run
-           Then with live DB:
-             python run_pipeline.py
-        6. Validate /score returns statewide records for an Evanston or Naperville address.
-      Once validated, close this task and create data-033.
+      Test command (once dataset IDs are verified):
+        python backend/ingest/il_city_permits.py --city cook_county --dry-run
+        python backend/ingest/il_city_permits.py --dry-run  # all cities

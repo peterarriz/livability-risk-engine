@@ -563,90 +563,61 @@ def normalize_idot_project(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
-# Cook County permit normalization  (data-031)
+# Illinois city / Cook County permit normalization  (data-033)
 # ---------------------------------------------------------------------------
+# Handles permits from Cook County and additional IL cities ingested via
+# backend/ingest/il_city_permits.py.  Field names have already been mapped
+# to a consistent internal schema by normalize_raw_record() in that module.
 
-def normalize_cook_county_permit(record: dict) -> Project:
+def normalize_il_city_permit(record: dict) -> Project:
     """
-    Normalize a raw Cook County building permit record into a canonical Project.
-
-    Cook County permits use a similar schema to Chicago permits (both Socrata),
-    so we reuse the Chicago permit classification logic with a county-aware
-    address builder.
+    Normalize a pre-mapped Illinois city/county permit record into a
+    canonical Project.
 
     Args:
-        record: A single dict from the raw_cook_county_permits staging file.
+        record: A dict produced by il_city_permits.normalize_raw_record().
+                Keys are always the internal field names (source_key, city_name,
+                source_id, permit_type, description, issue_date, …).
 
     Returns:
         A Project dataclass ready for upsert into the `projects` table.
     """
-    source_id = (
-        record.get("permit_number")
-        or record.get("source_id")
-        or ""
-    )
-    permit_type = record.get("permit_type", "")
-    work_desc = record.get("work_description", "")
+    source_key = record.get("source_key", "il_city")
+    city_name  = record.get("city_name", "Illinois")
+    source_id  = record.get("source_id", "")
 
-    impact_type = _classify_permit(permit_type, work_desc)
+    permit_type = record.get("permit_type", "") or ""
+    description = record.get("description", "") or ""
 
-    # Build address — Cook County records may have a full_address field.
-    full_addr = (record.get("full_address") or "").strip()
-    if full_addr:
-        # Ensure state suffix.
-        city = (record.get("city") or "").strip()
-        if city and city.upper() not in full_addr.upper():
-            address_str = f"{full_addr}, {city}, IL"
-        else:
-            address_str = full_addr if ", IL" in full_addr else f"{full_addr}, IL"
-    else:
-        # Assemble from parts.
-        city = (record.get("city") or "").strip()
-        parts = [
-            record.get("street_number", ""),
-            record.get("street_direction", ""),
-            record.get("street_name", ""),
-        ]
-        street = " ".join(p.strip() for p in parts if p and p.strip())
-        if street and city:
-            address_str = f"{street}, {city}, IL"
-        elif street:
-            address_str = f"{street}, Cook County, IL"
-        else:
-            address_str = "Cook County, IL"
+    impact_type = _classify_permit(permit_type, description)
 
-    # Title: short label.
+    # Title: strip "PERMIT - " prefix for brevity, append city if useful.
+    short_type = re.sub(r"^PERMIT\s*-\s*", "", permit_type, flags=re.IGNORECASE).strip()
+    address_raw = (record.get("address") or "").strip()
+    address_str = f"{address_raw}, {record.get('city_il', city_name + ', IL')}" if address_raw else f"{city_name}, IL"
+
     title_parts = []
-    if permit_type:
-        short_type = re.sub(r"^PERMIT\s*-\s*", "", permit_type, flags=re.IGNORECASE).strip()
+    if short_type:
         title_parts.append(short_type)
-    if address_str not in ("Cook County, IL",):
-        title_parts.append(f"at {address_str}")
-    title = " ".join(title_parts) if title_parts else f"Cook County permit {source_id}"
+    if address_raw:
+        title_parts.append(f"at {address_raw}")
+    title = " ".join(title_parts) if title_parts else f"{city_name} permit {source_id}"
 
-    notes = work_desc[:200] if work_desc else None
+    notes = description[:200] if description else None
 
     lat = _safe_float(record.get("latitude"))
     lon = _safe_float(record.get("longitude"))
 
-    if (lat is None or lon is None) and isinstance(record.get("location"), dict):
-        loc = record["location"]
-        lat = _safe_float(loc.get("latitude"))
-        lon = _safe_float(loc.get("longitude"))
-
-    # Derive status from issue/expiration dates (same logic as Chicago permits).
-    status = _permit_status(record)
-
     return Project(
-        project_id=f"cook_county_permits:{source_id}",
-        source="cook_county_permits",
+        project_id=f"{source_key}:{source_id}",
+        source=source_key,
         source_id=source_id,
         impact_type=impact_type,
         title=title,
         notes=notes,
-        start_date=_parse_date(record.get("issue_date") or record.get("application_start_date")),
+        start_date=_parse_date(record.get("issue_date")),
         end_date=_parse_date(record.get("expiration_date")),
-        status=status,
+        status=_permit_status(record),
         address=address_str,
         latitude=lat,
         longitude=lon,
