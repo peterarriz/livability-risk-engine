@@ -2,6 +2,22 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
+// Structured metadata for a single top-risk contributor (data-024).
+// Parallel to the plain-English top_risks strings but machine-readable,
+// allowing the frontend to render permit IDs, dates, and source links.
+export type TopRiskDetail = {
+  project_id: string;
+  source: string;
+  source_id: string;
+  title: string;
+  impact_type: string;
+  distance_m: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  address: string | null;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -13,12 +29,17 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // Structured per-risk metadata added in data-024. Optional for backward
+  // compatibility with backend builds that predate this field.
+  top_risk_details?: TopRiskDetail[];
   // Optional for backward compatibility with older backend builds.
   mode?: ScoreMode;
   fallback_reason?: string | null;
   // Coordinates returned by the backend for map display.
   latitude?: number | null;
   longitude?: number | null;
+  // Nearby permit/closure signals for the map heat layer.
+  nearby_signals?: NearbySignal[];
 };
 
 export type ScoreSource = ScoreMode;
@@ -95,6 +116,7 @@ function buildDemoScore(address: string): ScoreResponse {
       "Active closure window runs through 2026-03-22",
       "Traffic is the dominant near-term disruption signal at this address",
     ],
+    top_risk_details: [],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
     mode: "demo",
@@ -102,6 +124,27 @@ function buildDemoScore(address: string): ScoreResponse {
     // Include coordinates for the demo address so the map pin shows immediately.
     latitude: KNOWN_COORDS[address]?.lat ?? null,
     longitude: KNOWN_COORDS[address]?.lon ?? null,
+    // Demo heat signals near 1600 W Chicago Ave for map visualisation.
+    nearby_signals: [
+      {
+        lat: 41.8959, lon: -87.6594,
+        impact_type: "closure_multi_lane",
+        title: "W Chicago Ave 2-lane eastbound closure",
+        distance_m: 120, severity_hint: "HIGH", weight: 30.4,
+      },
+      {
+        lat: 41.8962, lon: -87.6618,
+        impact_type: "construction",
+        title: "Active construction permit at 1550 W Chicago Ave",
+        distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
+      },
+      {
+        lat: 41.8948, lon: -87.6602,
+        impact_type: "closure_single_lane",
+        title: "Curb lane closure on S Ashland Ave",
+        distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
+      },
+    ],
   };
 }
 
@@ -288,6 +331,61 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   } catch { /* */ }
 
   return [];
+}
+
+// ---------------------------------------------------------------------------
+// Report save / fetch  (data-021)
+// ---------------------------------------------------------------------------
+
+export type SaveReportResponse = {
+  report_id: string;
+};
+
+export type ReportResponse = ScoreResponse & {
+  report_id: string;
+  created_at: string;
+};
+
+/**
+ * POST /save — persist a score result and return a shareable report UUID.
+ * Falls back to a demo report_id when the backend is not configured.
+ */
+export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    return { report_id: "00000000-0000-0000-0000-000000000001" };
+  }
+  const url = buildApiUrl("/save");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(score),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    throw new ApiError(`Failed to save report: ${resp.status}`);
+  }
+  return resp.json() as Promise<SaveReportResponse>;
+}
+
+/**
+ * GET /report/{reportId} — fetch a saved report by UUID.
+ * Throws ApiError when not found or backend is unavailable.
+ */
+export async function fetchReport(reportId: string): Promise<ReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured — cannot fetch report.");
+  }
+  const url = buildApiUrl(`/report/${reportId}`);
+  const resp = await fetch(url.toString(), { cache: "no-store" });
+  if (resp.status === 404) {
+    throw new ApiError("Report not found.");
+  }
+  if (!resp.ok) {
+    throw new ApiError(`Could not fetch report: ${resp.status}`);
+  }
+  return resp.json() as Promise<ReportResponse>;
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {
