@@ -37,7 +37,7 @@ class Project:
     """
 
     project_id: str          # stable display ID: "source:source_id"
-    source: str              # 'chicago_permits' | 'chicago_closures'
+    source: str              # 'chicago_permits' | 'chicago_closures' | 'idot_road_projects' | 'cook_county_permits'
     source_id: str           # original record key
 
     # Classification — drives base weight in scoring engine
@@ -415,51 +415,61 @@ def normalize_closure(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
-# IDOT road construction normalization  (data-014)
+# IDOT road project normalization  (data-031)
 # ---------------------------------------------------------------------------
 
-# Keywords in construction_type or lanes_ramps_closed that signal full closures.
-_ROAD_CLOSED_TERMS = re.compile(
-    r"\b(road.?closed|closed|full.?closure|bridge.?closed|ramp.?closed)\b",
+_IDOT_BRIDGE_TERMS = re.compile(
+    r"\b(bridge|overpass|viaduct|underpass|culvert)\b",
     re.IGNORECASE,
 )
 
-_LANE_CLOSED_TERMS = re.compile(
-    r"\b(lane.?closed|lane.?closure|lane.?reduction|reduced|shift)\b",
+_IDOT_RECONSTRUCTION_TERMS = re.compile(
+    r"\b(reconstruction|reconstruct|rebuilding|rebuild|resurfacing|resurface|"
+    r"full.?depth|fdr|mill.?and.?overlay|widening|interchange)\b",
+    re.IGNORECASE,
+)
+
+_IDOT_MAINTENANCE_TERMS = re.compile(
+    r"\b(patching|crack.?seal|joint.?repair|guardrail|signage|pavement.?marking|"
+    r"landscaping|lighting|signal|striping)\b",
     re.IGNORECASE,
 )
 
 
-def _classify_idot_road(construction_type: str, lanes_ramps_closed: str, impact_on_travel: str) -> str:
+def _classify_idot_project(work_type: str, description: str) -> str:
     """
-    Assign an impact_type to an IDOT road construction record.
+    Assign an impact_type to an IDOT road project.
 
     Priority order:
-    1. Road/ramp/bridge closed → closure_full
-    2. Lane closure keywords → closure_single_lane
-    3. Default → road_construction (general disruption)
+    1. Bridge/overpass work (high disruption)
+    2. Reconstruction/resurfacing (medium-high disruption)
+    3. Maintenance items (low disruption)
+    4. Default: construction
+
+    Returns one of the IMPACT_* constants.
     """
-    combined = " ".join([
-        construction_type or "",
-        lanes_ramps_closed or "",
-        impact_on_travel or "",
-    ])
+    combined = " ".join([work_type or "", description or ""])
 
-    if _ROAD_CLOSED_TERMS.search(combined):
-        return IMPACT_FULL_CLOSURE
+    if _IDOT_BRIDGE_TERMS.search(combined):
+        return IMPACT_CONSTRUCTION  # Bridges close lanes but rarely full streets
 
-    if _LANE_CLOSED_TERMS.search(combined):
-        return IMPACT_SINGLE_LANE
+    if _IDOT_RECONSTRUCTION_TERMS.search(combined):
+        return IMPACT_CONSTRUCTION
 
-    return IMPACT_ROAD_CONSTRUCTION
+    if _IDOT_MAINTENANCE_TERMS.search(combined):
+        return IMPACT_LIGHT_PERMIT
+
+    return IMPACT_CONSTRUCTION
 
 
 def _idot_status(record: dict) -> str:
-    """Derive normalized status from IDOT record dates and status field."""
+    """Derive normalized status from IDOT project dates and status field."""
     src_status = (record.get("status") or "").lower()
     today = date.today()
 
-    if "complet" in src_status or "closed" in src_status:
+    if "complet" in src_status or "close" in src_status:
+        return "completed"
+    if "cancel" in src_status:
         return "completed"
 
     start = _parse_date(record.get("start_date"))
@@ -475,71 +485,74 @@ def _idot_status(record: dict) -> str:
     return "unknown"
 
 
-def normalize_idot_road_project(record: dict) -> Project:
+def _idot_address(record: dict) -> str:
+    """Build an address string from IDOT route and county fields."""
+    route = (record.get("route") or "").strip()
+    county = (record.get("county") or "").strip()
+
+    parts = []
+    if route:
+        parts.append(route)
+    if county:
+        parts.append(f"{county} County")
+    parts.append("IL")
+
+    return ", ".join(parts) if parts else "Illinois"
+
+
+def normalize_idot_project(record: dict) -> Project:
     """
-    Normalize a raw IDOT road construction record into a canonical Project.
+    Normalize a raw IDOT road project record into a canonical Project.
 
     Args:
-        record: A single dict from the idot_road_projects staging file
-                (already field-mapped by the ingest script).
+        record: A single dict from the raw_idot_road_projects staging file.
 
     Returns:
         A Project dataclass ready for upsert into the `projects` table.
     """
-    source_id = str(record.get("row_id", "") or record.get("contract_number", ""))
-    construction_type = record.get("construction_type", "") or ""
-    lanes_closed = record.get("lanes_ramps_closed", "") or ""
-    impact_on_travel = record.get("impact_on_travel", "") or ""
+    source_id = (
+        record.get("project_number")
+        or record.get("source_id")
+        or ""
+    )
+    work_type = record.get("work_type", "")
+    description = record.get("project_description", "")
 
-    impact_type = _classify_idot_road(construction_type, lanes_closed, impact_on_travel)
+    impact_type = _classify_idot_project(work_type, description)
 
-    # Title: route + location for human-readable display.
-    title_parts = []
+    # Title: route + work type for quick scanning.
     route = (record.get("route") or "").strip()
-    location = (record.get("location") or "").strip()
-    near_town = (record.get("near_town") or "").strip()
-
+    county = (record.get("county") or "").strip()
+    title_parts = []
     if route:
-        title_parts.append(f"Route {route}")
-    if location:
-        title_parts.append(location)
-    elif near_town:
-        title_parts.append(f"near {near_town}")
+        title_parts.append(route)
+    if county:
+        title_parts.append(f"({county} Co.)")
+    if work_type:
+        title_parts.append(f"— {work_type}")
+    title = " ".join(title_parts) if title_parts else f"IDOT project {source_id}"
 
-    title = " — ".join(title_parts) if title_parts else f"IDOT road project {source_id}"
-
-    # Notes: combine construction type, closure info, and detour.
-    notes_parts = []
-    if construction_type:
-        notes_parts.append(construction_type)
-    if lanes_closed:
-        notes_parts.append(f"Lanes/ramps closed: {lanes_closed}")
-    detour = record.get("detour_route") or ""
-    if detour:
-        notes_parts.append(f"Detour: {detour}")
-    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+    notes = description[:200] if description else None
 
     lat = _safe_float(record.get("latitude"))
     lon = _safe_float(record.get("longitude"))
 
-    # Address from location + near_town (IDOT doesn't provide street addresses).
-    if location and near_town:
-        address_str = f"{location}, {near_town}, IL"
-    elif location:
-        address_str = f"{location}, IL"
-    elif near_town:
-        address_str = f"{near_town}, IL"
-    else:
-        address_str = "Illinois"
+    # Fallback: extract from nested location dict.
+    if (lat is None or lon is None) and isinstance(record.get("location"), dict):
+        loc = record["location"]
+        lat = _safe_float(loc.get("latitude"))
+        lon = _safe_float(loc.get("longitude"))
+
+    address_str = _idot_address(record)
 
     return Project(
-        project_id=f"idot_road:{source_id}",
-        source="idot_road_construction",
+        project_id=f"idot_road_projects:{source_id}",
+        source="idot_road_projects",
         source_id=source_id,
         impact_type=impact_type,
         title=title,
         notes=notes,
-        start_date=_parse_date(record.get("start_date")),
+        start_date=_parse_date(record.get("start_date") or record.get("contract_date")),
         end_date=_parse_date(record.get("end_date")),
         status=_idot_status(record),
         address=address_str,

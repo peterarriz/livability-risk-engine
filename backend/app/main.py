@@ -1,6 +1,6 @@
 """
 backend/app/main.py
-tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-026
+tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-030
 lane: app
 
 FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
@@ -18,15 +18,18 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
-import hashlib
+import csv
+import html as _html
+import io
 import logging
 import os
 import secrets
 from dataclasses import asdict
 
 import requests as _requests
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -81,6 +84,36 @@ DEMO_RESPONSE = {
         "elevated short-term traffic disruption even though noise and dust "
         "are limited."
     ),
+    # Demo signals near 1600 W Chicago Ave (41.8956, -87.6606) for map heat layer.
+    "nearby_signals": [
+        {
+            "lat": 41.8959,
+            "lon": -87.6594,
+            "impact_type": "closure_multi_lane",
+            "title": "W Chicago Ave 2-lane eastbound closure",
+            "distance_m": 120,
+            "severity_hint": "HIGH",
+            "weight": 30.4,
+        },
+        {
+            "lat": 41.8962,
+            "lon": -87.6618,
+            "impact_type": "construction",
+            "title": "Active construction permit at 1550 W Chicago Ave",
+            "distance_m": 210,
+            "severity_hint": "MEDIUM",
+            "weight": 8.8,
+        },
+        {
+            "lat": 41.8948,
+            "lon": -87.6602,
+            "impact_type": "closure_single_lane",
+            "title": "Curb lane closure on S Ashland Ave",
+            "distance_m": 380,
+            "severity_hint": "MEDIUM",
+            "weight": 5.3,
+        },
+    ],
 }
 
 
@@ -108,6 +141,178 @@ def _build_demo_response(address: str, fallback_reason: str, lat: float | None =
 
 def _is_db_configured() -> bool:
     return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
+
+
+# ---------------------------------------------------------------------------
+# API key auth  (data-027)
+#
+# Enabled by setting REQUIRE_API_KEY=true (or 1/yes) in the environment.
+# Off by default so existing usage is unaffected.
+#
+# Key format:  lre_<64 random hex chars>
+# Storage:     prefix (first 8 hex chars) + sha256(full key)
+# Header:      X-API-Key: lre_<...>
+# ---------------------------------------------------------------------------
+
+def _require_api_key_enabled() -> bool:
+    return os.environ.get("REQUIRE_API_KEY", "").lower() in ("1", "true", "yes")
+
+
+def _hash_key(full_key: str) -> str:
+    return hashlib.sha256(full_key.encode()).hexdigest()
+
+
+def _generate_api_key() -> tuple[str, str, str]:
+    """
+    Generate a new API key.
+    Returns (full_key, prefix, key_hash).
+      full_key:  returned to the operator once — never stored
+      prefix:    first 8 hex chars of random portion — stored for O(1) lookup
+      key_hash:  sha256(full_key) — stored for verification
+    """
+    random_portion = secrets.token_hex(32)   # 64 hex chars
+    prefix = random_portion[:8]
+    full_key = f"lre_{random_portion}"
+    return full_key, prefix, _hash_key(full_key)
+
+
+async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    """
+    FastAPI dependency for optional API key authentication.
+
+    When REQUIRE_API_KEY is not set (the default), this is a no-op and every
+    request passes through.  When enabled, the caller must supply a valid key
+    in the X-API-Key header.
+    """
+    if not _require_api_key_enabled():
+        return
+
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    random_portion = x_api_key[4:]    # strip "lre_"
+    if len(random_portion) < 8:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = random_portion[:8]
+    submitted_hash = _hash_key(x_api_key)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+                if row and row[1]:
+                    # Update last_used_at asynchronously — best-effort, non-blocking
+                    try:
+                        cur.execute(
+                            "UPDATE api_keys SET last_used_at = now() WHERE prefix = %s",
+                            (prefix,),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("verify_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
+
+    if not row or not row[1] or row[0] != submitted_hash:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+
+# ---------------------------------------------------------------------------
+# /admin/keys endpoint  (data-027)
+# Protected by ADMIN_SECRET header. Creates a new API key and returns it
+# once. The raw key is never stored — only the sha256 hash is persisted.
+# ---------------------------------------------------------------------------
+
+@app.post("/admin/keys")
+def create_api_key(
+    label: str = Query(..., description="Human-readable label for this key"),
+    x_admin_secret: str | None = Header(None),
+) -> dict:
+    """
+    Create a new API key.
+
+    Requires the X-Admin-Secret header to match the ADMIN_SECRET env var.
+    Returns the raw key once — it cannot be retrieved again.
+
+    The key is stored as a sha256 hash; only the prefix is kept for lookup.
+    Activate API key enforcement by setting REQUIRE_API_KEY=true on the backend.
+    """
+    admin_secret = os.environ.get("ADMIN_SECRET", "")
+    if not admin_secret or x_admin_secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    full_key, prefix, key_hash = _generate_api_key()
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO api_keys (prefix, key_hash, label)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (prefix, key_hash, label.strip()),
+                )
+                conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("create_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not persist API key") from exc
+
+    log.info("create_api_key label=%r prefix=%s", label, prefix)
+    return {
+        "key": full_key,
+        "prefix": prefix,
+        "label": label.strip(),
+        "note": "Store this key securely — it cannot be retrieved again.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /docs/api-access endpoint  (data-027)
+# Public — returns information about how to obtain and use an API key.
+# ---------------------------------------------------------------------------
+
+@app.get("/docs/api-access")
+def api_access_info() -> dict:
+    """
+    Public documentation endpoint for B2B API access.
+
+    Returns information about how to authenticate requests when API key
+    enforcement is active.  Does not require auth.
+    """
+    return {
+        "auth_required": _require_api_key_enabled(),
+        "header": "X-API-Key",
+        "key_format": "lre_<64 hex chars>",
+        "how_to_obtain": (
+            "Contact the platform operator to request an API key. "
+            "Keys are provisioned via POST /admin/keys."
+        ),
+        "usage_example": "curl -H 'X-API-Key: lre_...' '<base_url>/score?address=...'",
+        "docs": "https://github.com/peterarriz/livability-risk-engine",
+    }
 
 
 def _score_live(address: str) -> dict:
@@ -138,6 +343,43 @@ def _score_live(address: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Score history helpers  (data-025)
+# ---------------------------------------------------------------------------
+
+def _write_score_history(address: str, result: dict) -> None:
+    """
+    Persist a live /score result to the score_history table.
+    Intended for use as a BackgroundTask — failures are logged but not raised.
+    Only live-mode scores are written; demo results are silently skipped.
+    """
+    if result.get("mode") != "live":
+        return
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO score_history (address, disruption_score, confidence, mode)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        address,
+                        result["disruption_score"],
+                        result["confidence"],
+                        result.get("mode", "live"),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        log.debug("score_history written address=%r score=%s", address, result["disruption_score"])
+    except Exception as exc:
+        log.warning("score_history write failed address=%r error=%s", address, exc)
+
+
+# ---------------------------------------------------------------------------
 # /suggest endpoint (data-016)
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
 # Used by the frontend search bar autocomplete.
@@ -150,6 +392,7 @@ def _score_live(address: str) -> dict:
 @app.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
     address: str = Query(..., description="Chicago address to score"),
+    background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
     Return a near-term construction disruption risk score for a Chicago address.
@@ -184,7 +427,8 @@ def get_score(
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
-        _record_score_history(address, result["disruption_score"], result["confidence"], "live")
+        if background_tasks is not None:
+            background_tasks.add_task(_write_score_history, address, result)
         return result
     except ValueError as exc:
         log.warning("score address=%r geocode_failed error=%s", address, exc)
@@ -201,41 +445,29 @@ def get_score(
 
 
 # ---------------------------------------------------------------------------
-# Score history helpers (data-025)
+# /history endpoint  (data-025)
+# Returns recent score history for a given address, newest first.
+# Used by the frontend sparkline component to visualise score trend.
 # ---------------------------------------------------------------------------
 
-def _record_score_history(address: str, score: int, confidence: str, mode: str) -> None:
-    """
-    Write a score_history row. Fire-and-forget: exceptions are logged and swallowed
-    so a history write failure never breaks the /score response.
-    """
-    if not _is_db_configured():
-        return
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO score_history (address, disruption_score, confidence, mode) VALUES (%s, %s, %s, %s)",
-                    (address, score, confidence, mode),
-                )
-            conn.commit()
-        finally:
-            conn.close()
-    except Exception as exc:
-        log.warning("score_history write failed (non-fatal): %s", exc)
-
-
 @app.get("/history")
-def get_score_history(
-    address: str = Query(..., description="Chicago address to fetch history for"),
-    limit: int = Query(10, ge=1, le=50, description="Max number of historical records to return"),
+def get_history(
+    address: str = Query(..., description="Chicago address to look up"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
 ) -> dict:
     """
-    Return the score history for a given address (most recent first).
-    Used by the frontend sparkline component to show score trend over time.
-    Returns an empty list when DB is not configured or address has no history.
+    Return the most recent score history entries for a given address.
+
+    Response shape:
+      {
+        "address": "<address>",
+        "history": [
+          { "disruption_score": 62, "confidence": "MEDIUM", "mode": "live", "scored_at": "<iso>" },
+          ...
+        ]
+      }
+
+    Returns an empty history list when the DB is not configured (demo mode).
     """
     if not _is_db_configured():
         return {"address": address, "history": []}
@@ -247,10 +479,10 @@ def get_score_history(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT disruption_score, confidence, mode, created_at
+                    SELECT disruption_score, confidence, mode, scored_at
                     FROM score_history
                     WHERE address = %s
-                    ORDER BY created_at DESC
+                    ORDER BY scored_at DESC
                     LIMIT %s
                     """,
                     (address, limit),
@@ -264,15 +496,19 @@ def get_score_history(
                 "disruption_score": row[0],
                 "confidence": row[1],
                 "mode": row[2],
-                "created_at": row[3].isoformat() if row[3] else None,
+                "scored_at": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3]),
             }
             for row in rows
         ]
+        log.info("history address=%r returned=%d rows", address, len(history))
         return {"address": address, "history": history}
 
     except Exception as exc:
-        log.error("get_score_history address=%r error: %s", address, exc)
-        return {"address": address, "history": []}
+        log.error("history address=%r error=%s", address, exc)
+        raise HTTPException(
+            status_code=503,
+            detail="History service temporarily unavailable.",
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -714,205 +950,57 @@ def suggest_addresses(
 
 
 # ---------------------------------------------------------------------------
-# /neighborhood/<slug> endpoint (data-026)
-# Returns all active projects within a neighborhood bounding box.
-# Used by the /neighborhood/[slug] Next.js page for the heat map.
-# ---------------------------------------------------------------------------
-
-# Chicago neighborhood bounding boxes: (min_lat, min_lon, max_lat, max_lon)
-NEIGHBORHOODS: dict[str, dict] = {
-    "west-loop": {
-        "name": "West Loop",
-        "description": "Former meatpacking district turned restaurant and tech corridor.",
-        "bbox": (41.8780, -87.6620, 41.8900, -87.6430),
-    },
-    "wicker-park": {
-        "name": "Wicker Park",
-        "description": "Dense mixed-use neighborhood with active permit and closure activity.",
-        "bbox": (41.9040, -87.6800, 41.9180, -87.6560),
-    },
-    "logan-square": {
-        "name": "Logan Square",
-        "description": "Rapidly developing residential and commercial corridor.",
-        "bbox": (41.9180, -87.7100, 41.9340, -87.6830),
-    },
-    "river-north": {
-        "name": "River North",
-        "description": "High-density area with ongoing construction and street activity.",
-        "bbox": (41.8880, -87.6390, 41.9000, -87.6240),
-    },
-    "lincoln-park": {
-        "name": "Lincoln Park",
-        "description": "Residential neighborhood adjacent to the lakefront.",
-        "bbox": (41.9150, -87.6560, 41.9340, -87.6330),
-    },
-    "pilsen": {
-        "name": "Pilsen",
-        "description": "Arts and residential neighborhood with active development.",
-        "bbox": (41.8520, -87.6740, 41.8680, -87.6450),
-    },
-    "bronzeville": {
-        "name": "Bronzeville",
-        "description": "Historic South Side neighborhood with redevelopment activity.",
-        "bbox": (41.8220, -87.6300, 41.8500, -87.6050),
-    },
-    "uptown": {
-        "name": "Uptown",
-        "description": "Diverse lakefront neighborhood with mixed-use redevelopment.",
-        "bbox": (41.9560, -87.6620, 41.9720, -87.6400),
-    },
-}
-
-NEIGHBORHOOD_PROJECTS_SQL = """
-    SELECT
-        project_id, source, impact_type, title, notes,
-        start_date, end_date, status, address,
-        latitude, longitude
-    FROM projects
-    WHERE
-        status = ANY(%s)
-        AND geom IS NOT NULL
-        AND ST_Within(
-            geom,
-            ST_MakeEnvelope(%s, %s, %s, %s, 4326)
-        )
-    ORDER BY
-        CASE impact_type
-            WHEN 'closure_full'       THEN 1
-            WHEN 'closure_multi_lane' THEN 2
-            WHEN 'closure_single_lane' THEN 3
-            WHEN 'demolition'         THEN 4
-            WHEN 'construction'       THEN 5
-            ELSE 6
-        END,
-        start_date DESC NULLS LAST
-    LIMIT 100;
-"""
-
-
-@app.get("/neighborhood/{slug}")
-def get_neighborhood(slug: str) -> dict:
-    """
-    Return all active projects within a named Chicago neighborhood bounding box.
-    Used by the /neighborhood/[slug] frontend page.
-
-    Returns 404 for unknown slugs.
-    Returns an empty projects list when DB is not configured (demo mode).
-    """
-    hood = NEIGHBORHOODS.get(slug)
-    if not hood:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown neighborhood '{slug}'. Valid slugs: {list(NEIGHBORHOODS)}",
-        )
-
-    meta = {
-        "slug": slug,
-        "name": hood["name"],
-        "description": hood["description"],
-        "bbox": {
-            "min_lat": hood["bbox"][0],
-            "min_lon": hood["bbox"][1],
-            "max_lat": hood["bbox"][2],
-            "max_lon": hood["bbox"][3],
-        },
-        "available_neighborhoods": [
-            {"slug": k, "name": v["name"]} for k, v in NEIGHBORHOODS.items()
-        ],
-    }
-
-    if not _is_db_configured():
-        return {**meta, "projects": [], "mode": "demo"}
-
-    try:
-        from backend.scoring.query import get_db_connection
-        min_lat, min_lon, max_lat, max_lon = hood["bbox"]
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    NEIGHBORHOOD_PROJECTS_SQL,
-                    (list(("active", "planned", "unknown")), min_lon, min_lat, max_lon, max_lat),
-                )
-                rows = cur.fetchall()
-        finally:
-            conn.close()
-
-        projects = [
-            {
-                "project_id": r[0],
-                "source": r[1],
-                "impact_type": r[2],
-                "title": r[3],
-                "notes": r[4],
-                "start_date": r[5].isoformat() if r[5] else None,
-                "end_date": r[6].isoformat() if r[6] else None,
-                "status": r[7],
-                "address": r[8],
-                "latitude": float(r[9]) if r[9] is not None else None,
-                "longitude": float(r[10]) if r[10] is not None else None,
-            }
-            for r in rows
-        ]
-
-        log.info("neighborhood slug=%r projects=%d", slug, len(projects))
-        return {**meta, "projects": projects, "mode": "live"}
-
-    except Exception as exc:
-        log.error("neighborhood slug=%r error: %s", slug, exc)
-        raise HTTPException(status_code=503, detail="Could not fetch neighborhood data.") from exc
-
-
-# ---------------------------------------------------------------------------
 # /save endpoint (data-021)
-# Stores a score result in the reports table and returns a shareable UUID.
+# Persists a score result as a shareable report. Returns a UUID.
+# When DB is not configured, returns a deterministic demo report_id so the
+# frontend save flow can be exercised without a live database.
 # ---------------------------------------------------------------------------
+
+_DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
+
 
 class SaveReportRequest(BaseModel):
+    """Score JSON payload to persist as a saved report."""
     address: str
-    score_json: dict
+    disruption_score: int
+    confidence: str
+    severity: dict
+    top_risks: list
+    explanation: str
+    mode: str | None = None
+    fallback_reason: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 @app.post("/save")
 def save_report(body: SaveReportRequest) -> dict:
     """
-    Save a score result and return a shareable report_id UUID.
+    Store a score result in the reports table and return a shareable UUID.
 
-    Requires a live DB. Returns 503 if DB is not configured.
-    The frontend uses the returned report_id to build a /report/<id> URL.
+    When DB is not configured, returns a demo report_id so the frontend
+    save/share flow is exercisable without a live database.
     """
     if not _is_db_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Report saving requires a live database. Configure DATABASE_URL to enable.",
-        )
+        log.info("save_report address=%r mode=demo", body.address)
+        return {"report_id": _DEMO_REPORT_ID}
 
     try:
         from backend.scoring.query import get_db_connection
-        import json
-
         conn = get_db_connection()
+        report_id = str(uuid.uuid4())
+        score_json = body.model_dump()
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    INSERT INTO reports (address, score_json)
-                    VALUES (%s, %s::jsonb)
-                    RETURNING report_id
-                    """,
-                    (body.address, json.dumps(body.score_json)),
+                    "INSERT INTO reports (id, address, score_json) VALUES (%s, %s, %s)",
+                    (report_id, body.address, score_json),
                 )
-                row = cur.fetchone()
-                report_id = str(row[0])
             conn.commit()
         finally:
             conn.close()
-
         log.info("save_report address=%r report_id=%s", body.address, report_id)
-        return {"report_id": report_id, "address": body.address}
-
-    except HTTPException:
-        raise
+        return {"report_id": report_id}
     except Exception as exc:
         log.error("save_report error: %s", exc)
         raise HTTPException(status_code=503, detail="Could not save report.") from exc
@@ -920,21 +1008,150 @@ def save_report(body: SaveReportRequest) -> dict:
 
 # ---------------------------------------------------------------------------
 # /report/{report_id} endpoint (data-021)
-# Fetches a saved report snapshot by UUID.
+# Fetches a saved report by UUID.
 # ---------------------------------------------------------------------------
 
 @app.get("/report/{report_id}")
 def get_report(report_id: str) -> dict:
     """
-    Return a previously saved score result by its UUID.
+    Return a saved score report by UUID.
 
-    Used by the shareable /report/<id> Next.js page.
-    Returns 404 if the report does not exist.
+    Returns 404 if the report_id does not exist.
+    When DB is not configured and the demo report_id is requested, returns
+    the canonical demo score so the share flow is exercisable end-to-end.
+    """
+    if not _is_db_configured():
+        if report_id == _DEMO_REPORT_ID:
+            return {
+                **DEMO_RESPONSE,
+                "address": "1600 W Chicago Ave, Chicago, IL",
+                "mode": "demo",
+                "fallback_reason": "db_not_configured",
+                "latitude": 41.8956,
+                "longitude": -87.6606,
+                "report_id": report_id,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT score_json, created_at FROM reports WHERE id = %s",
+                    (report_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Report not found.")
+
+        score_json, created_at = row
+        return {
+            **score_json,
+            "report_id": report_id,
+            "created_at": created_at.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("get_report report_id=%r error: %s", report_id, exc)
+        raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /watch endpoints (data-030)
+# Score alert watchlist — subscribe an email + threshold to an address.
+# When the score crosses the threshold, an entry is written to alert_log
+# (email delivery is stubbed for MVP; only logging occurs).
+# ---------------------------------------------------------------------------
+
+class WatchRequest(BaseModel):
+    email: str
+    address: str
+    threshold: int  # 0–100 disruption score
+
+
+@app.post("/watch")
+def subscribe_watch(body: WatchRequest) -> dict:
+    """
+    Subscribe an email address to score alerts for a Chicago address.
+
+    When POST /admin/watch/check is called and the live score for `address`
+    meets or exceeds `threshold`, an entry is written to alert_log and a
+    stub log message is emitted (email delivery is not yet implemented).
+
+    Returns the watchlist id and the unsubscribe token.
+    Requires a live DB. Returns 503 when DB is not configured.
+    """
+    if not (0 <= body.threshold <= 100):
+        raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
+
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        token = secrets.token_hex(32)
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO watchlist (email, address, threshold, token)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (email, address)
+                    DO UPDATE SET threshold = EXCLUDED.threshold, token = EXCLUDED.token
+                    RETURNING id, token
+                    """,
+                    (body.email, body.address, body.threshold, token),
+                )
+                row = cur.fetchone()
+                watch_id, stored_token = row[0], row[1]
+            conn.commit()
+        finally:
+            conn.close()
+
+        log.info(
+            "watch subscribe id=%d email=%r address=%r threshold=%d",
+            watch_id, body.email, body.address, body.threshold,
+        )
+        return {
+            "id": watch_id,
+            "email": body.email,
+            "address": body.address,
+            "threshold": body.threshold,
+            "token": stored_token,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("subscribe_watch error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not create watchlist entry.") from exc
+
+
+@app.get("/watch/unsubscribe")
+def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token from watchlist entry")) -> dict:
+    """
+    Remove a watchlist subscription by its unsubscribe token.
+
+    The token is returned by POST /watch and is intended for use in
+    unsubscribe links embedded in alert emails. No auth required.
+    Returns 404 if the token is not found.
     """
     if not _is_db_configured():
         raise HTTPException(
             status_code=503,
-            detail="Report retrieval requires a live database. Configure DATABASE_URL to enable.",
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
         )
 
     try:
@@ -944,22 +1161,103 @@ def get_report(report_id: str) -> dict:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT report_id, address, score_json, created_at FROM reports WHERE report_id = %s",
-                    (report_id,),
+                    "DELETE FROM watchlist WHERE token = %s RETURNING id, email, address",
+                    (token,),
                 )
                 row = cur.fetchone()
+            conn.commit()
         finally:
             conn.close()
 
         if not row:
-            raise HTTPException(status_code=404, detail="Report not found.")
+            raise HTTPException(status_code=404, detail="Watchlist entry not found.")
 
-        report_id_val, address, score_json, created_at = row
+        watch_id, email, address = row
+        log.info("watch unsubscribe id=%d email=%r address=%r", watch_id, email, address)
+        return {"unsubscribed": True, "id": watch_id, "email": email, "address": address}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("unsubscribe_watch error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not process unsubscribe.") from exc
+
+
+@app.post("/admin/watch/check")
+def check_watchlist() -> dict:
+    """
+    Operator endpoint — score every watched address and fire alerts for entries
+    whose score meets or exceeds their configured threshold.
+
+    For each triggered entry:
+      - Writes a row to alert_log with the current score.
+      - Logs a stub email message (actual email delivery not yet implemented).
+
+    Returns a summary of alerts fired in this run.
+    Intended to be called on a schedule (e.g. daily cron) or manually by ops.
+    Requires a live DB.
+    """
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, email, address, threshold FROM watchlist")
+                entries = cur.fetchall()
+        finally:
+            conn.close()
+
+        alerts_fired = []
+
+        for watch_id, email, address, threshold in entries:
+            try:
+                result = _score_live(address)
+                score = result.get("disruption_score")
+                if score is None:
+                    continue
+
+                if score >= threshold:
+                    # Log alert — email delivery stubbed.
+                    log.info(
+                        "ALERT [stub] watch_id=%d email=%r address=%r "
+                        "score=%d threshold=%d — would send alert email",
+                        watch_id, email, address, score, threshold,
+                    )
+
+                    conn2 = get_db_connection()
+                    try:
+                        with conn2.cursor() as cur2:
+                            cur2.execute(
+                                "INSERT INTO alert_log (watchlist_id, score) VALUES (%s, %s)",
+                                (watch_id, score),
+                            )
+                        conn2.commit()
+                    finally:
+                        conn2.close()
+
+                    alerts_fired.append({
+                        "watch_id": watch_id,
+                        "email": email,
+                        "address": address,
+                        "score": score,
+                        "threshold": threshold,
+                    })
+            except Exception as exc:
+                log.warning("check_watchlist entry id=%d error: %s", watch_id, exc)
+                continue
+
+        log.info("check_watchlist complete entries=%d alerts_fired=%d", len(entries), len(alerts_fired))
         return {
-            "report_id": str(report_id_val),
-            "address": address,
-            "score": score_json,
-            "created_at": created_at.isoformat() if created_at else None,
+            "entries_checked": len(entries),
+            "alerts_fired": len(alerts_fired),
+            "alerts": alerts_fired,
         }
 
     except HTTPException:
@@ -970,206 +1268,137 @@ def get_report(report_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# API key auth middleware (data-027)
-#
-# Optional gating: only enforced when REQUIRE_API_KEY=true env var is set.
-# This means existing public usage continues to work by default.
-# Keys are stored as SHA-256 hashes — full key is never persisted.
+# /export/csv endpoint (data-029)
+# Returns a CSV download for a scored address.
 # ---------------------------------------------------------------------------
 
-_REQUIRE_API_KEY = os.environ.get("REQUIRE_API_KEY", "").lower() in ("true", "1", "yes")
-_ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
-
-
-def _hash_key(raw_key: str) -> str:
-    return hashlib.sha256(raw_key.encode()).hexdigest()
-
-
-def verify_api_key(
-    x_api_key: str | None = None,
-    api_key: str | None = Query(default=None, alias="api_key"),
-) -> None:
+@app.get("/export/csv")
+def export_csv(
+    address: str = Query(..., description="Chicago address to export"),
+) -> Response:
     """
-    FastAPI dependency that enforces API key authentication when
-    REQUIRE_API_KEY=true. Pass-through (no-op) otherwise.
-
-    Accepts the key via:
-      - X-Api-Key header  (preferred)
-      - ?api_key=<key>    (query param fallback)
+    Return a CSV download for a scored address.
+    Calls live scoring when DB is configured; falls back to demo data otherwise.
     """
-    if not _REQUIRE_API_KEY:
-        return  # Auth disabled — pass through.
-
-    raw = (x_api_key or api_key or "").strip()
-    if not raw:
-        raise HTTPException(
-            status_code=401,
-            detail="API key required. Pass X-Api-Key header or ?api_key= query param.",
-        )
-
     if not _is_db_configured():
-        # DB unavailable and auth required — fail safe.
-        raise HTTPException(status_code=503, detail="Auth service unavailable.")
-
-    try:
-        from backend.scoring.query import get_db_connection
-        key_hash = _hash_key(raw)
-        conn = get_db_connection()
+        data = _build_demo_response(address, "db_not_configured")
+    else:
         try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id FROM api_keys WHERE key_hash = %s AND is_active = true",
-                    (key_hash,),
-                )
-                row = cur.fetchone()
-                if row:
-                    cur.execute(
-                        "UPDATE api_keys SET last_used_at = now() WHERE key_hash = %s",
-                        (key_hash,),
-                    )
-            conn.commit()
-        finally:
-            conn.close()
+            data = _score_live(address)
+        except Exception as exc:
+            log.error("export_csv address=%r error: %s", address, exc)
+            data = _build_demo_response(address, "scoring_error")
 
-        if not row:
-            raise HTTPException(status_code=403, detail="Invalid or inactive API key.")
+    severity = data.get("severity", {})
+    top_risks = data.get("top_risks", [])
 
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("verify_api_key error: %s", exc)
-        raise HTTPException(status_code=503, detail="Auth service error.") from exc
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["field", "value"])
+    writer.writerow(["address", data.get("address", address)])
+    writer.writerow(["disruption_score", data.get("disruption_score", "")])
+    writer.writerow(["confidence", data.get("confidence", "")])
+    writer.writerow(["severity_noise", severity.get("noise", "")])
+    writer.writerow(["severity_traffic", severity.get("traffic", "")])
+    writer.writerow(["severity_dust", severity.get("dust", "")])
+    for i, risk in enumerate(top_risks, 1):
+        writer.writerow([f"top_risk_{i}", risk])
+    writer.writerow(["explanation", data.get("explanation", "")])
+    writer.writerow(["mode", data.get("mode", "")])
+
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in address)[:50].strip()
+    filename = f"livability_score_{safe_name}.csv"
+
+    log.info("export_csv address=%r", address)
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
-class CreateKeyRequest(BaseModel):
-    label: str
+# ---------------------------------------------------------------------------
+# /export/pdf endpoint (data-029)
+# Returns a print-ready HTML page for a scored address.
+# Opens in a new browser tab; window.print() triggers automatically.
+# ---------------------------------------------------------------------------
 
-
-@app.post("/admin/keys")
-def create_api_key(body: CreateKeyRequest, admin_secret: str = Query(...)) -> dict:
+@app.get("/export/pdf")
+def export_pdf(
+    address: str = Query(..., description="Chicago address to export"),
+) -> HTMLResponse:
     """
-    Create a new API key. Protected by the ADMIN_SECRET env var.
-
-    Returns the full key ONCE — it is never stored. Record the key immediately.
-    Subsequent requests will only show the 8-char prefix.
+    Return a print-ready HTML page for a scored address.
+    The page auto-triggers window.print() so the user is prompted to save as PDF.
     """
-    if not _ADMIN_SECRET:
-        raise HTTPException(status_code=503, detail="ADMIN_SECRET not configured.")
-    if admin_secret != _ADMIN_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid admin secret.")
     if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured.")
-
-    raw_key = f"lre_{secrets.token_urlsafe(32)}"
-    prefix = raw_key[:8]
-    key_hash = _hash_key(raw_key)
-
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
+        data = _build_demo_response(address, "db_not_configured")
+    else:
         try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO api_keys (key_prefix, key_hash, label) VALUES (%s, %s, %s) RETURNING id",
-                    (prefix, key_hash, body.label),
-                )
-                key_id = cur.fetchone()[0]
-            conn.commit()
-        finally:
-            conn.close()
+            data = _score_live(address)
+        except Exception as exc:
+            log.error("export_pdf address=%r error: %s", address, exc)
+            data = _build_demo_response(address, "scoring_error")
 
-        log.info("create_api_key label=%r prefix=%r id=%d", body.label, prefix, key_id)
-        return {
-            "id": key_id,
-            "label": body.label,
-            "key_prefix": prefix,
-            "key": raw_key,  # Full key shown ONCE — store it now.
-            "note": "This is the only time the full key will be shown. Store it securely.",
-        }
-    except Exception as exc:
-        log.error("create_api_key error: %s", exc)
-        raise HTTPException(status_code=503, detail="Could not create API key.") from exc
+    severity = data.get("severity", {})
+    top_risks = data.get("top_risks", [])
+    score_val = data.get("disruption_score", 0)
+    confidence = data.get("confidence", "N/A")
+    mode_label = "Demo" if data.get("mode") == "demo" else "Live"
+    explanation = data.get("explanation", "")
 
+    safe_address = _html.escape(address)
+    safe_mode = _html.escape(mode_label)
+    safe_confidence = _html.escape(confidence)
+    safe_explanation = _html.escape(explanation)
+    risks_html = "".join(f"<li>{_html.escape(r)}</li>" for r in top_risks)
+    severity_rows = "".join(
+        f"<tr><td>{_html.escape(k.capitalize())}</td><td>{_html.escape(str(v))}</td></tr>"
+        for k, v in severity.items()
+    )
 
-@app.get("/admin/keys")
-def list_api_keys(admin_secret: str = Query(...)) -> dict:
-    """List all API keys (prefix + label only — no hashes returned)."""
-    if not _ADMIN_SECRET:
-        raise HTTPException(status_code=503, detail="ADMIN_SECRET not configured.")
-    if admin_secret != _ADMIN_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid admin secret.")
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured.")
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Livability Risk Report — {safe_address}</title>
+  <style>
+    body {{ font-family: Georgia, serif; margin: 40px; color: #111; max-width: 720px; }}
+    h1 {{ font-size: 1.4rem; margin-bottom: 4px; }}
+    h2 {{ font-size: 1.1rem; margin: 24px 0 8px; }}
+    .meta {{ color: #555; font-size: 0.85rem; margin-bottom: 24px; }}
+    .score-block {{ border: 2px solid #111; display: inline-block; padding: 12px 24px; margin-bottom: 24px; }}
+    .score-block .num {{ font-size: 3rem; font-weight: bold; line-height: 1; }}
+    .score-block .label {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; }}
+    table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
+    th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; }}
+    th {{ background: #f5f5f5; }}
+    ul {{ padding-left: 18px; }}
+    li {{ margin-bottom: 6px; }}
+    .footer {{ margin-top: 40px; font-size: 0.75rem; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }}
+    @media print {{ body {{ margin: 20px; }} }}
+  </style>
+</head>
+<body>
+  <h1>Livability Risk Report</h1>
+  <p class="meta">{safe_address} &mdash; Data mode: {safe_mode} &mdash; Confidence: {safe_confidence}</p>
+  <div class="score-block">
+    <div class="num">{score_val}</div>
+    <div class="label">Disruption Score</div>
+  </div>
+  <h2>Severity</h2>
+  <table>
+    <tr><th>Category</th><th>Level</th></tr>
+    {severity_rows}
+  </table>
+  <h2>Top Risk Signals</h2>
+  <ul>{risks_html}</ul>
+  <h2>Explanation</h2>
+  <p>{safe_explanation}</p>
+  <div class="footer">Generated by Livability Risk Engine &mdash; Chicago disruption intelligence</div>
+  <script>window.print();</script>
+</body>
+</html>"""
 
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, key_prefix, label, created_at, last_used_at, is_active FROM api_keys ORDER BY created_at DESC"
-                )
-                rows = cur.fetchall()
-        finally:
-            conn.close()
-
-        return {
-            "keys": [
-                {
-                    "id": r[0],
-                    "key_prefix": r[1],
-                    "label": r[2],
-                    "created_at": r[3].isoformat() if r[3] else None,
-                    "last_used_at": r[4].isoformat() if r[4] else None,
-                    "is_active": r[5],
-                }
-                for r in rows
-            ]
-        }
-    except Exception as exc:
-        log.error("list_api_keys error: %s", exc)
-        raise HTTPException(status_code=503, detail="Could not list API keys.") from exc
-
-
-@app.get("/docs/api-access")
-def api_access_info() -> dict:
-    """
-    Public endpoint documenting how to request API access.
-    Useful for B2B prospects landing on the developer docs.
-    """
-    return {
-        "title": "Livability Risk Engine API",
-        "version": "1.0",
-        "description": (
-            "Programmatic access to Chicago disruption scoring. "
-            "Query /score with any Chicago address to get a 0-100 disruption score, "
-            "severity breakdown, and top risk signals."
-        ),
-        "auth": {
-            "required": _REQUIRE_API_KEY,
-            "method": "Pass your API key in the X-Api-Key header or ?api_key= query param.",
-            "request_access": "Contact the operator to request an API key.",
-        },
-        "endpoints": [
-            {"method": "GET", "path": "/score", "description": "Score a Chicago address (0–100)"},
-            {"method": "GET", "path": "/suggest", "description": "Address autocomplete"},
-            {"method": "GET", "path": "/history", "description": "Score history for an address"},
-            {"method": "GET", "path": "/neighborhood/{slug}", "description": "Projects in a named neighborhood"},
-            {"method": "POST", "path": "/save", "description": "Save a score result for sharing"},
-            {"method": "GET", "path": "/report/{report_id}", "description": "Fetch a saved report"},
-            {"method": "GET", "path": "/health", "description": "Backend readiness check"},
-        ],
-        "rate_limits": "Unauthenticated requests are rate-limited at the infrastructure level.",
-        "example": {
-            "request": "GET /score?address=100+W+Randolph+St+Chicago+IL",
-            "response_shape": {
-                "address": "string",
-                "disruption_score": "0–100 integer",
-                "confidence": "LOW | MEDIUM | HIGH",
-                "severity": {"noise": "...", "traffic": "...", "dust": "..."},
-                "top_risks": ["string", "string", "string"],
-                "explanation": "string",
-                "mode": "live | demo",
-            },
-        },
-    }
+    log.info("export_pdf address=%r", address)
+    return HTMLResponse(content=html_content)

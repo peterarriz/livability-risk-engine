@@ -213,8 +213,8 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-026
-    title: Neighborhood heat map pages /neighborhood/[slug]
+  - id: data-025
+    title: Score history table + sparkline trend (data layer)
     status: done
     priority: medium
     github_issue: 58

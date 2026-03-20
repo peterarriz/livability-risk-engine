@@ -1,24 +1,20 @@
 "use client";
 
-// data-023: Side-by-side address comparison page
-// URL: /compare?a=<address-A>&b=<address-B>
-// Pre-fills address A from the query param so the user arrives from the main page
-// with one address already loaded.
+import React, { FormEvent, Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-import React, { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import {
-  ExplanationPanel,
-  getMeaningInsights,
-  ScoreHero,
-  SeverityMeters,
-  TopRiskGrid,
-} from "@/components/score-experience";
-import { Card, Container, Section } from "@/components/shell";
+import { ScoreHero, TopRiskGrid, SeverityMeters, getConfidenceReasons } from "@/components/score-experience";
+import { Card, Container, Header } from "@/components/shell";
 import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
 
-const PLACEHOLDER = "Search a Chicago address";
+function getSeverityColor(score: number): string {
+  if (score >= 75) return "severe";
+  if (score >= 50) return "high";
+  if (score >= 25) return "moderate";
+  return "low";
+}
 
-type AddressSlotState = {
+type SlotState = {
   address: string;
   result: ScoreResponse | null;
   isLoading: boolean;
@@ -28,7 +24,125 @@ type AddressSlotState = {
   activeSuggestionIndex: number;
 };
 
-function initSlot(address = ""): AddressSlotState {
+function AddressSlot({
+  slot,
+  label,
+  onAddressChange,
+  onSubmit,
+  onSuggestionSelect,
+  onKeyDown,
+  onFocus,
+  onBlur,
+  onSuggestionHover,
+  inputRef,
+}: {
+  slot: SlotState;
+  label: string;
+  onAddressChange: (value: string) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSuggestionSelect: (suggestion: string) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  onSuggestionHover: (index: number) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const hasSuggestions = slot.showSuggestions && slot.suggestions.length > 0;
+  const activeSuggestionId = slot.activeSuggestionIndex >= 0 ? `suggestion-${label}-${slot.activeSuggestionIndex}` : undefined;
+
+  return (
+    <div className="compare-slot">
+      <form onSubmit={onSubmit} className="compare-form">
+        <label className="input-label">{label}</label>
+        <div className="search-shell">
+          <div className="search-input-stack">
+            <input
+              ref={inputRef}
+              type="text"
+              value={slot.address}
+              onChange={(e) => onAddressChange(e.target.value)}
+              onFocus={onFocus}
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              placeholder="Enter a Chicago address"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={hasSuggestions}
+              aria-controls={`suggestions-${label}`}
+              aria-activedescendant={activeSuggestionId}
+              aria-autocomplete="list"
+              required
+            />
+            {hasSuggestions && (
+              <ul id={`suggestions-${label}`} className="suggestion-list" role="listbox" aria-label="Address suggestions">
+                {slot.suggestions.map((suggestion, index) => (
+                  <li
+                    key={suggestion}
+                    id={`suggestion-${label}-${index}`}
+                    role="option"
+                    aria-selected={index === slot.activeSuggestionIndex}
+                    className={`suggestion-item ${index === slot.activeSuggestionIndex ? "suggestion-item--active" : ""}`}
+                    onMouseDown={() => onSuggestionSelect(suggestion)}
+                    onMouseEnter={() => onSuggestionHover(index)}
+                  >
+                    <span className="suggestion-item-label">{suggestion}</span>
+                    <span className="suggestion-item-meta">Chicago address</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <button type="submit" disabled={slot.isLoading}>
+            {slot.isLoading ? "Analyzing…" : "Score"}
+          </button>
+        </div>
+      </form>
+
+      {slot.error && (
+        <div className="feedback-banner" role="alert">
+          <p className="feedback-title">Lookup unavailable</p>
+          <p>{slot.error}</p>
+        </div>
+      )}
+
+      {slot.isLoading && (
+        <Card className="score-card skeleton-card loading-card">
+          <p className="loading-kicker">Building disruption brief</p>
+          <div className="skeleton skeleton-score" />
+          <div className="skeleton skeleton-meta" />
+        </Card>
+      )}
+
+      {slot.result && !slot.isLoading && (
+        <div className="compare-result">
+          <Card className={`score-card compare-score-card compare-score-card--${getSeverityColor(slot.result.disruption_score)}`}>
+            <ScoreHero result={slot.result} />
+          </Card>
+          <Card className="detail-card">
+            <h2>Severity</h2>
+            <SeverityMeters
+              severity={slot.result.severity}
+              confidence={slot.result.confidence}
+              confidenceReasons={getConfidenceReasons(slot.result)}
+            />
+          </Card>
+          <Card className="detail-card drivers-card">
+            <TopRiskGrid result={slot.result} />
+          </Card>
+        </div>
+      )}
+
+      {!slot.result && !slot.isLoading && !slot.error && (
+        <Card className="empty-state">
+          <p className="empty-kicker">Ready for analysis</p>
+          <h3>Enter a Chicago address above to score this slot.</h3>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function makeSlot(address = ""): SlotState {
   return {
     address,
     result: null,
@@ -40,265 +154,196 @@ function initSlot(address = ""): AddressSlotState {
   };
 }
 
-type SlotKey = "a" | "b";
+function ComparePageInner() {
+  const searchParams = useSearchParams();
+  const initialAddress = searchParams.get("a") ?? "";
 
-export default function ComparePage() {
-  const [slots, setSlots] = useState<Record<SlotKey, AddressSlotState>>({
-    a: initSlot(),
-    b: initSlot(),
-  });
+  const [slotA, setSlotA] = useState<SlotState>(() => makeSlot(initialAddress));
+  const [slotB, setSlotB] = useState<SlotState>(() => makeSlot(""));
 
-  const skipSuggestRef = useRef<Record<SlotKey, boolean>>({ a: false, b: false });
-  const shellRef = useRef<HTMLDivElement>(null);
+  const skipSuggestA = useRef(false);
+  const skipSuggestB = useRef(false);
+  const inputRefA = useRef<HTMLInputElement>(null);
+  const inputRefB = useRef<HTMLInputElement>(null);
 
-  // Pre-fill slot A from the ?a= query param on mount.
+  // Auto-score the first slot if an address is pre-filled via query param
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paramA = params.get("a");
-    if (paramA) {
-      setSlots((prev) => ({
-        ...prev,
-        a: { ...prev.a, address: paramA },
-      }));
-    }
-  }, []);
-
-  // Auto-submit slot A once its address is set from query param.
-  const didAutoSubmitRef = useRef(false);
-  useEffect(() => {
-    if (didAutoSubmitRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const paramA = params.get("a");
-    if (paramA && slots.a.address === paramA && !slots.a.result && !slots.a.isLoading) {
-      didAutoSubmitRef.current = true;
-      submitAddress("a", paramA);
+    if (initialAddress.trim().length > 5) {
+      scoreSlot("a", initialAddress);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots.a.address]);
-
-  // Close suggestion dropdowns on outside click.
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (shellRef.current && !shellRef.current.contains(event.target as Node)) {
-        setSlots((prev) => ({
-          a: { ...prev.a, showSuggestions: false, activeSuggestionIndex: -1 },
-          b: { ...prev.b, showSuggestions: false, activeSuggestionIndex: -1 },
-        }));
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function updateSlot(key: SlotKey, patch: Partial<AddressSlotState>) {
-    setSlots((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
-  }
-
-  const debouncerRef = useRef<Record<SlotKey, ReturnType<typeof setTimeout> | null>>({
-    a: null,
-    b: null,
-  });
-
-  function handleAddressChange(key: SlotKey, value: string) {
-    if (skipSuggestRef.current[key]) {
-      skipSuggestRef.current[key] = false;
-      updateSlot(key, { address: value });
+  // Autocomplete for slot A
+  useEffect(() => {
+    if (skipSuggestA.current) { skipSuggestA.current = false; return; }
+    if (slotA.address.trim().length < 3) {
+      setSlotA((s) => ({ ...s, suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 }));
       return;
     }
-    updateSlot(key, { address: value });
-
-    if (debouncerRef.current[key]) clearTimeout(debouncerRef.current[key]!);
-    if (value.trim().length < 3) {
-      updateSlot(key, { suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 });
-      return;
-    }
-    debouncerRef.current[key] = setTimeout(async () => {
-      const results = await fetchSuggestions(value);
-      setSlots((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], suggestions: results, showSuggestions: results.length > 0, activeSuggestionIndex: -1 },
-      }));
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(slotA.address);
+      setSlotA((s) => ({ ...s, suggestions: results, showSuggestions: results.length > 0, activeSuggestionIndex: -1 }));
     }, 300);
-  }
+    return () => clearTimeout(timer);
+  }, [slotA.address]);
 
-  function handleSuggestionSelect(key: SlotKey, suggestion: string) {
-    skipSuggestRef.current[key] = true;
-    updateSlot(key, { address: suggestion, suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 });
-  }
-
-  function handleKeyDown(key: SlotKey, event: React.KeyboardEvent<HTMLInputElement>) {
-    const slot = slots[key];
-    if (!slot.showSuggestions || slot.suggestions.length === 0) return;
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      updateSlot(key, { activeSuggestionIndex: (slot.activeSuggestionIndex + 1) % slot.suggestions.length });
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      updateSlot(key, { activeSuggestionIndex: slot.activeSuggestionIndex <= 0 ? slot.suggestions.length - 1 : slot.activeSuggestionIndex - 1 });
-    } else if (event.key === "Enter" && slot.activeSuggestionIndex >= 0) {
-      event.preventDefault();
-      handleSuggestionSelect(key, slot.suggestions[slot.activeSuggestionIndex]);
-    } else if (event.key === "Escape") {
-      updateSlot(key, { showSuggestions: false, activeSuggestionIndex: -1 });
+  // Autocomplete for slot B
+  useEffect(() => {
+    if (skipSuggestB.current) { skipSuggestB.current = false; return; }
+    if (slotB.address.trim().length < 3) {
+      setSlotB((s) => ({ ...s, suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 }));
+      return;
     }
-  }
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(slotB.address);
+      setSlotB((s) => ({ ...s, suggestions: results, showSuggestions: results.length > 0, activeSuggestionIndex: -1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [slotB.address]);
 
-  const submitAddress = useCallback(async (key: SlotKey, addr: string) => {
-    if (!addr.trim()) return;
-    updateSlot(key, { isLoading: true, error: null, result: null });
+  async function scoreSlot(slot: "a" | "b", address: string) {
+    const setSlot = slot === "a" ? setSlotA : setSlotB;
+    setSlot((s) => ({ ...s, isLoading: true, error: null, result: null }));
     try {
-      const { score } = await fetchScore(addr);
-      setSlots((prev) => ({ ...prev, [key]: { ...prev[key], result: score, isLoading: false } }));
+      const scoreResult = await fetchScore(address);
+      setSlot((s) => ({ ...s, isLoading: false, result: scoreResult.score }));
     } catch (err) {
-      setSlots((prev) => ({
-        ...prev,
-        [key]: {
-          ...prev[key],
-          isLoading: false,
-          error: err instanceof Error ? err.message : "Scoring unavailable.",
-        },
+      setSlot((s) => ({
+        ...s,
+        isLoading: false,
+        error: err instanceof Error ? err.message : "Live data temporarily unavailable.",
       }));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function handleSubmit(key: SlotKey, event: FormEvent) {
-    event.preventDefault();
-    submitAddress(key, slots[key].address);
   }
 
-  const labels: Record<SlotKey, string> = { a: "Address A", b: "Address B" };
-  const resultA = slots.a.result;
-  const resultB = slots.b.result;
-  const bothReady = resultA && resultB;
-
-  function scoreDiff(): number | null {
-    if (!resultA || !resultB) return null;
-    return resultA.disruption_score - resultB.disruption_score;
+  function handleSuggestionSelect(slot: "a" | "b", suggestion: string) {
+    if (slot === "a") {
+      skipSuggestA.current = true;
+      setSlotA((s) => ({ ...s, address: suggestion, suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 }));
+      inputRefA.current?.focus();
+    } else {
+      skipSuggestB.current = true;
+      setSlotB((s) => ({ ...s, address: suggestion, suggestions: [], showSuggestions: false, activeSuggestionIndex: -1 }));
+      inputRefB.current?.focus();
+    }
   }
 
-  const diff = scoreDiff();
+  function handleKeyDown(slot: "a" | "b", e: React.KeyboardEvent<HTMLInputElement>) {
+    const current = slot === "a" ? slotA : slotB;
+    const setSlot = slot === "a" ? setSlotA : setSlotB;
+    const hasSuggestions = current.showSuggestions && current.suggestions.length > 0;
+
+    if (!hasSuggestions) {
+      if (e.key === "ArrowDown" && current.suggestions.length > 0) {
+        setSlot((s) => ({ ...s, showSuggestions: true, activeSuggestionIndex: 0 }));
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSlot((s) => ({ ...s, activeSuggestionIndex: (s.activeSuggestionIndex + 1) % s.suggestions.length }));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSlot((s) => ({
+        ...s,
+        activeSuggestionIndex: s.activeSuggestionIndex <= 0 ? s.suggestions.length - 1 : s.activeSuggestionIndex - 1,
+      }));
+    } else if (e.key === "Enter" && current.activeSuggestionIndex >= 0) {
+      e.preventDefault();
+      handleSuggestionSelect(slot, current.suggestions[current.activeSuggestionIndex]);
+    } else if (e.key === "Escape") {
+      setSlot((s) => ({ ...s, showSuggestions: false, activeSuggestionIndex: -1 }));
+    }
+  }
+
+  const bothScored = slotA.result !== null && slotB.result !== null;
+  const scoreDiff = bothScored ? slotA.result!.disruption_score - slotB.result!.disruption_score : null;
 
   return (
-    <main>
+    <main className="page page--workspace">
       <Container>
-        <div className="report-header">
-          <a href="/" className="report-back-link">← Back to Livability Risk Engine</a>
-        </div>
+        <Header className="topbar topbar--workspace">
+          <div className="brand-lockup">
+            <div className="brand-mark" aria-hidden="true">LR</div>
+            <div>
+              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-subtitle">Chicago disruption intelligence</p>
+            </div>
+          </div>
+          <nav className="topnav" aria-label="Primary">
+            <a href="/">← Back to search</a>
+          </nav>
+        </Header>
 
-        <Section
-          eyebrow="Compare"
-          title="Side-by-side address comparison"
-          description="Score two Chicago addresses at once to see which has more near-term disruption risk."
-        >
-          <div ref={shellRef} className="compare-input-grid">
-            {(["a", "b"] as SlotKey[]).map((key) => {
-              const slot = slots[key];
-              return (
-                <Card key={key} className="detail-card compare-input-card">
-                  <p className="supporting-kicker">{labels[key]}</p>
-                  <form onSubmit={(e) => handleSubmit(key, e)} className="compare-form" autoComplete="off">
-                    <div className="search-shell" style={{ position: "relative" }}>
-                      <input
-                        type="text"
-                        value={slot.address}
-                        onChange={(e) => handleAddressChange(key, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(key, e)}
-                        onFocus={() => slot.suggestions.length > 0 && updateSlot(key, { showSuggestions: true })}
-                        placeholder={PLACEHOLDER}
-                        aria-label={`${labels[key]} input`}
-                        aria-autocomplete="list"
-                        className="search-input"
-                        disabled={slot.isLoading}
-                        autoComplete="off"
-                      />
-                      <button type="submit" className="search-btn" disabled={slot.isLoading || !slot.address.trim()}>
-                        {slot.isLoading ? "…" : "Score"}
-                      </button>
-                      {slot.showSuggestions && slot.suggestions.length > 0 && (
-                        <ul className="suggestions-list" role="listbox">
-                          {slot.suggestions.map((s, i) => (
-                            <li
-                              key={s}
-                              id={`compare-${key}-suggestion-${i}`}
-                              role="option"
-                              aria-selected={i === slot.activeSuggestionIndex}
-                              className={`suggestion-item${i === slot.activeSuggestionIndex ? " suggestion-item--active" : ""}`}
-                              onMouseDown={() => handleSuggestionSelect(key, s)}
-                            >
-                              {s}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </form>
-                  {slot.error && <p className="modal-error">{slot.error}</p>}
-                </Card>
-              );
-            })}
+        <section className="workspace-section">
+          <div className="section-head">
+            <p className="eyebrow">Compare</p>
+            <h1>Side-by-side address comparison</h1>
+            <p className="lede">Score two Chicago addresses at once to compare disruption risk, severity signals, and key drivers.</p>
           </div>
 
-          {bothReady && diff !== null && (
-            <Card className="detail-card compare-verdict-card">
-              <p className="supporting-kicker">Verdict</p>
-              {diff === 0 ? (
-                <h3>Both addresses score equally — no clear advantage on disruption risk.</h3>
-              ) : (
-                <h3>
-                  <strong>{diff > 0 ? slots.b.result!.address : slots.a.result!.address}</strong>
-                  {" "}has lower near-term disruption risk by{" "}
-                  <strong>{Math.abs(diff)} points</strong>.
-                </h3>
-              )}
-              <div className="compare-score-row">
-                <div className="compare-score-chip">
-                  <span className="supporting-kicker">A</span>
-                  <span className="compare-score-value">{resultA.disruption_score}</span>
-                  <span className="compare-score-label">{resultA.address}</span>
-                </div>
-                <span className="compare-vs">vs</span>
-                <div className="compare-score-chip">
-                  <span className="supporting-kicker">B</span>
-                  <span className="compare-score-value">{resultB.disruption_score}</span>
-                  <span className="compare-score-label">{resultB.address}</span>
-                </div>
+          {bothScored && scoreDiff !== null && (
+            <div className={`status-banner ${Math.abs(scoreDiff) < 10 ? "status-banner--live" : "status-banner--demo"}`} role="status">
+              <span className="status-badge">Comparison</span>
+              <div className="status-copy">
+                {Math.abs(scoreDiff) < 5 ? (
+                  <strong>These addresses have similar disruption risk levels.</strong>
+                ) : scoreDiff > 0 ? (
+                  <strong>Address A scores {Math.abs(scoreDiff)} points higher — it carries more near-term disruption risk.</strong>
+                ) : (
+                  <strong>Address B scores {Math.abs(scoreDiff)} points higher — it carries more near-term disruption risk.</strong>
+                )}
               </div>
-            </Card>
-          )}
-
-          {(resultA || resultB) && (
-            <div className="compare-results-grid">
-              {(["a", "b"] as SlotKey[]).map((key) => {
-                const slot = slots[key];
-                if (!slot.result) return null;
-                const score = slot.result;
-                const meaning = getMeaningInsights(score);
-                return (
-                  <div key={key} className="compare-result-col">
-                    <p className="supporting-kicker compare-col-label">{labels[key]}</p>
-                    <Card className="score-card">
-                      <ScoreHero result={score} />
-                    </Card>
-                    <Card className="detail-card detail-card--summary">
-                      <h2>Why this score</h2>
-                      <ExplanationPanel explanation={score.explanation} meaning={meaning} />
-                    </Card>
-                    <Card className="detail-card">
-                      <h2>Confidence and severity</h2>
-                      <SeverityMeters severity={score.severity} confidence={score.confidence} confidenceReasons={[]} />
-                    </Card>
-                    <Card className="detail-card drivers-card">
-                      <h2>Strongest signals</h2>
-                      <TopRiskGrid result={score} />
-                    </Card>
-                  </div>
-                );
-              })}
             </div>
           )}
-        </Section>
+
+          <div className="compare-grid">
+            <AddressSlot
+              slot={slotA}
+              label="Address A"
+              onAddressChange={(value) => setSlotA((s) => ({ ...s, address: value }))}
+              onSubmit={(e) => { e.preventDefault(); scoreSlot("a", slotA.address); }}
+              onSuggestionSelect={(suggestion) => handleSuggestionSelect("a", suggestion)}
+              onKeyDown={(e) => handleKeyDown("a", e)}
+              onFocus={() => slotA.suggestions.length > 0 && setSlotA((s) => ({ ...s, showSuggestions: true }))}
+              onBlur={() => setTimeout(() => setSlotA((s) => ({ ...s, showSuggestions: false })), 150)}
+              onSuggestionHover={(index) => setSlotA((s) => ({ ...s, activeSuggestionIndex: index }))}
+              inputRef={inputRefA}
+            />
+            <AddressSlot
+              slot={slotB}
+              label="Address B"
+              onAddressChange={(value) => setSlotB((s) => ({ ...s, address: value }))}
+              onSubmit={(e) => { e.preventDefault(); scoreSlot("b", slotB.address); }}
+              onSuggestionSelect={(suggestion) => handleSuggestionSelect("b", suggestion)}
+              onKeyDown={(e) => handleKeyDown("b", e)}
+              onFocus={() => slotB.suggestions.length > 0 && setSlotB((s) => ({ ...s, showSuggestions: true }))}
+              onBlur={() => setTimeout(() => setSlotB((s) => ({ ...s, showSuggestions: false })), 150)}
+              onSuggestionHover={(index) => setSlotB((s) => ({ ...s, activeSuggestionIndex: index }))}
+              inputRef={inputRefB}
+            />
+          </div>
+        </section>
       </Container>
     </main>
+  );
+}
+
+export default function ComparePage() {
+  return (
+    <Suspense fallback={
+      <main className="page page--workspace">
+        <Container>
+          <div className="empty-state">
+            <p className="empty-kicker">Loading…</p>
+          </div>
+        </Container>
+      </main>
+    }>
+      <ComparePageInner />
+    </Suspense>
   );
 }

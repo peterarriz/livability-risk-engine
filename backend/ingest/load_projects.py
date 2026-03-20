@@ -464,20 +464,20 @@ def load_closures(
     return stats
 
 
-def load_idot_roads(
-    idot_roads_file: Path,
+def load_idot_projects(
+    idot_file: Path,
     conn=None,
     dry_run: bool = False,
 ) -> LoadStats:
-    """Load IDOT road construction records from staging file into projects table."""
-    print("\nLoading IDOT road construction projects...")
-    stats = LoadStats(source="idot_road_construction")
+    """Load IDOT road construction projects from staging file into projects table."""
+    print("\nLoading IDOT road projects...")
+    stats = LoadStats(source="idot_road_projects")
 
-    raw = read_staging_file(idot_roads_file)
+    raw = read_staging_file(idot_file)
     if not raw:
         return stats
 
-    projects = normalize_records(raw, normalize_idot_road_project, stats)
+    projects = normalize_records(raw, normalize_idot_project, stats)
     print(f"  Normalized to {len(projects)} scoreable projects")
 
     if dry_run:
@@ -487,7 +487,41 @@ def load_idot_roads(
             print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
         return stats
 
-    run_id = log_run_start(conn, "idot_road_construction")
+    run_id = log_run_start(conn, "idot_road_projects")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
+def load_cook_county_permits(
+    cook_county_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load Cook County building permits from staging file into projects table."""
+    print("\nLoading Cook County permits...")
+    stats = LoadStats(source="cook_county_permits")
+
+    raw = read_staging_file(cook_county_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_cook_county_permit, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "cook_county_permits")
     try:
         upsert_projects(projects, conn, stats)
         log_run_finish(conn, run_id, stats, "done")
@@ -605,10 +639,16 @@ def parse_args() -> argparse.Namespace:
         help=f"Path to street closures staging file (default: {DEFAULT_CLOSURES_FILE}).",
     )
     parser.add_argument(
-        "--idot-roads-file",
+        "--idot-file",
         type=Path,
-        default=DEFAULT_IDOT_ROADS_FILE,
-        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_ROADS_FILE}).",
+        default=DEFAULT_IDOT_FILE,
+        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_FILE}).",
+    )
+    parser.add_argument(
+        "--cook-county-file",
+        type=Path,
+        default=DEFAULT_COOK_COUNTY_FILE,
+        help=f"Path to Cook County permits staging file (default: {DEFAULT_COOK_COUNTY_FILE}).",
     )
     parser.add_argument(
         "--il-cities-dir",
@@ -670,8 +710,12 @@ def main() -> None:
             stats = load_closures(args.closures_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("idot_roads", "all"):
-            stats = load_idot_roads(args.idot_roads_file, conn, args.dry_run)
+        if args.source in ("idot", "all"):
+            stats = load_idot_projects(args.idot_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("cook_county", "all"):
+            stats = load_cook_county_permits(args.cook_county_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.source in ("il_cities", "all"):
