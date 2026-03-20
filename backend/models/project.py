@@ -69,6 +69,7 @@ IMPACT_MULTI_LANE       = "closure_multi_lane"
 IMPACT_SINGLE_LANE      = "closure_single_lane"
 IMPACT_DEMOLITION       = "demolition"
 IMPACT_CONSTRUCTION     = "construction"
+IMPACT_ROAD_CONSTRUCTION = "road_construction"
 IMPACT_LIGHT_PERMIT     = "light_permit"
 
 # Base weights per docs/03_scoring_model.md
@@ -77,8 +78,9 @@ BASE_WEIGHTS: dict[str, int] = {
     IMPACT_MULTI_LANE:    38,
     IMPACT_SINGLE_LANE:   28,
     IMPACT_DEMOLITION:    24,
-    IMPACT_CONSTRUCTION:  16,
-    IMPACT_LIGHT_PERMIT:   8,
+    IMPACT_CONSTRUCTION:      16,
+    IMPACT_ROAD_CONSTRUCTION: 20,
+    IMPACT_LIGHT_PERMIT:       8,
 }
 
 # Severity hints derived from impact type for normalization pre-computation.
@@ -87,8 +89,9 @@ IMPACT_SEVERITY: dict[str, str] = {
     IMPACT_MULTI_LANE:    "HIGH",
     IMPACT_SINGLE_LANE:   "MEDIUM",
     IMPACT_DEMOLITION:    "HIGH",
-    IMPACT_CONSTRUCTION:  "MEDIUM",
-    IMPACT_LIGHT_PERMIT:  "LOW",
+    IMPACT_CONSTRUCTION:      "MEDIUM",
+    IMPACT_ROAD_CONSTRUCTION: "MEDIUM",
+    IMPACT_LIGHT_PERMIT:      "LOW",
 }
 
 
@@ -412,6 +415,323 @@ def normalize_closure(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
+# IDOT road construction normalization  (data-014)
+# ---------------------------------------------------------------------------
+
+# Keywords in construction_type or lanes_ramps_closed that signal full closures.
+_ROAD_CLOSED_TERMS = re.compile(
+    r"\b(road.?closed|closed|full.?closure|bridge.?closed|ramp.?closed)\b",
+    re.IGNORECASE,
+)
+
+_LANE_CLOSED_TERMS = re.compile(
+    r"\b(lane.?closed|lane.?closure|lane.?reduction|reduced|shift)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_idot_road(construction_type: str, lanes_ramps_closed: str, impact_on_travel: str) -> str:
+    """
+    Assign an impact_type to an IDOT road construction record.
+
+    Priority order:
+    1. Road/ramp/bridge closed → closure_full
+    2. Lane closure keywords → closure_single_lane
+    3. Default → road_construction (general disruption)
+    """
+    combined = " ".join([
+        construction_type or "",
+        lanes_ramps_closed or "",
+        impact_on_travel or "",
+    ])
+
+    if _ROAD_CLOSED_TERMS.search(combined):
+        return IMPACT_FULL_CLOSURE
+
+    if _LANE_CLOSED_TERMS.search(combined):
+        return IMPACT_SINGLE_LANE
+
+    return IMPACT_ROAD_CONSTRUCTION
+
+
+def _idot_status(record: dict) -> str:
+    """Derive normalized status from IDOT record dates and status field."""
+    src_status = (record.get("status") or "").lower()
+    today = date.today()
+
+    if "complet" in src_status or "closed" in src_status:
+        return "completed"
+
+    start = _parse_date(record.get("start_date"))
+    end = _parse_date(record.get("end_date"))
+
+    if end and end < today:
+        return "completed"
+    if start and start > today:
+        return "planned"
+    if start:
+        return "active"
+
+    return "unknown"
+
+
+def normalize_idot_road_project(record: dict) -> Project:
+    """
+    Normalize a raw IDOT road construction record into a canonical Project.
+
+    Args:
+        record: A single dict from the idot_road_projects staging file
+                (already field-mapped by the ingest script).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = str(record.get("row_id", "") or record.get("contract_number", ""))
+    construction_type = record.get("construction_type", "") or ""
+    lanes_closed = record.get("lanes_ramps_closed", "") or ""
+    impact_on_travel = record.get("impact_on_travel", "") or ""
+
+    impact_type = _classify_idot_road(construction_type, lanes_closed, impact_on_travel)
+
+    # Title: route + location for human-readable display.
+    title_parts = []
+    route = (record.get("route") or "").strip()
+    location = (record.get("location") or "").strip()
+    near_town = (record.get("near_town") or "").strip()
+
+    if route:
+        title_parts.append(f"Route {route}")
+    if location:
+        title_parts.append(location)
+    elif near_town:
+        title_parts.append(f"near {near_town}")
+
+    title = " — ".join(title_parts) if title_parts else f"IDOT road project {source_id}"
+
+    # Notes: combine construction type, closure info, and detour.
+    notes_parts = []
+    if construction_type:
+        notes_parts.append(construction_type)
+    if lanes_closed:
+        notes_parts.append(f"Lanes/ramps closed: {lanes_closed}")
+    detour = record.get("detour_route") or ""
+    if detour:
+        notes_parts.append(f"Detour: {detour}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    # Address from location + near_town (IDOT doesn't provide street addresses).
+    if location and near_town:
+        address_str = f"{location}, {near_town}, IL"
+    elif location:
+        address_str = f"{location}, IL"
+    elif near_town:
+        address_str = f"{near_town}, IL"
+    else:
+        address_str = "Illinois"
+
+    return Project(
+        project_id=f"idot_road:{source_id}",
+        source="idot_road_construction",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("start_date")),
+        end_date=_parse_date(record.get("end_date")),
+        status=_idot_status(record),
+        address=address_str,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Illinois city / Cook County permit normalization  (data-033)
+# ---------------------------------------------------------------------------
+# Handles permits from Cook County and additional IL cities ingested via
+# backend/ingest/il_city_permits.py.  Field names have already been mapped
+# to a consistent internal schema by normalize_raw_record() in that module.
+
+def normalize_il_city_permit(record: dict) -> Project:
+    """
+    Normalize a pre-mapped Illinois city/county permit record into a
+    canonical Project.
+
+    Args:
+        record: A dict produced by il_city_permits.normalize_raw_record().
+                Keys are always the internal field names (source_key, city_name,
+                source_id, permit_type, description, issue_date, …).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_key = record.get("source_key", "il_city")
+    city_name  = record.get("city_name", "Illinois")
+    source_id  = record.get("source_id", "")
+
+    permit_type = record.get("permit_type", "") or ""
+    description = record.get("description", "") or ""
+
+    impact_type = _classify_permit(permit_type, description)
+
+    # Title: strip "PERMIT - " prefix for brevity, append city if useful.
+    short_type = re.sub(r"^PERMIT\s*-\s*", "", permit_type, flags=re.IGNORECASE).strip()
+    address_raw = (record.get("address") or "").strip()
+    address_str = f"{address_raw}, {record.get('city_il', city_name + ', IL')}" if address_raw else f"{city_name}, IL"
+
+    title_parts = []
+    if short_type:
+        title_parts.append(short_type)
+    if address_raw:
+        title_parts.append(f"at {address_raw}")
+    title = " ".join(title_parts) if title_parts else f"{city_name} permit {source_id}"
+
+    notes = description[:200] if description else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    return Project(
+        project_id=f"{source_key}:{source_id}",
+        source=source_key,
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("issue_date")),
+        end_date=_parse_date(record.get("expiration_date")),
+        status=_permit_status(record),
+        address=address_str,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
+# CTA service alert normalization  (data-034)
+# ---------------------------------------------------------------------------
+# Handles alerts ingested via backend/ingest/cta_alerts.py.
+# Alerts are filtered for planned/upcoming service changes (track work,
+# station closures, reroutes due to construction).
+
+_CTA_NO_SERVICE = re.compile(
+    r"\b(no service|out of service|suspended)\b",
+    re.IGNORECASE,
+)
+
+_CTA_REDUCED = re.compile(
+    r"\b(reduced|limited|shuttle|single.?track|delay)\b",
+    re.IGNORECASE,
+)
+
+_CTA_CONSTRUCTION = re.compile(
+    r"\b(planned|construction|track.?work|maintenance|renovation|"
+    r"rebuild|replacement|station.?clos)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_cta_alert(impact: str, headline: str) -> str:
+    """
+    Assign an impact_type to a CTA service alert.
+
+    Priority order:
+    1. No service / suspended → closure_full
+    2. Reduced / shuttle / single-track → closure_single_lane
+    3. Planned work / construction keywords → construction
+    4. Default → light_permit
+    """
+    combined = f"{impact} {headline}"
+
+    if _CTA_NO_SERVICE.search(combined):
+        return IMPACT_FULL_CLOSURE
+
+    if _CTA_REDUCED.search(combined):
+        return IMPACT_SINGLE_LANE
+
+    if _CTA_CONSTRUCTION.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    return IMPACT_LIGHT_PERMIT
+
+
+def _cta_alert_status(record: dict) -> str:
+    """Derive normalized status from CTA alert dates."""
+    is_tbd = record.get("is_tbd", "0") == "1"
+    today = date.today()
+
+    start = _parse_date(record.get("event_start"))
+    end   = None if is_tbd else _parse_date(record.get("event_end"))
+
+    if end and end < today:
+        return "completed"
+    if start and start > today:
+        return "planned"
+    if start:
+        return "active"
+
+    return "unknown"
+
+
+def normalize_cta_alert(record: dict) -> Project:
+    """
+    Normalize a CTA service alert record into a canonical Project.
+
+    Args:
+        record: A dict produced by cta_alerts.normalize_alert().
+                Keys are the internal field names (alert_id, headline,
+                impact, event_start, event_end, address, ...).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = record.get("alert_id", "")
+    impact    = record.get("impact", "") or ""
+    headline  = record.get("headline", "") or ""
+
+    impact_type = _classify_cta_alert(impact, headline)
+
+    # Title: use headline truncated for display.
+    title = headline[:150] if headline else f"CTA alert {source_id}"
+
+    # Notes: combine short description + location.
+    notes_parts = []
+    short_desc = (record.get("short_description") or "").strip()
+    if short_desc:
+        notes_parts.append(short_desc)
+    service_loc = (record.get("service_location") or "").strip()
+    if service_loc:
+        notes_parts.append(f"Location: {service_loc}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    address = (record.get("address") or "").strip() or "Chicago, IL"
+
+    return Project(
+        project_id=f"cta_alert:{source_id}",
+        source="cta_alerts",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("event_start")),
+        end_date=_parse_date(record.get("event_end")),
+        status=_cta_alert_status(record),
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
@@ -491,5 +811,26 @@ if __name__ == "__main__":
     lp = normalize_permit(light_permit)
     print(f"Light permit → impact_type: {lp.impact_type} (expected: light_permit)")
     print(f"              severity_hint: {lp.severity_hint} (expected: LOW)\n")
+
+    test_idot = {
+        "row_id": "42",
+        "contract_number": "68B42",
+        "construction_type": "Road Closed",
+        "route": "S001",
+        "location": "CRETE-RICHTON RD TO UNION AVE-RR",
+        "near_town": "CRETE",
+        "lanes_ramps_closed": "2",
+        "start_date": "2026-02-26T12:00:00+00:00",
+        "end_date": "2026-04-01T12:00:00+00:00",
+        "latitude": 41.460073,
+        "longitude": -87.634594,
+    }
+
+    idot = normalize_idot_road_project(test_idot)
+    print(f"IDOT road → impact_type: {idot.impact_type} (expected: closure_full)")
+    print(f"            severity_hint: {idot.severity_hint} (expected: HIGH)")
+    print(f"            title: {idot.title}")
+    print(f"            status: {idot.status}")
+    print(f"            project_id: {idot.project_id}\n")
 
     print("Smoke test complete.")
