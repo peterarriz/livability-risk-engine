@@ -6,16 +6,17 @@ lane: data
 DB loader — reads raw staging JSON files and upserts normalized
 Project records into the canonical `projects` table.
 
-This is the bridge between the ingest scripts (data-002, data-004)
+This is the bridge between the ingest scripts (data-002, data-004, data-014)
 and the scoring engine (data-009). Once this runs successfully,
 the /score endpoint returns real data.
 
 End-to-end pipeline:
   1. python backend/ingest/building_permits.py    → data/raw/building_permits.json
   2. python backend/ingest/street_closures.py     → data/raw/street_closures.json
-  3. python backend/ingest/geocode_fill.py        → fills missing lat/lon in staging files
-  4. python backend/ingest/load_projects.py       → upserts into `projects` table
-  5. uvicorn app.main:app --reload                → live /score endpoint
+  3. python backend/ingest/idot_road_projects.py  → data/raw/idot_road_projects.json
+  4. python backend/ingest/geocode_fill.py        → fills missing lat/lon in staging files
+  5. python backend/ingest/load_projects.py       → upserts into `projects` table
+  6. uvicorn app.main:app --reload                → live /score endpoint
 
 Usage:
   # Load both sources
@@ -71,14 +72,20 @@ try:
 except ImportError:
     HAS_PSYCOPG2 = False
 
-from backend.models.project import Project, normalize_closure, normalize_permit
+from backend.models.project import (
+    Project,
+    normalize_closure,
+    normalize_idot_road_project,
+    normalize_permit,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-DEFAULT_PERMITS_FILE  = Path("data/raw/building_permits.json")
-DEFAULT_CLOSURES_FILE = Path("data/raw/street_closures.json")
+DEFAULT_PERMITS_FILE    = Path("data/raw/building_permits.json")
+DEFAULT_CLOSURES_FILE   = Path("data/raw/street_closures.json")
+DEFAULT_IDOT_ROADS_FILE = Path("data/raw/idot_road_projects.json")
 
 # Statuses we consider worth loading into the scoring table.
 # Completed records are skipped to keep the projects table focused
@@ -454,6 +461,40 @@ def load_closures(
     return stats
 
 
+def load_idot_roads(
+    idot_roads_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load IDOT road construction records from staging file into projects table."""
+    print("\nLoading IDOT road construction projects...")
+    stats = LoadStats(source="idot_road_construction")
+
+    raw = read_staging_file(idot_roads_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_idot_road_project, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "idot_road_construction")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
 # ---------------------------------------------------------------------------
 # DB connection
 # ---------------------------------------------------------------------------
@@ -489,9 +530,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "both"],
-        default="both",
-        help="Which source to load (default: both).",
+        choices=["permits", "closures", "idot_roads", "all"],
+        default="all",
+        help="Which source to load (default: all).",
     )
     parser.add_argument(
         "--permits-file",
@@ -504,6 +545,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_CLOSURES_FILE,
         help=f"Path to street closures staging file (default: {DEFAULT_CLOSURES_FILE}).",
+    )
+    parser.add_argument(
+        "--idot-roads-file",
+        type=Path,
+        default=DEFAULT_IDOT_ROADS_FILE,
+        help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_ROADS_FILE}).",
     )
     parser.add_argument(
         "--dry-run",
@@ -548,12 +595,16 @@ def main() -> None:
     total_pruned = 0
 
     try:
-        if args.source in ("permits", "both"):
+        if args.source in ("permits", "all"):
             stats = load_permits(args.permits_file, conn, args.dry_run)
             all_stats.append(stats)
 
-        if args.source in ("closures", "both"):
+        if args.source in ("closures", "all"):
             stats = load_closures(args.closures_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("idot_roads", "all"):
+            stats = load_idot_roads(args.idot_roads_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.prune_days is not None and conn is not None:

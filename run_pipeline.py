@@ -6,10 +6,11 @@ lane: data
 Full end-to-end ingest pipeline orchestrator for the Chicago MVP.
 
 Runs all ingest steps in order:
-  1. Fetch building permits from Chicago Socrata API → data/raw/building_permits.json
-  2. Fetch street closures from Chicago Socrata API  → data/raw/street_closures.json
-  3. Fill missing lat/lon via geocoding             → updates staging files in place
-  4. Load normalized records into the DB            → upserts into `projects` table
+  1. Fetch building permits from Chicago Socrata API    → data/raw/building_permits.json
+  2. Fetch street closures from Chicago Socrata API     → data/raw/street_closures.json
+  3. Fetch IDOT road construction from ArcGIS REST API  → data/raw/idot_road_projects.json
+  4. Fill missing lat/lon via geocoding                 → updates staging files in place
+  5. Load normalized records into the DB                → upserts into `projects` table
 
 Usage:
   # Full pipeline (requires DATABASE_URL or POSTGRES_* env vars)
@@ -65,6 +66,10 @@ STEPS = [
     {
         "name": "Fetch street closures",
         "cmd": [sys.executable, "backend/ingest/street_closures.py"],
+    },
+    {
+        "name": "Fetch IDOT road construction",
+        "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
     },
     {
         "name": "Fill missing geocoordinates",
