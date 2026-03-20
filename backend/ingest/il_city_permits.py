@@ -104,6 +104,40 @@ CITY_CONFIGS: list[dict] = [
         "city_il":          "Cook County, IL",
         "where_clause":     None,
     },
+    {
+        # Chicago Special Event Permits — City of Chicago Data Portal.
+        # Special events (festivals, parades, marathons) that require road
+        # closures and lane restrictions cause measurable livability disruption.
+        #
+        # Portal: https://data.cityofchicago.org
+        # Dataset: "Special Event Permits"
+        #
+        # DATASET ID NEEDS VERIFICATION (data-034, 2026-03-20):
+        #   The dataset ID below was identified from the Chicago Data Portal
+        #   catalog, but should be confirmed before relying on it in production.
+        #   Run this command to verify or find the correct ID:
+        #     curl "https://data.cityofchicago.org/api/catalog/v1?q=special+event+permit&limit=5" \
+        #       | python -m json.tool | grep -E '"identifier"|"name"'
+        #   Then update dataset_id and field names accordingly.
+        #
+        # If this entry returns 0 records or HTTP 404, the pipeline logs a
+        # warning and continues — it will NOT cause a pipeline failure.
+        "city_name":        "Chicago Special Events",
+        "source_key":       "chicago_special_events",
+        "domain":           "data.cityofchicago.org",
+        "dataset_id":       "ahsk-uzm8",
+        "id_field":         ":id",
+        "type_field":       "event_type",
+        "desc_field":       "event_name",
+        "issue_date_field": "start_date_time",
+        "exp_date_field":   "end_date_time",
+        "lat_field":        None,
+        "lon_field":        None,
+        "loc_field":        "location",
+        "addr_field":       "street_address",
+        "city_il":          "Chicago, IL",
+        "where_clause":     None,
+    },
     # -----------------------------------------------------------------
     # REMOVED — portals verified non-existent or non-Socrata (2026-03-20):
     #

@@ -75,6 +75,7 @@ except ImportError:
 from backend.models.project import (
     Project,
     normalize_closure,
+    normalize_cta_alert,
     normalize_idot_road_project,
     normalize_il_city_permit,
     normalize_permit,
@@ -87,6 +88,7 @@ from backend.models.project import (
 DEFAULT_PERMITS_FILE      = Path("data/raw/building_permits.json")
 DEFAULT_CLOSURES_FILE     = Path("data/raw/street_closures.json")
 DEFAULT_IDOT_ROADS_FILE   = Path("data/raw/idot_road_projects.json")
+DEFAULT_CTA_ALERTS_FILE   = Path("data/raw/cta_alerts.json")
 DEFAULT_IL_CITIES_DIR     = Path("data/raw")
 IL_CITIES_FILE_GLOB       = "il_city_permits_*.json"
 
@@ -498,6 +500,40 @@ def load_idot_roads(
     return stats
 
 
+def load_cta_alerts(
+    cta_alerts_file: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> LoadStats:
+    """Load CTA service alert records from staging file into projects table."""
+    print("\nLoading CTA service alerts...")
+    stats = LoadStats(source="cta_alerts")
+
+    raw = read_staging_file(cta_alerts_file)
+    if not raw:
+        return stats
+
+    projects = normalize_records(raw, normalize_cta_alert, stats)
+    print(f"  Normalized to {len(projects)} scoreable projects")
+
+    if dry_run:
+        print("  Dry-run: skipping DB write.")
+        if projects:
+            sample = _project_to_db_params(projects[0])
+            print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+        return stats
+
+    run_id = log_run_start(conn, "cta_alerts")
+    try:
+        upsert_projects(projects, conn, stats)
+        log_run_finish(conn, run_id, stats, "done")
+    except Exception as exc:
+        log_run_finish(conn, run_id, stats, "failed", str(exc))
+        raise
+
+    return stats
+
+
 def load_il_city_permits(
     il_cities_dir: Path,
     conn=None,
@@ -588,7 +624,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "idot_roads", "il_cities", "all"],
+        choices=["permits", "closures", "idot_roads", "cta_alerts", "il_cities", "all"],
         default="all",
         help="Which source to load (default: all).",
     )
@@ -609,6 +645,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_IDOT_ROADS_FILE,
         help=f"Path to IDOT road projects staging file (default: {DEFAULT_IDOT_ROADS_FILE}).",
+    )
+    parser.add_argument(
+        "--cta-alerts-file",
+        type=Path,
+        default=DEFAULT_CTA_ALERTS_FILE,
+        help=f"Path to CTA alerts staging file (default: {DEFAULT_CTA_ALERTS_FILE}).",
     )
     parser.add_argument(
         "--il-cities-dir",
@@ -672,6 +714,10 @@ def main() -> None:
 
         if args.source in ("idot_roads", "all"):
             stats = load_idot_roads(args.idot_roads_file, conn, args.dry_run)
+            all_stats.append(stats)
+
+        if args.source in ("cta_alerts", "all"):
+            stats = load_cta_alerts(args.cta_alerts_file, conn, args.dry_run)
             all_stats.append(stats)
 
         if args.source in ("il_cities", "all"):

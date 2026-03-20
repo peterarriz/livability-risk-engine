@@ -613,6 +613,125 @@ def normalize_il_city_permit(record: dict) -> Project:
 
 
 # ---------------------------------------------------------------------------
+# CTA service alert normalization  (data-034)
+# ---------------------------------------------------------------------------
+# Handles alerts ingested via backend/ingest/cta_alerts.py.
+# Alerts are filtered for planned/upcoming service changes (track work,
+# station closures, reroutes due to construction).
+
+_CTA_NO_SERVICE = re.compile(
+    r"\b(no service|out of service|suspended)\b",
+    re.IGNORECASE,
+)
+
+_CTA_REDUCED = re.compile(
+    r"\b(reduced|limited|shuttle|single.?track|delay)\b",
+    re.IGNORECASE,
+)
+
+_CTA_CONSTRUCTION = re.compile(
+    r"\b(planned|construction|track.?work|maintenance|renovation|"
+    r"rebuild|replacement|station.?clos)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_cta_alert(impact: str, headline: str) -> str:
+    """
+    Assign an impact_type to a CTA service alert.
+
+    Priority order:
+    1. No service / suspended → closure_full
+    2. Reduced / shuttle / single-track → closure_single_lane
+    3. Planned work / construction keywords → construction
+    4. Default → light_permit
+    """
+    combined = f"{impact} {headline}"
+
+    if _CTA_NO_SERVICE.search(combined):
+        return IMPACT_FULL_CLOSURE
+
+    if _CTA_REDUCED.search(combined):
+        return IMPACT_SINGLE_LANE
+
+    if _CTA_CONSTRUCTION.search(combined):
+        return IMPACT_CONSTRUCTION
+
+    return IMPACT_LIGHT_PERMIT
+
+
+def _cta_alert_status(record: dict) -> str:
+    """Derive normalized status from CTA alert dates."""
+    is_tbd = record.get("is_tbd", "0") == "1"
+    today = date.today()
+
+    start = _parse_date(record.get("event_start"))
+    end   = None if is_tbd else _parse_date(record.get("event_end"))
+
+    if end and end < today:
+        return "completed"
+    if start and start > today:
+        return "planned"
+    if start:
+        return "active"
+
+    return "unknown"
+
+
+def normalize_cta_alert(record: dict) -> Project:
+    """
+    Normalize a CTA service alert record into a canonical Project.
+
+    Args:
+        record: A dict produced by cta_alerts.normalize_alert().
+                Keys are the internal field names (alert_id, headline,
+                impact, event_start, event_end, address, ...).
+
+    Returns:
+        A Project dataclass ready for upsert into the `projects` table.
+    """
+    source_id = record.get("alert_id", "")
+    impact    = record.get("impact", "") or ""
+    headline  = record.get("headline", "") or ""
+
+    impact_type = _classify_cta_alert(impact, headline)
+
+    # Title: use headline truncated for display.
+    title = headline[:150] if headline else f"CTA alert {source_id}"
+
+    # Notes: combine short description + location.
+    notes_parts = []
+    short_desc = (record.get("short_description") or "").strip()
+    if short_desc:
+        notes_parts.append(short_desc)
+    service_loc = (record.get("service_location") or "").strip()
+    if service_loc:
+        notes_parts.append(f"Location: {service_loc}")
+    notes = "; ".join(notes_parts)[:200] if notes_parts else None
+
+    lat = _safe_float(record.get("latitude"))
+    lon = _safe_float(record.get("longitude"))
+
+    address = (record.get("address") or "").strip() or "Chicago, IL"
+
+    return Project(
+        project_id=f"cta_alert:{source_id}",
+        source="cta_alerts",
+        source_id=source_id,
+        impact_type=impact_type,
+        title=title,
+        notes=notes,
+        start_date=_parse_date(record.get("event_start")),
+        end_date=_parse_date(record.get("event_end")),
+        status=_cta_alert_status(record),
+        address=address,
+        latitude=lat,
+        longitude=lon,
+        severity_hint=IMPACT_SEVERITY[impact_type],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
