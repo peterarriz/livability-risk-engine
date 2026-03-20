@@ -82,7 +82,7 @@ class ScoreResult:
     severity: dict              # {noise: ..., traffic: ..., dust: ...}
     top_risks: list[str]        # up to 3 plain-English strings
     explanation: str            # 1 short paragraph
-    nearby_signals: list        # list of {lat, lon, impact_type, title, distance_m, severity_hint, weight}
+    top_risk_details: list      # list[dict] — structured metadata per top risk (data-024)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +305,32 @@ def _derive_confidence(contributions: list[tuple[NearbyProject, float]]) -> str:
     return "LOW"
 
 
+def _build_top_risk_details(
+    contributions: list[tuple[NearbyProject, float]],
+) -> list[dict]:
+    """
+    Build structured metadata dicts for the top 3 contributors (data-024).
+    Parallel to _build_top_risks() but machine-readable so the frontend can
+    render permit IDs, dates, distance, and source links in expandable cards.
+    """
+    details = []
+    for nearby, _ in contributions[:3]:
+        p = nearby.project
+        details.append({
+            "project_id": p.project_id,
+            "source": p.source,
+            "source_id": p.source_id,
+            "title": p.title,
+            "impact_type": p.impact_type,
+            "distance_m": int(nearby.distance_m),
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
+            "status": p.status,
+            "address": p.address,
+        })
+    return details
+
+
 def _build_top_risks(
     contributions: list[tuple[NearbyProject, float]],
 ) -> list[str]:
@@ -451,7 +477,7 @@ def compute_score(
                 "No significant construction or closure activity was found "
                 "near this address within the near-term window."
             ),
-            nearby_signals=[],
+            top_risk_details=[],
         )
 
     # Score all nearby projects.
@@ -468,6 +494,7 @@ def compute_score(
     severity = _derive_severity(top3)
     confidence = _derive_confidence(top3)
     top_risks = _build_top_risks(top3)
+    top_risk_details = _build_top_risk_details(top3)
     explanation = _build_explanation(top3, severity)
     top_risk_details = _build_top_risk_details(top3)
 
@@ -495,7 +522,7 @@ def compute_score(
         severity=severity,
         top_risks=top_risks,
         explanation=explanation,
-        nearby_signals=nearby_signals,
+        top_risk_details=top_risk_details,
     )
 
 

@@ -2,22 +2,20 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
-export type ImpactType =
-  | "closure_full"
-  | "closure_multi_lane"
-  | "closure_single_lane"
-  | "demolition"
-  | "construction"
-  | "light_permit";
-
-export type NearbySignal = {
-  lat: number;
-  lon: number;
-  impact_type: ImpactType | string;
+// Structured metadata for a single top-risk contributor (data-024).
+// Parallel to the plain-English top_risks strings but machine-readable,
+// allowing the frontend to render permit IDs, dates, and source links.
+export type TopRiskDetail = {
+  project_id: string;
+  source: string;
+  source_id: string;
   title: string;
+  impact_type: string;
   distance_m: number;
-  severity_hint: SeverityLevel;
-  weight: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  address: string | null;
 };
 
 export type ScoreResponse = {
@@ -31,6 +29,9 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // Structured per-risk metadata added in data-024. Optional for backward
+  // compatibility with backend builds that predate this field.
+  top_risk_details?: TopRiskDetail[];
   // Optional for backward compatibility with older backend builds.
   mode?: ScoreMode;
   fallback_reason?: string | null;
@@ -115,6 +116,7 @@ function buildDemoScore(address: string): ScoreResponse {
       "Active closure window runs through 2026-03-22",
       "Traffic is the dominant near-term disruption signal at this address",
     ],
+    top_risk_details: [],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
     mode: "demo",
