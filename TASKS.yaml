@@ -233,7 +233,7 @@ tasks:
 
   - id: app-010
     title: Fix icon-btn anchor tag missing text-decoration none
-    status: backlog
+    status: done
     priority: high
     notes_for_next_agent: >
       After app-009, the "Export PDF" button is an <a> using class icon-btn.
@@ -245,7 +245,7 @@ tasks:
 
   - id: app-011
     title: Escape key closes save report modal
-    status: backlog
+    status: done
     priority: high
     notes_for_next_agent: >
       The save modal (showSaveModal) in page.tsx has no Escape key handler.
@@ -257,7 +257,7 @@ tasks:
 
   - id: app-012
     title: Risk card grid empty columns when fewer than 3 risks
-    status: backlog
+    status: done
     priority: medium
     notes_for_next_agent: >
       .risk-card-grid uses grid-template-columns: repeat(3, minmax(0, 1fr)).
@@ -269,7 +269,7 @@ tasks:
 
   - id: app-013
     title: Update document.title when address result loads
-    status: backlog
+    status: done
     priority: medium
     notes_for_next_agent: >
       layout.tsx exports a static metadata title "Livability Risk Engine".
@@ -282,7 +282,7 @@ tasks:
 
   - id: app-014
     title: Add clear button to address input
-    status: backlog
+    status: done
     priority: medium
     notes_for_next_agent: >
       The address input has no way to clear its value without manually
@@ -294,7 +294,7 @@ tasks:
 
   - id: app-015
     title: Accordion behavior for risk detail panels
-    status: backlog
+    status: done
     priority: medium
     notes_for_next_agent: >
       In TopRiskGrid (score-experience.tsx), each risk card has an expand
@@ -307,7 +307,7 @@ tasks:
 
   - id: app-016
     title: Show score timestamp in Quick Read card
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       The Quick Read supporting list (page.tsx) shows Data mode, Confidence,
@@ -319,7 +319,7 @@ tasks:
 
   - id: app-017
     title: Keyboard shortcut — slash key focuses address input
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       Add a global keydown listener in page.tsx that focuses inputRef when
@@ -330,7 +330,7 @@ tasks:
 
   - id: app-018
     title: Good-news empty state when no risks detected
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       If the backend returns top_risks: [] the TopRiskGrid renders an empty
@@ -342,7 +342,7 @@ tasks:
 
   - id: app-019
     title: History dropdown closes on Escape key
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       The history dropdown (showHistory) in page.tsx has no Escape key
@@ -354,7 +354,7 @@ tasks:
 
   - id: app-020
     title: Confidence dot color fix — LOW confidence should not look green/safe
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       In globals.css, .confidence-dot--low is #3ce5b3 (mint green) and
@@ -369,7 +369,7 @@ tasks:
 
   - id: app-021
     title: Add aria-live region around score result section
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       When a new score loads, screen reader users get no announcement.
@@ -382,7 +382,7 @@ tasks:
 
   - id: app-022
     title: Mobile topnav cleanup in workspace mode
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       On screens ≤640px in workspace mode, the topnav shows: brand lockup +
@@ -395,7 +395,7 @@ tasks:
 
   - id: app-023
     title: Add skip-to-main-content link for keyboard accessibility
-    status: backlog
+    status: done
     priority: low
     notes_for_next_agent: >
       There is no skip nav link, so keyboard users must tab through the
