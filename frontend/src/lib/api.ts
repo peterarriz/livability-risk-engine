@@ -2,6 +2,18 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
+export type SaveReportResponse = {
+  report_id: string;
+  address: string;
+};
+
+export type FetchReportResponse = {
+  report_id: string;
+  address: string;
+  score: ScoreResponse;
+  created_at: string | null;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -288,6 +300,65 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   } catch { /* */ }
 
   return [];
+}
+
+/**
+ * Save a score result to the backend and return a shareable report_id.
+ * Throws ApiError if the backend is unreachable or DB is not configured.
+ */
+export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot save report.");
+  }
+
+  const url = buildApiUrl("/save");
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: score.address, score_json: score }),
+    });
+  } catch {
+    throw new ApiError("Network error. Could not reach the backend to save report.");
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "Unknown error");
+    throw new ApiError(`Save failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as SaveReportResponse;
+}
+
+/**
+ * Fetch a previously saved report by its UUID.
+ * Returns null if not found (404).
+ * Throws ApiError on network or server errors.
+ */
+export async function fetchReport(reportId: string): Promise<FetchReportResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot fetch report.");
+  }
+
+  const url = buildApiUrl(`/report/${encodeURIComponent(reportId)}`);
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), { cache: "no-store" });
+  } catch {
+    throw new ApiError("Network error. Could not reach the backend to fetch report.");
+  }
+
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "Unknown error");
+    throw new ApiError(`Fetch report failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as FetchReportResponse;
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {

@@ -215,3 +215,29 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 
 COMMENT ON TABLE ingest_runs IS
     'Tracks each ingestion run for freshness checks (data-010).';
+
+
+-- ---------------------------------------------------------------------------
+-- Saved reports  (data-021)
+--
+-- Stores score results so users can share a persistent URL.
+-- Each row is a snapshot of the /score response for a given address.
+-- The report_id UUID is used in the shareable /report/<id> URL.
+-- ---------------------------------------------------------------------------
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS reports (
+    report_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    address     TEXT        NOT NULL,
+    score_json  JSONB       NOT NULL,   -- full /score response payload
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS reports_created_at_idx
+    ON reports (created_at DESC);
+
+COMMENT ON TABLE reports IS
+    'Saved score snapshots (data-021). Each row is a /score response stored '
+    'so the user can share a persistent /report/<report_id> URL. '
+    'score_json is the full API response payload.';

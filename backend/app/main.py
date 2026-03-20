@@ -25,6 +25,7 @@ from dataclasses import asdict
 import requests as _requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ if _frontend_origin:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -472,3 +473,109 @@ def suggest_addresses(
         log.warning("suggest q=%r both geocoders failed, last error: %s", q, exc)
 
     return {"suggestions": []}
+
+
+# ---------------------------------------------------------------------------
+# /save endpoint (data-021)
+# Stores a score result in the reports table and returns a shareable UUID.
+# ---------------------------------------------------------------------------
+
+class SaveReportRequest(BaseModel):
+    address: str
+    score_json: dict
+
+
+@app.post("/save")
+def save_report(body: SaveReportRequest) -> dict:
+    """
+    Save a score result and return a shareable report_id UUID.
+
+    Requires a live DB. Returns 503 if DB is not configured.
+    The frontend uses the returned report_id to build a /report/<id> URL.
+    """
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Report saving requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+        import json
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO reports (address, score_json)
+                    VALUES (%s, %s::jsonb)
+                    RETURNING report_id
+                    """,
+                    (body.address, json.dumps(body.score_json)),
+                )
+                row = cur.fetchone()
+                report_id = str(row[0])
+            conn.commit()
+        finally:
+            conn.close()
+
+        log.info("save_report address=%r report_id=%s", body.address, report_id)
+        return {"report_id": report_id, "address": body.address}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("save_report error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not save report.") from exc
+
+
+# ---------------------------------------------------------------------------
+# /report/{report_id} endpoint (data-021)
+# Fetches a saved report snapshot by UUID.
+# ---------------------------------------------------------------------------
+
+@app.get("/report/{report_id}")
+def get_report(report_id: str) -> dict:
+    """
+    Return a previously saved score result by its UUID.
+
+    Used by the shareable /report/<id> Next.js page.
+    Returns 404 if the report does not exist.
+    """
+    if not _is_db_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Report retrieval requires a live database. Configure DATABASE_URL to enable.",
+        )
+
+    try:
+        from backend.scoring.query import get_db_connection
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT report_id, address, score_json, created_at FROM reports WHERE report_id = %s",
+                    (report_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Report not found.")
+
+        report_id_val, address, score_json, created_at = row
+        return {
+            "report_id": str(report_id_val),
+            "address": address,
+            "score": score_json,
+            "created_at": created_at.isoformat() if created_at else None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("get_report report_id=%r error: %s", report_id, exc)
+        raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
