@@ -7,10 +7,13 @@ import {
   getConfidenceReasons,
   getMeaningInsights,
   ImpactWindow,
+  NeighborhoodContextCard,
   ScoreHero,
   ScoreSparkline,
   SeverityMeters,
+  SignalTimeline,
   TopRiskGrid,
+  WatchlistForm,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
@@ -64,9 +67,12 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
+  const statusHeadline = isDemoResult ? "Limited data coverage" : "Live score";
+  const statusBadgeTooltip = isDemoResult
+    ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
+    : undefined;
   const statusMessage = isDemoResult
-    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
+    ? (statusNote ?? "Live permit data may not be available for this address. Score is estimated from nearby signals.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -78,7 +84,7 @@ export default function HomePage() {
       ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
       : null;
     return [
-      { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
+      { label: "Data mode", value: isDemoResult ? "Limited data coverage" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: (() => {
@@ -494,11 +500,11 @@ export default function HomePage() {
 
             {(result || statusNote) ? (
               <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
-                <span className="status-badge">{statusHeadline}</span>
+                <span className="status-badge" title={statusBadgeTooltip}>{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
                   {" "}
-                  <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
+                  <span>{isDemoResult ? "" : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
             ) : null}
@@ -640,56 +646,85 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* ── Monitor this address — shown for score > 50 ──────────── */}
+              {result.disruption_score > 50 && (
+                <WatchlistForm address={result.address} score={result.disruption_score} />
+              )}
+
+              {/* ── Neighborhood context ─────────────────────────────────── */}
+              <Card className="detail-card">
+                <NeighborhoodContextCard
+                  result={result}
+                  scoreHistory={scoreHistory}
+                  lat={mapCoords?.lat ?? result.latitude}
+                  lon={mapCoords?.lon ?? result.longitude}
+                />
+              </Card>
+
+              {/* ── Full-width map panel, pinned below the headline score ── */}
+              <Card className="detail-card map-card">
+                <div className="map-card-head">
+                  <div>
+                    <p className="map-kicker">Spatial context</p>
+                    <h2>Address and nearby area</h2>
+                  </div>
+                  <span className="map-badge">OpenStreetMap</span>
+                </div>
+                {mapCoords ? (
+                  <MapView
+                    latitude={mapCoords.lat}
+                    longitude={mapCoords.lon}
+                    address={result.address}
+                    signals={result.nearby_signals ?? []}
+                    topRiskDetails={result.top_risk_details ?? []}
+                    isPro={false}
+                  />
+                ) : (
+                  <div className="map-placeholder" aria-label="Locating address on map…">
+                    <div className="map-grid" />
+                    <div className="map-pin map-pin--primary" />
+                  </div>
+                )}
+                <p className="map-copy">
+                  Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
+                  Pro plan unlocks the 30-day forecast animation.
+                </p>
+              </Card>
+
               <div id="signals-section" className="anchor-target" />
               <Section
                 eyebrow="Signals"
                 title="Strongest supporting drivers"
-                description="These are the clearest nearby signals behind the score, followed by the map and timeline context that help interpret them."
+                description="These are the clearest nearby signals behind the score, along with timeline context that helps interpret them."
                 className="workspace-subsection"
               >
                 <Card className="detail-card drivers-card">
                   <TopRiskGrid result={result} />
                 </Card>
+                {(result.top_risk_details ?? []).length > 0 && (
+                  <Card className="detail-card">
+                    <SignalTimeline details={result.top_risk_details ?? []} />
+                  </Card>
+                )}
               </Section>
 
-              <div className="support-grid">
-                <Card className="detail-card map-card">
-                  <div className="map-card-head">
-                    <div>
-                      <p className="map-kicker">Spatial context</p>
-                      <h2>Address and nearby area</h2>
-                    </div>
-                    <span className="map-badge">OpenStreetMap</span>
-                  </div>
-                  {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
-                  ) : (
-                    <div className="map-placeholder" aria-label="Locating address on map…">
-                      <div className="map-grid" />
-                      <div className="map-pin map-pin--primary" />
-                    </div>
-                  )}
-                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
+              <div className="detail-grid detail-grid--balanced">
+                <Card className="detail-card">
+                  <ImpactWindow result={result} />
                 </Card>
-
-                <div className="support-stack">
-                  <Card className="detail-card">
-                    <ImpactWindow result={result} />
-                  </Card>
-                  <Card className="detail-card supporting-card">
-                    <p className="supporting-kicker">Review notes</p>
-                    <ul className="supporting-list">
-                      <li>
-                        <span>Interpretation</span>
-                        <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
-                      </li>
-                      <li>
-                        <span>Best use</span>
-                        <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
-                      </li>
-                    </ul>
-                  </Card>
-                </div>
+                <Card className="detail-card supporting-card">
+                  <p className="supporting-kicker">Review notes</p>
+                  <ul className="supporting-list">
+                    <li>
+                      <span>Interpretation</span>
+                      <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
+                    </li>
+                    <li>
+                      <span>Best use</span>
+                      <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
+                    </li>
+                  </ul>
+                </Card>
               </div>
             </section>
           ) : (
@@ -777,8 +812,8 @@ export default function HomePage() {
                   <strong>Clearly labeled and presented as the default decision-ready experience.</strong>
                 </li>
                 <li>
-                  <span>Demo fallback</span>
-                  <strong>Still visible and explicit, so reviewers can distinguish sample output from live scoring.</strong>
+                  <span>Limited data coverage</span>
+                  <strong>Shown when live permit data is unavailable. Score is estimated from nearby signals.</strong>
                 </li>
               </ul>
             </Card>

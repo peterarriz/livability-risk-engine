@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
-import type { ScoreHistoryEntry, ScoreResponse, SeverityLevel, TopRiskDetail } from "@/lib/api";
+import { detectNeighborhoodSlug, fetchNeighborhood, subscribeWatch } from "@/lib/api";
+import type {
+  NeighborhoodResponse,
+  NeighborhoodSlugInfo,
+  ScoreHistoryEntry,
+  ScoreResponse,
+  SeverityLevel,
+  TopRiskDetail,
+  WatchResponse,
+} from "@/lib/api";
 
 type ScoreHeroProps = {
   result: ScoreResponse;
@@ -397,7 +406,11 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const displayScore = useAnimatedScore(result.disruption_score);
   const scoreMessage = getScoreMessage(result.disruption_score);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
-  const modeLabel = result.mode === "demo" ? "Demo scenario" : "Live Chicago signal";
+  const isDemo = result.mode === "demo";
+  const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
+  const modeLabelTooltip = isDemo
+    ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
+    : undefined;
   const gaugeBand = getGaugeBand(result.disruption_score);
 
   return (
@@ -406,7 +419,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <p className="score-hero-kicker">Headline assessment</p>
         <div className="score-hero-topline">
           <p className="score-label">Disruption score</p>
-          <p className="confidence-pill">{modeLabel}</p>
+          <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
 
@@ -802,4 +815,751 @@ export function getConfidenceReasons(result: ScoreResponse): string[] {
 
 export function getMeaningInsights(result: ScoreResponse): string[] {
   return inferMeaning(result);
+}
+
+// ---------------------------------------------------------------------------
+// NeighborhoodContextCard
+// Shows (1) address vs neighborhood median score bars, (2) score-history
+// sparkline, (3) a generated "how this compares" blurb.
+// Slug detection is client-side via NEIGHBORHOOD_BBOXES; data comes from the
+// existing /neighborhood/{slug} endpoint which now returns median_score.
+// ---------------------------------------------------------------------------
+
+function scoreBarColor(score: number): string {
+  if (score <= 30) return "#22c55e";
+  if (score <= 60) return "#f59e0b";
+  return "#ef4444";
+}
+
+function generateComparisonBlurb(
+  addressScore: number,
+  slugInfo: NeighborhoodSlugInfo,
+  medianScore: number | null | undefined,
+): string {
+  const areaStr = slugInfo.exact ? slugInfo.name : `near ${slugInfo.name}`;
+
+  if (medianScore == null) {
+    if (addressScore > 50) return `At ${addressScore}, this address scores above Chicago's typical range of 20–40. Disruption signals are elevated versus most of the city.`;
+    if (addressScore > 40) return `At ${addressScore}, this address is modestly above Chicago's typical range of 20–40.`;
+    if (addressScore < 20) return `At ${addressScore}, this address is below Chicago's typical range — a positive signal for near-term access.`;
+    return `At ${addressScore}, this address falls within Chicago's typical disruption range of 20–40.`;
+  }
+
+  const diff = addressScore - medianScore;
+
+  if (diff > 20) {
+    return `This address scores ${diff} points above the ${areaStr} median of ${medianScore}, pointing to localized disruption well above the neighborhood baseline.`;
+  }
+  if (diff > 8) {
+    return `Sitting above the ${areaStr} median of ${medianScore}, this address has somewhat elevated disruption compared to the surrounding area.`;
+  }
+  if (diff < -20) {
+    return `At ${Math.abs(diff)} points below the ${areaStr} median of ${medianScore}, this address is in noticeably better shape than most of the neighborhood.`;
+  }
+  if (diff < -8) {
+    return `This address scores below the ${areaStr} typical level of ${medianScore} — a positive signal against the local area baseline.`;
+  }
+  return `Broadly in line with the ${areaStr} median of ${medianScore}. The score reflects neighborhood-wide conditions rather than a site-specific spike.`;
+}
+
+type ScoreBarRowProps = {
+  label: string;
+  score?: number;
+  color?: string;
+  // For the "Chicago typical" row we show a range band instead of a single bar
+  rangeMin?: number;
+  rangeMax?: number;
+  dimLabel?: boolean;
+};
+
+function ScoreBarRow({ label, score, color, rangeMin, rangeMax, dimLabel }: ScoreBarRowProps) {
+  const LABEL_W = 148;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", height: "32px" }}>
+      {/* Label */}
+      <div style={{
+        width: `${LABEL_W}px`, flexShrink: 0, textAlign: "right",
+        fontSize: "0.72rem", fontWeight: 600,
+        color: dimLabel ? "var(--text-muted, #64748b)" : "var(--text-soft, #94a3b8)",
+        paddingRight: "2px",
+      }}>
+        {label}
+      </div>
+
+      {/* Track */}
+      <div style={{
+        flex: 1, height: "10px", position: "relative",
+        background: "rgba(255,255,255,0.06)", borderRadius: "5px", overflow: "hidden",
+      }}>
+        {/* Range band (Chicago typical) */}
+        {rangeMin != null && rangeMax != null && (
+          <div style={{
+            position: "absolute", top: 0, bottom: 0,
+            left: `${rangeMin}%`, width: `${rangeMax - rangeMin}%`,
+            background: "rgba(148,163,184,0.28)", borderRadius: "2px",
+          }} />
+        )}
+        {/* Single-value bar */}
+        {score != null && color && (
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, left: 0,
+            width: `${score}%`, background: color,
+            borderRadius: "5px", transition: "width 0.55s ease-out",
+          }} />
+        )}
+      </div>
+
+      {/* Value label */}
+      <div style={{
+        width: "32px", flexShrink: 0, textAlign: "right",
+        fontSize: "0.72rem", fontWeight: 700,
+        color: dimLabel ? "var(--text-muted, #64748b)" : "var(--text-soft, #94a3b8)",
+      }}>
+        {score != null ? score : rangeMin != null ? `${rangeMin}–${rangeMax}` : ""}
+      </div>
+    </div>
+  );
+}
+
+type NeighborhoodContextCardProps = {
+  result: ScoreResponse;
+  scoreHistory: ScoreHistoryEntry[];
+  lat?: number | null;
+  lon?: number | null;
+};
+
+export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: NeighborhoodContextCardProps) {
+  const [hood, setHood] = useState<NeighborhoodResponse | null>(null);
+  const [hoodLoading, setHoodLoading] = useState(false);
+
+  const slugInfo = useMemo<NeighborhoodSlugInfo | null>(
+    () => (lat != null && lon != null ? detectNeighborhoodSlug(lat, lon) : null),
+    [lat, lon],
+  );
+
+  useEffect(() => {
+    if (!slugInfo) { setHood(null); return; }
+    setHoodLoading(true);
+    fetchNeighborhood(slugInfo.slug).then((data) => {
+      setHood(data);
+      setHoodLoading(false);
+    });
+  }, [slugInfo?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasHistory = scoreHistory.length >= 2;
+
+  // Don't render when we have nothing to show.
+  if (!hasHistory && !lat && !lon) return null;
+
+  const score          = result.disruption_score;
+  const medianScore    = hood?.median_score ?? null;
+  const neighborhoodName = hood?.name ?? slugInfo?.name ?? null;
+  const blurb          = slugInfo
+    ? generateComparisonBlurb(score, slugInfo, medianScore)
+    : null;
+
+  return (
+    <div>
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px", marginBottom: "18px", flexWrap: "wrap" }}>
+        <div>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "3px",
+          }}>
+            Neighborhood context
+          </p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
+            {hoodLoading
+              ? "Locating neighborhood…"
+              : neighborhoodName
+              ? slugInfo?.exact
+                ? `${neighborhoodName} · ${result.address}`
+                : `Near ${neighborhoodName}`
+              : "Chicago context"}
+          </p>
+        </div>
+        {slugInfo && hood && (
+          <a
+            href={`/neighborhood/${slugInfo.slug}`}
+            style={{ fontSize: "0.71rem", color: "#60a5fa", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap" }}
+          >
+            View {hood.name} →
+          </a>
+        )}
+      </div>
+
+      {/* ── Score bar comparison ─────────────────────────────────────── */}
+      <div style={{ marginBottom: "18px" }}>
+        <ScoreBarRow
+          label="This address"
+          score={score}
+          color={scoreBarColor(score)}
+        />
+        {(medianScore != null || hoodLoading) && (
+          <ScoreBarRow
+            label={neighborhoodName ? `${neighborhoodName} median` : "Neighborhood median"}
+            score={hoodLoading ? undefined : (medianScore ?? undefined)}
+            color={hoodLoading ? undefined : "#60a5fa"}
+            dimLabel
+          />
+        )}
+        <ScoreBarRow
+          label="Chicago typical"
+          rangeMin={20}
+          rangeMax={40}
+          dimLabel
+        />
+      </div>
+
+      {/* ── Sparkline ────────────────────────────────────────────────── */}
+      {hasHistory && (
+        <div style={{
+          marginBottom: "16px", paddingTop: "14px",
+          borderTop: "1px solid rgba(255,255,255,0.055)",
+        }}>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "8px",
+          }}>
+            Score trend
+          </p>
+          <ScoreSparkline history={scoreHistory} currentScore={score} />
+        </div>
+      )}
+
+      {/* ── Comparison blurb ─────────────────────────────────────────── */}
+      {(blurb || (!slugInfo && lat != null)) && (
+        <div style={{
+          paddingTop: hasHistory ? "14px" : 0,
+          borderTop: hasHistory ? "1px solid rgba(255,255,255,0.055)" : "none",
+        }}>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "6px",
+          }}>
+            How this compares
+          </p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-soft, #94a3b8)", lineHeight: 1.65, margin: 0 }}>
+            {blurb ?? generateComparisonBlurb(score, { slug: "", name: "Chicago", exact: true }, null)}
+          </p>
+          {hood?.sample_size === 0 && (
+            <p style={{ fontSize: "0.67rem", color: "var(--text-muted, #64748b)", margin: "6px 0 0", fontStyle: "italic" }}>
+              Neighborhood median is a calibrated estimate; live history data will replace this when the database is connected.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SignalTimeline  (app-task)
+// Horizontal Gantt-style timeline: one bar per top_risk_detail, colored by
+// impact type, spanning start_date → end_date. Click a bar to expand the
+// existing PermitDetailPanel. Today is marked with a vertical rule.
+// ---------------------------------------------------------------------------
+
+const TL_COLOR: Record<string, string> = {
+  closure_full:        "#ef4444",   // red   — access disruption
+  closure_multi_lane:  "#f87171",   // lighter red
+  closure_single_lane: "#fca5a5",   // lightest red
+  demolition:          "#f97316",   // orange-red — construction family
+  construction:        "#fb923c",   // orange
+  light_permit:        "#facc15",   // yellow — noise / minor
+};
+const TL_COLOR_DEFAULT = "#60a5fa"; // blue fallback
+
+const TL_TYPE_LABEL: Record<string, string> = {
+  closure_full:        "Full closure",
+  closure_multi_lane:  "Multi-lane closure",
+  closure_single_lane: "Lane closure",
+  demolition:          "Demolition",
+  construction:        "Construction",
+  light_permit:        "Permitted work",
+};
+
+// Human-readable legend entries the user asked for (red/orange/yellow).
+const TL_LEGEND = [
+  { key: "closure_full",  color: "#ef4444", label: "Access disruption" },
+  { key: "construction",  color: "#fb923c", label: "Construction"       },
+  { key: "light_permit",  color: "#facc15", label: "Minor / noise"      },
+] as const;
+
+const MONTH_SHORT_TL = [
+  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
+] as const;
+
+type TLRow = {
+  id: string;
+  detail: TopRiskDetail;
+  typeLabel: string;
+  color: string;
+  startPct: number;
+  endPct: number;
+  openStart: boolean;
+  openEnd: boolean;
+};
+
+type TLData = {
+  rows: TLRow[];
+  todayPct: number;
+  ticks: { label: string; pct: number }[];
+};
+
+function buildTLData(details: TopRiskDetail[]): TLData | null {
+  const dated = details.filter((d) => d.start_date || d.end_date);
+  if (!dated.length) return null;
+
+  const parseIso = (iso: string) => new Date(iso + "T00:00:00Z");
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  // Initial window: 14 days back → 60 days forward
+  let winStart = new Date(today); winStart.setUTCDate(winStart.getUTCDate() - 14);
+  let winEnd   = new Date(today); winEnd.setUTCDate(winEnd.getUTCDate() + 60);
+
+  // Expand to fit all signal dates
+  for (const d of dated) {
+    if (d.start_date) { const sd = parseIso(d.start_date); if (sd < winStart) winStart = sd; }
+    if (d.end_date)   { const ed = parseIso(d.end_date);   if (ed > winEnd)   winEnd   = ed; }
+  }
+
+  // 4-day padding on each side
+  winStart = new Date(winStart); winStart.setUTCDate(winStart.getUTCDate() - 4);
+  winEnd   = new Date(winEnd);   winEnd.setUTCDate(winEnd.getUTCDate() + 4);
+
+  const span  = winEnd.getTime() - winStart.getTime();
+  const toPct = (d: Date) =>
+    Math.max(0, Math.min(100, ((d.getTime() - winStart.getTime()) / span) * 100));
+
+  const todayPct = toPct(today);
+
+  // Month-boundary tick marks
+  const ticks: TLData["ticks"] = [];
+  let tick = new Date(Date.UTC(winStart.getUTCFullYear(), winStart.getUTCMonth() + 1, 1));
+  while (tick.getTime() <= winEnd.getTime()) {
+    ticks.push({
+      label: `${MONTH_SHORT_TL[tick.getUTCMonth()]} ${tick.getUTCFullYear()}`,
+      pct: toPct(tick),
+    });
+    tick = new Date(Date.UTC(tick.getUTCFullYear(), tick.getUTCMonth() + 1, 1));
+  }
+
+  const rows: TLRow[] = dated.map((d, i) => {
+    const sDate = d.start_date ? parseIso(d.start_date) : winStart;
+    const eDate = d.end_date   ? parseIso(d.end_date)   : winEnd;
+    return {
+      id:         `tl-${d.project_id}-${i}`,
+      detail:     d,
+      typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
+      color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
+      startPct:   toPct(sDate),
+      endPct:     toPct(eDate),
+      openStart:  !d.start_date,
+      openEnd:    !d.end_date,
+    };
+  });
+
+  return { rows, todayPct, ticks };
+}
+
+type SignalTimelineProps = { details: TopRiskDetail[] };
+
+export function SignalTimeline({ details }: SignalTimelineProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const data = useMemo(() => buildTLData(details), [details]);
+
+  if (!data) return null;
+
+  const { rows, todayPct, ticks } = data;
+  const expandedRow = rows.find((r) => r.id === expandedId) ?? null;
+  const LABEL_W = 162; // px — label column width
+
+  function toggle(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
+
+  // Which legend items actually appear in this result set.
+  const presentTypes = new Set(rows.map((r) => r.detail.impact_type));
+  const visibleLegend = TL_LEGEND.filter(
+    (l) =>
+      presentTypes.has(l.key) ||
+      (l.key === "closure_full" &&
+        ["closure_full","closure_multi_lane","closure_single_lane"].some((t) => presentTypes.has(t))) ||
+      (l.key === "construction" &&
+        ["construction","demolition"].some((t) => presentTypes.has(t))),
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: "14px" }}>
+        <p style={{
+          fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+          textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "4px",
+        }}>
+          Active window timeline
+        </p>
+        <p style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
+          Each bar spans a signal&rsquo;s active date range. Click a bar to see permit details.
+        </p>
+      </div>
+
+      {/* Scrollable timeline */}
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: "440px" }}>
+
+          {/* ── Month axis ───────────────────────────────────────────── */}
+          <div style={{ display: "flex", marginBottom: "4px" }}>
+            <div style={{ width: `${LABEL_W}px`, flexShrink: 0 }} />
+            <div style={{ flex: 1, position: "relative", height: "22px" }}>
+              {ticks.map((t) => (
+                <span
+                  key={t.label}
+                  style={{
+                    position: "absolute", left: `${t.pct}%`,
+                    transform: "translateX(-50%)",
+                    fontSize: "0.65rem", fontWeight: 500,
+                    color: "var(--text-muted, #64748b)", whiteSpace: "nowrap",
+                  }}
+                >
+                  {t.label}
+                </span>
+              ))}
+              {/* Today label */}
+              <span style={{
+                position: "absolute", left: `${todayPct}%`,
+                transform: "translateX(-50%)",
+                fontSize: "0.6rem", fontWeight: 700,
+                color: "#60a5fa", textTransform: "uppercase",
+                letterSpacing: "0.07em", whiteSpace: "nowrap",
+              }}>
+                Today
+              </span>
+            </div>
+          </div>
+
+          {/* ── Row body ──────────────────────────────────────────────── */}
+          <div style={{ position: "relative" }}>
+
+            {/* Today vertical rule — spans full body height.
+                left = LABEL_W + todayPct% of the remaining track width */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute", top: 0, bottom: 0,
+                left: `calc(${LABEL_W}px + ${todayPct / 100} * (100% - ${LABEL_W}px))`,
+                width: "1.5px",
+                background: "rgba(96,165,250,0.28)",
+                zIndex: 0, pointerEvents: "none",
+              }}
+            />
+
+            {rows.map((row, index) => (
+              <div
+                key={row.id}
+                style={{
+                  display: "flex", alignItems: "center", height: "48px",
+                  borderBottom: index < rows.length - 1
+                    ? "1px solid rgba(255,255,255,0.045)" : "none",
+                }}
+              >
+                {/* Label column */}
+                <div style={{
+                  width: `${LABEL_W}px`, flexShrink: 0,
+                  paddingRight: "14px", textAlign: "right",
+                }}>
+                  <div style={{
+                    fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
+                    color: "var(--text-soft, #94a3b8)",
+                  }}>
+                    {row.typeLabel}
+                  </div>
+                  {row.detail.title && (
+                    <div style={{
+                      fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
+                      overflow: "hidden", textOverflow: "ellipsis",
+                      whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
+                      marginLeft: "auto",
+                    }}>
+                      {row.detail.title}
+                    </div>
+                  )}
+                </div>
+
+                {/* Track column */}
+                <div style={{ flex: 1, position: "relative", height: "100%" }}>
+                  {/* Subtle centre-line guide */}
+                  <div aria-hidden="true" style={{
+                    position: "absolute", top: "50%", left: 0, right: 0,
+                    transform: "translateY(-50%)",
+                    height: "1px", background: "rgba(255,255,255,0.05)",
+                  }} />
+
+                  {/* Colored bar */}
+                  <button
+                    type="button"
+                    aria-pressed={expandedId === row.id}
+                    aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. Click for permit details.`}
+                    onClick={() => toggle(row.id)}
+                    style={{
+                      position: "absolute",
+                      top: "50%", transform: "translateY(-50%)",
+                      left: `${row.startPct}%`,
+                      width: `${Math.max(row.endPct - row.startPct, 1.8)}%`,
+                      height: "20px",
+                      // Rounded ends; open sides get a squared-off cap
+                      borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
+                      background: row.color,
+                      opacity: expandedId === row.id ? 1 : 0.76,
+                      cursor: "pointer",
+                      border: expandedId === row.id
+                        ? "2px solid rgba(255,255,255,0.55)"
+                        : row.openStart || row.openEnd
+                        ? `1px dashed ${row.color}`
+                        : "none",
+                      outline: "none",
+                      boxShadow: expandedId === row.id
+                        ? `0 0 0 3px ${row.color}44`
+                        : "none",
+                      transition: "opacity 0.12s, box-shadow 0.12s",
+                      zIndex: 1,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
+                    }}
+                  />
+
+                  {/* Distance badge — to the right of the bar */}
+                  {row.detail.distance_m > 0 && (
+                    <span style={{
+                      position: "absolute",
+                      top: "50%", transform: "translateY(-50%)",
+                      left: `calc(${row.endPct}% + 7px)`,
+                      fontSize: "0.59rem", color: "var(--text-muted, #64748b)",
+                      whiteSpace: "nowrap", pointerEvents: "none", zIndex: 1,
+                    }}>
+                      {Math.round(row.detail.distance_m * 3.28084).toLocaleString()} ft
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Legend ──────────────────────────────────────────────── */}
+          {visibleLegend.length > 0 && (
+            <div style={{
+              display: "flex", gap: "18px", flexWrap: "wrap",
+              marginTop: "12px", paddingTop: "10px",
+              borderTop: "1px solid rgba(255,255,255,0.05)",
+            }}>
+              {visibleLegend.map((l) => (
+                <span key={l.key} style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  fontSize: "0.67rem", color: "var(--text-muted, #64748b)",
+                }}>
+                  <span style={{
+                    width: "10px", height: "10px", borderRadius: "2px",
+                    background: l.color, flexShrink: 0,
+                  }} />
+                  {l.label}
+                </span>
+              ))}
+              <span style={{
+                fontSize: "0.67rem", color: "var(--text-muted, #64748b)",
+                marginLeft: "auto", fontStyle: "italic",
+              }}>
+                Dashed edge = open-ended date
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Expanded permit detail panel ──────────────────────────── */}
+      {expandedRow && (
+        <div style={{ marginTop: "14px" }}>
+          <PermitDetailPanel
+            detail={expandedRow.detail}
+            onClose={() => setExpandedId(null)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WatchlistForm — "Monitor this address"
+// Shown inline when disruption_score > 50. Captures email + threshold and
+// POSTs to /watch. Works on the free tier (always shows confirmation);
+// actual alert email delivery is gated behind Pro.
+// ---------------------------------------------------------------------------
+
+const WATCH_THRESHOLDS = [
+  { value: 50 as const, label: "50+", band: "Moderate", desc: "any moderate reading" },
+  { value: 65 as const, label: "65+", band: "High",     desc: "high-risk territory"  },
+  { value: 80 as const, label: "80+", band: "Severe",   desc: "severe disruption"    },
+];
+type ThresholdVal = 50 | 65 | 80;
+
+function pickDefaultThreshold(score: number): ThresholdVal {
+  // Default to the next tier above the current score so the user is alerted
+  // if conditions worsen, not just because the score is already elevated.
+  if (score >= 80) return 80;
+  if (score >= 65) return 80;
+  return 65;
+}
+
+type WatchFormState = "idle" | "submitting" | "confirmed" | "error";
+
+type WatchlistFormProps = {
+  address: string;
+  score: number;
+};
+
+export function WatchlistForm({ address, score }: WatchlistFormProps) {
+  const [email, setEmail]         = useState("");
+  const [threshold, setThreshold] = useState<ThresholdVal>(pickDefaultThreshold(score));
+  const [formState, setFormState] = useState<WatchFormState>("idle");
+  const [confirmed, setConfirmed] = useState<WatchResponse | null>(null);
+  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
+
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const selectedOpt = WATCH_THRESHOLDS.find((t) => t.value === threshold)!;
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!emailValid || formState === "submitting") return;
+    setFormState("submitting");
+    setErrorMsg(null);
+    try {
+      const res = await subscribeWatch({ email, address, threshold });
+      setConfirmed(res);
+      setFormState("confirmed");
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : "Could not set up the alert. Try again.",
+      );
+      setFormState("error");
+    }
+  }
+
+  // ── Confirmed state ─────────────────────────────────────────────────────
+  if (formState === "confirmed" && confirmed) {
+    return (
+      <div className="watch-confirmed-card detail-card" style={{ padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <span style={{ fontSize: "1.15rem", color: "#22c55e", lineHeight: 1 }}>✓</span>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
+            Monitoring {confirmed.address}
+          </p>
+        </div>
+        <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "var(--text-soft)" }}>
+          Watching for scores of <strong>{confirmed.threshold}+</strong> ({selectedOpt.band}).
+          {" "}Alerts go to <strong>{confirmed.email}</strong>.
+        </p>
+
+        <div className="watch-pro-note">
+          <span className="watch-pro-badge">Pro</span>
+          <span>
+            Alert emails go to Pro plan subscribers.{" "}
+            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a> email delivery.
+          </span>
+        </div>
+
+        {confirmed.demo && (
+          <p style={{ margin: "10px 0 0", fontSize: "0.67rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+            Live database not yet connected. Your alert will be queued when the backend goes live.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── Idle / submitting / error state ──────────────────────────────────────
+  const currentBand = score >= 80 ? "Severe" : score >= 65 ? "High" : "Moderate";
+
+  return (
+    <div className="watch-card detail-card" style={{ padding: "20px 24px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "3px" }}>
+            Monitor this address
+          </p>
+          <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-soft)" }}>
+            Score is {score} ({currentBand}). Get notified if conditions change.
+          </p>
+        </div>
+        <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
+          Free to set up &middot; Pro for email delivery
+        </span>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {/* Threshold selector */}
+        <div style={{ marginBottom: "14px" }}>
+          <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            Alert me when score reaches
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            {WATCH_THRESHOLDS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`watch-threshold-btn${threshold === opt.value ? " watch-threshold-btn--active" : ""}`}
+                onClick={() => setThreshold(opt.value)}
+                aria-pressed={threshold === opt.value}
+              >
+                {opt.label} {opt.band}
+              </button>
+            ))}
+            <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+              Current: {score}
+            </span>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+            {selectedOpt.desc === "any moderate reading"
+              ? "You'll be notified whenever the score is at or above 50."
+              : `You'll be notified when the score climbs into ${selectedOpt.band.toLowerCase()} territory.`}
+          </p>
+        </div>
+
+        {/* Email + submit */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <input
+            type="email"
+            className="watch-email-input"
+            placeholder="your@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-label="Email address for alerts"
+            required
+            autoComplete="email"
+          />
+          <button
+            type="submit"
+            className="watch-submit-btn"
+            disabled={!emailValid || formState === "submitting"}
+          >
+            {formState === "submitting" ? "Setting up…" : "Set up alert \u2192"}
+          </button>
+        </div>
+
+        {/* Error */}
+        {formState === "error" && errorMsg && (
+          <p style={{ margin: "8px 0 0", fontSize: "0.78rem", color: "#f87171" }}>
+            {errorMsg}
+          </p>
+        )}
+      </form>
+    </div>
+  );
 }

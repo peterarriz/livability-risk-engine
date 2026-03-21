@@ -36,6 +36,10 @@ export type NearbySignal = {
   distance_m: number;
   severity_hint: string;
   weight: number;
+  // Optional fields for richer popup display and 30-day forecast
+  source?: string;
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 export type ScoreResponse = {
@@ -151,18 +155,27 @@ function buildDemoScore(address: string): ScoreResponse {
         impact_type: "closure_multi_lane",
         title: "W Chicago Ave 2-lane eastbound closure",
         distance_m: 120, severity_hint: "HIGH", weight: 30.4,
+        source: "chicago_closures",
+        start_date: "2026-03-15",
+        end_date: "2026-03-31",
       },
       {
         lat: 41.8962, lon: -87.6618,
         impact_type: "construction",
         title: "Active construction permit at 1550 W Chicago Ave",
         distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
+        source: "chicago_permits",
+        start_date: "2026-02-01",
+        end_date: "2026-04-15",
       },
       {
         lat: 41.8948, lon: -87.6602,
         impact_type: "closure_single_lane",
         title: "Curb lane closure on S Ashland Ave",
         distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
+        source: "chicago_closures",
+        start_date: "2026-03-20",
+        end_date: "2026-03-25",
       },
     ],
   };
@@ -408,6 +421,64 @@ export function getExportUrl(type: "csv" | "pdf", address: string): string {
   return url.toString();
 }
 
+// ── Watchlist / Monitor this address ─────────────────────────────────────────
+export type WatchRequest = {
+  email: string;
+  address: string;
+  threshold: number; // 0–100
+};
+
+export type WatchResponse = {
+  id: number | null;
+  email: string;
+  address: string;
+  threshold: number;
+  token: string | null;
+  /** True when the backend accepted the request but the DB is not yet live. */
+  demo?: boolean;
+  message?: string;
+};
+
+/**
+ * Subscribe an email to score-change alerts for an address.
+ *
+ * When the DB is not configured the backend returns a demo-success 200.
+ * When the frontend has no API URL at all, a client-side demo response is
+ * returned — the form always completes so email capture works on the free tier.
+ * Actual alert email delivery is gated behind the Pro plan.
+ */
+export async function subscribeWatch(req: WatchRequest): Promise<WatchResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+
+  if (!apiBaseUrl) {
+    // No backend wired up — return a client-side demo response.
+    return {
+      id: null,
+      email: req.email,
+      address: req.address,
+      threshold: req.threshold,
+      token: null,
+      demo: true,
+      message: "Noted. Connect a backend to enable live alert delivery.",
+    };
+  }
+
+  const url = buildApiUrl("/watch");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    cache: "no-store",
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(data.detail ?? `Could not set up alert (${resp.status}).`);
+  }
+
+  return (await resp.json()) as WatchResponse;
+}
+
 export type SaveReportResponse = {
   report_id: string;
 };
@@ -520,7 +591,65 @@ export type NeighborhoodResponse = {
   project_count: number;
   projects: NeighborhoodProject[];
   mode: "live" | "demo";
+  // Median disruption score for this neighborhood (calibrated static value
+  // until live score_history aggregation is wired up).
+  median_score?: number | null;
+  // Number of real score_history records backing the median (0 in demo mode).
+  sample_size?: number;
 };
+
+// ── Neighborhood bbox map — mirrors the static config in backend/app/main.py ──
+// Used client-side to detect which neighborhood a scored address falls within,
+// without an extra round-trip to the server.
+type NeighborhoodBbox = {
+  min_lat: number; min_lon: number;
+  max_lat: number; max_lon: number;
+  name: string;
+  center: { lat: number; lon: number };
+};
+
+export const NEIGHBORHOOD_BBOXES: Record<string, NeighborhoodBbox> = {
+  "wicker-park":  { min_lat: 41.8990, min_lon: -87.6950, max_lat: 41.9180, max_lon: -87.6600, name: "Wicker Park",  center: { lat: 41.9088, lon: -87.6776 } },
+  "logan-square": { min_lat: 41.9100, min_lon: -87.7250, max_lat: 41.9330, max_lon: -87.6900, name: "Logan Square", center: { lat: 41.9217, lon: -87.7082 } },
+  "river-north":  { min_lat: 41.8850, min_lon: -87.6500, max_lat: 41.9030, max_lon: -87.6200, name: "River North",  center: { lat: 41.8940, lon: -87.6340 } },
+  "lincoln-park": { min_lat: 41.9100, min_lon: -87.6630, max_lat: 41.9380, max_lon: -87.6270, name: "Lincoln Park", center: { lat: 41.9240, lon: -87.6450 } },
+  "pilsen":       { min_lat: 41.8470, min_lon: -87.6850, max_lat: 41.8650, max_lon: -87.6430, name: "Pilsen",        center: { lat: 41.8560, lon: -87.6640 } },
+  "loop":         { min_lat: 41.8740, min_lon: -87.6480, max_lat: 41.8920, max_lon: -87.6180, name: "The Loop",      center: { lat: 41.8827, lon: -87.6323 } },
+  "uptown":       { min_lat: 41.9540, min_lon: -87.6680, max_lat: 41.9750, max_lon: -87.6390, name: "Uptown",        center: { lat: 41.9650, lon: -87.6540 } },
+  "bridgeport":   { min_lat: 41.8250, min_lon: -87.6600, max_lat: 41.8460, max_lon: -87.6300, name: "Bridgeport",   center: { lat: 41.8350, lon: -87.6444 } },
+};
+
+export type NeighborhoodSlugInfo = { slug: string; name: string; exact: boolean };
+
+/**
+ * Determine which pre-defined Chicago neighborhood a lat/lon falls within.
+ *
+ * Strategy:
+ *  1. Exact bbox containment → returns exact: true
+ *  2. Nearest center within ~3 mi → returns exact: false (address is "near")
+ *  3. Outside Chicago or >3 mi from any center → returns null
+ */
+export function detectNeighborhoodSlug(lat: number, lon: number): NeighborhoodSlugInfo | null {
+  // 1. Exact bbox test
+  for (const [slug, bb] of Object.entries(NEIGHBORHOOD_BBOXES)) {
+    if (lat >= bb.min_lat && lat <= bb.max_lat && lon >= bb.min_lon && lon <= bb.max_lon) {
+      return { slug, name: bb.name, exact: true };
+    }
+  }
+
+  // 2. Nearest-center fallback (degrees, equirectangular approx)
+  let nearest: { slug: string; name: string; dist: number } | null = null;
+  for (const [slug, bb] of Object.entries(NEIGHBORHOOD_BBOXES)) {
+    const dlat = lat - bb.center.lat;
+    const dlon = (lon - bb.center.lon) * Math.cos((lat * Math.PI) / 180);
+    const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+    if (!nearest || dist < nearest.dist) nearest = { slug, name: bb.name, dist };
+  }
+  // ~0.044° ≈ 3 miles at Chicago latitude
+  if (nearest && nearest.dist <= 0.044) return { slug: nearest.slug, name: nearest.name, exact: false };
+
+  return null;
+}
 
 /**
  * Fetch neighborhood disruption data by slug.
@@ -537,6 +666,30 @@ export async function fetchNeighborhood(slug: string): Promise<NeighborhoodRespo
   } catch {
     return null;
   }
+}
+
+/**
+ * Fetch a score for a single address, forwarding a caller-supplied API key.
+ * Used by the /bulk page to score many addresses on behalf of the user.
+ * Throws ApiError on any non-200 response so the caller can record a per-row error.
+ */
+export async function fetchScoreWithKey(address: string, apiKey: string): Promise<ScoreResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError(
+      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to enable bulk scoring.",
+    );
+  }
+  const url = buildApiUrl("/score");
+  url.searchParams.set("address", address);
+  const headers: Record<string, string> = {};
+  if (apiKey) headers["X-API-Key"] = apiKey;
+  const resp = await fetch(url.toString(), { cache: "no-store", headers });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(data.detail ?? `Score request failed (${resp.status})`);
+  }
+  return (await resp.json()) as ScoreResponse;
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {
