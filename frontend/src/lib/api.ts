@@ -2,38 +2,40 @@ export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
 
-export type ScoreHistoryEntry = {
-  disruption_score: number;
-  confidence: ConfidenceLevel;
-  mode: ScoreMode;
-  created_at: string | null;
-};
-
-export type SaveReportResponse = {
-  report_id: string;
-  address: string;
-};
-
-export type FetchReportResponse = {
-  report_id: string;
-  address: string;
-  score: ScoreResponse;
-  created_at: string | null;
-};
-
+// Structured metadata for a single top-risk contributor (data-024).
+// Parallel to the plain-English top_risks strings but machine-readable,
+// allowing the frontend to render permit IDs, dates, and source links.
 export type TopRiskDetail = {
   project_id: string;
   source: string;
   source_id: string;
-  impact_type: string;
   title: string;
-  notes: string | null;
-  status: string;
+  impact_type: string;
+  distance_m: number;
   start_date: string | null;
   end_date: string | null;
+  status: string;
   address: string | null;
-  distance_m: number;
+  notes?: string | null;
   weighted_score: number;
+};
+
+export type ImpactType =
+  | "closure_full"
+  | "closure_multi_lane"
+  | "closure_single_lane"
+  | "demolition"
+  | "construction"
+  | "light_permit";
+
+export type NearbySignal = {
+  lat: number;
+  lon: number;
+  impact_type: ImpactType;
+  title: string;
+  distance_m: number;
+  severity_hint: string;
+  weight: number;
 };
 
 export type ScoreResponse = {
@@ -47,14 +49,17 @@ export type ScoreResponse = {
   };
   top_risks: string[];
   explanation: string;
+  // Structured per-risk metadata added in data-024. Optional for backward
+  // compatibility with backend builds that predate this field.
+  top_risk_details?: TopRiskDetail[];
   // Optional for backward compatibility with older backend builds.
   mode?: ScoreMode;
   fallback_reason?: string | null;
   // Coordinates returned by the backend for map display.
   latitude?: number | null;
   longitude?: number | null;
-  // data-024: structured permit/closure metadata for drill-down.
-  top_risk_details?: TopRiskDetail[];
+  // Nearby permit/closure signals for the map heat layer.
+  nearby_signals?: NearbySignal[];
 };
 
 export type ScoreSource = ScoreMode;
@@ -131,6 +136,7 @@ function buildDemoScore(address: string): ScoreResponse {
       "Active closure window runs through 2026-03-22",
       "Traffic is the dominant near-term disruption signal at this address",
     ],
+    top_risk_details: [],
     explanation:
       "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
     mode: "demo",
@@ -138,6 +144,27 @@ function buildDemoScore(address: string): ScoreResponse {
     // Include coordinates for the demo address so the map pin shows immediately.
     latitude: KNOWN_COORDS[address]?.lat ?? null,
     longitude: KNOWN_COORDS[address]?.lon ?? null,
+    // Demo heat signals near 1600 W Chicago Ave for map visualisation.
+    nearby_signals: [
+      {
+        lat: 41.8959, lon: -87.6594,
+        impact_type: "closure_multi_lane",
+        title: "W Chicago Ave 2-lane eastbound closure",
+        distance_m: 120, severity_hint: "HIGH", weight: 30.4,
+      },
+      {
+        lat: 41.8962, lon: -87.6618,
+        impact_type: "construction",
+        title: "Active construction permit at 1550 W Chicago Ave",
+        distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
+      },
+      {
+        lat: 41.8948, lon: -87.6602,
+        impact_type: "closure_single_lane",
+        title: "Curb lane closure on S Ashland Ave",
+        distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
+      },
+    ],
   };
 }
 
@@ -327,6 +354,27 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
 }
 
 /**
+ * Build a URL for the export endpoints (/export/csv or /export/pdf).
+ * Returns an empty string if the backend is not configured.
+ */
+export function getExportUrl(type: "csv" | "pdf", address: string): string {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return "";
+  const url = buildApiUrl(`/export/${type}`);
+  url.searchParams.set("address", address);
+  return url.toString();
+}
+
+export type SaveReportResponse = {
+  report_id: string;
+};
+
+export type FetchReportResponse = ScoreResponse & {
+  report_id: string;
+  created_at: string;
+};
+
+/**
  * Save a score result to the backend and return a shareable report_id.
  * Throws ApiError if the backend is unreachable or DB is not configured.
  */
@@ -335,89 +383,129 @@ export async function saveReport(score: ScoreResponse): Promise<SaveReportRespon
   if (!apiBaseUrl) {
     throw new ApiError("Backend not configured. Cannot save report.");
   }
-
-  const url = buildApiUrl("/save");
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address: score.address, score_json: score }),
-    });
-  } catch {
-    throw new ApiError("Network error. Could not reach the backend to save report.");
+  const url = buildApiUrl("/save-report");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(score),
+  });
+  if (!resp.ok) {
+    throw new ApiError(`Save failed: ${resp.status}`);
   }
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "Unknown error");
-    throw new ApiError(`Save failed (${response.status}): ${detail}`);
-  }
-
-  return (await response.json()) as SaveReportResponse;
+  return (await resp.json()) as SaveReportResponse;
 }
 
 /**
  * Fetch a previously saved report by its UUID.
- * Returns null if not found (404).
- * Throws ApiError on network or server errors.
+ * Returns null when not found or the backend is unreachable.
  */
 export async function fetchReport(reportId: string): Promise<FetchReportResponse | null> {
   const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) {
-    throw new ApiError("Backend not configured. Cannot fetch report.");
-  }
-
-  const url = buildApiUrl(`/report/${encodeURIComponent(reportId)}`);
-  let response: Response;
+  if (!apiBaseUrl) return null;
   try {
-    response = await fetch(url.toString(), { cache: "no-store" });
+    const url = buildApiUrl(`/report/${reportId}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as FetchReportResponse;
   } catch {
-    throw new ApiError("Network error. Could not reach the backend to fetch report.");
+    return null;
   }
-
-  if (response.status === 404) return null;
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "Unknown error");
-    throw new ApiError(`Fetch report failed (${response.status}): ${detail}`);
-  }
-
-  return (await response.json()) as FetchReportResponse;
 }
 
+export type HistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: string;
+  scored_at: string;
+};
+
+export type HistoryResponse = {
+  address: string;
+  history: HistoryEntry[];
+};
+
 /**
- * Fetch score history for an address (most recent first).
- * Returns an empty array when the backend is not configured or has no data.
+ * Fetch recent score history for a given address.
+ * Returns null when the backend is unreachable or not configured.
+ * Returns an empty history array when DB is in demo mode.
  */
-export async function fetchHistory(address: string, limit = 10): Promise<ScoreHistoryEntry[]> {
+export async function fetchHistory(
+  address: string,
+  limit = 10,
+): Promise<HistoryResponse | null> {
   const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) return [];
+  if (!apiBaseUrl) return null;
+
   try {
     const url = buildApiUrl("/history");
     url.searchParams.set("address", address);
     url.searchParams.set("limit", String(limit));
     const resp = await fetch(url.toString(), { cache: "no-store" });
-    if (!resp.ok) return [];
-    const data = (await resp.json()) as { address: string; history: ScoreHistoryEntry[] };
-    return data.history ?? [];
+    if (!resp.ok) return null;
+    return (await resp.json()) as HistoryResponse;
   } catch {
-    return [];
+    return null;
+  }
+}
+
+// Score history entry returned by /history (data-025).
+export type ScoreHistoryEntry = {
+  disruption_score: number;
+  confidence: ConfidenceLevel;
+  mode: ScoreMode;
+  created_at: string | null;
+};
+
+// Neighborhood page types (data-026).
+export type NeighborhoodProject = {
+  project_id: string;
+  source: string;
+  title: string | null;
+  impact_type: string | null;
+  status: string;
+  lat: number | null;
+  lon: number | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type NeighborhoodResponse = {
+  name: string;
+  slug: string;
+  description: string;
+  center: { lat: number; lon: number };
+  project_count: number;
+  projects: NeighborhoodProject[];
+  mode: "live" | "demo";
+};
+
+/**
+ * Fetch neighborhood disruption data by slug.
+ * Returns null when the backend is unreachable or the neighborhood is not found.
+ */
+export async function fetchNeighborhood(slug: string): Promise<NeighborhoodResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+  try {
+    const url = buildApiUrl(`/neighborhood/${slug}`);
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as NeighborhoodResponse;
+  } catch {
+    return null;
   }
 }
 
 export async function fetchScore(address: string): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
-  // No backend URL means the frontend must fabricate the approved demo response.
+  // No backend URL — throw so the caller surfaces a clear error rather than
+  // silently showing demo data the user didn't ask for.
   if (!apiBaseUrl) {
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_api_not_configured",
-        "Showing the approved demo scenario while the live backend URL is being configured.",
-      ),
-    };
+    logFrontendFallback("frontend_api_not_configured", "NEXT_PUBLIC_API_URL not set");
+    throw new ApiError(
+      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to enable live scoring.",
+    );
   }
 
   const url = buildApiUrl("/score");
@@ -425,56 +513,42 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-  } catch {
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_network_error",
-        "Showing the approved demo scenario while live scoring is temporarily unavailable.",
-      ),
-    };
+    response = await fetch(url.toString(), { cache: "no-store" });
+  } catch (err) {
+    logFrontendFallback("frontend_network_error", String(err));
+    throw new ApiError(
+      "Could not reach the scoring backend. Check your connection or try again in a moment.",
+    );
   }
 
   if (!response.ok) {
     console.warn(`[LRE] backend score request failed: status=${response.status}`);
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: logFrontendFallback(
-        "frontend_backend_error",
-        response.status >= 500
-          ? "Showing the approved demo scenario while the scoring service is temporarily unavailable."
-          : "Showing the approved demo scenario because this lookup could not be completed right now.",
-      ),
-    };
+    if (response.status === 404) {
+      throw new ApiError("Address not found. Try including a ZIP code or nearby intersection.");
+    }
+    throw new ApiError(
+      response.status >= 500
+        ? "The scoring service returned an error. Try again in a moment."
+        : `Scoring request failed (${response.status}).`,
+    );
   }
 
-  try {
-    const score = (await response.json()) as ScoreResponse;
-    if (score.fallback_reason) {
-      console.log("[LRE] backend fallback_reason:", score.fallback_reason);
-    }
+  const score = (await response.json()) as ScoreResponse;
+  if (score.fallback_reason) {
+    console.log("[LRE] backend fallback_reason:", score.fallback_reason);
+  }
 
-    // Historically, repeated 62s usually meant demo fallback was active somewhere.
-    // Prefer the backend's explicit mode when present so a 200 demo response is not
-    // mislabeled as a live result by the frontend fetch layer.
-    const source: ScoreSource = score.mode ?? "live";
-    if (source === "demo") {
-      return { score, source: "demo" };
-    }
-    return { score, source: "live" };
-  } catch {
+  // When the backend explicitly marks this as demo, pass that through.
+  // This is the backend's intentional decision (e.g. DB not yet configured).
+  const source: ScoreSource = score.mode ?? "live";
+  if (source === "demo") {
     return {
-      score: buildDemoScore(address),
+      score,
       source: "demo",
-      note: logFrontendFallback(
-        "frontend_invalid_response",
-        "Showing the approved demo scenario because the scoring response could not be validated.",
-      ),
+      note: score.fallback_reason === "db_not_configured"
+        ? "Backend is live but the database is not yet connected — showing sample data."
+        : undefined,
     };
   }
+  return { score, source: "live" };
 }

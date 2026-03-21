@@ -213,153 +213,239 @@ tasks:
         4. Redeploy Vercel frontend
         5. Validate: curl <railway-url>/health → db_connection=true
 
-  - id: data-021
-    title: Shareable report pages — /save endpoint + /report/[id] page
+# ---------------------------------------------------------------------------
+# App lane — product / UX tasks
+# Lane: app
+# Format mirrors data lane above.
+# ---------------------------------------------------------------------------
+
+  - id: app-009
+    title: Fix 4 small UX bugs (confidence reasons, alert, demo chips, compare link)
     status: done
     priority: high
-    github_issue: 53
+    github_issue: ~
     notes_for_next_agent: >
-      Implements persistent shareable report URLs (fixes dead "Save report" CTA).
-      Changes:
-        - db/schema.sql: added `reports` table (UUID PK, address, score_json JSONB, created_at)
-        - backend/app/main.py: POST /save (store report), GET /report/{id} (fetch report)
-        - frontend/src/lib/api.ts: saveReport(), fetchReport(), SaveReportResponse, FetchReportResponse types
-        - frontend/src/app/report/[id]/page.tsx: new shareable report page (renders saved score)
-        - frontend/src/app/page.tsx: Save Report modal wired — posts to /save, shows copyable link
-      When DB is not configured: /save returns 503 with a clear message; modal shows the error.
-      Next data task: data-025.
+      Committed on branch claude/improve-livability-ux-i8yCL.
+      1. Report page now calls getConfidenceReasons() instead of passing [].
+      2. Export PDF button is now an <a href="#pricing-section"> not alert().
+      3. Demo section chips use handleSuggestionSelect + scrollIntoView.
+      4. Compare link focuses + scrolls to address input.
 
-  - id: data-022
-    title: Persist address history to localStorage
-    status: done
-    priority: medium
-    github_issue: 54
-    notes_for_next_agent: >
-      frontend/src/app/page.tsx: addressHistory state initialized from
-      localStorage("lre_address_history") on mount; written back on every change.
-      No backend dependency.
-
-  - id: data-023
-    title: /compare page — side-by-side address comparison
+  - id: app-010
+    title: Fix icon-btn anchor tag missing text-decoration none
     status: done
     priority: high
-    github_issue: 55
     notes_for_next_agent: >
-      frontend/src/app/compare/page.tsx: new page at /compare.
-      ?a=<address> pre-fills and auto-submits slot A (used by the main page link).
-      ?b= pre-fills slot B. Two independent /score calls displayed side-by-side.
-      Verdict card shows which address has lower disruption risk and by how many points.
-      Dead link in page.tsx updated to /compare?a=<current-address>.
+      After app-009, the "Export PDF" button is an <a> using class icon-btn.
+      The .icon-btn CSS was written for <button> elements — it does not set
+      text-decoration: none or display: inline-flex, so some browsers will
+      render a visible underline and the layout may shift.
+      Fix: add text-decoration: none and ensure display: inline-flex to
+      .icon-btn in globals.css, and audit any other .action-btn usage on <a>.
 
-  - id: data-024
-    title: Permit detail drill-down — structured top_risk_details in API
-    status: done
-    priority: medium
-    github_issue: 56
-    notes_for_next_agent: >
-      backend/scoring/query.py: ScoreResult now has top_risk_details list[dict].
-      Each dict has project_id, source, source_id, impact_type, title, notes,
-      status, start_date, end_date, address, distance_m, weighted_score.
-      frontend/src/lib/api.ts: TopRiskDetail type + top_risk_details on ScoreResponse.
-      frontend/src/components/score-experience.tsx: each TopRiskGrid card has a
-      "View permit details" toggle button that expands a PermitDetailPanel inline.
-      Gracefully absent when top_risk_details is not present (demo mode / old backend).
-
-  - id: data-025
-    title: Score history table + sparkline trend
+  - id: app-011
+    title: Escape key closes save report modal
     status: done
     priority: high
-    github_issue: 57
     notes_for_next_agent: >
-      db/schema.sql: score_history table (address, disruption_score, confidence, mode, created_at).
-      backend/app/main.py: _record_score_history() fires after every live /score call;
-      GET /history?address=&limit= returns history array (newest first, empty list on error).
-      frontend/src/lib/api.ts: ScoreHistoryEntry type + fetchHistory() function.
-      frontend/src/components/score-experience.tsx: ScoreSparkline SVG component —
-        renders chronological line chart, shows reading count + trend delta (↑/↓/stable).
-      frontend/src/app/page.tsx: scoreHistory state, useEffect fetches after result loads,
-        ScoreSparkline rendered below ScoreHero when >= 2 historical readings exist.
+      The save modal (showSaveModal) in page.tsx has no Escape key handler.
+      Keyboard users cannot dismiss it without clicking the close button.
+      Fix: add a useEffect in page.tsx that listens for keydown "Escape"
+      and calls setShowSaveModal(false) when the modal is open.
+      Also add email validation before enabling the CTA button so it is not
+      always clickable regardless of input.
 
-  - id: data-026
-    title: Neighborhood heat map pages /neighborhood/[slug]
+  - id: app-012
+    title: Risk card grid empty columns when fewer than 3 risks
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      .risk-card-grid uses grid-template-columns: repeat(3, minmax(0, 1fr)).
+      When top_risks has 1 or 2 items the grid renders empty columns that
+      look like layout bugs.
+      Fix: in score-experience.tsx, set the grid column count dynamically
+      based on the number of risk cards (clamp to 1–3). Either via an inline
+      style or a BEM modifier class (risk-card-grid--1col, --2col, --3col).
+
+  - id: app-013
+    title: Update document.title when address result loads
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      layout.tsx exports a static metadata title "Livability Risk Engine".
+      In workspace mode the browser tab gives no address context.
+      Fix: in page.tsx, add a useEffect that watches `result` and sets
+      document.title to "<address> — Livability Risk Engine" when a result
+      loads, and resets to the default when result is cleared.
+      This is a client-side update; the static metadata in layout.tsx is fine
+      for SSR and does not need to change.
+
+  - id: app-014
+    title: Add clear button to address input
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      The address input has no way to clear its value without manually
+      selecting all text. Add a small × button that appears inside the input
+      shell when address.length > 0. Clicking it should clear address, reset
+      suggestions, and refocus the input. Style it with absolute positioning
+      inside .search-input-stack, similar to the suggestion dropdown anchor.
+      Do not show the clear button while isLoading.
+
+  - id: app-015
+    title: Accordion behavior for risk detail panels
+    status: done
+    priority: medium
+    notes_for_next_agent: >
+      In TopRiskGrid (score-experience.tsx), each risk card has an expand
+      button. Currently all three can be open simultaneously, which pushes
+      content far down the page.
+      Fix: track a single activeCard ID in the TopRiskGrid component.
+      Opening one card closes any previously open card. The expand button
+      toggles: clicking an already-open card closes it, clicking a different
+      card opens that one and closes the previous.
+
+  - id: app-016
+    title: Show score timestamp in Quick Read card
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      The Quick Read supporting list (page.tsx) shows Data mode, Confidence,
+      Active signals, Sources — but no indication of when the score was run.
+      Fix: capture a scoredAt timestamp (new Date()) when setResult() is
+      called in submitAddress(). Add it to supportingDetails as a new item:
+      label "Scored at", value formatted as "h:mm a" (e.g. "2:34 PM").
+      Use Intl.DateTimeFormat for formatting — no date library needed.
+
+  - id: app-017
+    title: Keyboard shortcut — slash key focuses address input
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      Add a global keydown listener in page.tsx that focuses inputRef when
+      the user presses "/" and no input/textarea/select is currently focused
+      (check document.activeElement.tagName). Prevent the "/" character from
+      being inserted into the input by calling event.preventDefault() before
+      focusing. This is a standard pattern for search-first tools.
+
+  - id: app-018
+    title: Good-news empty state when no risks detected
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      If the backend returns top_risks: [] the TopRiskGrid renders an empty
+      grid with no message. This looks broken.
+      Fix: in TopRiskGrid (score-experience.tsx), if riskCards.length === 0,
+      render a small informational panel: "No active disruption signals
+      detected near this address." with a note that the score reflects
+      conditions at time of lookup.
+
+  - id: app-019
+    title: History dropdown closes on Escape key
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      The history dropdown (showHistory) in page.tsx has no Escape key
+      handler. Add one to the existing handleInputKeyDown or as a separate
+      document-level listener scoped to when showHistory is true.
+      Also close the dropdown when the user clicks outside the
+      .history-dropdown-shell (extend the existing handleClickOutside
+      useEffect or add a separate ref for the shell).
+
+  - id: app-020
+    title: Confidence dot color fix — LOW confidence should not look green/safe
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      In globals.css, .confidence-dot--low is #3ce5b3 (mint green) and
+      .confidence-dot--high is #ff7070 (red). These colors suggest low
+      confidence is "safe" and high confidence is "dangerous", which is the
+      wrong semantic — confidence is about certainty, not risk level.
+      Fix: change .confidence-dot--low to rgba(255,255,255,0.35) (neutral
+      grey-white) and .confidence-dot--medium to var(--warning) (#ffd497).
+      Leave .confidence-dot--high as the brand blue (#8da5ff) — high
+      confidence is a good, strong signal. Update any legend/tooltip copy
+      that refers to these colors.
+
+  - id: app-021
+    title: Add aria-live region around score result section
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      When a new score loads, screen reader users get no announcement.
+      The loading state has aria-live="polite" on .loading-step-list but
+      the results section has no equivalent.
+      Fix: wrap the <section className="results results--loaded ..."> in a
+      <div aria-live="polite" aria-atomic="false">. Also ensure the score
+      number element has a meaningful aria-label like
+      aria-label="Disruption score: 62 out of 100".
+
+  - id: app-022
+    title: Mobile topnav cleanup in workspace mode
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      On screens ≤640px in workspace mode, the topnav shows: brand lockup +
+      (Viewing + address + Recent + Score + Signals + Examples + Pricing).
+      This overflows and wraps badly.
+      Fix: at ≤640px in workspace mode, hide the Score/Signals/Examples
+      anchor links from the topnav (they still exist in the page for larger
+      screens). Keep Pricing and Recent. Use a CSS class toggled by
+      workspaceMode or a media-query modifier on .topnav in globals.css.
+
+  - id: app-023
+    title: Add skip-to-main-content link for keyboard accessibility
+    status: done
+    priority: low
+    notes_for_next_agent: >
+      There is no skip nav link, so keyboard users must tab through the
+      entire header before reaching the address input.
+      Fix: add a visually-hidden <a href="#address"> as the first child of
+      <body> (in layout.tsx or page.tsx). Style it to appear only on focus
+      using a .skip-link CSS class in globals.css. This is a WCAG 2.1 AA
+      requirement.
+
+  - id: data-036
+    title: Implement Chicago 311 requests, film permits, and special events data sources
     status: done
     priority: high
-    github_issue: 58
+    github_issue: 91
     notes_for_next_agent: >
-      8 Chicago neighborhoods defined with bounding boxes in backend/app/main.py (NEIGHBORHOODS dict):
-        west-loop, wicker-park, logan-square, river-north, lincoln-park, pilsen, bronzeville, uptown.
-      backend/app/main.py: GET /neighborhood/{slug} — ST_Within bbox query against projects table,
-        returns projects sorted by impact severity + available_neighborhoods list.
-      frontend/src/app/neighborhood/[slug]/page.tsx: new page with:
-        - Neighborhood nav chips linking to all 8 neighborhoods
-        - Summary chips (total count + breakdown by impact type)
-        - MapView centered on neighborhood bbox center
-        - Filterable project list with impact badge, status, dates, notes
-        - "Score this address →" link per project back to main page
-      To add more neighborhoods: extend NEIGHBORHOODS dict in main.py + add slug to SLUGS array in page.tsx.
+      Three new ingest scripts added:
+        - backend/ingest/chicago_311_requests.py — pothole, water main break,
+          cave-in, tree emergency from Socrata v6vf-nfxy (last 90 days).
+        - backend/ingest/chicago_film_permits.py — film permit street holds
+          from Socrata ivkd-2m2v (last 90 days + next 30 days).
+        - backend/ingest/chicago_special_events.py — festivals, parades,
+          marathons from Socrata r5kz-chrr (last 60 days + next 90 days).
+      Three new normalizers added to backend/models/project.py:
+        normalize_311_request(), normalize_film_permit(), normalize_special_event()
+      Three new load functions added to backend/ingest/load_projects.py:
+        load_311_requests(), load_film_permits(), load_special_events()
+      run_pipeline.py updated with three new non-fatal steps:
+        --skip-311, --skip-film, --skip-events flags added.
+      Skipped for now:
+        - Red light / speed camera violations (historical aggregates, not active disruptions)
+        - Illinois Tollway construction (separate portal, needs ArcGIS research → data-037)
+      Next: validate dataset IDs by running dry-run after DB is live,
+      then create data-037 for Illinois Tollway construction.
 
-  - id: data-027
-    title: API key auth middleware
-    status: done
-    priority: medium
-    github_issue: 59
-    notes_for_next_agent: >
-      db/schema.sql: api_keys table (key_prefix TEXT, key_hash TEXT SHA-256, label, timestamps, is_active).
-      backend/app/main.py:
-        - verify_api_key FastAPI dependency: checks X-Api-Key header or ?api_key= query param
-          against hashed DB records; pass-through no-op when REQUIRE_API_KEY != true.
-        - Applied to GET /score via dependencies=[Depends(verify_api_key)].
-        - POST /admin/keys?admin_secret=: creates new key, returns full key once (hash stored).
-        - GET /admin/keys?admin_secret=: lists keys (prefix + label, no hashes).
-        - GET /docs/api-access: public endpoint describing auth, endpoints, example.
-      To enable: set REQUIRE_API_KEY=true + ADMIN_SECRET=<secret> in Railway env vars.
-      To create a key: POST /admin/keys?admin_secret=<secret> with {"label": "Org name"}.
-      Next: data-028. Candidates:
-        - /api-keys page on frontend (developer portal)
-        - Score alert emails (when watched address crosses threshold)
-        - CSV/PDF export endpoint
-
-  - id: data-028
-    title: Developer portal page — /api-access
-    status: done
-    priority: medium
-    github_issue: 60
-    notes_for_next_agent: >
-      frontend/src/app/api-access/page.tsx: new developer portal page at /api-access.
-      Fetches live docs from GET /docs/api-access (data-027 endpoint).
-      Shows auth status card, endpoints table, tabbed code examples (cURL/Python/JS),
-      example response JSON, and rate limits / usage notes.
-      Fallback endpoint list used when backend is unreachable.
-      Nav link added to frontend/src/app/page.tsx.
-      Next: data-029 (CSV export endpoint for /score results).
-
-  - id: data-029
-    title: CSV export endpoint — GET /export/csv
-    status: done
-    priority: medium
-    github_issue: 61
-    notes_for_next_agent: >
-      backend/app/main.py: GET /export/csv?address=<address> — runs the same scoring
-      pipeline as /score but returns a StreamingResponse (text/csv).
-      Columns: distance_m, title, source, source_id, impact_type, status,
-      start_date, end_date, address, weighted_score.
-      Summary row (distance_m=SUMMARY) captures disruption_score + confidence.
-      Falls back to demo CSV rows when DB is not configured.
-      Protected by verify_api_key (same as /score).
-      /docs/api-access endpoint list updated to include /export/csv.
-      Frontend api-access page FALLBACK_ENDPOINTS already references this endpoint.
-      Next: data-030 (score alert watchlist — schema already in db/schema.sql).
-
-  - id: data-030
-    title: Score alert watchlist — POST /watch + GET /watch/unsubscribe
+  - id: data-037
+    title: Research and implement Illinois Tollway construction data source
     status: backlog
     priority: medium
+    github_issue: ~
     notes_for_next_agent: >
-      db/schema.sql: watchlist and alert_log tables already created (data-030 block).
-      Need to implement in backend/app/main.py:
-        - POST /watch: subscribe email+address, returns token UUID
-        - GET /watch/unsubscribe?token=<uuid>: deactivate subscription
-        - Internal _check_alerts() helper called after each /score — writes alert_log
-          row if score >= threshold; actual email delivery requires SMTP env vars.
-      Frontend: small "Alert me" form below score result (outside scope for data lane).
-      Env vars needed: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, ALERT_FROM_EMAIL.
+      Illinois Tollway construction data is NOT on the Chicago Data Portal.
+      The Illinois Tollway publishes project data at:
+        https://www.illinoistollway.com/road-projects (HTML page, not API)
+        https://www.illinoistollway.com/roadwork/construction (alternative)
+      Potential approaches:
+        1. Check if IDOT ArcGIS REST API includes tollway projects
+           (the existing idot_road_projects.py covers IDOT districts 1-9).
+        2. Scrape illinoistollway.com — requires HTML parsing, fragile.
+        3. Check https://gis.idot.illinois.gov for tollway layer.
+      The IDOT ingest already covers state road construction near Chicago
+      (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
+      If no clean API is found, consider using IDOT District 1 as sufficient
+      coverage and marking this task as won't-fix.

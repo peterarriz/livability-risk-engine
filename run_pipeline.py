@@ -6,10 +6,12 @@ lane: data
 Full end-to-end ingest pipeline orchestrator for the Chicago MVP.
 
 Runs all ingest steps in order:
-  1. Fetch building permits from Chicago Socrata API → data/raw/building_permits.json
-  2. Fetch street closures from Chicago Socrata API  → data/raw/street_closures.json
-  3. Fill missing lat/lon via geocoding             → updates staging files in place
-  4. Load normalized records into the DB            → upserts into `projects` table
+  1. Fetch building permits from Chicago Socrata API       → data/raw/building_permits.json
+  2. Fetch street closures from Chicago Socrata API        → data/raw/street_closures.json
+  3. Fetch IDOT road construction from ArcGIS REST API     → data/raw/idot_road_projects.json
+  4. Fetch IL city permits (Cook County + IL cities)       → data/raw/il_city_permits_*.json
+  5. Fill missing lat/lon via geocoding                    → updates staging files in place
+  6. Load normalized records into the DB                   → upserts into `projects` table
 
 Usage:
   # Full pipeline (requires DATABASE_URL or POSTGRES_* env vars)
@@ -59,12 +61,81 @@ _ENV = {**os.environ, "PYTHONPATH": _PROJECT_ROOT + os.pathsep + os.environ.get(
 
 STEPS = [
     {
-        "name": "Fetch building permits",
+        "name": "Fetch Chicago building permits",
         "cmd": [sys.executable, "backend/ingest/building_permits.py"],
     },
     {
-        "name": "Fetch street closures",
+        "name": "Fetch Chicago street closures",
         "cmd": [sys.executable, "backend/ingest/street_closures.py"],
+    },
+    {
+        "name": "Fetch IDOT road construction (all districts)",
+        "cmd": [sys.executable, "backend/ingest/idot_road_projects.py"],
+        "skip_key": "skip_statewide",
+    },
+    # Cook County permits are handled by il_city_permits.py (dataset 6yjf-dfxs).
+    # The standalone cook_county_permits.py has an incorrect dataset ID and is
+    # skipped to avoid pipeline failures. Remove this comment when the
+    # standalone script is fixed or deleted.
+    {
+        # Fetches Cook County + IL city permits from their Socrata portals.
+        # Individual city failures are logged as warnings but do not abort
+        # the pipeline — the step exits 0 as long as at least one city succeeds.
+        "name": "Fetch IL city permits (Cook County + cities)",
+        "cmd": [sys.executable, "backend/ingest/il_city_permits.py"],
+        "skip_key": "skip_il_cities",
+    },
+    {
+        # Fetches CTA planned service alerts (track work, station closures,
+        # construction-related reroutes). No API key required.
+        "name": "Fetch CTA planned service alerts",
+        "cmd": [sys.executable, "backend/ingest/cta_alerts.py"],
+        "skip_key": "skip_cta",
+    },
+    {
+        # Fetches recent Chicago traffic crashes (last 30 days).
+        # Recent crash scenes are disruption signals. Dataset: 85ca-t3if.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago traffic crashes",
+        "cmd": [sys.executable, "backend/ingest/chicago_traffic_crashes.py"],
+        "skip_key": "skip_traffic_crashes",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Divvy bike station closures via GBFS API.
+        # Out-of-service stations are LOW-severity disruption signals.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Divvy bike station closures",
+        "cmd": [sys.executable, "backend/ingest/chicago_divvy_stations.py"],
+        "skip_key": "skip_divvy",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago 311 infrastructure service requests:
+        # potholes, water main breaks, cave-ins, tree emergencies.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago 311 infrastructure requests",
+        "cmd": [sys.executable, "backend/ingest/chicago_311_requests.py"],
+        "skip_key": "skip_311",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago Film Permits (DCASE).
+        # Film shoots cause street closures and parking restrictions.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago film permits",
+        "cmd": [sys.executable, "backend/ingest/chicago_film_permits.py"],
+        "skip_key": "skip_film",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago Special Events Permits (DCASE).
+        # Festivals, parades, and marathons cause major traffic disruption.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago special events permits",
+        "cmd": [sys.executable, "backend/ingest/chicago_special_events.py"],
+        "skip_key": "skip_events",
+        "non_fatal": True,
     },
     {
         "name": "Fill missing geocoordinates",
@@ -112,6 +183,13 @@ def run_step(step: dict, args: argparse.Namespace) -> bool:
 
     result = subprocess.run(cmd, check=False, env=_ENV)
     if result.returncode != 0:
+        if step.get("non_fatal"):
+            print(
+                f"\nWARN: step '{step['name']}' failed with exit code {result.returncode}. "
+                f"This step is non-fatal — continuing pipeline.",
+                file=sys.stderr,
+            )
+            return True  # non-fatal: don't abort pipeline
         print(f"\nERROR: step '{step['name']}' failed with exit code {result.returncode}",
               file=sys.stderr)
         return False
@@ -127,6 +205,41 @@ def parse_args() -> argparse.Namespace:
         "--skip-geocode",
         action="store_true",
         help="Skip the geocode_fill step (use if staging files already have coordinates).",
+    )
+    parser.add_argument(
+        "--skip-il-cities",
+        action="store_true",
+        help="Skip the IL city permits fetch step (Cook County + cities).",
+    )
+    parser.add_argument(
+        "--skip-cta",
+        action="store_true",
+        help="Skip the CTA planned service alerts fetch step.",
+    )
+    parser.add_argument(
+        "--skip-traffic-crashes",
+        action="store_true",
+        help="Skip the Chicago traffic crashes fetch step.",
+    )
+    parser.add_argument(
+        "--skip-divvy",
+        action="store_true",
+        help="Skip the Divvy bike station closures fetch step.",
+    )
+    parser.add_argument(
+        "--skip-311",
+        action="store_true",
+        help="Skip the Chicago 311 infrastructure requests fetch step.",
+    )
+    parser.add_argument(
+        "--skip-film",
+        action="store_true",
+        help="Skip the Chicago film permits fetch step.",
+    )
+    parser.add_argument(
+        "--skip-events",
+        action="store_true",
+        help="Skip the Chicago special events permits fetch step.",
     )
     parser.add_argument(
         "--dry-run",

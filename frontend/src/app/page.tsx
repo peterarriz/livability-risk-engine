@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ExplanationPanel,
@@ -14,7 +14,7 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
-import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const PREMIUM_PLACEHOLDER = "Search a Chicago address";
@@ -25,7 +25,7 @@ const EXAMPLE_ADDRESSES = [
 ];
 
 export default function HomePage() {
-  const [address, setAddress] = useState(DEFAULT_ADDRESS);
+  const [address, setAddress] = useState("");
   const [result, setResult] = useState<ScoreResponse | null>(null);
   const [scoreSource, setScoreSource] = useState<ScoreSource>("live");
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -37,25 +37,21 @@ export default function HomePage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
+  const [saveReportId, setSaveReportId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [addressHistory, setAddressHistory] = useState<string[]>(() => {
-    // data-022: initialize from localStorage on mount (client-only)
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("lre_address_history");
-      return stored ? (JSON.parse(stored) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
+  const [scoredAt, setScoredAt] = useState<Date | null>(null);
   const searchShellRef = useRef<HTMLDivElement>(null);
+  const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
+  // Only fetch suggestions after the user has actually typed — prevents the
+  // dropdown firing on mount or when an address is set programmatically.
+  const hasUserTyped = useRef(false);
   const workspaceMode = isLoading || result !== null;
   const confidenceReasons = result ? getConfidenceReasons(result) : [];
   const meaningInsights = result ? getMeaningInsights(result) : [];
@@ -66,9 +62,9 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Demo fallback" : "Live score";
+  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
   const statusMessage = isDemoResult
-    ? (statusNote ?? "Showing the approved Chicago fallback while live scoring is unavailable.")
+    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -76,13 +72,36 @@ export default function HomePage() {
   type DetailItem = { label: string; value: string; isConfidence?: boolean };
   const supportingDetails = useMemo((): DetailItem[] => {
     if (!result) return [];
+    const timeStr = scoredAt
+      ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
+      : null;
     return [
       { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: "Chicago permits • Street closures" },
+      ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
-  }, [isDemoResult, result]);
+  }, [isDemoResult, result, scoredAt]);
+
+  // Hydrate address history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("lre_address_history");
+      if (stored) setAddressHistory(JSON.parse(stored));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Persist address history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [addressHistory]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -90,24 +109,39 @@ export default function HomePage() {
         setShowSuggestions(false);
         setActiveSuggestionIndex(-1);
       }
+      if (historyShellRef.current && !historyShellRef.current.contains(event.target as Node)) {
+        setShowHistory(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // data-022: persist address history to localStorage whenever it changes.
+  // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
-    try {
-      localStorage.setItem("lre_address_history", JSON.stringify(addressHistory));
-    } catch {
-      // Ignore storage errors (private browsing, quota exceeded, etc.)
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowSaveModal(false);
+        setShowHistory(false);
+      }
+      if (
+        event.key === "/" &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes((document.activeElement as HTMLElement)?.tagName ?? "")
+      ) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
     }
-  }, [addressHistory]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Fetch autocomplete suggestions as the user types (debounced 300 ms).
-  // skipSuggestRef suppresses the effect when address is set programmatically
-  // (e.g. suggestion selection) to prevent the dropdown from reopening.
+  // Only runs when hasUserTyped is true — prevents the dropdown from opening
+  // on mount or when an address is set programmatically (suggestion selection).
+  // skipSuggestRef suppresses a single effect run after programmatic selection.
   useEffect(() => {
+    if (!hasUserTyped.current) return;
     if (skipSuggestRef.current) {
       skipSuggestRef.current = false;
       return;
@@ -120,12 +154,22 @@ export default function HomePage() {
     }
     const timer = setTimeout(async () => {
       const results = await fetchSuggestions(address);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
-      setActiveSuggestionIndex(-1);
+      // Only update if the input is still focused when results arrive.
+      if (isFocused) {
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+        setActiveSuggestionIndex(-1);
+      }
     }, 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
+
+  useEffect(() => {
+    document.title = result
+      ? `${result.address} — Livability Risk Engine`
+      : "Livability Risk Engine";
+  }, [result]);
 
   useEffect(() => {
     if (!result) {
@@ -149,6 +193,7 @@ export default function HomePage() {
 
   function handleSuggestionSelect(suggestion: string) {
     skipSuggestRef.current = true;
+    hasUserTyped.current = false;   // treat the fill as programmatic
     setAddress(suggestion);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -156,7 +201,7 @@ export default function HomePage() {
     inputRef.current?.focus();
   }
 
-  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!hasSuggestions) {
       if (event.key === "ArrowDown" && suggestions.length > 0) {
         setShowSuggestions(true);
@@ -187,6 +232,7 @@ export default function HomePage() {
     try {
       const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
+      setScoredAt(new Date());
       setScoreSource(scoreResult.source);
       if ("note" in scoreResult && scoreResult.note) {
         setStatusNote(scoreResult.note);
@@ -252,6 +298,7 @@ export default function HomePage() {
 
   return (
     <main className={`page ${workspaceMode ? "page--workspace" : "page--explore"}`}>
+      <a href="#address" className="skip-link">Skip to address search</a>
       <Container>
         <Header className={`topbar ${workspaceMode ? "topbar--workspace" : ""}`}>
           <div className="brand-lockup">
@@ -264,7 +311,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <nav className="topnav" aria-label="Primary">
+          <nav className={`topnav${workspaceMode ? " topnav--workspace" : ""}`} aria-label="Primary">
             {workspaceMode ? <span className="topnav-label">Viewing</span> : null}
             {workspaceMode ? (
               <a href="#" className="topnav-address" onClick={(e: React.MouseEvent) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} title="Scroll to top">
@@ -272,7 +319,7 @@ export default function HomePage() {
               </a>
             ) : null}
             {workspaceMode && addressHistory.length > 1 ? (
-              <div className="history-dropdown-shell">
+              <div className="history-dropdown-shell" ref={historyShellRef}>
                 <button
                   type="button"
                   className="history-btn"
@@ -295,11 +342,11 @@ export default function HomePage() {
                 ) : null}
               </div>
             ) : null}
-            <a href="#score-section">Score</a>
-            <a href="#signals-section">Signals</a>
-            <a href="#examples-section">Examples</a>
-            <a href="/api-access">API</a>
+            <a href="#score-section" className="topnav-aux-link">Score</a>
+            <a href="#signals-section" className="topnav-aux-link">Signals</a>
+            <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
 
@@ -331,9 +378,15 @@ export default function HomePage() {
                     name="address"
                     type="text"
                     value={address}
-                    onChange={(event) => setAddress(event.target.value)}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onChange={(event) => {
+                      hasUserTyped.current = true;
+                      setAddress(event.target.value);
+                    }}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => {
+                      setIsFocused(false);
+                      setTimeout(() => setShowSuggestions(false), 150);
+                    }}
                     onKeyDown={handleInputKeyDown}
                     placeholder={PREMIUM_PLACEHOLDER}
                     autoComplete="off"
@@ -343,7 +396,24 @@ export default function HomePage() {
                     aria-activedescendant={activeSuggestionId}
                     aria-autocomplete="list"
                     required
+                    style={address.length > 0 && !isLoading ? { paddingRight: "44px" } : undefined}
                   />
+                  {address.length > 0 && !isLoading && (
+                    <button
+                      type="button"
+                      className="input-clear-btn"
+                      aria-label="Clear address"
+                      onClick={() => {
+                        setAddress("");
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        hasUserTyped.current = false;
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                   {hasSuggestions ? (
                     <ul id="address-suggestions" className="suggestion-list" role="listbox" aria-label="Address suggestions">
                       {suggestions.map((suggestion, index) => (
@@ -411,7 +481,7 @@ export default function HomePage() {
                 <p>
                   {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
                     ? "We couldn't find that address in Chicago. Try including a ZIP code."
-                    : "Live data temporarily unavailable. Try again in a moment, or use one of the example addresses below."}
+                    : error}
                 </p>
               </div>
             ) : null}
@@ -428,17 +498,17 @@ export default function HomePage() {
               : "A single lookup returns the headline score, why it matters, and the supporting context behind it."
           }
           headerAction={workspaceMode && result ? (
-            <button
-              type="button"
+            <a
+              href="#pricing-section"
               className="icon-btn"
               title="PDF export is available on the Pro plan"
-              onClick={() => alert("PDF export is available on the Pro plan — see Pricing for details.")}
             >
               ↓ Export PDF
-            </button>
+            </a>
           ) : undefined}
         >
           <div id="score-section" className="anchor-target" />
+          <div aria-live="polite" aria-atomic="false">
           {isLoading ? (
             <section className="results results--loading">
               <Card className="score-card skeleton-card loading-card">
@@ -495,8 +565,13 @@ export default function HomePage() {
                       Save report
                     </button>
                     <a
-                      href={`/compare?a=${encodeURIComponent(result?.address ?? address)}`}
+                      href="#"
                       className="compare-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        inputRef.current?.focus();
+                        inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
                     >
                       Compare with another address →
                     </a>
@@ -555,14 +630,14 @@ export default function HomePage() {
                     <span className="map-badge">OpenStreetMap</span>
                   </div>
                   {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} />
+                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
                   ) : (
                     <div className="map-placeholder" aria-label="Locating address on map…">
                       <div className="map-grid" />
                       <div className="map-pin map-pin--primary" />
                     </div>
                   )}
-                  <p className="map-copy">Use the map to anchor the score geographically and confirm whether the risk is tied to a major corridor or local site context.</p>
+                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
                 </Card>
 
                 <div className="support-stack">
@@ -596,6 +671,7 @@ export default function HomePage() {
               </Card>
             </section>
           )}
+          </div>
         </Section>
 
         <Section
@@ -651,8 +727,8 @@ export default function HomePage() {
                     type="button"
                     className="example-chip"
                     onClick={() => {
-                      setAddress(example);
-                      window.location.hash = "#score-section";
+                      handleSuggestionSelect(example);
+                      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
                     }}
                   >
                     {example}
@@ -679,45 +755,27 @@ export default function HomePage() {
       </Container>
 
       {showSaveModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => setShowSaveModal(false)}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close" onClick={() => setShowSaveModal(false)}>×</button>
+            <button type="button" className="modal-close" aria-label="Close" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>×</button>
             <p className="supporting-kicker">Save report</p>
-
-            {savedReportId ? (
-              <>
-                <h3>Report saved!</h3>
-                <p className="modal-copy">Your disruption brief for <strong>{result?.address}</strong> is ready to share.</p>
-                <div className="modal-link-row">
-                  <input
-                    type="text"
-                    readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${savedReportId}`}
-                    aria-label="Shareable report link"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                  <button type="button" className="modal-cta" onClick={handleCopySavedLink}>
-                    {copiedLink ? "Copied!" : "Copy link"}
-                  </button>
-                </div>
-                <p className="modal-fine-print">Anyone with this link can view the saved score.</p>
-              </>
-            ) : (
-              <>
-                <h3>Save and share this disruption brief.</h3>
-                <p className="modal-copy">Your score for <strong>{result?.address}</strong> will be saved and shareable via a permanent link — no account required.</p>
-                {saveError && <p className="modal-error">{saveError}</p>}
-                <button
-                  type="button"
-                  className="modal-cta"
-                  onClick={handleSaveReport}
-                  disabled={isSaving}
-                >
-                  {isSaving ? "Saving…" : "Save and get shareable link"}
-                </button>
-                <p className="modal-fine-print">No account required. The link is permanent and freely shareable.</p>
-              </>
-            )}
+            <h3>Create a free account to save and share this report.</h3>
+            <p className="modal-copy">Your disruption brief for {result?.address} will be saved to your account and shareable via link.</p>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={saveEmail}
+              onChange={(e) => setSaveEmail(e.target.value)}
+              aria-label="Email address"
+            />
+            <button
+              type="button"
+              className="modal-cta"
+              disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saveEmail)}
+            >
+              Create free account
+            </button>
+            <p className="modal-fine-print">No credit card required. Free plan includes unlimited lookups.</p>
           </div>
         </div>
       )}
