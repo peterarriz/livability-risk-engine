@@ -196,7 +196,7 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
     url.searchParams.set("bounded", "1");
     url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (illinois-mvp)" },
       cache: "no-store",
     });
     if (resp.ok) {
@@ -204,14 +204,14 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
       if (data.length) {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
-        if (_inChicago(lat, lon)) return { lat, lon };
+        if (_inIllinois(lat, lon)) return { lat, lon };
       }
     }
   } catch { /* fall through */ }
 
   // 2. Photon fallback.
   try {
-    const photonQ = address.toLowerCase().includes("chicago") ? address : `${address} Chicago`;
+    const photonQ = address.toLowerCase().includes(", il") ? address : `${address}, IL`;
     const url = new URL("https://photon.komoot.io/api/");
     url.searchParams.set("q", photonQ);
     url.searchParams.set("limit", "1");
@@ -223,7 +223,7 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
       const f = data.features?.[0];
       if (f) {
         const [lon, lat] = f.geometry.coordinates;
-        if (_inChicago(lat, lon)) return { lat, lon };
+        if (_inIllinois(lat, lon)) return { lat, lon };
       }
     }
   } catch { /* */ }
@@ -231,56 +231,85 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   return null;
 }
 
-// Chicago bounding box constants shared by both geocoder calls below.
+// Illinois bounding box constants shared by both geocoder calls below.
 // Nominatim viewbox: left,top,right,bottom = minLon,maxLat,maxLon,minLat
-const _NOMINATIM_VIEWBOX = "-87.9401,42.0230,-87.5240,41.6445";
+const _NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700";
 // Photon bbox: minLon,minLat,maxLon,maxLat
-const _PHOTON_BBOX = "-87.9401,41.6445,-87.5240,42.0230";
-const _CHI_LAT: [number, number] = [41.6445, 42.0230];
-const _CHI_LON: [number, number] = [-87.9401, -87.5240];
+const _PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100";
+const _IL_LAT: [number, number] = [36.9700, 42.5100];
+const _IL_LON: [number, number] = [-91.5100, -87.0200];
 
-function _inChicago(lat: number, lon: number): boolean {
-  return lat >= _CHI_LAT[0] && lat <= _CHI_LAT[1] && lon >= _CHI_LON[0] && lon <= _CHI_LON[1];
+function _inIllinois(lat: number, lon: number): boolean {
+  return lat >= _IL_LAT[0] && lat <= _IL_LAT[1] && lon >= _IL_LON[0] && lon <= _IL_LON[1];
 }
 
 type NominatimItem = {
   lat: string;
   lon: string;
-  address: { house_number?: string; road?: string; pedestrian?: string; highway?: string };
+  address: {
+    house_number?: string;
+    road?: string;
+    pedestrian?: string;
+    highway?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+  };
 };
 
 type PhotonFeature = {
   geometry: { coordinates: [number, number] };
-  properties: { countrycode?: string; housenumber?: string; street?: string };
+  properties: { countrycode?: string; housenumber?: string; street?: string; city?: string };
 };
 
-function _parseNominatim(items: NominatimItem[]): string[] {
+/**
+ * Extract the bare partial street-name fragment from a raw autocomplete query
+ * so results can be post-filtered to only streets that start with that text.
+ * e.g. "679 North Pe" → "pe",  "100 W Rand" → "rand"
+ */
+function _streetPrefix(query: string): string | null {
+  let q = query.trim();
+  q = q.replace(/,?\s*illinois.*$/i, "").replace(/,?\s*il\b.*$/i, "");
+  q = q.replace(/,?\s*[a-z ]+,\s*il\b.*$/i, ""); // strip "City, IL" suffix
+  q = q.replace(/^\d+\s*/, "");
+  q = q.replace(/^(?:north|south|east|west|n\.?|s\.?|e\.?|w\.?)\s+/i, "").trim();
+  return q.length >= 2 ? q.toLowerCase() : null;
+}
+
+function _parseNominatim(items: NominatimItem[], streetFrag?: string | null): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const r of items) {
     const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
-    if (!_inChicago(lat, lon)) continue;
+    if (!_inIllinois(lat, lon)) continue;
     const a = r.address;
     const road = a.road ?? a.pedestrian ?? a.highway ?? "";
     if (!road) continue;
+    if (streetFrag && !road.toLowerCase().startsWith(streetFrag)) continue;
     const house = a.house_number ?? "";
-    const s = house ? `${house} ${road}, Chicago, IL` : `${road}, Chicago, IL`;
+    const city = a.city ?? a.town ?? a.village ?? "IL";
+    const suffix = city === "IL" ? "IL" : `${city}, IL`;
+    const s = house ? `${house} ${road}, ${suffix}` : `${road}, ${suffix}`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
   }
   return out.slice(0, 5);
 }
 
-function _parsePhoton(features: PhotonFeature[]): string[] {
+function _parsePhoton(features: PhotonFeature[], streetFrag?: string | null): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const f of features) {
     if (f.properties.countrycode?.toUpperCase() !== "US") continue;
     const [lon, lat] = f.geometry.coordinates;
-    if (!_inChicago(lat, lon)) continue;
+    if (!_inIllinois(lat, lon)) continue;
     const street = f.properties.street ?? "";
     if (!street) continue;
+    if (streetFrag && !street.toLowerCase().startsWith(streetFrag)) continue;
     const house = f.properties.housenumber ?? "";
-    const s = house ? `${house} ${street}, Chicago, IL` : `${street}, Chicago, IL`;
+    const city = f.properties.city ?? "";
+    const suffix = city ? `${city}, IL` : "IL";
+    const s = house ? `${house} ${street}, ${suffix}` : `${street}, ${suffix}`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
   }
   return out.slice(0, 5);
@@ -298,7 +327,21 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
 
-  // 1. Backend endpoint (tries Nominatim then Photon server-side).
+  // 0. Static Chicago street list — instant, works offline, no geocoder needed.
+  //    Geocoders can't do real-time partial-name matching ("Pe" → Peoria), but
+  //    the static list can. Return immediately when we get matches so the
+  //    network calls are skipped entirely.
+  const { suggestFromStaticList } = await import("./chicago-streets");
+  const staticHits = suggestFromStaticList(q);
+  if (staticHits.length) return staticHits;
+
+  // Pre-compute the partial street-name fragment for post-filtering results.
+  // e.g. "679 North Pe" → "pe" so only streets starting with "pe" (e.g.
+  // Peoria) are returned, not Michigan, Milwaukee, etc.
+  const streetFrag = _streetPrefix(q);
+
+  // 1. Backend endpoint (tries Nominatim then Photon server-side; already
+  //    applies its own street-fragment filter).
   const apiBaseUrl = getApiBaseUrl();
   if (apiBaseUrl) {
     try {
@@ -314,39 +357,39 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
     }
   }
 
-  const biasedQ = q.toLowerCase().includes("chicago") ? q : `${q}, Chicago, IL`;
+  const biasedQ = q.toLowerCase().includes(", il") ? q : `${q}, IL`;
 
-  // 2. Browser-side Nominatim.
+  // 2. Browser-side Nominatim (with street-fragment post-filter).
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("q", biasedQ);
     url.searchParams.set("format", "json");
-    url.searchParams.set("limit", "8");
+    url.searchParams.set("limit", "10");
     url.searchParams.set("countrycodes", "us");
     url.searchParams.set("bounded", "1");
     url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     url.searchParams.set("addressdetails", "1");
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (illinois-mvp)" },
       cache: "no-store",
     });
     if (resp.ok) {
-      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[]);
+      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[], streetFrag);
       if (suggestions.length) return suggestions;
     }
   } catch { /* fall through */ }
 
-  // 3. Browser-side Photon fallback.
+  // 3. Browser-side Photon fallback (with street-fragment post-filter).
   try {
-    const photonQ = q.toLowerCase().includes("chicago") ? q : `${q} Chicago`;
+    const photonQ = q.toLowerCase().includes(", il") ? q : `${q}, IL`;
     const url = new URL("https://photon.komoot.io/api/");
     url.searchParams.set("q", photonQ);
-    url.searchParams.set("limit", "8");
+    url.searchParams.set("limit", "10");
     url.searchParams.set("bbox", _PHOTON_BBOX);
     url.searchParams.set("lang", "en");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (resp.ok) {
-      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? []);
+      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? [], streetFrag);
     }
   } catch { /* */ }
 
@@ -516,9 +559,11 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     response = await fetch(url.toString(), { cache: "no-store" });
   } catch (err) {
     logFrontendFallback("frontend_network_error", String(err));
-    throw new ApiError(
-      "Could not reach the scoring backend. Check your connection or try again in a moment.",
-    );
+    return {
+      score: buildDemoScore(address),
+      source: "demo",
+      note: "Backend is temporarily unreachable — showing sample data.",
+    };
   }
 
   if (!response.ok) {

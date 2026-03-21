@@ -14,10 +14,11 @@ import {
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
+import { track } from "@vercel/analytics";
 import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const PREMIUM_PLACEHOLDER = "Search a Chicago address";
+const PREMIUM_PLACEHOLDER = "Search an Illinois address";
 const EXAMPLE_ADDRESSES = [
   "1600 W Chicago Ave, Chicago, IL",
   "700 W Grand Ave, Chicago, IL",
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
   const [saveReportId, setSaveReportId] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
@@ -79,7 +81,23 @@ export default function HomePage() {
       { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
-      { label: "Sources", value: "Chicago permits • Street closures" },
+      { label: "Sources", value: (() => {
+        const IMPACT_LABELS: Record<string, string> = {
+          closure_full: "Full street closure",
+          closure_multi_lane: "Multi-lane closure",
+          closure_single_lane: "Lane closure",
+          demolition: "Demolition permit",
+          construction: "Construction permit",
+          light_permit: "Minor permit",
+        };
+        const signals = result.nearby_signals ?? [];
+        const details = result.top_risk_details ?? [];
+        const types = new Set<string>();
+        for (const s of signals) if (s.impact_type) types.add(s.impact_type);
+        for (const d of details) if (d.impact_type) types.add(d.impact_type);
+        if (types.size === 0) return "Chicago permits • Street closures";
+        return [...types].map(t => IMPACT_LABELS[t] ?? t).join(" • ");
+      })() },
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [isDemoResult, result, scoredAt]);
@@ -188,10 +206,22 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
-    fetchHistory(result.address, 20).then(setScoreHistory);
+    fetchHistory(result.address, 20).then((r) =>
+      setScoreHistory(
+        r
+          ? r.history.map((h) => ({
+              disruption_score: h.disruption_score,
+              confidence: h.confidence,
+              mode: h.mode as import("../lib/api").ScoreMode,
+              created_at: h.scored_at,
+            }))
+          : [],
+      ),
+    );
   }, [result]);
 
   function handleSuggestionSelect(suggestion: string) {
+    track("suggestion_selected", { address: suggestion });
     skipSuggestRef.current = true;
     hasUserTyped.current = false;   // treat the fill as programmatic
     setAddress(suggestion);
@@ -227,6 +257,7 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
+    track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
     try {
@@ -266,10 +297,10 @@ export default function HomePage() {
     if (!result) return;
     setIsSaving(true);
     setSaveError(null);
-    setSavedReportId(null);
+    setSaveReportId(null);
     try {
       const saved = await saveReport(result);
-      setSavedReportId(saved.report_id);
+      setSaveReportId(saved.report_id);
     } catch (err) {
       setSaveError(
         err instanceof ApiError
@@ -282,8 +313,8 @@ export default function HomePage() {
   }
 
   function handleCopySavedLink() {
-    if (!savedReportId) return;
-    const url = `${window.location.origin}/report/${savedReportId}`;
+    if (!saveReportId) return;
+    const url = `${window.location.origin}/report/${saveReportId}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
@@ -291,7 +322,7 @@ export default function HomePage() {
   }
 
   function handleOpenSaveModal() {
-    setSavedReportId(null);
+    setSaveReportId(null);
     setSaveError(null);
     setShowSaveModal(true);
   }
@@ -307,7 +338,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Chicago disruption intelligence</p>
+              <p className="brand-subtitle">Illinois disruption intelligence</p>
             </div>
           </div>
 
@@ -353,11 +384,11 @@ export default function HomePage() {
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Chicago address intelligence</p>
+              <p className="eyebrow">Illinois address intelligence</p>
               <h1>
                 {workspaceMode
                   ? "A decision-ready disruption brief for the current address."
-                  : "Instant disruption intelligence for any Chicago address."}
+                  : "Instant disruption intelligence for any Illinois address."}
               </h1>
               <p className="lede">
                 {workspaceMode
@@ -368,7 +399,7 @@ export default function HomePage() {
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                Enter a Chicago address
+                Enter an Illinois address
               </label>
               <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
                 <div className="search-input-stack">
@@ -427,7 +458,7 @@ export default function HomePage() {
                           onMouseEnter={() => setActiveSuggestionIndex(index)}
                         >
                           <span className="suggestion-item-label">{suggestion}</span>
-                          <span className="suggestion-item-meta">Chicago address</span>
+                          <span className="suggestion-item-meta">Illinois address</span>
                         </li>
                       ))}
                     </ul>
@@ -439,9 +470,9 @@ export default function HomePage() {
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
-                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Chicago address.
+                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Illinois address.
                 </p>
-                <p className="form-disclaimer">Currently covers Chicago, IL addresses only.</p>
+                <p className="form-disclaimer">Covers Illinois addresses. Live risk data currently available for Chicago.</p>
 
                 <div className="example-row">
                   <span className="example-label">Quick examples</span>
@@ -466,6 +497,7 @@ export default function HomePage() {
                 <span className="status-badge">{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
+                  {" "}
                   <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
@@ -480,7 +512,7 @@ export default function HomePage() {
                 </p>
                 <p>
                   {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
-                    ? "We couldn't find that address in Chicago. Try including a ZIP code."
+                    ? "We couldn't find that address in Illinois. Try including a ZIP code."
                     : error}
                 </p>
               </div>
@@ -664,7 +696,7 @@ export default function HomePage() {
             <section className="results">
               <Card className="empty-state">
                 <p className="empty-kicker">Ready for analysis</p>
-                <h3>Enter a Chicago address above to get an instant disruption score.</h3>
+                <h3>Enter an Illinois address above to get an instant disruption score.</h3>
                 <p>
                   The score is powered by live city permit and street closure data. Results return in under 10 seconds.
                 </p>
@@ -718,7 +750,7 @@ export default function HomePage() {
         >
           <div className="demo-grid demo-grid--compressed">
             <Card className="detail-card demo-card">
-              <p className="supporting-kicker">Chicago examples</p>
+              <p className="supporting-kicker">Example addresses</p>
               <h2>Load a known address quickly</h2>
               <div className="example-chip-group example-chip-group--demo">
                 {EXAMPLE_ADDRESSES.map((example) => (
