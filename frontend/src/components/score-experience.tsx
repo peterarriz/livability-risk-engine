@@ -803,3 +803,344 @@ export function getConfidenceReasons(result: ScoreResponse): string[] {
 export function getMeaningInsights(result: ScoreResponse): string[] {
   return inferMeaning(result);
 }
+
+// ---------------------------------------------------------------------------
+// SignalTimeline  (app-task)
+// Horizontal Gantt-style timeline: one bar per top_risk_detail, colored by
+// impact type, spanning start_date → end_date. Click a bar to expand the
+// existing PermitDetailPanel. Today is marked with a vertical rule.
+// ---------------------------------------------------------------------------
+
+const TL_COLOR: Record<string, string> = {
+  closure_full:        "#ef4444",   // red   — access disruption
+  closure_multi_lane:  "#f87171",   // lighter red
+  closure_single_lane: "#fca5a5",   // lightest red
+  demolition:          "#f97316",   // orange-red — construction family
+  construction:        "#fb923c",   // orange
+  light_permit:        "#facc15",   // yellow — noise / minor
+};
+const TL_COLOR_DEFAULT = "#60a5fa"; // blue fallback
+
+const TL_TYPE_LABEL: Record<string, string> = {
+  closure_full:        "Full closure",
+  closure_multi_lane:  "Multi-lane closure",
+  closure_single_lane: "Lane closure",
+  demolition:          "Demolition",
+  construction:        "Construction",
+  light_permit:        "Permitted work",
+};
+
+// Human-readable legend entries the user asked for (red/orange/yellow).
+const TL_LEGEND = [
+  { key: "closure_full",  color: "#ef4444", label: "Access disruption" },
+  { key: "construction",  color: "#fb923c", label: "Construction"       },
+  { key: "light_permit",  color: "#facc15", label: "Minor / noise"      },
+] as const;
+
+const MONTH_SHORT_TL = [
+  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
+] as const;
+
+type TLRow = {
+  id: string;
+  detail: TopRiskDetail;
+  typeLabel: string;
+  color: string;
+  startPct: number;
+  endPct: number;
+  openStart: boolean;
+  openEnd: boolean;
+};
+
+type TLData = {
+  rows: TLRow[];
+  todayPct: number;
+  ticks: { label: string; pct: number }[];
+};
+
+function buildTLData(details: TopRiskDetail[]): TLData | null {
+  const dated = details.filter((d) => d.start_date || d.end_date);
+  if (!dated.length) return null;
+
+  const parseIso = (iso: string) => new Date(iso + "T00:00:00Z");
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  // Initial window: 14 days back → 60 days forward
+  let winStart = new Date(today); winStart.setUTCDate(winStart.getUTCDate() - 14);
+  let winEnd   = new Date(today); winEnd.setUTCDate(winEnd.getUTCDate() + 60);
+
+  // Expand to fit all signal dates
+  for (const d of dated) {
+    if (d.start_date) { const sd = parseIso(d.start_date); if (sd < winStart) winStart = sd; }
+    if (d.end_date)   { const ed = parseIso(d.end_date);   if (ed > winEnd)   winEnd   = ed; }
+  }
+
+  // 4-day padding on each side
+  winStart = new Date(winStart); winStart.setUTCDate(winStart.getUTCDate() - 4);
+  winEnd   = new Date(winEnd);   winEnd.setUTCDate(winEnd.getUTCDate() + 4);
+
+  const span  = winEnd.getTime() - winStart.getTime();
+  const toPct = (d: Date) =>
+    Math.max(0, Math.min(100, ((d.getTime() - winStart.getTime()) / span) * 100));
+
+  const todayPct = toPct(today);
+
+  // Month-boundary tick marks
+  const ticks: TLData["ticks"] = [];
+  let tick = new Date(Date.UTC(winStart.getUTCFullYear(), winStart.getUTCMonth() + 1, 1));
+  while (tick.getTime() <= winEnd.getTime()) {
+    ticks.push({
+      label: `${MONTH_SHORT_TL[tick.getUTCMonth()]} ${tick.getUTCFullYear()}`,
+      pct: toPct(tick),
+    });
+    tick = new Date(Date.UTC(tick.getUTCFullYear(), tick.getUTCMonth() + 1, 1));
+  }
+
+  const rows: TLRow[] = dated.map((d, i) => {
+    const sDate = d.start_date ? parseIso(d.start_date) : winStart;
+    const eDate = d.end_date   ? parseIso(d.end_date)   : winEnd;
+    return {
+      id:         `tl-${d.project_id}-${i}`,
+      detail:     d,
+      typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
+      color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
+      startPct:   toPct(sDate),
+      endPct:     toPct(eDate),
+      openStart:  !d.start_date,
+      openEnd:    !d.end_date,
+    };
+  });
+
+  return { rows, todayPct, ticks };
+}
+
+type SignalTimelineProps = { details: TopRiskDetail[] };
+
+export function SignalTimeline({ details }: SignalTimelineProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const data = useMemo(() => buildTLData(details), [details]);
+
+  if (!data) return null;
+
+  const { rows, todayPct, ticks } = data;
+  const expandedRow = rows.find((r) => r.id === expandedId) ?? null;
+  const LABEL_W = 162; // px — label column width
+
+  function toggle(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
+
+  // Which legend items actually appear in this result set.
+  const presentTypes = new Set(rows.map((r) => r.detail.impact_type));
+  const visibleLegend = TL_LEGEND.filter(
+    (l) =>
+      presentTypes.has(l.key) ||
+      (l.key === "closure_full" &&
+        ["closure_full","closure_multi_lane","closure_single_lane"].some((t) => presentTypes.has(t))) ||
+      (l.key === "construction" &&
+        ["construction","demolition"].some((t) => presentTypes.has(t))),
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: "14px" }}>
+        <p style={{
+          fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+          textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "4px",
+        }}>
+          Active window timeline
+        </p>
+        <p style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
+          Each bar spans a signal&rsquo;s active date range. Click a bar to see permit details.
+        </p>
+      </div>
+
+      {/* Scrollable timeline */}
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: "440px" }}>
+
+          {/* ── Month axis ───────────────────────────────────────────── */}
+          <div style={{ display: "flex", marginBottom: "4px" }}>
+            <div style={{ width: `${LABEL_W}px`, flexShrink: 0 }} />
+            <div style={{ flex: 1, position: "relative", height: "22px" }}>
+              {ticks.map((t) => (
+                <span
+                  key={t.label}
+                  style={{
+                    position: "absolute", left: `${t.pct}%`,
+                    transform: "translateX(-50%)",
+                    fontSize: "0.65rem", fontWeight: 500,
+                    color: "var(--text-muted, #64748b)", whiteSpace: "nowrap",
+                  }}
+                >
+                  {t.label}
+                </span>
+              ))}
+              {/* Today label */}
+              <span style={{
+                position: "absolute", left: `${todayPct}%`,
+                transform: "translateX(-50%)",
+                fontSize: "0.6rem", fontWeight: 700,
+                color: "#60a5fa", textTransform: "uppercase",
+                letterSpacing: "0.07em", whiteSpace: "nowrap",
+              }}>
+                Today
+              </span>
+            </div>
+          </div>
+
+          {/* ── Row body ──────────────────────────────────────────────── */}
+          <div style={{ position: "relative" }}>
+
+            {/* Today vertical rule — spans full body height.
+                left = LABEL_W + todayPct% of the remaining track width */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute", top: 0, bottom: 0,
+                left: `calc(${LABEL_W}px + ${todayPct / 100} * (100% - ${LABEL_W}px))`,
+                width: "1.5px",
+                background: "rgba(96,165,250,0.28)",
+                zIndex: 0, pointerEvents: "none",
+              }}
+            />
+
+            {rows.map((row, index) => (
+              <div
+                key={row.id}
+                style={{
+                  display: "flex", alignItems: "center", height: "48px",
+                  borderBottom: index < rows.length - 1
+                    ? "1px solid rgba(255,255,255,0.045)" : "none",
+                }}
+              >
+                {/* Label column */}
+                <div style={{
+                  width: `${LABEL_W}px`, flexShrink: 0,
+                  paddingRight: "14px", textAlign: "right",
+                }}>
+                  <div style={{
+                    fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
+                    color: "var(--text-soft, #94a3b8)",
+                  }}>
+                    {row.typeLabel}
+                  </div>
+                  {row.detail.title && (
+                    <div style={{
+                      fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
+                      overflow: "hidden", textOverflow: "ellipsis",
+                      whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
+                      marginLeft: "auto",
+                    }}>
+                      {row.detail.title}
+                    </div>
+                  )}
+                </div>
+
+                {/* Track column */}
+                <div style={{ flex: 1, position: "relative", height: "100%" }}>
+                  {/* Subtle centre-line guide */}
+                  <div aria-hidden="true" style={{
+                    position: "absolute", top: "50%", left: 0, right: 0,
+                    transform: "translateY(-50%)",
+                    height: "1px", background: "rgba(255,255,255,0.05)",
+                  }} />
+
+                  {/* Colored bar */}
+                  <button
+                    type="button"
+                    aria-pressed={expandedId === row.id}
+                    aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. Click for permit details.`}
+                    onClick={() => toggle(row.id)}
+                    style={{
+                      position: "absolute",
+                      top: "50%", transform: "translateY(-50%)",
+                      left: `${row.startPct}%`,
+                      width: `${Math.max(row.endPct - row.startPct, 1.8)}%`,
+                      height: "20px",
+                      // Rounded ends; open sides get a squared-off cap
+                      borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
+                      background: row.color,
+                      opacity: expandedId === row.id ? 1 : 0.76,
+                      cursor: "pointer",
+                      border: expandedId === row.id
+                        ? "2px solid rgba(255,255,255,0.55)"
+                        : row.openStart || row.openEnd
+                        ? `1px dashed ${row.color}`
+                        : "none",
+                      outline: "none",
+                      boxShadow: expandedId === row.id
+                        ? `0 0 0 3px ${row.color}44`
+                        : "none",
+                      transition: "opacity 0.12s, box-shadow 0.12s",
+                      zIndex: 1,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
+                    }}
+                  />
+
+                  {/* Distance badge — to the right of the bar */}
+                  {row.detail.distance_m > 0 && (
+                    <span style={{
+                      position: "absolute",
+                      top: "50%", transform: "translateY(-50%)",
+                      left: `calc(${row.endPct}% + 7px)`,
+                      fontSize: "0.59rem", color: "var(--text-muted, #64748b)",
+                      whiteSpace: "nowrap", pointerEvents: "none", zIndex: 1,
+                    }}>
+                      {Math.round(row.detail.distance_m * 3.28084).toLocaleString()} ft
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Legend ──────────────────────────────────────────────── */}
+          {visibleLegend.length > 0 && (
+            <div style={{
+              display: "flex", gap: "18px", flexWrap: "wrap",
+              marginTop: "12px", paddingTop: "10px",
+              borderTop: "1px solid rgba(255,255,255,0.05)",
+            }}>
+              {visibleLegend.map((l) => (
+                <span key={l.key} style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  fontSize: "0.67rem", color: "var(--text-muted, #64748b)",
+                }}>
+                  <span style={{
+                    width: "10px", height: "10px", borderRadius: "2px",
+                    background: l.color, flexShrink: 0,
+                  }} />
+                  {l.label}
+                </span>
+              ))}
+              <span style={{
+                fontSize: "0.67rem", color: "var(--text-muted, #64748b)",
+                marginLeft: "auto", fontStyle: "italic",
+              }}>
+                Dashed edge = open-ended date
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Expanded permit detail panel ──────────────────────────── */}
+      {expandedRow && (
+        <div style={{ marginTop: "14px" }}>
+          <PermitDetailPanel
+            detail={expandedRow.detail}
+            onClose={() => setExpandedId(null)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

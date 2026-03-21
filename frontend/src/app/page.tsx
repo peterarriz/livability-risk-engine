@@ -10,6 +10,7 @@ import {
   ScoreHero,
   ScoreSparkline,
   SeverityMeters,
+  SignalTimeline,
   TopRiskGrid,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
@@ -680,6 +681,11 @@ export default function HomePage() {
                 <Card className="detail-card drivers-card">
                   <TopRiskGrid result={result} />
                 </Card>
+                {(result.top_risk_details ?? []).length > 0 && (
+                  <Card className="detail-card">
+                    <SignalTimeline details={result.top_risk_details ?? []} />
+                  </Card>
+                )}
               </Section>
 
               <div className="detail-grid detail-grid--balanced">
