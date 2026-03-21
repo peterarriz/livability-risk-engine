@@ -86,6 +86,16 @@ STEPS = [
         "skip_key": "skip_il_cities",
     },
     {
+        # Fetches building permits and street closures for the top 10 US cities
+        # (NYC, LA, Houston, Phoenix, Philadelphia, San Antonio, San Diego,
+        # Dallas, Austin) from their Socrata open data portals.
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (top 10 cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits.py"],
+        "skip_key": "skip_us_cities",
+        "non_fatal": True,
+    },
+    {
         # Fetches CTA planned service alerts (track work, station closures,
         # construction-related reroutes). No API key required.
         "name": "Fetch CTA planned service alerts",
@@ -210,6 +220,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-il-cities",
         action="store_true",
         help="Skip the IL city permits fetch step (Cook County + cities).",
+    )
+    parser.add_argument(
+        "--skip-us-cities",
+        action="store_true",
+        help="Skip the US city permits fetch step (top 10 US cities).",
     )
     parser.add_argument(
         "--skip-cta",
