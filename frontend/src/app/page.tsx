@@ -13,6 +13,7 @@ import {
   SeverityMeters,
   SignalTimeline,
   TopRiskGrid,
+  WatchlistForm,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
@@ -641,6 +642,11 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
+
+              {/* ── Monitor this address — shown for score > 50 ──────────── */}
+              {result.disruption_score > 50 && (
+                <WatchlistForm address={result.address} score={result.disruption_score} />
+              )}
 
               {/* ── Neighborhood context ─────────────────────────────────── */}
               <Card className="detail-card">

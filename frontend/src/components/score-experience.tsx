@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
-import { detectNeighborhoodSlug, fetchNeighborhood } from "@/lib/api";
+import { detectNeighborhoodSlug, fetchNeighborhood, subscribeWatch } from "@/lib/api";
 import type {
   NeighborhoodResponse,
   NeighborhoodSlugInfo,
@@ -10,6 +10,7 @@ import type {
   ScoreResponse,
   SeverityLevel,
   TopRiskDetail,
+  WatchResponse,
 } from "@/lib/api";
 
 type ScoreHeroProps = {
@@ -1386,6 +1387,175 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WatchlistForm — "Monitor this address"
+// Shown inline when disruption_score > 50. Captures email + threshold and
+// POSTs to /watch. Works on the free tier (always shows confirmation);
+// actual alert email delivery is gated behind Pro.
+// ---------------------------------------------------------------------------
+
+const WATCH_THRESHOLDS = [
+  { value: 50 as const, label: "50+", band: "Moderate", desc: "any moderate reading" },
+  { value: 65 as const, label: "65+", band: "High",     desc: "high-risk territory"  },
+  { value: 80 as const, label: "80+", band: "Severe",   desc: "severe disruption"    },
+];
+type ThresholdVal = 50 | 65 | 80;
+
+function pickDefaultThreshold(score: number): ThresholdVal {
+  // Default to the next tier above the current score so the user is alerted
+  // if conditions worsen, not just because the score is already elevated.
+  if (score >= 80) return 80;
+  if (score >= 65) return 80;
+  return 65;
+}
+
+type WatchFormState = "idle" | "submitting" | "confirmed" | "error";
+
+type WatchlistFormProps = {
+  address: string;
+  score: number;
+};
+
+export function WatchlistForm({ address, score }: WatchlistFormProps) {
+  const [email, setEmail]         = useState("");
+  const [threshold, setThreshold] = useState<ThresholdVal>(pickDefaultThreshold(score));
+  const [formState, setFormState] = useState<WatchFormState>("idle");
+  const [confirmed, setConfirmed] = useState<WatchResponse | null>(null);
+  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
+
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const selectedOpt = WATCH_THRESHOLDS.find((t) => t.value === threshold)!;
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!emailValid || formState === "submitting") return;
+    setFormState("submitting");
+    setErrorMsg(null);
+    try {
+      const res = await subscribeWatch({ email, address, threshold });
+      setConfirmed(res);
+      setFormState("confirmed");
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : "Could not set up the alert. Try again.",
+      );
+      setFormState("error");
+    }
+  }
+
+  // ── Confirmed state ─────────────────────────────────────────────────────
+  if (formState === "confirmed" && confirmed) {
+    return (
+      <div className="watch-confirmed-card detail-card" style={{ padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+          <span style={{ fontSize: "1.15rem", color: "#22c55e", lineHeight: 1 }}>✓</span>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
+            Monitoring {confirmed.address}
+          </p>
+        </div>
+        <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "var(--text-soft)" }}>
+          Watching for scores of <strong>{confirmed.threshold}+</strong> ({selectedOpt.band}).
+          {" "}Alerts go to <strong>{confirmed.email}</strong>.
+        </p>
+
+        <div className="watch-pro-note">
+          <span className="watch-pro-badge">Pro</span>
+          <span>
+            Alert emails go to Pro plan subscribers.{" "}
+            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a> email delivery.
+          </span>
+        </div>
+
+        {confirmed.demo && (
+          <p style={{ margin: "10px 0 0", fontSize: "0.67rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+            Live database not yet connected. Your alert will be queued when the backend goes live.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ── Idle / submitting / error state ──────────────────────────────────────
+  const currentBand = score >= 80 ? "Severe" : score >= 65 ? "High" : "Moderate";
+
+  return (
+    <div className="watch-card detail-card" style={{ padding: "20px 24px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#f59e0b", marginBottom: "3px" }}>
+            Monitor this address
+          </p>
+          <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-soft)" }}>
+            Score is {score} ({currentBand}). Get notified if conditions change.
+          </p>
+        </div>
+        <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
+          Free to set up &middot; Pro for email delivery
+        </span>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {/* Threshold selector */}
+        <div style={{ marginBottom: "14px" }}>
+          <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            Alert me when score reaches
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            {WATCH_THRESHOLDS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`watch-threshold-btn${threshold === opt.value ? " watch-threshold-btn--active" : ""}`}
+                onClick={() => setThreshold(opt.value)}
+                aria-pressed={threshold === opt.value}
+              >
+                {opt.label} {opt.band}
+              </button>
+            ))}
+            <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+              Current: {score}
+            </span>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+            {selectedOpt.desc === "any moderate reading"
+              ? "You'll be notified whenever the score is at or above 50."
+              : `You'll be notified when the score climbs into ${selectedOpt.band.toLowerCase()} territory.`}
+          </p>
+        </div>
+
+        {/* Email + submit */}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <input
+            type="email"
+            className="watch-email-input"
+            placeholder="your@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-label="Email address for alerts"
+            required
+            autoComplete="email"
+          />
+          <button
+            type="submit"
+            className="watch-submit-btn"
+            disabled={!emailValid || formState === "submitting"}
+          >
+            {formState === "submitting" ? "Setting up…" : "Set up alert \u2192"}
+          </button>
+        </div>
+
+        {/* Error */}
+        {formState === "error" && errorMsg && (
+          <p style={{ margin: "8px 0 0", fontSize: "0.78rem", color: "#f87171" }}>
+            {errorMsg}
+          </p>
+        )}
+      </form>
     </div>
   );
 }

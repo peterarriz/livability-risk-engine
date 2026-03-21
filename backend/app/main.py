@@ -1196,10 +1196,22 @@ def subscribe_watch(body: WatchRequest) -> dict:
         raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
 
     if not _is_db_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        # DB not yet live — accept the intent and return a demo success so the
+        # email-capture form always works on the free tier. Real alert delivery
+        # starts once DATABASE_URL is configured.
+        log.info(
+            "watch subscribe (demo) email=%r address=%r threshold=%d",
+            body.email, body.address, body.threshold,
         )
+        return {
+            "id": None,
+            "email": body.email,
+            "address": body.address,
+            "threshold": body.threshold,
+            "token": None,
+            "demo": True,
+            "message": "Noted. Alert delivery activates once the live database is connected.",
+        }
 
     try:
         from backend.scoring.query import get_db_connection

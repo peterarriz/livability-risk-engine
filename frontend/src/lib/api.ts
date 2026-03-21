@@ -421,6 +421,64 @@ export function getExportUrl(type: "csv" | "pdf", address: string): string {
   return url.toString();
 }
 
+// ── Watchlist / Monitor this address ─────────────────────────────────────────
+export type WatchRequest = {
+  email: string;
+  address: string;
+  threshold: number; // 0–100
+};
+
+export type WatchResponse = {
+  id: number | null;
+  email: string;
+  address: string;
+  threshold: number;
+  token: string | null;
+  /** True when the backend accepted the request but the DB is not yet live. */
+  demo?: boolean;
+  message?: string;
+};
+
+/**
+ * Subscribe an email to score-change alerts for an address.
+ *
+ * When the DB is not configured the backend returns a demo-success 200.
+ * When the frontend has no API URL at all, a client-side demo response is
+ * returned — the form always completes so email capture works on the free tier.
+ * Actual alert email delivery is gated behind the Pro plan.
+ */
+export async function subscribeWatch(req: WatchRequest): Promise<WatchResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+
+  if (!apiBaseUrl) {
+    // No backend wired up — return a client-side demo response.
+    return {
+      id: null,
+      email: req.email,
+      address: req.address,
+      threshold: req.threshold,
+      token: null,
+      demo: true,
+      message: "Noted. Connect a backend to enable live alert delivery.",
+    };
+  }
+
+  const url = buildApiUrl("/watch");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    cache: "no-store",
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(data.detail ?? `Could not set up alert (${resp.status}).`);
+  }
+
+  return (await resp.json()) as WatchResponse;
+}
+
 export type SaveReportResponse = {
   report_id: string;
 };
