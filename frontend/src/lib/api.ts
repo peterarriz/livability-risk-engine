@@ -36,6 +36,10 @@ export type NearbySignal = {
   distance_m: number;
   severity_hint: string;
   weight: number;
+  // Optional fields for richer popup display and 30-day forecast
+  source?: string;
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 export type ScoreResponse = {
@@ -151,18 +155,27 @@ function buildDemoScore(address: string): ScoreResponse {
         impact_type: "closure_multi_lane",
         title: "W Chicago Ave 2-lane eastbound closure",
         distance_m: 120, severity_hint: "HIGH", weight: 30.4,
+        source: "chicago_closures",
+        start_date: "2026-03-15",
+        end_date: "2026-03-31",
       },
       {
         lat: 41.8962, lon: -87.6618,
         impact_type: "construction",
         title: "Active construction permit at 1550 W Chicago Ave",
         distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
+        source: "chicago_permits",
+        start_date: "2026-02-01",
+        end_date: "2026-04-15",
       },
       {
         lat: 41.8948, lon: -87.6602,
         impact_type: "closure_single_lane",
         title: "Curb lane closure on S Ashland Ave",
         distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
+        source: "chicago_closures",
+        start_date: "2026-03-20",
+        end_date: "2026-03-25",
       },
     ],
   };

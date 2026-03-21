@@ -640,11 +640,41 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* ── Full-width map panel, pinned below the headline score ── */}
+              <Card className="detail-card map-card">
+                <div className="map-card-head">
+                  <div>
+                    <p className="map-kicker">Spatial context</p>
+                    <h2>Address and nearby area</h2>
+                  </div>
+                  <span className="map-badge">OpenStreetMap</span>
+                </div>
+                {mapCoords ? (
+                  <MapView
+                    latitude={mapCoords.lat}
+                    longitude={mapCoords.lon}
+                    address={result.address}
+                    signals={result.nearby_signals ?? []}
+                    topRiskDetails={result.top_risk_details ?? []}
+                    isPro={false}
+                  />
+                ) : (
+                  <div className="map-placeholder" aria-label="Locating address on map…">
+                    <div className="map-grid" />
+                    <div className="map-pin map-pin--primary" />
+                  </div>
+                )}
+                <p className="map-copy">
+                  Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
+                  Pro plan unlocks the 30-day forecast animation.
+                </p>
+              </Card>
+
               <div id="signals-section" className="anchor-target" />
               <Section
                 eyebrow="Signals"
                 title="Strongest supporting drivers"
-                description="These are the clearest nearby signals behind the score, followed by the map and timeline context that help interpret them."
+                description="These are the clearest nearby signals behind the score, along with timeline context that helps interpret them."
                 className="workspace-subsection"
               >
                 <Card className="detail-card drivers-card">
@@ -652,44 +682,23 @@ export default function HomePage() {
                 </Card>
               </Section>
 
-              <div className="support-grid">
-                <Card className="detail-card map-card">
-                  <div className="map-card-head">
-                    <div>
-                      <p className="map-kicker">Spatial context</p>
-                      <h2>Address and nearby area</h2>
-                    </div>
-                    <span className="map-badge">OpenStreetMap</span>
-                  </div>
-                  {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
-                  ) : (
-                    <div className="map-placeholder" aria-label="Locating address on map…">
-                      <div className="map-grid" />
-                      <div className="map-pin map-pin--primary" />
-                    </div>
-                  )}
-                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
+              <div className="detail-grid detail-grid--balanced">
+                <Card className="detail-card">
+                  <ImpactWindow result={result} />
                 </Card>
-
-                <div className="support-stack">
-                  <Card className="detail-card">
-                    <ImpactWindow result={result} />
-                  </Card>
-                  <Card className="detail-card supporting-card">
-                    <p className="supporting-kicker">Review notes</p>
-                    <ul className="supporting-list">
-                      <li>
-                        <span>Interpretation</span>
-                        <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
-                      </li>
-                      <li>
-                        <span>Best use</span>
-                        <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
-                      </li>
-                    </ul>
-                  </Card>
-                </div>
+                <Card className="detail-card supporting-card">
+                  <p className="supporting-kicker">Review notes</p>
+                  <ul className="supporting-list">
+                    <li>
+                      <span>Interpretation</span>
+                      <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
+                    </li>
+                    <li>
+                      <span>Best use</span>
+                      <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
+                    </li>
+                  </ul>
+                </Card>
               </div>
             </section>
           ) : (
