@@ -406,7 +406,11 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const displayScore = useAnimatedScore(result.disruption_score);
   const scoreMessage = getScoreMessage(result.disruption_score);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
-  const modeLabel = result.mode === "demo" ? "Demo scenario" : "Live Chicago signal";
+  const isDemo = result.mode === "demo";
+  const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
+  const modeLabelTooltip = isDemo
+    ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
+    : undefined;
   const gaugeBand = getGaugeBand(result.disruption_score);
 
   return (
@@ -415,7 +419,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <p className="score-hero-kicker">Headline assessment</p>
         <div className="score-hero-topline">
           <p className="score-label">Disruption score</p>
-          <p className="confidence-pill">{modeLabel}</p>
+          <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
 

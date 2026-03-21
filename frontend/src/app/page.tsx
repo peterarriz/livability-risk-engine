@@ -67,9 +67,12 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
+  const statusHeadline = isDemoResult ? "Limited data coverage" : "Live score";
+  const statusBadgeTooltip = isDemoResult
+    ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
+    : undefined;
   const statusMessage = isDemoResult
-    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
+    ? (statusNote ?? "Live permit data may not be available for this address. Score is estimated from nearby signals.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -81,7 +84,7 @@ export default function HomePage() {
       ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
       : null;
     return [
-      { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
+      { label: "Data mode", value: isDemoResult ? "Limited data coverage" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: (() => {
@@ -497,11 +500,11 @@ export default function HomePage() {
 
             {(result || statusNote) ? (
               <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
-                <span className="status-badge">{statusHeadline}</span>
+                <span className="status-badge" title={statusBadgeTooltip}>{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
                   {" "}
-                  <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
+                  <span>{isDemoResult ? "" : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
             ) : null}
@@ -809,8 +812,8 @@ export default function HomePage() {
                   <strong>Clearly labeled and presented as the default decision-ready experience.</strong>
                 </li>
                 <li>
-                  <span>Demo fallback</span>
-                  <strong>Still visible and explicit, so reviewers can distinguish sample output from live scoring.</strong>
+                  <span>Limited data coverage</span>
+                  <strong>Shown when live permit data is unavailable. Score is estimated from nearby signals.</strong>
                 </li>
               </ul>
             </Card>
