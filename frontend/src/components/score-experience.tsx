@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ScoreHistoryEntry, ScoreResponse, SeverityLevel, TopRiskDetail } from "@/lib/api";
+import { detectNeighborhoodSlug, fetchNeighborhood } from "@/lib/api";
+import type {
+  NeighborhoodResponse,
+  NeighborhoodSlugInfo,
+  ScoreHistoryEntry,
+  ScoreResponse,
+  SeverityLevel,
+  TopRiskDetail,
+} from "@/lib/api";
 
 type ScoreHeroProps = {
   result: ScoreResponse;
@@ -802,6 +810,243 @@ export function getConfidenceReasons(result: ScoreResponse): string[] {
 
 export function getMeaningInsights(result: ScoreResponse): string[] {
   return inferMeaning(result);
+}
+
+// ---------------------------------------------------------------------------
+// NeighborhoodContextCard
+// Shows (1) address vs neighborhood median score bars, (2) score-history
+// sparkline, (3) a generated "how this compares" blurb.
+// Slug detection is client-side via NEIGHBORHOOD_BBOXES; data comes from the
+// existing /neighborhood/{slug} endpoint which now returns median_score.
+// ---------------------------------------------------------------------------
+
+function scoreBarColor(score: number): string {
+  if (score <= 30) return "#22c55e";
+  if (score <= 60) return "#f59e0b";
+  return "#ef4444";
+}
+
+function generateComparisonBlurb(
+  addressScore: number,
+  slugInfo: NeighborhoodSlugInfo,
+  medianScore: number | null | undefined,
+): string {
+  const areaStr = slugInfo.exact ? slugInfo.name : `near ${slugInfo.name}`;
+
+  if (medianScore == null) {
+    if (addressScore > 50) return `At ${addressScore}, this address scores above Chicago's typical range of 20–40. Disruption signals are elevated versus most of the city.`;
+    if (addressScore > 40) return `At ${addressScore}, this address is modestly above Chicago's typical range of 20–40.`;
+    if (addressScore < 20) return `At ${addressScore}, this address is below Chicago's typical range — a positive signal for near-term access.`;
+    return `At ${addressScore}, this address falls within Chicago's typical disruption range of 20–40.`;
+  }
+
+  const diff = addressScore - medianScore;
+
+  if (diff > 20) {
+    return `This address scores ${diff} points above the ${areaStr} median of ${medianScore}, pointing to localized disruption well above the neighborhood baseline.`;
+  }
+  if (diff > 8) {
+    return `Sitting above the ${areaStr} median of ${medianScore}, this address has somewhat elevated disruption compared to the surrounding area.`;
+  }
+  if (diff < -20) {
+    return `At ${Math.abs(diff)} points below the ${areaStr} median of ${medianScore}, this address is in noticeably better shape than most of the neighborhood.`;
+  }
+  if (diff < -8) {
+    return `This address scores below the ${areaStr} typical level of ${medianScore} — a positive signal against the local area baseline.`;
+  }
+  return `Broadly in line with the ${areaStr} median of ${medianScore}. The score reflects neighborhood-wide conditions rather than a site-specific spike.`;
+}
+
+type ScoreBarRowProps = {
+  label: string;
+  score?: number;
+  color?: string;
+  // For the "Chicago typical" row we show a range band instead of a single bar
+  rangeMin?: number;
+  rangeMax?: number;
+  dimLabel?: boolean;
+};
+
+function ScoreBarRow({ label, score, color, rangeMin, rangeMax, dimLabel }: ScoreBarRowProps) {
+  const LABEL_W = 148;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", height: "32px" }}>
+      {/* Label */}
+      <div style={{
+        width: `${LABEL_W}px`, flexShrink: 0, textAlign: "right",
+        fontSize: "0.72rem", fontWeight: 600,
+        color: dimLabel ? "var(--text-muted, #64748b)" : "var(--text-soft, #94a3b8)",
+        paddingRight: "2px",
+      }}>
+        {label}
+      </div>
+
+      {/* Track */}
+      <div style={{
+        flex: 1, height: "10px", position: "relative",
+        background: "rgba(255,255,255,0.06)", borderRadius: "5px", overflow: "hidden",
+      }}>
+        {/* Range band (Chicago typical) */}
+        {rangeMin != null && rangeMax != null && (
+          <div style={{
+            position: "absolute", top: 0, bottom: 0,
+            left: `${rangeMin}%`, width: `${rangeMax - rangeMin}%`,
+            background: "rgba(148,163,184,0.28)", borderRadius: "2px",
+          }} />
+        )}
+        {/* Single-value bar */}
+        {score != null && color && (
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, left: 0,
+            width: `${score}%`, background: color,
+            borderRadius: "5px", transition: "width 0.55s ease-out",
+          }} />
+        )}
+      </div>
+
+      {/* Value label */}
+      <div style={{
+        width: "32px", flexShrink: 0, textAlign: "right",
+        fontSize: "0.72rem", fontWeight: 700,
+        color: dimLabel ? "var(--text-muted, #64748b)" : "var(--text-soft, #94a3b8)",
+      }}>
+        {score != null ? score : rangeMin != null ? `${rangeMin}–${rangeMax}` : ""}
+      </div>
+    </div>
+  );
+}
+
+type NeighborhoodContextCardProps = {
+  result: ScoreResponse;
+  scoreHistory: ScoreHistoryEntry[];
+  lat?: number | null;
+  lon?: number | null;
+};
+
+export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: NeighborhoodContextCardProps) {
+  const [hood, setHood] = useState<NeighborhoodResponse | null>(null);
+  const [hoodLoading, setHoodLoading] = useState(false);
+
+  const slugInfo = useMemo<NeighborhoodSlugInfo | null>(
+    () => (lat != null && lon != null ? detectNeighborhoodSlug(lat, lon) : null),
+    [lat, lon],
+  );
+
+  useEffect(() => {
+    if (!slugInfo) { setHood(null); return; }
+    setHoodLoading(true);
+    fetchNeighborhood(slugInfo.slug).then((data) => {
+      setHood(data);
+      setHoodLoading(false);
+    });
+  }, [slugInfo?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasHistory = scoreHistory.length >= 2;
+
+  // Don't render when we have nothing to show.
+  if (!hasHistory && !lat && !lon) return null;
+
+  const score          = result.disruption_score;
+  const medianScore    = hood?.median_score ?? null;
+  const neighborhoodName = hood?.name ?? slugInfo?.name ?? null;
+  const blurb          = slugInfo
+    ? generateComparisonBlurb(score, slugInfo, medianScore)
+    : null;
+
+  return (
+    <div>
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "8px", marginBottom: "18px", flexWrap: "wrap" }}>
+        <div>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "3px",
+          }}>
+            Neighborhood context
+          </p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
+            {hoodLoading
+              ? "Locating neighborhood…"
+              : neighborhoodName
+              ? slugInfo?.exact
+                ? `${neighborhoodName} · ${result.address}`
+                : `Near ${neighborhoodName}`
+              : "Chicago context"}
+          </p>
+        </div>
+        {slugInfo && hood && (
+          <a
+            href={`/neighborhood/${slugInfo.slug}`}
+            style={{ fontSize: "0.71rem", color: "#60a5fa", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap" }}
+          >
+            View {hood.name} →
+          </a>
+        )}
+      </div>
+
+      {/* ── Score bar comparison ─────────────────────────────────────── */}
+      <div style={{ marginBottom: "18px" }}>
+        <ScoreBarRow
+          label="This address"
+          score={score}
+          color={scoreBarColor(score)}
+        />
+        {(medianScore != null || hoodLoading) && (
+          <ScoreBarRow
+            label={neighborhoodName ? `${neighborhoodName} median` : "Neighborhood median"}
+            score={hoodLoading ? undefined : (medianScore ?? undefined)}
+            color={hoodLoading ? undefined : "#60a5fa"}
+            dimLabel
+          />
+        )}
+        <ScoreBarRow
+          label="Chicago typical"
+          rangeMin={20}
+          rangeMax={40}
+          dimLabel
+        />
+      </div>
+
+      {/* ── Sparkline ────────────────────────────────────────────────── */}
+      {hasHistory && (
+        <div style={{
+          marginBottom: "16px", paddingTop: "14px",
+          borderTop: "1px solid rgba(255,255,255,0.055)",
+        }}>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "8px",
+          }}>
+            Score trend
+          </p>
+          <ScoreSparkline history={scoreHistory} currentScore={score} />
+        </div>
+      )}
+
+      {/* ── Comparison blurb ─────────────────────────────────────────── */}
+      {(blurb || (!slugInfo && lat != null)) && (
+        <div style={{
+          paddingTop: hasHistory ? "14px" : 0,
+          borderTop: hasHistory ? "1px solid rgba(255,255,255,0.055)" : "none",
+        }}>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "6px",
+          }}>
+            How this compares
+          </p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-soft, #94a3b8)", lineHeight: 1.65, margin: 0 }}>
+            {blurb ?? generateComparisonBlurb(score, { slug: "", name: "Chicago", exact: true }, null)}
+          </p>
+          {hood?.sample_size === 0 && (
+            <p style={{ fontSize: "0.67rem", color: "var(--text-muted, #64748b)", margin: "6px 0 0", fontStyle: "italic" }}>
+              Neighborhood median is a calibrated estimate; live history data will replace this when the database is connected.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -798,48 +798,59 @@ _NEIGHBORHOODS: dict[str, dict] = {
         "description": "Dense mixed-use neighborhood with high permit activity along Milwaukee Ave.",
         "center": {"lat": 41.9088, "lon": -87.6776},
         "bbox": {"min_lat": 41.8990, "min_lon": -87.6950, "max_lat": 41.9180, "max_lon": -87.6600},
+        # Representative median disruption score for this neighborhood.
+        # Source: manual calibration from permit density; replace with a live
+        # score_history aggregate once addresses are geocoded at save time.
+        "median_score": 42,
     },
     "logan-square": {
         "name": "Logan Square",
         "description": "Rapidly developing neighborhood with significant construction along the 606 trail corridor.",
         "center": {"lat": 41.9217, "lon": -87.7082},
         "bbox": {"min_lat": 41.9100, "min_lon": -87.7250, "max_lat": 41.9330, "max_lon": -87.6900},
+        "median_score": 38,
     },
     "river-north": {
         "name": "River North",
         "description": "High-density commercial and residential construction zone north of the Chicago River.",
         "center": {"lat": 41.8940, "lon": -87.6340},
         "bbox": {"min_lat": 41.8850, "min_lon": -87.6500, "max_lat": 41.9030, "max_lon": -87.6200},
+        "median_score": 51,
     },
     "lincoln-park": {
         "name": "Lincoln Park",
         "description": "Affluent lakefront neighborhood with ongoing street and utility work.",
         "center": {"lat": 41.9240, "lon": -87.6450},
         "bbox": {"min_lat": 41.9100, "min_lon": -87.6630, "max_lat": 41.9380, "max_lon": -87.6270},
+        "median_score": 29,
     },
     "pilsen": {
         "name": "Pilsen",
         "description": "Arts and manufacturing district with active infrastructure upgrades.",
         "center": {"lat": 41.8560, "lon": -87.6640},
         "bbox": {"min_lat": 41.8470, "min_lon": -87.6850, "max_lat": 41.8650, "max_lon": -87.6430},
+        "median_score": 35,
     },
     "loop": {
         "name": "The Loop",
         "description": "Chicago's downtown core with continuous street closure and utility activity.",
         "center": {"lat": 41.8827, "lon": -87.6323},
         "bbox": {"min_lat": 41.8740, "min_lon": -87.6480, "max_lat": 41.8920, "max_lon": -87.6180},
+        "median_score": 58,
     },
     "uptown": {
         "name": "Uptown",
         "description": "Dense lakeside neighborhood undergoing significant transit corridor improvements.",
         "center": {"lat": 41.9650, "lon": -87.6540},
         "bbox": {"min_lat": 41.9540, "min_lon": -87.6680, "max_lat": 41.9750, "max_lon": -87.6390},
+        "median_score": 33,
     },
     "bridgeport": {
         "name": "Bridgeport",
         "description": "South Side industrial-residential neighborhood with ongoing utility and road work.",
         "center": {"lat": 41.8350, "lon": -87.6444},
         "bbox": {"min_lat": 41.8250, "min_lon": -87.6600, "max_lat": 41.8460, "max_lon": -87.6300},
+        "median_score": 27,
     },
 }
 
@@ -926,6 +937,11 @@ def get_neighborhood(slug: str) -> dict:
         "projects": projects,
         "project_count": len(projects),
         "mode": mode,
+        # Median disruption score for addresses in this neighborhood.
+        # Currently a calibrated static value; will be replaced by a live
+        # score_history aggregate query once address geocoding is stored.
+        "median_score": neighborhood.get("median_score"),
+        "sample_size": 0,
     }
 
 

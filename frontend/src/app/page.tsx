@@ -7,6 +7,7 @@ import {
   getConfidenceReasons,
   getMeaningInsights,
   ImpactWindow,
+  NeighborhoodContextCard,
   ScoreHero,
   ScoreSparkline,
   SeverityMeters,
@@ -640,6 +641,16 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
+
+              {/* ── Neighborhood context ─────────────────────────────────── */}
+              <Card className="detail-card">
+                <NeighborhoodContextCard
+                  result={result}
+                  scoreHistory={scoreHistory}
+                  lat={mapCoords?.lat ?? result.latitude}
+                  lon={mapCoords?.lon ?? result.longitude}
+                />
+              </Card>
 
               {/* ── Full-width map panel, pinned below the headline score ── */}
               <Card className="detail-card map-card">
