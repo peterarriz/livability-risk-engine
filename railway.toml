@@ -25,5 +25,3 @@ healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
-[environments.production.deploy]
-startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --workers 2"
