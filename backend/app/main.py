@@ -331,10 +331,16 @@ def _score_live(address: str) -> dict:
       2. Geocode address → (lat, lon)
       3. Query nearby projects from canonical DB
       4. Apply scoring engine → ScoreResult
-      5. Return as dict matching API contract (includes latitude/longitude)
+      5. Query neighborhood quality context (data-040) — non-fatal if table absent
+      6. Return as dict matching API contract (includes latitude/longitude)
     """
     from backend.ingest.geocode import geocode_address
-    from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
+    from backend.scoring.query import (
+        compute_score,
+        get_db_connection,
+        get_nearby_projects,
+        get_neighborhood_context,
+    )
 
     conn = get_db_connection()
     try:
@@ -344,11 +350,30 @@ def _score_live(address: str) -> dict:
 
         lat, lon = coords
         nearby = get_nearby_projects(lat, lon, conn)
+
+        # Neighborhood quality context (data-040).
+        # Non-fatal: returns None if neighborhood_quality table is not yet populated.
+        neighborhood_context = None
+        try:
+            neighborhood_context = get_neighborhood_context(lat, lon, conn)
+        except Exception as nq_exc:
+            log.debug("neighborhood_context lookup skipped: %s", nq_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     finally:
         conn.close()
 
     result = compute_score(nearby, address)
-    return {**asdict(result), "mode": "live", "fallback_reason": None, "latitude": lat, "longitude": lon}
+    return {
+        **asdict(result),
+        "mode": "live",
+        "fallback_reason": None,
+        "latitude": lat,
+        "longitude": lon,
+        "neighborhood_context": neighborhood_context,
+    }
 
 
 # ---------------------------------------------------------------------------
