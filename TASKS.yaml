@@ -449,3 +449,49 @@ tasks:
       (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
       If no clean API is found, consider using IDOT District 1 as sufficient
       coverage and marking this task as won't-fix.
+
+  - id: data-038
+    title: Expand permit and disruption data to top US cities — multi-city pipeline
+    status: done
+    priority: high
+    github_issue: 102
+    notes_for_next_agent: >
+      New file: backend/ingest/us_city_permits.py
+        9 US cities configured (Socrata): NYC, LA, Houston, Phoenix,
+        Philadelphia, San Antonio, San Diego, Dallas, Austin.
+        San Jose skipped — no Socrata portal (uses ArcGIS Hub).
+        NYC also has a street closures dataset (i6b5-j7bu, address-only,
+        geocode_fill will backfill lat/lon).
+      New normalizer: normalize_us_city_permit() in backend/models/project.py.
+      New loader: load_us_city_permits() in backend/ingest/load_projects.py.
+        Glob pattern: us_city_permits_*.json
+        --source us_cities added to load_projects.py --source choices.
+        --us-cities-dir argument added to load_projects.py.
+      run_pipeline.py updated:
+        New step "Fetch US city permits (top 10 cities)" after IL cities step.
+        --skip-us-cities flag added.
+        Step is non_fatal=True so one city failure does not abort pipeline.
+      IMPORTANT: Dataset IDs were researched from public Socrata catalog
+      metadata but not live-verified due to environment constraints.
+      Before relying on this data in production, run:
+        python backend/ingest/us_city_permits.py --dry-run
+      and check output for any cities returning 0 records or HTTP errors.
+      If a city fails, verify its dataset_id at:
+        https://<domain>/api/catalog/v1?q=building+permits&limit=5
+      Next task: data-039 — validate US city dataset IDs via dry-run and
+      fix any incorrect IDs found.
+
+  - id: data-039
+    title: Validate and fix US city permit dataset IDs via live dry-run
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-038 added backend/ingest/us_city_permits.py with 9 US city configs.
+      Dataset IDs were researched from training knowledge — not live-verified.
+      Run: python backend/ingest/us_city_permits.py --dry-run
+      For any city returning 0 records or HTTP errors, verify the correct
+      dataset ID at:
+        https://<domain>/api/catalog/v1?q=building+permits&limit=5
+      Update the dataset_id and field names in CITY_CONFIGS as needed.
+      Once all cities pass dry-run, mark this task done.
