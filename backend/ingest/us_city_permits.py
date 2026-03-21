@@ -101,10 +101,11 @@ CITY_CONFIGS: list[dict] = [
     {
         # New York City — DOB Permit Issuance.
         # Portal: https://data.cityofnewyork.us
-        # Dataset: "DOB Permit Issuance" (active building permits from NYC Dept of Buildings)
-        # Verified dataset ID: ipu4-2q9a
-        # Lat/lon available as gis_latitude / gis_longitude (string floats).
-        # Address: house__ + street_name (borough in a separate field).
+        # Dataset: "DOB Permit Issuance" (ipu4-2q9a)
+        # Verified 2026-03-21 via catalog API.
+        # Note: date fields are text (MM/DD/YYYY), not calendar_date.
+        # SoQL date comparison won't work, so we skip the date filter and
+        # order by dobrundate DESC to get the most recently processed records.
         "city_name":        "New York City",
         "source_key":       "nyc",
         "domain":           "data.cityofnewyork.us",
@@ -112,8 +113,9 @@ CITY_CONFIGS: list[dict] = [
         "id_field":         "job__",
         "type_field":       "permit_type",
         "desc_field":       "job_type",
-        "issue_date_field": "issuance_date",
+        "issue_date_field": "dobrundate",
         "exp_date_field":   "expiration_date",
+        "skip_date_filter": True,
         "lat_field":        "gis_latitude",
         "lon_field":        "gis_longitude",
         "loc_field":        None,
@@ -122,214 +124,81 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Los Angeles — Building and Safety Permit Information.
+        # Los Angeles — LA BUILD PERMITS (LADBS).
         # Portal: https://data.lacity.org
-        # Dataset: "Building and Safety Permit Information" (LADBS)
-        # Verified dataset ID: yv23-pmwf
-        # Lat/lon available as latitude / longitude.
+        # Dataset: "LA BUILD PERMITS" (xnhu-aczu)
+        # Verified 2026-03-21 — yv23-pmwf returned 403 (requires auth).
         "city_name":        "Los Angeles",
         "source_key":       "los_angeles",
         "domain":           "data.lacity.org",
-        "dataset_id":       "yv23-pmwf",
-        "id_field":         "permit_nbr",
+        "dataset_id":       "xnhu-aczu",
+        "id_field":         "pcis_permit",
         "type_field":       "permit_type",
         "desc_field":       "work_description",
         "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
+        "exp_date_field":   None,
+        "lat_field":        None,
+        "lon_field":        None,
         "loc_field":        None,
-        "addr_field":       "address",
+        "addr_field":       "street_name",
         "city_state":       "Los Angeles, CA",
-        "where_clause":     None,
-    },
-    {
-        # Houston — Building Permits (PWE).
-        # Portal: https://data.houstontx.gov
-        # Dataset: "Building Permits" (Public Works & Engineering)
-        # Verified dataset ID: yqhg-mpp6
-        # Lat/lon available as latitude / longitude.
-        "city_name":        "Houston",
-        "source_key":       "houston",
-        "domain":           "data.houstontx.gov",
-        "dataset_id":       "yqhg-mpp6",
-        "id_field":         "proj_nbr",
-        "type_field":       "proj_type",
-        "desc_field":       "proj_desc",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Houston, TX",
-        "where_clause":     None,
-    },
-    {
-        # Phoenix — Development Services Building Permits.
-        # Portal: https://data.phoenix.gov
-        # Dataset: "Development Services - Building Permits"
-        # Verified dataset ID: 4uis-m2e7
-        # Lat/lon available as latitude / longitude.
-        "city_name":        "Phoenix",
-        "source_key":       "phoenix",
-        "domain":           "data.phoenix.gov",
-        "dataset_id":       "4uis-m2e7",
-        "id_field":         "permitno",
-        "type_field":       "permittype",
-        "desc_field":       "workdescription",
-        "issue_date_field": "issuedate",
-        "exp_date_field":   "expirationdate",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "siteaddress",
-        "city_state":       "Phoenix, AZ",
-        "where_clause":     None,
-    },
-    {
-        # Philadelphia — Licenses & Inspections Building Permits.
-        # Portal: https://data.phila.gov
-        # Dataset: "Licenses and Inspections Building Permits"
-        # Verified dataset ID: e5jq-k5ij
-        # Lat/lon available as lat / lng.
-        "city_name":        "Philadelphia",
-        "source_key":       "philadelphia",
-        "domain":           "data.phila.gov",
-        "dataset_id":       "e5jq-k5ij",
-        "id_field":         "permitnumber",
-        "type_field":       "permitdescription",
-        "desc_field":       "typeofwork",
-        "issue_date_field": "permitissuedate",
-        "exp_date_field":   "expirationdate",
-        "lat_field":        "lat",
-        "lon_field":        "lng",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Philadelphia, PA",
-        "where_clause":     None,
-    },
-    {
-        # San Antonio — Building Permits (Development Services).
-        # Portal: https://data.sanantonio.gov
-        # Dataset: "Building Permits"
-        # Verified dataset ID: 3par-ddjm
-        # Lat/lon available as latitude / longitude.
-        "city_name":        "San Antonio",
-        "source_key":       "san_antonio",
-        "domain":           "data.sanantonio.gov",
-        "dataset_id":       "3par-ddjm",
-        "id_field":         "applicationnumber",
-        "type_field":       "workcategory",
-        "desc_field":       "applicationdescription",
-        "issue_date_field": "issuedate",
-        "exp_date_field":   "expirationdate",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "siteaddress",
-        "city_state":       "San Antonio, TX",
-        "where_clause":     None,
-    },
-    {
-        # San Diego — Development Services Permits.
-        # Portal: https://data.sandiego.gov
-        # Dataset: "Building Permits" (Development Services)
-        # Verified dataset ID: p3ik-ydxi
-        # Lat/lon available as lat / lng.
-        "city_name":        "San Diego",
-        "source_key":       "san_diego",
-        "domain":           "data.sandiego.gov",
-        "dataset_id":       "p3ik-ydxi",
-        "id_field":         "apno",
-        "type_field":       "permittype",
-        "desc_field":       "workdescription",
-        "issue_date_field": "applydate",
-        "exp_date_field":   "expirationdate",
-        "lat_field":        "lat",
-        "lon_field":        "lng",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "San Diego, CA",
-        "where_clause":     None,
-    },
-    {
-        # Dallas — Building Permits.
-        # Portal: https://data.dallascityhall.com
-        # Dataset: "Building Permits"
-        # Verified dataset ID: idr4-wrb3
-        # Lat/lon available as latitude / longitude.
-        "city_name":        "Dallas",
-        "source_key":       "dallas",
-        "domain":           "data.dallascityhall.com",
-        "dataset_id":       "idr4-wrb3",
-        "id_field":         "permit_num",
-        "type_field":       "work_type_desc",
-        "desc_field":       "permit_desc",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Dallas, TX",
         "where_clause":     None,
     },
     {
         # Austin — Issued Construction Permits.
         # Portal: https://data.austintexas.gov
-        # Dataset: "Issued Construction Permits"
-        # Verified dataset ID: 3syk-w9eu
-        # Lat/lon available as latitude / longitude.
+        # Dataset: "Issued Construction Permits" (3syk-w9eu)
+        # Verified 2026-03-21 — date field is issue_date (not issued_date).
         "city_name":        "Austin",
         "source_key":       "austin",
         "domain":           "data.austintexas.gov",
         "dataset_id":       "3syk-w9eu",
-        "id_field":         "permit_num",
+        "id_field":         "permit_number",
         "type_field":       "permit_type_desc",
         "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   "expires_date",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   "expiresdate",
         "lat_field":        "latitude",
         "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
+        "loc_field":        "location",
+        "addr_field":       "original_address1",
         "city_state":       "Austin, TX",
         "where_clause":     None,
     },
-    # -----------------------------------------------------------------
-    # NOT SUPPORTED — no Socrata portal:
-    #
-    #   San Jose — Uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov), not Socrata.
-    #              If needed, implement a separate ArcGIS REST ingest script.
-    # -----------------------------------------------------------------
-
-    # -----------------------------------------------------------------
-    # STREET CLOSURE DATASETS (NYC confirmed; others TBD)
-    # -----------------------------------------------------------------
     {
-        # New York City — Street Closure Permits (DOT).
+        # New York City — Street Closures (DOT).
         # Portal: https://data.cityofnewyork.us
-        # Dataset: "Street Closure Permits" (NYC Department of Transportation)
-        # Verified dataset ID: i6b5-j7bu
-        # NOTE: this dataset has no lat/lon — address-only; geocode_fill.py
-        # will attempt to geocode the on_street + cross_street fields.
+        # Dataset: "Street Closure Permits" (i6b5-j7bu)
+        # Verified 2026-03-21 — fields: work_start_date, work_end_date,
+        #   uniqueid, onstreetname, purpose, the_geom (multiline).
+        # No lat/lon — geocode_fill handles it.
         "city_name":        "New York City Street Closures",
         "source_key":       "nyc_street_closures",
         "domain":           "data.cityofnewyork.us",
         "dataset_id":       "i6b5-j7bu",
-        "id_field":         "objectid",
-        "type_field":       "work_type",
-        "desc_field":       "purpose",
-        "issue_date_field": "startdate",
-        "exp_date_field":   "enddate",
+        "id_field":         "uniqueid",
+        "type_field":       "purpose",
+        "desc_field":       "onstreetname",
+        "issue_date_field": "work_start_date",
+        "exp_date_field":   "work_end_date",
         "lat_field":        None,
         "lon_field":        None,
         "loc_field":        None,
-        "addr_field":       "on_street",
+        "addr_field":       "onstreetname",
         "city_state":       "New York, NY",
         "where_clause":     None,
     },
+    # -----------------------------------------------------------------
+    # REMOVED — non-Socrata portals (verified 2026-03-21):
+    #
+    #   houston      — data.houstontx.gov uses CKAN, not Socrata
+    #   phoenix      — data.phoenix.gov returns non-JSON (not Socrata)
+    #   philadelphia — data.phila.gov uses CKAN, not Socrata (403 on catalog)
+    #   san_antonio  — data.sanantonio.gov uses CKAN, not Socrata
+    #   san_diego    — data.sandiego.gov uses S3/custom, not Socrata
+    #   dallas       — data.dallascityhall.com DNS does not resolve
+    #   san_jose     — uses ArcGIS Hub (gis.sanjoseca.gov)
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.
@@ -357,21 +226,27 @@ def build_params(
     days_back: int,
 ) -> dict:
     """Build Socrata SoQL query parameters for one page of permits."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
-    cutoff_str = cutoff.strftime("%Y-%m-%dT00:00:00")
-
     date_field = config["issue_date_field"]
-    where_parts = [f"{date_field} >= '{cutoff_str}'"]
-
-    if config.get("where_clause"):
-        where_parts.append(config["where_clause"])
 
     params: dict = {
         "$limit":  limit,
         "$offset": offset,
-        "$where":  " AND ".join(where_parts),
         "$order":  f"{date_field} DESC",
     }
+
+    # Some datasets (e.g. NYC) have text-type date fields where SoQL
+    # date comparison doesn't work. Skip the WHERE date filter for those.
+    if not config.get("skip_date_filter"):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT00:00:00")
+        where_parts = [f"{date_field} >= '{cutoff_str}'"]
+
+        if config.get("where_clause"):
+            where_parts.append(config["where_clause"])
+
+        params["$where"] = " AND ".join(where_parts)
+    elif config.get("where_clause"):
+        params["$where"] = config["where_clause"]
 
     if app_token:
         params["$$app_token"] = app_token
