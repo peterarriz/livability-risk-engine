@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
-import { detectNeighborhoodSlug, fetchNeighborhood, subscribeWatch } from "@/lib/api";
+import { detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, subscribeWatch } from "@/lib/api";
 import type {
+  CommuteResponse,
+  CommuteSignal,
   NeighborhoodResponse,
   NeighborhoodSlugInfo,
   ScoreHistoryEntry,
@@ -1795,6 +1797,240 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
           </p>
         )}
       </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CommuteChecker
+// Collapsible section below the main score. User inputs a second address
+// (workplace/destination); the app queries /commute for the corridor score,
+// badge (Low/Moderate/High), and any CTA service alerts in the corridor.
+// ---------------------------------------------------------------------------
+
+type CommuteCheckerProps = {
+  homeAddress: string;
+};
+
+function _commuteBadgeColor(badge: string): string {
+  if (badge === "Low") return "#10b981";
+  if (badge === "Moderate") return "#f59e0b";
+  return "#ef4444";
+}
+
+function _commuteSignalColor(impact_type: string | null): string {
+  if (!impact_type) return "#6b7280";
+  if (impact_type.startsWith("closure")) return "#ef4444";
+  if (impact_type === "construction" || impact_type === "demolition") return "#10b981";
+  return "#f59e0b";
+}
+
+export function CommuteChecker({ homeAddress }: CommuteCheckerProps) {
+  const [isOpen, setIsOpen]       = useState(false);
+  const [workAddr, setWorkAddr]   = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult]       = useState<CommuteResponse | null>(null);
+  const [error, setError]         = useState<string | null>(null);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleCheck(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = workAddr.trim();
+    if (!trimmed) return;
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    setShowSuggestions(false);
+    try {
+      const data = await fetchCommute(homeAddress, trimmed);
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not score commute corridor. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function handleWorkAddrChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setWorkAddr(val);
+    setResult(null);
+    setError(null);
+    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    if (val.trim().length >= 3) {
+      suggestTimerRef.current = setTimeout(async () => {
+        try {
+          const hits = await fetchSuggestions(val);
+          setSuggestions(hits);
+          setShowSuggestions(hits.length > 0);
+        } catch { /* ignore */ }
+      }, 300);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }
+
+  function pickSuggestion(s: string) {
+    setWorkAddr(s);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  const badgeColor = result ? _commuteBadgeColor(result.badge) : "#6b7280";
+
+  return (
+    <div className="commute-section">
+      <button
+        type="button"
+        className={`commute-toggle${isOpen ? " commute-toggle--open" : ""}`}
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+      >
+        <span className="commute-toggle-label">
+          <span className="commute-toggle-icon" aria-hidden="true">🚇</span>
+          Check my commute
+        </span>
+        <span className="commute-toggle-caret" aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {isOpen && (
+        <div className="commute-panel">
+          <p className="commute-description">
+            Add a destination to score disruption along your commute corridor. The app queries all
+            active signals between the two addresses and checks for CTA service alerts.
+          </p>
+
+          <form className="commute-form" onSubmit={handleCheck}>
+            <div className="commute-addr-display">
+              <span className="commute-addr-pin commute-addr-pin--home" aria-hidden="true">A</span>
+              <span className="commute-addr-text">{homeAddress}</span>
+            </div>
+            <div className="commute-input-row">
+              <span className="commute-addr-pin commute-addr-pin--work" aria-hidden="true">B</span>
+              <div className="commute-input-shell">
+                <input
+                  id="commute-work"
+                  className="commute-work-input"
+                  type="text"
+                  placeholder="Enter workplace or destination address"
+                  value={workAddr}
+                  onChange={handleWorkAddrChange}
+                  onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  autoComplete="off"
+                  required
+                />
+                {showSuggestions && (
+                  <ul className="commute-suggestions" role="listbox">
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        className="commute-suggestion-item"
+                        onMouseDown={() => pickSuggestion(s)}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="commute-submit-btn"
+                disabled={isLoading || !workAddr.trim()}
+              >
+                {isLoading ? "Scoring…" : "Score corridor"}
+              </button>
+            </div>
+          </form>
+
+          {error && <p className="commute-error">{error}</p>}
+
+          {result && (
+            <div className="commute-result">
+              {/* Score + badge row */}
+              <div className="commute-badge-row">
+                <div className="commute-score-block">
+                  <span className="commute-score-num" style={{ color: badgeColor }}>
+                    {result.commute_score}
+                  </span>
+                  <span className="commute-score-label">corridor score</span>
+                </div>
+                <span
+                  className="commute-badge"
+                  style={{
+                    background: `${badgeColor}1a`,
+                    border: `1px solid ${badgeColor}40`,
+                    color: badgeColor,
+                  }}
+                >
+                  {result.badge} disruption
+                </span>
+                <span className="commute-signals-count">
+                  {result.signals_count} active signal{result.signals_count !== 1 ? "s" : ""} in corridor
+                </span>
+              </div>
+
+              {/* Corridor construction/closure signals */}
+              {result.signals.length > 0 && (
+                <div className="commute-signals-block">
+                  <p className="commute-block-heading">Corridor signals</p>
+                  <ul className="commute-signals-list">
+                    {result.signals.slice(0, 6).map((sig: CommuteSignal, i: number) => (
+                      <li key={i} className="commute-signal-item">
+                        <span
+                          className="commute-signal-dot"
+                          style={{ background: _commuteSignalColor(sig.impact_type) }}
+                          aria-hidden="true"
+                        />
+                        <span className="commute-signal-title">
+                          {sig.title ?? sig.impact_type ?? "Unknown signal"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* CTA transit alerts */}
+              {result.transit_alerts.length > 0 && (
+                <div className="commute-signals-block">
+                  <p className="commute-block-heading">CTA service alerts in corridor</p>
+                  <ul className="commute-signals-list">
+                    {result.transit_alerts.slice(0, 5).map((alert: CommuteSignal, i: number) => (
+                      <li key={i} className="commute-signal-item commute-signal-item--transit">
+                        <span className="commute-signal-dot commute-signal-dot--transit" aria-hidden="true" />
+                        <span className="commute-signal-title">
+                          {alert.title ?? "CTA service alert"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* CTA stations with no active alerts */}
+              {result.transit_stations.length > 0 && result.transit_alerts.length === 0 && (
+                <p className="commute-transit-clear">
+                  {result.transit_stations.length} CTA station
+                  {result.transit_stations.length !== 1 ? "s" : ""} in corridor — no active service alerts.
+                </p>
+              )}
+
+              {result.mode === "demo" && (
+                <p className="commute-demo-note">
+                  Demo data — connect a live database for real corridor signals.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

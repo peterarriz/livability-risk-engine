@@ -816,3 +816,54 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
   }
   return { score, source: "live" };
 }
+
+// ── Commute corridor scoring ──────────────────────────────────────────────────
+
+export type CommuteSignal = {
+  title: string | null;
+  impact_type: string | null;
+  lat: number | null;
+  lon: number | null;
+  source: string;
+};
+
+export type CommuteResponse = {
+  home: string;
+  work: string;
+  commute_score: number;
+  badge: "Low" | "Moderate" | "High";
+  signals_count: number;
+  signals: CommuteSignal[];
+  transit_stations: Array<{ name: string; lat: number; lon: number }>;
+  transit_alerts: CommuteSignal[];
+  home_coords: { lat: number; lon: number } | null;
+  work_coords: { lat: number; lon: number } | null;
+  mode: "live" | "demo";
+};
+
+/**
+ * Score the disruption along a commute corridor between two addresses.
+ * POSTs to /commute with { home, work }.
+ * Returns null when the backend is not configured.
+ */
+export async function fetchCommute(
+  home: string,
+  work: string,
+): Promise<CommuteResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot score commute corridor.");
+  }
+  const url = buildApiUrl("/commute");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ home, work }),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(data.detail ?? `Commute scoring failed (${resp.status}).`);
+  }
+  return (await resp.json()) as CommuteResponse;
+}

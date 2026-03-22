@@ -1338,6 +1338,165 @@ def get_neighborhood_best_streets(slug: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# /commute endpoint
+# Scores the disruption along a commute corridor between two addresses.
+# Geocodes both, builds a bounding box, queries active signals in the corridor,
+# identifies CTA stations and service alerts, and returns a scored response.
+# ---------------------------------------------------------------------------
+
+class CommuteRequest(BaseModel):
+    home: str   # origin / home address
+    work: str   # destination / workplace address
+
+
+def _commute_badge(score: int) -> str:
+    if score <= 25:
+        return "Low"
+    if score <= 55:
+        return "Moderate"
+    return "High"
+
+
+@app.post("/commute")
+def check_commute(body: CommuteRequest) -> dict:
+    """
+    Score the disruption along a commute corridor between two addresses.
+
+    Steps:
+      1. Geocode home + work → (lat, lon) pairs
+      2. Build a bounding box (with 0.003° padding) enclosing the corridor
+      3. Query all active projects within the bbox via _get_projects_in_bbox
+      4. Score the corridor: sum of per-signal impact weights, capped at 100
+      5. Identify CTA stations within the bbox
+      6. Identify CTA service-alert projects in the bbox (source starts with "cta")
+      7. Return score, badge (Low/Moderate/High), signals, and transit alerts
+
+    Falls back to a demo response when DB is not configured or geocoding fails.
+    """
+    if not _is_db_configured():
+        # Demo mode — synthetic corridor between two Chicago landmarks.
+        return {
+            "home": body.home,
+            "work": body.work,
+            "commute_score": 38,
+            "badge": "Moderate",
+            "signals_count": 4,
+            "signals": [
+                {"title": "W Chicago Ave 2-lane eastbound closure", "impact_type": "closure_multi_lane",
+                 "lat": 41.8959, "lon": -87.6594, "source": "chicago_closures"},
+                {"title": "Active construction permit near Grand Ave", "impact_type": "construction",
+                 "lat": 41.8910, "lon": -87.6462, "source": "chicago_permits"},
+                {"title": "Curb lane closure on N State St", "impact_type": "closure_single_lane",
+                 "lat": 41.8840, "lon": -87.6280, "source": "chicago_closures"},
+                {"title": "Utility work permit on S Wacker Dr", "impact_type": "light_permit",
+                 "lat": 41.8788, "lon": -87.6359, "source": "chicago_permits"},
+            ],
+            "transit_stations": [
+                {"name": "Grand", "lat": 41.8915, "lon": -87.6477},
+                {"name": "State/Lake", "lat": 41.8858, "lon": -87.6278},
+            ],
+            "transit_alerts": [],
+            "home_coords": None,
+            "work_coords": None,
+            "mode": "demo",
+        }
+
+    try:
+        from backend.ingest.geocode import geocode_address
+
+        home_coords = geocode_address(body.home)
+        work_coords = geocode_address(body.work)
+
+        if not home_coords or not work_coords:
+            missing = "home" if not home_coords else "destination"
+            raise HTTPException(
+                status_code=422,
+                detail=f"Could not geocode {missing} address: "
+                       f"{body.home if not home_coords else body.work!r}",
+            )
+
+        home_lat, home_lon = home_coords
+        work_lat, work_lon = work_coords
+
+        # Build corridor bbox with a small padding so signals on the edges
+        # are included. 0.003° ≈ 270 m at Chicago latitude.
+        pad = 0.003
+        min_lat = min(home_lat, work_lat) - pad
+        max_lat = max(home_lat, work_lat) + pad
+        min_lon = min(home_lon, work_lon) - pad
+        max_lon = max(home_lon, work_lon) + pad
+
+        projects = _get_projects_in_bbox(min_lat, min_lon, max_lat, max_lon)
+
+        # Corridor score: sum of per-signal weights, capped at 100.
+        corridor_score = min(
+            100,
+            sum(_BLOCK_IMPACT_WEIGHTS.get(p.get("impact_type") or "", 8) for p in projects),
+        )
+        badge = _commute_badge(corridor_score)
+
+        # Separate CTA service alerts from construction/closure signals.
+        transit_alerts = [
+            p for p in projects
+            if (p.get("source") or "").lower().startswith("cta")
+        ]
+        corridor_signals = [p for p in projects if p not in transit_alerts]
+
+        # Find CTA stations within the bbox.
+        transit_stations: list[dict] = []
+        try:
+            from backend.ingest.cta_alerts import CTA_STATION_COORDS
+            for station_name, (slat, slon) in CTA_STATION_COORDS.items():
+                if min_lat <= slat <= max_lat and min_lon <= slon <= max_lon:
+                    transit_stations.append({"name": station_name, "lat": slat, "lon": slon})
+        except Exception as cta_exc:
+            log.debug("CTA station lookup skipped: %s", cta_exc)
+
+        log.info(
+            "commute home=%r work=%r score=%d badge=%s signals=%d transit_alerts=%d",
+            body.home, body.work, corridor_score, badge, len(projects), len(transit_alerts),
+        )
+
+        return {
+            "home": body.home,
+            "work": body.work,
+            "commute_score": corridor_score,
+            "badge": badge,
+            "signals_count": len(projects),
+            "signals": [
+                {
+                    "title": p.get("title"),
+                    "impact_type": p.get("impact_type"),
+                    "lat": p.get("lat"),
+                    "lon": p.get("lon"),
+                    "source": p.get("source", ""),
+                }
+                for p in corridor_signals
+            ],
+            "transit_stations": transit_stations,
+            "transit_alerts": [
+                {
+                    "title": p.get("title"),
+                    "impact_type": p.get("impact_type"),
+                    "lat": p.get("lat"),
+                    "lon": p.get("lon"),
+                    "source": p.get("source", ""),
+                }
+                for p in transit_alerts
+            ],
+            "home_coords": {"lat": home_lat, "lon": home_lon},
+            "work_coords": {"lat": work_lat, "lon": work_lon},
+            "mode": "live",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("check_commute home=%r work=%r error: %s", body.home, body.work, exc)
+        raise HTTPException(status_code=503, detail="Commute scoring temporarily unavailable.") from exc
+
+
 @app.get("/suggest")
 def suggest_addresses(
     q: str = Query(..., min_length=2, description="Partial Chicago address query"),

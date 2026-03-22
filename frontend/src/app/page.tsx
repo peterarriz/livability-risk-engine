@@ -3,6 +3,7 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  CommuteChecker,
   ExplanationPanel,
   getConfidenceReasons,
   getMeaningInsights,
@@ -626,6 +627,9 @@ export default function HomePage() {
               {result.disruption_score >= 50 && (
                 <WatchlistForm address={result.address} score={result.disruption_score} />
               )}
+
+              {/* ── Check my commute ─────────────────────────────────────── */}
+              <CommuteChecker homeAddress={result.address} />
 
               <div className="detail-grid detail-grid--balanced">
                 <Card className="detail-card">

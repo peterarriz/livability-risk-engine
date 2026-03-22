@@ -3039,3 +3039,337 @@ button:disabled {
     gap: 14px;
   }
 }
+
+/* ─── Check my commute ────────────────────────────────────────────────────── */
+
+.commute-section {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  margin-top: 0;
+}
+
+.commute-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  cursor: pointer;
+  color: var(--text, #f1f5f9);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.commute-toggle:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.commute-toggle--open {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.commute-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commute-toggle-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.commute-toggle-caret {
+  font-size: 0.65rem;
+  color: var(--text-muted, #64748b);
+  flex-shrink: 0;
+}
+
+.commute-panel {
+  padding: 20px 20px 22px;
+  background: rgba(255, 255, 255, 0.015);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commute-description {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-soft, #94a3b8);
+  line-height: 1.6;
+}
+
+.commute-addr-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text-soft, #94a3b8);
+}
+
+.commute-addr-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.62rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.commute-addr-pin--home {
+  background: rgba(132, 166, 255, 0.2);
+  color: #84a6ff;
+  border: 1px solid rgba(132, 166, 255, 0.3);
+}
+
+.commute-addr-pin--work {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.commute-addr-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commute-input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.commute-input-shell {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.commute-work-input {
+  width: 100%;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text, #f1f5f9);
+  font-size: 0.85rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.commute-work-input:focus {
+  border-color: rgba(132, 166, 255, 0.45);
+  box-shadow: 0 0 0 2px rgba(132, 166, 255, 0.1);
+}
+
+.commute-work-input::placeholder {
+  color: var(--text-muted, #64748b);
+}
+
+.commute-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #0f1e30;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.commute-suggestion-item {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--text, #f1f5f9);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.commute-suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.commute-submit-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #84a6ff 0%, #5f7cff 100%);
+  color: #07101d;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.commute-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.commute-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #f87171;
+  padding: 8px 12px;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 8px;
+}
+
+/* Result area */
+
+.commute-result {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.commute-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.commute-score-block {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.commute-score-num {
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.commute-score-label {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+  font-weight: 500;
+}
+
+.commute-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.commute-signals-count {
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+}
+
+.commute-signals-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commute-block-heading {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.commute-signals-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.commute-signal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-soft, #94a3b8);
+}
+
+.commute-signal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.commute-signal-dot--transit {
+  background: #8b5cf6;
+}
+
+.commute-signal-item--transit {
+  color: var(--text-soft, #94a3b8);
+}
+
+.commute-signal-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commute-transit-clear {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.commute-transit-clear::before {
+  content: "✓";
+  font-weight: 700;
+}
+
+.commute-demo-note {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .commute-input-row {
+    flex-direction: column;
+  }
+
+  .commute-input-shell {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .commute-submit-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
