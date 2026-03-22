@@ -763,57 +763,203 @@ export function ImpactWindow({ result }: ImpactWindowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// ScoreSparkline  (data-025)
-// Renders a compact SVG line chart of historical disruption scores.
+// ScoreSparkline  (data-025, enhanced)
+// 200×44 SVG line chart with:
+//   • Gradient area fill below the line
+//   • Dashed horizontal reference at Chicago average (35)
+//   • Distinct "today" dot on the current score (rightmost point)
+//   • Week-over-week trend label: "Up X pts this week" / "Down X pts" / "Stable"
 // ---------------------------------------------------------------------------
+
+const CHICAGO_AVG = 35;
+const DAY_MS = 86_400_000;
 
 type ScoreSparklineProps = {
   history: ScoreHistoryEntry[];
   currentScore: number;
 };
 
+let _sparklineCounter = 0;
+
 export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
-  // history is newest-first; reverse to render chronologically left→right.
-  const points = useMemo(() => {
-    const chronological = [...history].reverse();
-    // Append the current live score as the rightmost point.
-    const all = [...chronological, { disruption_score: currentScore, confidence: "LOW" as const, mode: "live" as const, created_at: null }];
-    return all.map((e) => e.disruption_score);
+  // Stable unique id so the SVG gradient doesn't collide when two sparklines
+  // appear on the same page (score card + neighbourhood context card).
+  const gradId = useMemo(() => `spark-fill-${++_sparklineCounter}`, []);
+  const derived = useMemo(() => {
+    const now = Date.now();
+    const cutoff30 = now - 30 * DAY_MS;
+
+    // Sort chronologically; drop entries older than 30 days.
+    const dated = history
+      .filter((e) => e.created_at != null)
+      .map((e) => ({ score: e.disruption_score, ts: new Date(e.created_at!).getTime() }))
+      .filter((e) => e.ts >= cutoff30)
+      .sort((a, b) => a.ts - b.ts);
+
+    // Undated entries (created_at null) spread across the window as fallback.
+    const undated = history
+      .filter((e) => e.created_at == null)
+      .map((e, i, arr) => ({
+        score: e.disruption_score,
+        ts: cutoff30 + ((i + 1) / (arr.length + 1)) * (30 * DAY_MS),
+      }));
+
+    const historical = [...undated, ...dated].sort((a, b) => a.ts - b.ts);
+
+    // Always append the live current score as "now".
+    const all = [...historical, { score: currentScore, ts: now }];
+    if (all.length < 2) return null;
+
+    // Week trend: compare current score vs the oldest entry >= 5 days old.
+    const fiveDaysAgo = now - 5 * DAY_MS;
+    const weekRef = historical.filter((e) => e.ts <= fiveDaysAgo).at(-1);
+    const weekDelta = weekRef != null ? currentScore - weekRef.score : null;
+
+    return { points: all.map((e) => e.score), weekDelta, count: all.length };
   }, [history, currentScore]);
 
-  if (points.length < 2) return null;
+  if (!derived) return null;
 
-  const W = 160;
-  const H = 36;
-  const PAD = 2;
-  const min = Math.max(0, Math.min(...points) - 5);
-  const max = Math.min(100, Math.max(...points) + 5);
-  const range = max - min || 1;
+  const { points, weekDelta, count } = derived;
 
-  function toX(i: number) {
-    return PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  // ── SVG layout ────────────────────────────────────────────────
+  const W = 200;
+  const H = 44;
+  const PX = 6;   // horizontal pad
+  const PY = 5;   // vertical pad
+  const innerW = W - PX * 2;
+  const innerH = H - PY * 2;
+
+  const minVal = Math.max(0,   Math.min(...points, CHICAGO_AVG) - 6);
+  const maxVal = Math.min(100, Math.max(...points, CHICAGO_AVG) + 6);
+  const range  = maxVal - minVal || 1;
+
+  const toX = (i: number) => PX + (i / (points.length - 1)) * innerW;
+  const toY = (v: number) => PY + (1 - (v - minVal) / range) * innerH;
+
+  // Line path
+  const linePath = points
+    .map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+    .join(" ");
+
+  // Closed area path (line + bottom edge)
+  const areaPath =
+    linePath +
+    ` L${toX(points.length - 1).toFixed(1)},${H} L${PX},${H} Z`;
+
+  // Chicago avg line
+  const avgY   = toY(CHICAGO_AVG);
+  const todayX = toX(points.length - 1);
+  const todayY = toY(points[points.length - 1]);
+
+  // Dot color: match score band
+  const dotColor =
+    currentScore >= 81 ? "#7c3aed" :
+    currentScore >= 61 ? "#ef4444" :
+    currentScore >= 41 ? "#f59e0b" :
+    currentScore >= 21 ? "#3ce5b3" :
+                         "#10b981";
+
+  // Trend label
+  let trendLabel: string;
+  let trendColor: string;
+  if (weekDelta === null || Math.abs(weekDelta) <= 2) {
+    trendLabel = "→ Stable this week";
+    trendColor = "#94a3b8";
+  } else if (weekDelta > 0) {
+    trendLabel = `↑ Up ${weekDelta} pts this week`;
+    trendColor = "#ef4444";
+  } else {
+    trendLabel = `↓ Down ${Math.abs(weekDelta)} pts this week`;
+    trendColor = "#10b981";
   }
-  function toY(v: number) {
-    return PAD + (1 - (v - min) / range) * (H - PAD * 2);
-  }
-
-  const pathD = points.map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
-  const lastX = toX(points.length - 1);
-  const lastY = toY(points[points.length - 1]);
-  const trend = points.length >= 2 ? points[points.length - 1] - points[points.length - 2] : 0;
-  const trendLabel = trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : "→ stable";
-  const trendColor = trend > 5 ? "#ef4444" : trend < -5 ? "#22c55e" : "#94a3b8";
 
   return (
-    <div className="sparkline-wrapper" aria-label={`Score trend over ${points.length} readings`}>
-      <div className="sparkline-meta">
-        <span className="sparkline-label">{points.length} readings</span>
-        <span className="sparkline-trend" style={{ color: trendColor }}>{trendLabel}</span>
+    <div
+      className="sparkline-wrapper"
+      aria-label={`Score history over ${count} readings. ${trendLabel}.`}
+    >
+      {/* Header row */}
+      <div className="sparkline-header">
+        <span className="sparkline-label">Score history · 30 days</span>
+        <span className="sparkline-trend" style={{ color: trendColor }}>
+          {trendLabel}
+        </span>
       </div>
-      <svg width={W} height={H} className="sparkline-svg" aria-hidden="true">
-        <path d={pathD} fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round" />
-        <circle cx={lastX} cy={lastY} r="3" fill={trendColor} />
+
+      {/* SVG chart */}
+      <svg
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        className="sparkline-svg"
+        aria-hidden="true"
+        style={{ display: "block", overflow: "visible" }}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#84a6ff" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#84a6ff" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Area fill */}
+        <path d={areaPath} fill={`url(#${gradId})`} />
+
+        {/* Line */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#84a6ff"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+
+        {/* Chicago average dashed reference line */}
+        <line
+          x1={PX}
+          y1={avgY.toFixed(1)}
+          x2={W - PX}
+          y2={avgY.toFixed(1)}
+          stroke="rgba(148,163,184,0.45)"
+          strokeWidth="1"
+          strokeDasharray="3 3"
+        />
+        {/* "35" label at right edge of avg line */}
+        <text
+          x={W - PX + 1}
+          y={(avgY + 3.5).toFixed(1)}
+          fontSize="7"
+          fill="rgba(148,163,184,0.7)"
+          textAnchor="start"
+          fontFamily="system-ui, sans-serif"
+        >
+          35
+        </text>
+
+        {/* Today dot — outer ring */}
+        <circle
+          cx={todayX.toFixed(1)}
+          cy={todayY.toFixed(1)}
+          r="5"
+          fill={dotColor}
+          fillOpacity="0.2"
+        />
+        {/* Today dot — inner solid */}
+        <circle
+          cx={todayX.toFixed(1)}
+          cy={todayY.toFixed(1)}
+          r="3"
+          fill={dotColor}
+        />
       </svg>
+
+      {/* Chicago avg annotation */}
+      <div className="sparkline-avg-note">
+        <span className="sparkline-avg-dash" aria-hidden="true" />
+        Chicago avg: 35
+      </div>
     </div>
   );
 }

@@ -1887,6 +1887,62 @@ button:disabled {
   line-height: 1.65;
 }
 
+/* ─── Score sparkline (/score card) ──────────────────────────────────────── */
+
+.sparkline-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 4px;
+}
+
+.sparkline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sparkline-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.sparkline-trend {
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sparkline-svg {
+  width: 100%;
+  max-width: 200px;
+  height: 44px;
+}
+
+.sparkline-avg-note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.62rem;
+  color: rgba(148, 163, 184, 0.65);
+  letter-spacing: 0.02em;
+}
+
+.sparkline-avg-dash {
+  display: inline-block;
+  width: 14px;
+  height: 1px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.5);
+  flex-shrink: 0;
+}
+
 @media (max-width: 1100px) {
   .workspace-top-grid,
   .support-grid,

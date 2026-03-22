@@ -212,7 +212,7 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
-    fetchHistory(result.address, 20).then((r) =>
+    fetchHistory(result.address, 30).then((r) =>
       setScoreHistory(
         r
           ? r.history.map((h) => ({
@@ -596,7 +596,7 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
-                  {scoreHistory.length >= 2 && (
+                  {scoreHistory.length >= 1 && (
                     <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
                   )}
                   <div className="score-actions">
