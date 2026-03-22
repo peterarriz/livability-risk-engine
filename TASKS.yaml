@@ -506,18 +506,86 @@ tasks:
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      data-039 added backend/ingest/us_city_permits_ckan.py with resource_ids
-      researched from training knowledge — not live-verified.
-      Steps:
-        1. Run --discover for each city to confirm resource UUIDs:
-             python backend/ingest/us_city_permits_ckan.py --city houston --discover
-             python backend/ingest/us_city_permits_ckan.py --city philadelphia --discover
-             python backend/ingest/us_city_permits_ckan.py --city san_antonio --discover
-             python backend/ingest/us_city_permits_ckan.py --city san_diego --discover
-        2. Sample one record per city to inspect field names:
-             curl "https://<domain>/api/3/action/datastore_search?resource_id=<UUID>&limit=1"
-        3. Update resource_id, id_field, type_field, desc_field, issue_date_field,
-           lat_field, lon_field in CITY_CONFIGS for any cities that fail.
-        4. Run --dry-run to confirm records are returned:
-             python backend/ingest/us_city_permits_ckan.py --dry-run
-        5. Mark this task done once all 4 cities return records in dry-run.
+      data-038 added backend/ingest/us_city_permits.py with 9 US city configs.
+      Dataset IDs were researched from training knowledge — not live-verified.
+      Run: python backend/ingest/us_city_permits.py --dry-run
+      For any city returning 0 records or HTTP errors, verify the correct
+      dataset ID at:
+        https://<domain>/api/catalog/v1?q=building+permits&limit=5
+      Update the dataset_id and field names in CITY_CONFIGS as needed.
+      Once all cities pass dry-run, mark this task done.
+
+  - id: data-040
+    title: Implement FEMA flood zones, crime trends, and Census ACS data — neighborhood quality layer
+    status: done
+    priority: high
+    github_issue: 106
+    notes_for_next_agent: >
+      Four new files added:
+        - backend/ingest/fema_flood_zones.py
+            Queries FEMA NFHL ArcGIS REST API (Layer 28: S_Fld_Haz_Ar) for
+            flood zone polygon centroids covering Chicago metro (Cook County).
+            Classifies as HIGH/MODERATE/MINIMAL/UNKNOWN.
+            Output: data/raw/fema_flood_zones.json
+        - backend/ingest/chicago_crime_trends.py
+            Queries Socrata dataset 31yy-ehbz (Crimes) for crime counts by
+            community area (77 areas). Calculates 12-month trend vs prior year.
+            Fetches community area polygon centroids from Chicago Data Portal.
+            Output: data/raw/chicago_crime_trends.json
+        - backend/ingest/census_acs.py
+            Queries Census ACS 5-year API (2022 vintage) for Cook County
+            census tracts. Variables: median income, population, vacancy rate,
+            median housing age. Fetches tract centroids from TIGER web service.
+            Output: data/raw/census_acs.json
+        - backend/ingest/load_neighborhood_quality.py
+            Loads staging files into neighborhood_quality DB table.
+            Supports --source fema|crime|census|all, --dry-run.
+      Schema change:
+        - db/schema.sql: Added neighborhood_quality table with PostGIS geom
+          (centroid point) for KNN spatial lookup. Three partial spatial indexes
+          per region_type. Columns cover all three data sources in one table.
+      Scoring change:
+        - backend/scoring/query.py: Added get_neighborhood_context(lat, lon, conn).
+          Three KNN queries (one per region_type). Returns dict or None.
+        - backend/app/main.py: _score_live() now calls get_neighborhood_context()
+          and includes neighborhood_context in the API response (non-fatal).
+      Pipeline change:
+        - run_pipeline.py: Added 4 new steps and 4 skip flags:
+          --skip-fema, --skip-crime-trends, --skip-census-acs,
+          --skip-neighborhood-quality
+      Before relying on this data in production, run each script with --dry-run
+      to verify API availability:
+        python backend/ingest/fema_flood_zones.py --dry-run
+        python backend/ingest/chicago_crime_trends.py --dry-run
+        python backend/ingest/census_acs.py --dry-run
+      Once the DB is live, run the full pipeline and validate:
+        curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago+IL"
+        → response should include "neighborhood_context" field.
+      Next: data-041 — validate neighborhood quality APIs and verify
+      neighborhood_context appears in live /score responses.
+
+  - id: data-041
+    title: Validate neighborhood quality APIs and verify live /score neighborhood_context
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-040 added three ingest scripts and a loader for the neighborhood_quality
+      table. Before this data is trusted in production, validate each API:
+        1. Run dry-runs for each source:
+             python backend/ingest/fema_flood_zones.py --dry-run
+             python backend/ingest/chicago_crime_trends.py --dry-run
+             python backend/ingest/census_acs.py --dry-run
+           Confirm each prints sample records, not errors or 0 results.
+        2. If FEMA returns 0 features: check that the NFHL MapServer layer 28
+           is accessible and the bbox query works. The FEMA NFHL URL may need
+           to be verified against https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer
+        3. If Census TIGER returns 0 centroids: check INTPTLAT/INTPTLON field
+           names. The TIGER web MapServer layer 8 should have these fields for
+           2020 census boundaries. Try adding INTPTLAT20, INTPTLON20 as fallback.
+        4. Once all three dry-runs succeed, run the full pipeline and verify:
+             curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago+IL"
+             → should include neighborhood_context field with flood_risk,
+               crime_trend, median_income, etc.
+        5. If neighborhood_context is null: confirm neighborhood_quality table
+           was populated (run db_summary.py) and that geom column is not all NULL.
