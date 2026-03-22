@@ -547,7 +547,7 @@ def get_db_connection():
     # Try DATABASE_URL first (Railway/Heroku standard)
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
-        return psycopg2.connect(database_url)
+        return psycopg2.connect(database_url, connect_timeout=5)
 
     # Fallback to individual environment variables
     return psycopg2.connect(
@@ -556,6 +556,7 @@ def get_db_connection():
         dbname=os.environ.get("POSTGRES_DB", "livability"),
         user=os.environ.get("POSTGRES_USER", "postgres"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
+        connect_timeout=5,
     )
 
 
