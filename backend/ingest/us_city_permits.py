@@ -13,11 +13,12 @@ Supported sources (configured in CITY_CONFIGS):
   - New York City Street Closures (data.cityofnewyork.us)
   - Seattle        (data.seattle.gov)
   - Kansas City    (data.kcmo.org)  [added data-045]
-  - Indianapolis   (data.indy.gov)  [added data-045]
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
     A future task can add an ArcGIS REST ingest if needed.
+  - Indianapolis — data.indy.gov uses ArcGIS Hub; no building permit dataset
+    is published (only ordinance PDFs). Verified 2026-03-22.
   - Denver, Boston, Milwaukee — use CKAN; see us_city_permits_ckan.py.
   - Portland, Nashville, Detroit, Memphis, Louisville, Baltimore — portals
     are down, non-Socrata, or returning non-JSON. Removed 2026-03-22.
@@ -257,10 +258,25 @@ CITY_CONFIGS: list[dict] = [
         "exp_date_field":   None,
         "skip_date_filter": True,
         "max_records":      5000,
+        # Kansas City, MO — Building Permits (CPD Dataset).
+        # Portal: https://data.kcmo.org  (Socrata)
+        # Dataset: "Permits - CPD Dataset" (ntw8-aacc)
+        # Verified 2026-03-22 via catalog API and sample query.
+        # Fields verified: permitnum, permittypedesc, description, issueddate,
+        #   expiresdate, latitude, longitude, originaladdress1.
+        "city_name":        "Kansas City",
+        "source_key":       "kansas_city",
+        "domain":           "data.kcmo.org",
+        "dataset_id":       "ntw8-aacc",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
         "lat_field":        "latitude",
         "lon_field":        "longitude",
         "loc_field":        None,
-        "addr_field":       "address",
+        "addr_field":       "originaladdress1",
         "city_state":       "Kansas City, MO",
         "where_clause":     None,
     },
@@ -302,6 +318,9 @@ CITY_CONFIGS: list[dict] = [
     # -----------------------------------------------------------------
     # REMOVED — non-Socrata portals (verified 2026-03-22):
     #
+    #   indianapolis — data.indy.gov uses ArcGIS Hub; no building permit
+    #                  dataset is published (only ordinance PDFs). Verified
+    #                  2026-03-22 via Hub search + GIS server scan.
     #   portland     — data.portlandoregon.gov DNS not resolving
     #   nashville    — data.nashville.gov returns non-JSON (not Socrata)
     #   detroit      — data.detroitmi.gov returns non-JSON (not Socrata)
