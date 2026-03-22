@@ -199,12 +199,56 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches Kansas City KCPD crime data and calculates 12-month trends by division.
+        # Source: data.kcmo.org (Socrata). Failures are non-fatal.
+        "name": "Fetch Kansas City crime trends",
+        "cmd": [sys.executable, "backend/ingest/kansas_city_crime_trends.py"],
+        "skip_key": "skip_kc_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Denver DPD crime data and calculates 12-month trends by district.
+        # Source: data.denvergov.org (Socrata-compatible). Failures are non-fatal.
+        "name": "Fetch Denver crime trends",
+        "cmd": [sys.executable, "backend/ingest/denver_crime_trends.py"],
+        "skip_key": "skip_denver_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Boston BPD crime data and calculates 12-month trends by district.
+        # Source: data.boston.gov (CKAN). Failures are non-fatal.
+        "name": "Fetch Boston crime trends",
+        "cmd": [sys.executable, "backend/ingest/boston_crime_trends.py"],
+        "skip_key": "skip_boston_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Milwaukee MPS crime data and calculates 12-month trends by district.
+        # Source: data.milwaukee.gov (CKAN). Failures are non-fatal.
+        "name": "Fetch Milwaukee crime trends",
+        "cmd": [sys.executable, "backend/ingest/milwaukee_crime_trends.py"],
+        "skip_key": "skip_milwaukee_crime",
+        "non_fatal": True,
+    },
+    {
         # Fetches building permits from CKAN-based city open data portals
         # (Boston, Milwaukee, and other non-Socrata cities).
         # Individual city failures are non-fatal — pipeline continues.
         "name": "Fetch US city permits (CKAN cities)",
         "cmd": [sys.executable, "backend/ingest/us_city_permits_ckan.py"],
         "skip_key": "skip_ckan_cities",
+        "non_fatal": True,
+    },
+    {
+        # Fetches building permits from ArcGIS FeatureServer portals
+        # (Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville).
+        # NOTE: Service URLs require verification before first production run.
+        #   Run: python backend/ingest/us_city_permits_arcgis.py --discover
+        #   or visit each city's open data portal to confirm the FeatureServer URL.
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (ArcGIS cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits_arcgis.py"],
+        "skip_key": "skip_arcgis_cities",
         "non_fatal": True,
     },
     {
@@ -367,9 +411,34 @@ def parse_args() -> argparse.Namespace:
         help="Skip the NYC crime trends fetch step.",
     )
     parser.add_argument(
+        "--skip-kc-crime",
+        action="store_true",
+        help="Skip the Kansas City crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-denver-crime",
+        action="store_true",
+        help="Skip the Denver crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-boston-crime",
+        action="store_true",
+        help="Skip the Boston crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-milwaukee-crime",
+        action="store_true",
+        help="Skip the Milwaukee crime trends fetch step.",
+    )
+    parser.add_argument(
         "--skip-ckan-cities",
         action="store_true",
         help="Skip the CKAN city permits fetch step (Boston, Milwaukee, etc.).",
+    )
+    parser.add_argument(
+        "--skip-arcgis-cities",
+        action="store_true",
+        help="Skip the ArcGIS city permits fetch step (Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville).",
     )
     parser.add_argument(
         "--skip-school-ratings",
