@@ -8,6 +8,7 @@ import {
   getConfidenceReasons,
   getMeaningInsights,
   ImpactWindow,
+  MobileScoreView,
   NeighborhoodContextCard,
   ScoreHero,
   ScoreSparkline,
@@ -51,6 +52,9 @@ export default function HomePage() {
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
+  // Mobile simplified view — reset to false on each new result so users always
+  // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
+  const [mobileShowFull, setMobileShowFull] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -267,6 +271,7 @@ export default function HomePage() {
     track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
+    setMobileShowFull(false);
     try {
       const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
@@ -584,6 +589,18 @@ export default function HomePage() {
             </section>
           ) : result ? (
             <section className="results results--loaded workspace-flow">
+              {/* ── Mobile simplified view (CSS-hidden on desktop ≥ 768px) ── */}
+              {!mobileShowFull && (
+                <div className="mobile-view">
+                  <MobileScoreView
+                    result={result}
+                    onShowFull={() => setMobileShowFull(true)}
+                  />
+                </div>
+              )}
+
+              {/* ── Full desktop results (CSS-hidden on mobile unless mobileShowFull) ── */}
+              <div className={`desktop-view${!mobileShowFull ? " desktop-view--mobile-hidden" : ""}`}>
               {result.disruption_score >= 61 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
@@ -731,6 +748,7 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
+              </div>{/* end desktop-view */}
             </section>
           ) : (
             <section className="results">

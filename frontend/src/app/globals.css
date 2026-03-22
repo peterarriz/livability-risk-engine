@@ -3040,6 +3040,311 @@ button:disabled {
   }
 }
 
+/* ─── Mobile / Desktop view switching ────────────────────────────────────── */
+
+/* On desktop: always show the full results; never show the mobile summary. */
+@media (min-width: 768px) {
+  .mobile-view {
+    display: none !important;
+  }
+}
+
+/* On mobile: hide the full desktop results unless the user tapped "full report". */
+@media (max-width: 767px) {
+  .desktop-view--mobile-hidden {
+    display: none;
+  }
+}
+
+/* ─── Mobile Score View (.msv) ────────────────────────────────────────────── */
+
+.msv {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--bg, #07101d);
+  color: var(--text, #f1f5f9);
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+
+.msv-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px 36px;
+  min-height: 42svh;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 100%,
+    color-mix(in srgb, var(--msv-band-color, #f59e0b) 12%, transparent),
+    transparent
+  );
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.msv-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.msv-score {
+  font-size: clamp(5rem, 26vw, 7.5rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
+}
+
+.msv-band {
+  margin: 0 0 10px;
+  font-size: clamp(1.25rem, 5vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.msv-address {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-soft, #94a3b8);
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+.msv-demo-badge {
+  margin-top: 10px;
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  color: #f59e0b;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Signal pills ─────────────────────────────────────────────────────────── */
+
+.msv-pills-section {
+  padding: 20px 20px 0;
+}
+
+.msv-pills-label {
+  margin: 0 0 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.msv-pills-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  /* Hide scrollbar but keep scrollability */
+  scrollbar-width: none;
+}
+
+.msv-pills-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.msv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 24px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: default;
+}
+
+.msv-pill--more {
+  cursor: pointer;
+  border: none;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.msv-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+
+.msv-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 20px 0;
+  flex: 1;
+}
+
+.msv-action-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px 20px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.msv-action-btn:active {
+  transform: scale(0.98);
+}
+
+.msv-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.msv-action-btn--share {
+  background: linear-gradient(135deg, #84a6ff 0%, #5f7cff 100%);
+  color: #07101d;
+}
+
+.msv-action-btn--monitor {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text, #f1f5f9);
+}
+
+.msv-action-btn--active {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+.msv-monitor-confirmed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Monitor inline form */
+
+.msv-monitor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0 0;
+}
+
+.msv-monitor-input {
+  width: 100%;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: var(--text, #f1f5f9);
+  font-size: 0.95rem;
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+.msv-monitor-input:focus {
+  border-color: rgba(132, 166, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(132, 166, 255, 0.12);
+}
+
+.msv-monitor-input::placeholder {
+  color: var(--text-muted, #64748b);
+}
+
+.msv-monitor-submit {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.msv-monitor-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.msv-monitor-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #f87171;
+  text-align: center;
+}
+
+.msv-monitor-hint {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── Switch to full report ────────────────────────────────────────────────── */
+
+.msv-full-link {
+  padding: 20px;
+  text-align: center;
+  margin-top: auto;
+}
+
+.msv-full-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 12px 20px;
+  border-radius: 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+
+.msv-full-btn:hover,
+.msv-full-btn:active {
+  color: var(--text-soft, #94a3b8);
+}
+
 /* ─── Check my commute ────────────────────────────────────────────────────── */
 
 .commute-section {

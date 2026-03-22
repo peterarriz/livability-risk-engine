@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
-import { detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, subscribeWatch } from "@/lib/api";
+import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
 import type {
   CommuteResponse,
   CommuteSignal,
@@ -2031,6 +2031,242 @@ export function CommuteChecker({ homeAddress }: CommuteCheckerProps) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MobileScoreView
+// Shown only on screens < 768px via CSS. Replaces the full results section
+// with a three-zone layout optimised for "standing outside an apartment".
+//  1. Giant score hero (top ~40% of viewport)
+//  2. Three horizontally-scrolling signal pills
+//  3. Share + Monitor CTAs, then "Switch to full report →"
+// ---------------------------------------------------------------------------
+
+type MobileScoreViewProps = {
+  result: ScoreResponse;
+  onShowFull: () => void;
+};
+
+function _mobileBand(score: number): { label: string; color: string } {
+  if (score <= 24) return { label: "Low Risk",      color: "#10b981" };
+  if (score <= 49) return { label: "Moderate Risk", color: "#f59e0b" };
+  if (score <= 74) return { label: "High Risk",     color: "#ef4444" };
+  return             { label: "Severe Risk",    color: "#7c3aed" };
+}
+
+function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {
+  if (title) return title.length > 38 ? title.slice(0, 35) + "…" : title;
+  const MAP: Record<string, string> = {
+    closure_full:         "Full Road Closure",
+    closure_multi_lane:   "Multi-lane Closure",
+    closure_single_lane:  "Lane Closure",
+    construction:         "Construction",
+    demolition:           "Demolition",
+    light_permit:         "Street Permit",
+    utility:              "Utility Work",
+  };
+  return MAP[impactType ?? ""] ?? "Active Signal";
+}
+
+function _pillColor(impactType: string | null | undefined): string {
+  if (!impactType) return "#6b7280";
+  if (impactType.startsWith("closure")) return "#ef4444";
+  if (impactType === "construction" || impactType === "demolition") return "#10b981";
+  if (impactType === "light_permit") return "#f59e0b";
+  return "#8b5cf6";
+}
+
+export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
+  const band = _mobileBand(result.disruption_score);
+
+  // ── Share state ──────────────────────────────────────────────────────────
+  const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
+
+  async function handleShare() {
+    if (shareState === "loading") return;
+    setShareState("loading");
+    try {
+      const saved = await saveReport(result);
+      const url = `${window.location.origin}/report/${saved.report_id}`;
+      if (typeof navigator.share === "function") {
+        await navigator.share({
+          title: `Disruption score — ${result.address}`,
+          text: `${result.address} scores ${result.disruption_score}/100 (${band.label}) for near-term construction disruption.`,
+          url,
+        });
+        setShareState("idle");
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareState("copied");
+        setTimeout(() => setShareState("idle"), 2500);
+      }
+    } catch {
+      setShareState("error");
+      setTimeout(() => setShareState("idle"), 2000);
+    }
+  }
+
+  // ── Monitor (watchlist) state ────────────────────────────────────────────
+  const [monitorOpen, setMonitorOpen]         = useState(false);
+  const [monitorEmail, setMonitorEmail]       = useState("");
+  const [monitorStatus, setMonitorStatus]     = useState<"idle" | "sending" | "done" | "error">("idle");
+
+  const monitorEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(monitorEmail);
+
+  async function handleMonitor(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!monitorEmailValid || monitorStatus === "sending") return;
+    setMonitorStatus("sending");
+    try {
+      await subscribeWatch({ email: monitorEmail, address: result.address, threshold: 40 });
+      setMonitorStatus("done");
+    } catch {
+      setMonitorStatus("error");
+    }
+  }
+
+  // ── Signal pills (top 3) ─────────────────────────────────────────────────
+  const pills = useMemo(() => {
+    const details = result.top_risk_details ?? [];
+    if (details.length > 0) {
+      return details.slice(0, 3).map((d) => ({
+        label: _pillLabel(d.impact_type, d.rewritten_title ?? d.title),
+        color: _pillColor(d.impact_type),
+        key: d.project_id,
+      }));
+    }
+    return (result.top_risks ?? []).slice(0, 3).map((t, i) => ({
+      label: _pillLabel(null, t),
+      color: "#f59e0b",
+      key: String(i),
+    }));
+  }, [result]);
+
+  const extraCount = (result.top_risk_details?.length ?? result.top_risks?.length ?? 0) - 3;
+
+  return (
+    <div className="msv" aria-label="Mobile score summary">
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <div className="msv-hero" style={{ "--msv-band-color": band.color } as React.CSSProperties}>
+        <p className="msv-eyebrow">Disruption Score</p>
+        <div className="msv-score" style={{ color: band.color }}>
+          {result.disruption_score}
+        </div>
+        <p className="msv-band" style={{ color: band.color }}>{band.label}</p>
+        <p className="msv-address">{result.address}</p>
+        {result.mode === "demo" && (
+          <span className="msv-demo-badge">Demo data</span>
+        )}
+      </div>
+
+      {/* ── Signal pills ──────────────────────────────────────────────────── */}
+      {pills.length > 0 && (
+        <div className="msv-pills-section">
+          <p className="msv-pills-label">Active signals nearby</p>
+          <div className="msv-pills-scroll" role="list">
+            {pills.map((pill) => (
+              <span
+                key={pill.key}
+                role="listitem"
+                className="msv-pill"
+                style={{
+                  background: `${pill.color}18`,
+                  border: `1px solid ${pill.color}45`,
+                  color: pill.color,
+                }}
+              >
+                <span
+                  className="msv-pill-dot"
+                  style={{ background: pill.color }}
+                  aria-hidden="true"
+                />
+                {pill.label}
+              </span>
+            ))}
+            {extraCount > 0 && (
+              <button
+                type="button"
+                className="msv-pill msv-pill--more"
+                onClick={onShowFull}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#94a3b8" }}
+              >
+                +{extraCount} more
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Actions ───────────────────────────────────────────────────────── */}
+      <div className="msv-actions">
+        {/* Share */}
+        <button
+          type="button"
+          className="msv-action-btn msv-action-btn--share"
+          onClick={handleShare}
+          disabled={shareState === "loading"}
+        >
+          <span aria-hidden="true">{shareState === "copied" ? "✓" : shareState === "error" ? "✗" : "↗"}</span>
+          {shareState === "loading" ? "Saving…"
+            : shareState === "copied" ? "Link copied!"
+            : shareState === "error"  ? "Share failed"
+            : "Share this score"}
+        </button>
+
+        {/* Monitor */}
+        {monitorStatus === "done" ? (
+          <div className="msv-monitor-confirmed">
+            <span aria-hidden="true">✓</span> Alert set — you&rsquo;ll hear when disruption clears.
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={`msv-action-btn msv-action-btn--monitor${monitorOpen ? " msv-action-btn--active" : ""}`}
+              onClick={() => setMonitorOpen((v) => !v)}
+            >
+              <span aria-hidden="true">🔔</span>
+              Monitor this address
+            </button>
+            {monitorOpen && (
+              <form className="msv-monitor-form" onSubmit={handleMonitor}>
+                <input
+                  type="email"
+                  className="msv-monitor-input"
+                  placeholder="your@email.com"
+                  value={monitorEmail}
+                  onChange={(e) => setMonitorEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                  aria-label="Email for disruption alerts"
+                />
+                <button
+                  type="submit"
+                  className="msv-monitor-submit"
+                  disabled={!monitorEmailValid || monitorStatus === "sending"}
+                >
+                  {monitorStatus === "sending" ? "Setting up…" : "Alert me below 40"}
+                </button>
+                {monitorStatus === "error" && (
+                  <p className="msv-monitor-error">Could not set alert. Try again.</p>
+                )}
+                <p className="msv-monitor-hint">
+                  Fires when score drops below 40. Pro plan required for email delivery.
+                </p>
+              </form>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Switch to full report ─────────────────────────────────────────── */}
+      <div className="msv-full-link">
+        <button type="button" className="msv-full-btn" onClick={onShowFull}>
+          Switch to full report →
+        </button>
+      </div>
     </div>
   );
 }
