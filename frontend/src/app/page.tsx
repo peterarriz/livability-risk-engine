@@ -383,6 +383,7 @@ export default function HomePage() {
             <a href="#signals-section" className="topnav-aux-link">Signals</a>
             <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
