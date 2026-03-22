@@ -3,24 +3,28 @@ backend/ingest/kansas_city_crime_trends.py
 task: data-045
 lane: data
 
-Ingests Kansas City KCPD crime data and calculates 12-month crime trends by division.
+Ingests Kansas City KCPD crime data and calculates 12-month crime trends by area
+(patrol division).
 
 Source:
-  https://data.kcmo.org/resource/kagq-28me.json
-  Dataset: KCPD Crime Data (Kansas City Police Department)
+  KCPD publishes crime data as separate per-year Socrata datasets on data.kcmo.org:
+    - 2025: dmnp-9ajg   (fields: report, report_date, area, beat)
+    - 2024: isbe-v4d8   (fields: report_no, reported_date, area, beat)
+    - 2023: bfyq-5nh6   (fields: report, report_date, area, beat)
 
-  Verify dataset_id:
-    curl "https://data.kcmo.org/api/catalog/v1?q=crime&limit=5"
-  Sample first record to confirm field names:
-    curl "https://data.kcmo.org/resource/kagq-28me.json?$limit=1"
+  Verify dataset IDs:
+    curl "https://data.kcmo.org/api/catalog/v1?q=crime+kansas&domains=data.kcmo.org&limit=10"
+
+  Note: Field names differ between years. The 2024 dataset uses "report_no" and
+  "reported_date", while 2023 and 2025 use "report" and "report_date".
 
 Method:
-  1. Aggregate crime counts by division for the last 12 months (current window).
-  2. Aggregate crime counts by division for the prior 12 months (baseline).
+  1. Fetch crime counts by area for the last 12 months across relevant year datasets.
+  2. Fetch crime counts by area for the prior 12 months.
   3. Calculate percent change → crime_trend: INCREASING / DECREASING / STABLE.
 
 Output:
-  data/raw/kansas_city_crime_trends.json — division crime trend records
+  data/raw/kansas_city_crime_trends.json — area crime trend records
 
 Usage:
   python backend/ingest/kansas_city_crime_trends.py
@@ -45,19 +49,18 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Verify this dataset_id:
-#   curl "https://data.kcmo.org/api/catalog/v1?q=crime&limit=5"
-CRIMES_URL = "https://data.kcmo.org/resource/kagq-28me.json"
+# KCPD crime datasets are published per-year on data.kcmo.org.
+# Each entry: (dataset_id, date_field_name, year)
+YEARLY_DATASETS = [
+    ("dmnp-9ajg", "report_date", 2025),
+    ("isbe-v4d8", "reported_date", 2024),
+    ("bfyq-5nh6", "report_date", 2023),
+]
+
 SOCRATA_DOMAIN = "data.kcmo.org"
+DISTRICT_FIELD = "area"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/kansas_city_crime_trends.json")
-
-# Date field and district field in the KCPD crime dataset.
-# Verify by sampling: curl "https://data.kcmo.org/resource/kagq-28me.json?$limit=1"
-# Common alternatives: "from_date", "reported_date", "report_date"
-DATE_FIELD = "reported_date"
-# Common alternatives: "patrol_division", "division", "beat"
-DISTRICT_FIELD = "division"
 
 # Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0
@@ -71,48 +74,74 @@ def _date_str(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT00:00:00")
 
 
+def _datasets_for_range(
+    start_date: datetime,
+    end_date: datetime,
+) -> list[tuple[str, str]]:
+    """
+    Return the (dataset_id, date_field) pairs whose year overlaps with
+    [start_date, end_date).
+    """
+    start_year = start_date.year
+    end_year = end_date.year
+    result = []
+    for dataset_id, date_field, year in YEARLY_DATASETS:
+        if start_year <= year <= end_year:
+            result.append((dataset_id, date_field))
+    return result
+
+
 def fetch_crime_counts(
     app_token: str | None,
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, dict]:
     """
-    Fetch total crime counts per division for a date range.
-    Uses SoQL GROUP BY to compute counts server-side.
-    Returns dict: division → {count, lat (None), lon (None)}.
+    Fetch total crime counts per area for a date range, querying all
+    relevant yearly datasets and merging the results.
+    Returns dict: area → {count, lat (None), lon (None)}.
     """
-    where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
-    )
-    params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 200,
-    }
-    if app_token:
-        params["$$app_token"] = app_token
+    datasets = _datasets_for_range(start_date, end_date)
+    if not datasets:
+        print(f"  WARNING: no datasets cover range {start_date.year}–{end_date.year}",
+              file=sys.stderr)
+        return {}
 
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    rows = resp.json()
+    merged: dict[str, int] = {}
 
-    results: dict[str, dict] = {}
-    for row in rows:
-        division = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
-        if not division:
-            continue
-        try:
-            count = int(row.get("crime_count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        results[division] = {"count": count, "lat": None, "lon": None}
+    for dataset_id, date_field in datasets:
+        url = f"https://{SOCRATA_DOMAIN}/resource/{dataset_id}.json"
+        where_clause = (
+            f"{date_field} >= '{_date_str(start_date)}' "
+            f"AND {date_field} < '{_date_str(end_date)}'"
+        )
+        params: dict = {
+            "$select": f"{DISTRICT_FIELD}, count(*) as crime_count",
+            "$where": where_clause,
+            "$group": DISTRICT_FIELD,
+            "$limit": 200,
+        }
+        if app_token:
+            params["$$app_token"] = app_token
 
-    return results
+        print(f"    Querying {dataset_id} ({date_field})...", end=" ", flush=True)
+        resp = requests.get(url, params=params, timeout=60)
+        resp.raise_for_status()
+        rows = resp.json()
+        print(f"{len(rows)} areas.")
+
+        for row in rows:
+            area = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
+            if not area:
+                continue
+            try:
+                count = int(row.get("crime_count", 0))
+            except (TypeError, ValueError):
+                count = 0
+            merged[area] = merged.get(area, 0) + count
+
+    return {area: {"count": count, "lat": None, "lon": None}
+            for area, count in merged.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -143,23 +172,23 @@ def build_trend_records(
 ) -> list[dict]:
     """
     Merge current and prior crime counts to produce trend records.
-    All divisions appearing in either window get a record.
+    All areas appearing in either window get a record.
     """
-    all_divisions = set(current_data.keys()) | set(prior_data.keys())
+    all_areas = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for division in sorted(all_divisions):
-        curr = current_data.get(division, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(division, {"count": 0, "lat": None, "lon": None})
+    for area in sorted(all_areas):
+        curr = current_data.get(area, {"count": 0, "lat": None, "lon": None})
+        prev = prior_data.get(area, {"count": 0, "lat": None, "lon": None})
         current_count = curr["count"]
         prior_count = prev["count"]
         trend, trend_pct = _classify_trend(current_count, prior_count)
         lat = curr["lat"] or prev["lat"]
         lon = curr["lon"] or prev["lon"]
         records.append({
-            "region_type": "division",
-            "region_id": f"kansas_city_division_{division}",
-            "district_id": division,
-            "district_name": f"Kansas City Division {division}",
+            "region_type": "area",
+            "region_id": f"kansas_city_area_{area}",
+            "district_id": area,
+            "district_name": f"Kansas City {area}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -178,7 +207,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "kansas_city_crime_trends",
-        "source_url": CRIMES_URL,
+        "source_url": f"https://{SOCRATA_DOMAIN} (KCPD yearly datasets)",
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -194,7 +223,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Kansas City KCPD crime trends by division from the Socrata API."
+        description="Ingest Kansas City KCPD crime trends by area from yearly Socrata datasets."
     )
     parser.add_argument(
         "--output",
@@ -231,13 +260,8 @@ def main() -> None:
         current_data = fetch_crime_counts(app_token, current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
-        print(
-            f"  Verify dataset_id by running:\n"
-            f"  curl 'https://{SOCRATA_DOMAIN}/api/catalog/v1?q=crime&limit=5'",
-            file=sys.stderr,
-        )
         sys.exit(1)
-    print(f"  {len(current_data)} divisions with current crime data.")
+    print(f"  {len(current_data)} areas with current crime data.")
 
     print(f"\nFetching prior 12-month crime counts ({_date_str(prior_start)} → {_date_str(prior_end)})...")
     try:
@@ -245,17 +269,17 @@ def main() -> None:
     except Exception as exc:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(prior_data)} divisions with prior crime data.")
+    print(f"  {len(prior_data)} areas with prior crime data.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} division trend records.")
+    print(f"\nBuilt {len(records)} area trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} divisions")
+        print(f"  {trend}: {count} areas")
 
     if args.dry_run:
         print("Dry-run mode: skipping file write.")

@@ -13,11 +13,12 @@ Supported sources (configured in CITY_CONFIGS):
   - New York City Street Closures (data.cityofnewyork.us)
   - Seattle        (data.seattle.gov)
   - Kansas City    (data.kcmo.org)  [added data-045]
-  - Indianapolis   (data.indy.gov)  [added data-045]
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
     A future task can add an ArcGIS REST ingest if needed.
+  - Indianapolis — data.indy.gov uses ArcGIS Hub; no building permit dataset
+    is published (only ordinance PDFs). Verified 2026-03-22.
   - Denver, Boston, Milwaukee — use CKAN; see us_city_permits_ckan.py.
   - Portland, Nashville, Detroit, Memphis, Louisville, Baltimore — portals
     are down, non-Socrata, or returning non-JSON. Removed 2026-03-22.
@@ -229,59 +230,34 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Kansas City, MO — Building Permits.
+        # Kansas City, MO — Building Permits (CPD Dataset).
         # Portal: https://data.kcmo.org  (Socrata)
-        # Dataset: "Building Permit Applications"
-        # Verify dataset_id:
-        #   curl "https://data.kcmo.org/api/catalog/v1?q=building+permit&limit=5"
-        # Field names are estimates; verify via:
-        #   curl "https://data.kcmo.org/resource/<dataset_id>.json?$limit=1"
-        # Note: KCMO Socrata may use "application_date" rather than "issue_date".
-        # If fetch returns 0 records, check dataset_id and date field name.
+        # Dataset: "Permits - CPD Dataset" (ntw8-aacc)
+        # Verified 2026-03-22 via catalog API and sample query.
+        # Fields verified: permitnum, permittypedesc, description, issueddate,
+        #   expiresdate, latitude, longitude, originaladdress1.
         "city_name":        "Kansas City",
         "source_key":       "kansas_city",
         "domain":           "data.kcmo.org",
-        "dataset_id":       "i6pc-e4ph",  # verify via catalog API
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
+        "dataset_id":       "ntw8-aacc",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
         "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
         "lat_field":        "latitude",
         "lon_field":        "longitude",
         "loc_field":        None,
-        "addr_field":       "address",
+        "addr_field":       "originaladdress1",
         "city_state":       "Kansas City, MO",
-        "where_clause":     None,
-    },
-    {
-        # Indianapolis, IN — Building Permits.
-        # Portal: https://data.indy.gov  (Socrata/OpenDataSoft stack)
-        # Dataset: "Development Services — Permits"
-        # Verify dataset_id:
-        #   curl "https://data.indy.gov/api/catalog/v1?q=building+permit&limit=5"
-        # Field names are estimates based on common Socrata permit schemas.
-        # If fetch returns 0 records or 404, verify portal type (may be OpenDataSoft)
-        # and dataset_id at data.indy.gov.
-        "city_name":        "Indianapolis",
-        "source_key":       "indianapolis",
-        "domain":           "data.indy.gov",
-        "dataset_id":       "bf8m-7stk",  # verify via catalog API
-        "id_field":         "permit_nbr",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Indianapolis, IN",
         "where_clause":     None,
     },
     # -----------------------------------------------------------------
     # REMOVED — non-Socrata portals (verified 2026-03-22):
     #
+    #   indianapolis — data.indy.gov uses ArcGIS Hub; no building permit
+    #                  dataset is published (only ordinance PDFs). Verified
+    #                  2026-03-22 via Hub search + GIS server scan.
     #   portland     — data.portlandoregon.gov DNS not resolving
     #   nashville    — data.nashville.gov returns non-JSON (not Socrata)
     #   detroit      — data.detroitmi.gov returns non-JSON (not Socrata)
