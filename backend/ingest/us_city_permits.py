@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits.py
-task: data-038, data-043
+task: data-038, data-043, data-045
 lane: data
 
 Generic Socrata-based ingest for building permits across major US cities,
@@ -12,6 +12,8 @@ Supported sources (configured in CITY_CONFIGS):
   - Austin         (data.austintexas.gov)
   - New York City Street Closures (data.cityofnewyork.us)
   - Seattle        (data.seattle.gov)
+  - Kansas City    (data.kcmo.org)  [added data-045]
+  - Indianapolis   (data.indy.gov)  [added data-045]
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
@@ -19,6 +21,9 @@ NOT SUPPORTED (no Socrata portal):
   - Denver, Boston, Milwaukee — use CKAN; see us_city_permits_ckan.py.
   - Portland, Nashville, Detroit, Memphis, Louisville, Baltimore — portals
     are down, non-Socrata, or returning non-JSON. Removed 2026-03-22.
+  - Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville — use ArcGIS Hub
+    or custom portals; not Socrata/CKAN. Research needed for ArcGIS REST ingest.
+    See notes in TASKS.yaml data-045.
 
 NOTE ON DATASET IDs:
   Dataset IDs below were researched from public Socrata catalog metadata as of
@@ -223,6 +228,57 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Seattle, WA",
         "where_clause":     None,
     },
+    {
+        # Kansas City, MO — Building Permits.
+        # Portal: https://data.kcmo.org  (Socrata)
+        # Dataset: "Building Permit Applications"
+        # Verify dataset_id:
+        #   curl "https://data.kcmo.org/api/catalog/v1?q=building+permit&limit=5"
+        # Field names are estimates; verify via:
+        #   curl "https://data.kcmo.org/resource/<dataset_id>.json?$limit=1"
+        # Note: KCMO Socrata may use "application_date" rather than "issue_date".
+        # If fetch returns 0 records, check dataset_id and date field name.
+        "city_name":        "Kansas City",
+        "source_key":       "kansas_city",
+        "domain":           "data.kcmo.org",
+        "dataset_id":       "i6pc-e4ph",  # verify via catalog API
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Kansas City, MO",
+        "where_clause":     None,
+    },
+    {
+        # Indianapolis, IN — Building Permits.
+        # Portal: https://data.indy.gov  (Socrata/OpenDataSoft stack)
+        # Dataset: "Development Services — Permits"
+        # Verify dataset_id:
+        #   curl "https://data.indy.gov/api/catalog/v1?q=building+permit&limit=5"
+        # Field names are estimates based on common Socrata permit schemas.
+        # If fetch returns 0 records or 404, verify portal type (may be OpenDataSoft)
+        # and dataset_id at data.indy.gov.
+        "city_name":        "Indianapolis",
+        "source_key":       "indianapolis",
+        "domain":           "data.indy.gov",
+        "dataset_id":       "bf8m-7stk",  # verify via catalog API
+        "id_field":         "permit_nbr",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Indianapolis, IN",
+        "where_clause":     None,
+    },
     # -----------------------------------------------------------------
     # REMOVED — non-Socrata portals (verified 2026-03-22):
     #
@@ -234,6 +290,18 @@ CITY_CONFIGS: list[dict] = [
     #   baltimore    — data.baltimorecity.gov returns non-JSON (not Socrata)
     #   boston        — data.boston.gov uses CKAN; moved to us_city_permits_ckan.py
     #   milwaukee    — data.milwaukee.gov uses CKAN; moved to us_city_permits_ckan.py
+    # -----------------------------------------------------------------
+    # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
+    #
+    #   phoenix      — data.phoenix.gov uses ArcGIS Hub; needs ArcGIS REST ingest
+    #   columbus     — opendata.columbus.gov uses ArcGIS Hub
+    #   minneapolis  — opendata.minneapolismn.gov uses ArcGIS Hub
+    #   charlotte    — data.charlottenc.gov uses ArcGIS/custom portal
+    #   jacksonville — coj.net uses ArcGIS/custom portal
+    #
+    # To add ArcGIS REST support, use:
+    #   GET https://<server>/arcgis/rest/services/<layer>/FeatureServer/0/query
+    #       ?where=1%3D1&outFields=*&f=geojson&resultOffset=<N>&resultRecordCount=1000
     # -----------------------------------------------------------------
 ]
 

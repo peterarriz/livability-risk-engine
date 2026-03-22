@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits_ckan.py
-task: data-039, data-043
+task: data-039, data-043, data-045
 lane: data
 
 CKAN-based building permit ingest for US cities that do NOT use Socrata.
@@ -10,9 +10,15 @@ Supported cities (verified to use CKAN open data portals):
   - Philadelphia  (data.phila.gov)
   - San Antonio   (data.sanantonio.gov)
   - San Diego     (data.sandiego.gov)
-  - Denver        (data.denvergov.org)
-  - Boston        (data.boston.gov)
-  - Milwaukee     (data.milwaukee.gov)
+  - Denver        (data.denvergov.org)  [resource_id VERIFY_VIA_DISCOVER — run --discover]
+  - Boston        (data.boston.gov)     [resource_id verified 2026-03-22]
+  - Milwaukee     (data.milwaukee.gov)  [resource_id verified 2026-03-22]
+
+NOT YET IMPLEMENTED — ArcGIS Hub / custom portals (data-045):
+  - Minneapolis  (opendata.minneapolismn.gov) — ArcGIS Hub
+  - Charlotte    (data.charlottenc.gov)       — ArcGIS/custom
+  - Jacksonville (coj.net)                    — ArcGIS/custom
+  These require an ArcGIS REST ingest approach; see notes in TASKS.yaml data-046.
 
 CKAN API pattern:
   Paginated fetch:
