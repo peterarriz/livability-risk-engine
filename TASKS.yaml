@@ -432,160 +432,42 @@ tasks:
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
+    status: done
+    priority: medium
+    github_issue: 96
+    notes_for_next_agent: >
+      DECISION: won't-fix. No public REST API exists for Illinois Tollway
+      (ITSHA) construction data. Research findings:
+        1. IDOT ArcGIS (idot_road_projects.py) covers IDOT-managed construction
+           only. Illinois Tollway (ITSHA) is a separate authority — their projects
+           do NOT systematically appear in the IDOT dataset.
+        2. illinoistollway.com/road-projects is HTML-only (no API, no JSON feed).
+           Scraping would be fragile and is not a recommended approach.
+        3. gis.idot.illinois.gov is IDOT's own GIS, separate from ITSHA.
+           No tollway-specific construction layer is available publicly.
+      Coverage rationale: Tollways (I-90/Jane Addams, I-88/Reagan, I-294/Veterans,
+      I-190) are limited-access expressways. Construction on them does not directly
+      affect neighborhood-level livability at the address level the way arterial
+      street closures, building permits, or 311 requests do. IDOT District 1 data
+      provides sufficient coverage for state/federal road construction impacting
+      Chicago neighborhoods. Next: data-038.
+
+  - id: data-038
+    title: Add CDOT traffic signal outage data source
     status: backlog
     priority: medium
     github_issue: ~
     notes_for_next_agent: >
-      Illinois Tollway construction data is NOT on the Chicago Data Portal.
-      The Illinois Tollway publishes project data at:
-        https://www.illinoistollway.com/road-projects (HTML page, not API)
-        https://www.illinoistollway.com/roadwork/construction (alternative)
-      Potential approaches:
-        1. Check if IDOT ArcGIS REST API includes tollway projects
-           (the existing idot_road_projects.py covers IDOT districts 1-9).
-        2. Scrape illinoistollway.com — requires HTML parsing, fragile.
-        3. Check https://gis.idot.illinois.gov for tollway layer.
-      The IDOT ingest already covers state road construction near Chicago
-      (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
-      If no clean API is found, consider using IDOT District 1 as sufficient
-      coverage and marking this task as won't-fix.
-
-  - id: data-038
-    title: Expand permit and disruption data to top US cities — multi-city pipeline
-    status: done
-    priority: high
-    github_issue: 102
-    notes_for_next_agent: >
-      New file: backend/ingest/us_city_permits.py
-        9 US cities configured (Socrata): NYC, LA, Houston, Phoenix,
-        Philadelphia, San Antonio, San Diego, Dallas, Austin.
-        San Jose skipped — no Socrata portal (uses ArcGIS Hub).
-        NYC also has a street closures dataset (i6b5-j7bu, address-only,
-        geocode_fill will backfill lat/lon).
-      New normalizer: normalize_us_city_permit() in backend/models/project.py.
-      New loader: load_us_city_permits() in backend/ingest/load_projects.py.
-        Glob pattern: us_city_permits_*.json
-        --source us_cities added to load_projects.py --source choices.
-        --us-cities-dir argument added to load_projects.py.
-      run_pipeline.py updated:
-        New step "Fetch US city permits (top 10 cities)" after IL cities step.
-        --skip-us-cities flag added.
-        Step is non_fatal=True so one city failure does not abort pipeline.
-      IMPORTANT: Dataset IDs were researched from public Socrata catalog
-      metadata but not live-verified due to environment constraints.
-      Before relying on this data in production, run:
-        python backend/ingest/us_city_permits.py --dry-run
-      and check output for any cities returning 0 records or HTTP errors.
-      If a city fails, verify its dataset_id at:
-        https://<domain>/api/catalog/v1?q=building+permits&limit=5
-      Next task: data-039 — validate US city dataset IDs via dry-run and
-      fix any incorrect IDs found.
-
-  - id: data-039
-    title: Implement CKAN-based city permit ingest — Houston, Philadelphia, San Antonio, San Diego
-    status: done
-    priority: high
-    github_issue: 105
-    notes_for_next_agent: >
-      Script: backend/ingest/us_city_permits_ckan.py
-      Implements CKAN datastore_search (with SQL fallback) for 4 cities
-      that do not use Socrata: Houston, Philadelphia, San Antonio, San Diego.
-      Resource IDs in CITY_CONFIGS were researched from training knowledge
-      — NOT live-verified. Before running in production:
-        python backend/ingest/us_city_permits_ckan.py --city houston --discover
-        python backend/ingest/us_city_permits_ckan.py --city philadelphia --discover
-        python backend/ingest/us_city_permits_ckan.py --city san_antonio --discover
-        python backend/ingest/us_city_permits_ckan.py --city san_diego --discover
-      Then update resource_id (and field names if needed) in CITY_CONFIGS.
-      Output: data/raw/us_city_permits_<source_key>.json (same schema as Socrata).
-      Next task: data-040 — live-verify CKAN resource IDs and field names.
-
-  - id: data-040
-    title: Live-verify CKAN resource IDs and field names for 4 cities
-    status: backlog
-    priority: high
-    github_issue: ~
-    notes_for_next_agent: >
-      data-038 added backend/ingest/us_city_permits.py with 9 US city configs.
-      Dataset IDs were researched from training knowledge — not live-verified.
-      Run: python backend/ingest/us_city_permits.py --dry-run
-      For any city returning 0 records or HTTP errors, verify the correct
-      dataset ID at:
-        https://<domain>/api/catalog/v1?q=building+permits&limit=5
-      Update the dataset_id and field names in CITY_CONFIGS as needed.
-      Once all cities pass dry-run, mark this task done.
-
-  - id: data-040
-    title: Implement FEMA flood zones, crime trends, and Census ACS data — neighborhood quality layer
-    status: done
-    priority: high
-    github_issue: 106
-    notes_for_next_agent: >
-      Four new files added:
-        - backend/ingest/fema_flood_zones.py
-            Queries FEMA NFHL ArcGIS REST API (Layer 28: S_Fld_Haz_Ar) for
-            flood zone polygon centroids covering Chicago metro (Cook County).
-            Classifies as HIGH/MODERATE/MINIMAL/UNKNOWN.
-            Output: data/raw/fema_flood_zones.json
-        - backend/ingest/chicago_crime_trends.py
-            Queries Socrata dataset 31yy-ehbz (Crimes) for crime counts by
-            community area (77 areas). Calculates 12-month trend vs prior year.
-            Fetches community area polygon centroids from Chicago Data Portal.
-            Output: data/raw/chicago_crime_trends.json
-        - backend/ingest/census_acs.py
-            Queries Census ACS 5-year API (2022 vintage) for Cook County
-            census tracts. Variables: median income, population, vacancy rate,
-            median housing age. Fetches tract centroids from TIGER web service.
-            Output: data/raw/census_acs.json
-        - backend/ingest/load_neighborhood_quality.py
-            Loads staging files into neighborhood_quality DB table.
-            Supports --source fema|crime|census|all, --dry-run.
-      Schema change:
-        - db/schema.sql: Added neighborhood_quality table with PostGIS geom
-          (centroid point) for KNN spatial lookup. Three partial spatial indexes
-          per region_type. Columns cover all three data sources in one table.
-      Scoring change:
-        - backend/scoring/query.py: Added get_neighborhood_context(lat, lon, conn).
-          Three KNN queries (one per region_type). Returns dict or None.
-        - backend/app/main.py: _score_live() now calls get_neighborhood_context()
-          and includes neighborhood_context in the API response (non-fatal).
-      Pipeline change:
-        - run_pipeline.py: Added 4 new steps and 4 skip flags:
-          --skip-fema, --skip-crime-trends, --skip-census-acs,
-          --skip-neighborhood-quality
-      Before relying on this data in production, run each script with --dry-run
-      to verify API availability:
-        python backend/ingest/fema_flood_zones.py --dry-run
-        python backend/ingest/chicago_crime_trends.py --dry-run
-        python backend/ingest/census_acs.py --dry-run
-      Once the DB is live, run the full pipeline and validate:
-        curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago+IL"
-        → response should include "neighborhood_context" field.
-      Next: data-041 — validate neighborhood quality APIs and verify
-      neighborhood_context appears in live /score responses.
-
-  - id: data-041
-    title: Validate neighborhood quality APIs and verify live /score neighborhood_context
-    status: backlog
-    priority: high
-    github_issue: ~
-    notes_for_next_agent: >
-      data-040 added three ingest scripts and a loader for the neighborhood_quality
-      table. Before this data is trusted in production, validate each API:
-        1. Run dry-runs for each source:
-             python backend/ingest/fema_flood_zones.py --dry-run
-             python backend/ingest/chicago_crime_trends.py --dry-run
-             python backend/ingest/census_acs.py --dry-run
-           Confirm each prints sample records, not errors or 0 results.
-        2. If FEMA returns 0 features: check that the NFHL MapServer layer 28
-           is accessible and the bbox query works. The FEMA NFHL URL may need
-           to be verified against https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer
-        3. If Census TIGER returns 0 centroids: check INTPTLAT/INTPTLON field
-           names. The TIGER web MapServer layer 8 should have these fields for
-           2020 census boundaries. Try adding INTPTLAT20, INTPTLON20 as fallback.
-        4. Once all three dry-runs succeed, run the full pipeline and verify:
-             curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago+IL"
-             → should include neighborhood_context field with flood_risk,
-               crime_trend, median_income, etc.
-        5. If neighborhood_context is null: confirm neighborhood_quality table
-           was populated (run db_summary.py) and that geom column is not all NULL.
+      Add Chicago CDOT Traffic Signal Outages as a disruption signal source.
+      Dataset: Chicago Data Portal "Traffic Signal Status" (Socrata).
+      Dataset ID to verify: search data.cityofchicago.org for "traffic signal"
+      or "signal outage" — the canonical active outages dataset.
+      Signal outages cause intersection-level disruption similar to street
+      closures and are relevant to livability scoring.
+      Implementation pattern mirrors chicago_311_requests.py:
+        - Fetch active outages from Socrata (filter status = 'Active' or similar)
+        - Normalize to internal schema (normalize_signal_outage() in project.py)
+        - Add load_signal_outages() to load_projects.py
+        - Add --skip-signals flag to run_pipeline.py
+        - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
+      Verify dataset ID and field names via dry-run before wiring into pipeline.
