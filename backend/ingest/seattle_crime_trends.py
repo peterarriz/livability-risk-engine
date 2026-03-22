@@ -47,7 +47,7 @@ SOCRATA_DOMAIN = "data.seattle.gov"
 DEFAULT_OUTPUT_PATH = Path("data/raw/seattle_crime_trends.json")
 
 # Date field and district field in the Seattle SPD crime dataset
-DATE_FIELD = "offense_start_datetime"
+DATE_FIELD = "offense_date"
 DISTRICT_FIELD = "precinct"
 
 # Changes within ±5% are classified as STABLE.
@@ -74,14 +74,15 @@ def fetch_crime_counts_with_centroids(
     """
     where_clause = (
         f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
+        f"AND {DATE_FIELD} < '{_date_str(end_date)}' "
+        "AND latitude != 'REDACTED' AND latitude IS NOT NULL"
     )
     params: dict = {
         "$select": (
             f"{DISTRICT_FIELD}, "
             "count(*) as crime_count, "
-            "avg(latitude) as avg_lat, "
-            "avg(longitude) as avg_lon"
+            "avg(latitude :: number) as avg_lat, "
+            "avg(longitude :: number) as avg_lon"
         ),
         "$where": where_clause,
         "$group": DISTRICT_FIELD,
