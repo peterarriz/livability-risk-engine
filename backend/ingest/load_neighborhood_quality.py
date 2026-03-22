@@ -1,14 +1,17 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040
+task: data-040, data-044
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
 
 Reads from staging files written by:
-  backend/ingest/fema_flood_zones.py     → data/raw/fema_flood_zones.json
-  backend/ingest/chicago_crime_trends.py → data/raw/chicago_crime_trends.json
-  backend/ingest/census_acs.py           → data/raw/census_acs.json
+  backend/ingest/fema_flood_zones.py      → data/raw/fema_flood_zones.json
+  backend/ingest/chicago_crime_trends.py  → data/raw/chicago_crime_trends.json
+  backend/ingest/austin_crime_trends.py   → data/raw/austin_crime_trends.json
+  backend/ingest/seattle_crime_trends.py  → data/raw/seattle_crime_trends.json
+  backend/ingest/nyc_crime_trends.py      → data/raw/nyc_crime_trends.json
+  backend/ingest/census_acs.py            → data/raw/census_acs.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -17,6 +20,9 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --dry-run
   python backend/ingest/load_neighborhood_quality.py --source fema
   python backend/ingest/load_neighborhood_quality.py --source crime
+  python backend/ingest/load_neighborhood_quality.py --source crime_austin
+  python backend/ingest/load_neighborhood_quality.py --source crime_seattle
+  python backend/ingest/load_neighborhood_quality.py --source crime_nyc
   python backend/ingest/load_neighborhood_quality.py --source census
 
 Prerequisites:
@@ -45,9 +51,13 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 STAGING_FILES = {
-    "fema":   Path("data/raw/fema_flood_zones.json"),
-    "crime":  Path("data/raw/chicago_crime_trends.json"),
-    "census": Path("data/raw/census_acs.json"),
+    "fema":          Path("data/raw/fema_flood_zones.json"),
+    "crime":         Path("data/raw/chicago_crime_trends.json"),
+    "census":        Path("data/raw/census_acs.json"),
+    # data-044: US city crime trends
+    "crime_austin":  Path("data/raw/austin_crime_trends.json"),
+    "crime_seattle": Path("data/raw/seattle_crime_trends.json"),
+    "crime_nyc":     Path("data/raw/nyc_crime_trends.json"),
 }
 
 CURRENT_YEAR = _dt.datetime.now().year
@@ -206,7 +216,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["fema", "crime", "census", "all"],
+        choices=["fema", "crime", "census", "crime_austin", "crime_seattle", "crime_nyc", "all"],
         default="all",
         help="Which staging source to load (default: all).",
     )
