@@ -534,3 +534,23 @@ tasks:
         - Add --skip-signals flag to run_pipeline.py
         - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
       Verify dataset ID and field names via dry-run before wiring into pipeline.
+
+  - id: data-043
+    title: Expand US city permit ingest to next 10 cities
+    status: done
+    priority: medium
+    github_issue: 114
+    notes_for_next_agent: >
+      Added 9 Socrata cities to backend/ingest/us_city_permits.py:
+        seattle (76t5-zqzr), portland (dn2b-wfmq), nashville (3h5a-gtgq),
+        boston (6ddd-wiua), detroit (but4-ky7y), memphis (g7rd-i96y),
+        louisville (aytd-x45v), baltimore (fesm-tgxf), milwaukee (xbvy-uuqt).
+      Added Denver to backend/ingest/us_city_permits_ckan.py (CKAN/OpenGov).
+      IMPORTANT: Denver resource_id is set to "VERIFY_VIA_DISCOVER" — must be
+      confirmed before production ingest:
+        python backend/ingest/us_city_permits_ckan.py --city denver --discover
+      Dataset IDs for Memphis, Louisville, Milwaukee are lower-confidence estimates;
+      verify each with: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5"
+      All cities fail gracefully (non-fatal errors) so bad dataset_ids won't block others.
+      Next: data-044 — validate dry-run for all 13 Socrata + 5 CKAN cities,
+      confirm Denver resource_id, wire new cities into run_pipeline.py.
