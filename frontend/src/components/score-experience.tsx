@@ -1496,19 +1496,18 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 // actual alert email delivery is gated behind Pro.
 // ---------------------------------------------------------------------------
 
+// "Drop below" thresholds — alert fires when score clears below the value.
 const WATCH_THRESHOLDS = [
-  { value: 50 as const, label: "50+", band: "Moderate", desc: "any moderate reading" },
-  { value: 65 as const, label: "65+", band: "High",     desc: "high-risk territory"  },
-  { value: 80 as const, label: "80+", band: "Severe",   desc: "severe disruption"    },
+  { value: 40 as const, label: "40", desc: "noticeable improvement" },
+  { value: 30 as const, label: "30", desc: "significant clearance"  },
+  { value: 20 as const, label: "20", desc: "near-normal conditions" },
 ];
-type ThresholdVal = 50 | 65 | 80;
+type ThresholdVal = 40 | 30 | 20;
 
-function pickDefaultThreshold(score: number): ThresholdVal {
-  // Default to the next tier above the current score so the user is alerted
-  // if conditions worsen, not just because the score is already elevated.
-  if (score >= 80) return 80;
-  if (score >= 65) return 80;
-  return 65;
+function pickDefaultThreshold(_score: number): ThresholdVal {
+  // 40 is the most useful default — catches meaningful clearance without
+  // waiting for near-zero conditions.
+  return 40;
 }
 
 type WatchFormState = "idle" | "submitting" | "confirmed" | "error";
@@ -1549,22 +1548,22 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
   if (formState === "confirmed" && confirmed) {
     return (
       <div className="watch-confirmed-card detail-card" style={{ padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
           <span style={{ fontSize: "1.15rem", color: "#22c55e", lineHeight: 1 }}>✓</span>
           <p style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
-            Monitoring {confirmed.address}
+            You&rsquo;ll get an email when disruption clears.
           </p>
         </div>
         <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "var(--text-soft)" }}>
-          Watching for scores of <strong>{confirmed.threshold}+</strong> ({selectedOpt.band}).
-          {" "}Alerts go to <strong>{confirmed.email}</strong>.
+          Alert fires when the score for <strong>{confirmed.address}</strong> drops below{" "}
+          <strong>{confirmed.threshold}</strong>. Watching <strong>{confirmed.email}</strong>.
         </p>
 
         <div className="watch-pro-note">
           <span className="watch-pro-badge">Pro</span>
           <span>
-            Alert emails go to Pro plan subscribers.{" "}
-            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a> email delivery.
+            Email delivery is available on the Pro plan.{" "}
+            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a>.
           </span>
         </div>
 
@@ -1578,8 +1577,6 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
   }
 
   // ── Idle / submitting / error state ──────────────────────────────────────
-  const currentBand = score >= 80 ? "Severe" : score >= 65 ? "High" : "Moderate";
-
   return (
     <div className="watch-card detail-card" style={{ padding: "20px 24px" }}>
       {/* Header */}
@@ -1589,7 +1586,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             Monitor this address
           </p>
           <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-soft)" }}>
-            Score is {score} ({currentBand}). Get notified if conditions change.
+            Score is currently <strong>{score}</strong>. Get notified when disruption clears.
           </p>
         </div>
         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
@@ -1601,7 +1598,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
         {/* Threshold selector */}
         <div style={{ marginBottom: "14px" }}>
           <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            Alert me when score reaches
+            Alert me when score drops below
           </p>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             {WATCH_THRESHOLDS.map((opt) => (
@@ -1612,17 +1609,15 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
                 onClick={() => setThreshold(opt.value)}
                 aria-pressed={threshold === opt.value}
               >
-                {opt.label} {opt.band}
+                {opt.label}
               </button>
             ))}
             <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-              Current: {score}
+              Current score: {score}
             </span>
           </div>
           <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
-            {selectedOpt.desc === "any moderate reading"
-              ? "You'll be notified whenever the score is at or above 50."
-              : `You'll be notified when the score climbs into ${selectedOpt.band.toLowerCase()} territory.`}
+            Alert fires on {selectedOpt.desc} — when score drops below {selectedOpt.label}.
           </p>
         </div>
 
@@ -1643,7 +1638,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             className="watch-submit-btn"
             disabled={!emailValid || formState === "submitting"}
           >
-            {formState === "submitting" ? "Setting up…" : "Set up alert \u2192"}
+            {formState === "submitting" ? "Setting up…" : "Set alert"}
           </button>
         </div>
 

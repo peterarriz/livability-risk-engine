@@ -1379,7 +1379,7 @@ def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token fro
 def check_watchlist() -> dict:
     """
     Operator endpoint — score every watched address and fire alerts for entries
-    whose score meets or exceeds their configured threshold.
+    whose score has dropped below their configured threshold (disruption cleared).
 
     For each triggered entry:
       - Writes a row to alert_log with the current score.
@@ -1415,7 +1415,7 @@ def check_watchlist() -> dict:
                 if score is None:
                     continue
 
-                if score >= threshold:
+                if score < threshold:
                     # Log alert — email delivery stubbed.
                     log.info(
                         "ALERT [stub] watch_id=%d email=%r address=%r "

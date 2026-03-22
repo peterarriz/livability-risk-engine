@@ -621,6 +621,11 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* ── Monitor this address — shown for score >= 50 ─────────── */}
+              {result.disruption_score >= 50 && (
+                <WatchlistForm address={result.address} score={result.disruption_score} />
+              )}
+
               <div className="detail-grid detail-grid--balanced">
                 <Card className="detail-card">
                   <h2>Confidence and severity</h2>
@@ -645,11 +650,6 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
-
-              {/* ── Monitor this address — shown for score > 50 ──────────── */}
-              {result.disruption_score > 50 && (
-                <WatchlistForm address={result.address} score={result.disruption_score} />
-              )}
 
               {/* ── Neighborhood context ─────────────────────────────────── */}
               <Card className="detail-card">
