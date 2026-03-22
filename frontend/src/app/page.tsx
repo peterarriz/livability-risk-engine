@@ -748,7 +748,7 @@ export default function HomePage() {
           description="Start free. Upgrade when you need forecasts, exports, and team access."
           className="pricing-section"
         >
-          <div className="pricing-grid">
+          <div className="pricing-grid pricing-grid--three">
             <Card className="detail-card pricing-card">
               <p className="supporting-kicker">Free</p>
               <h2>$0 / month</h2>
@@ -772,6 +772,24 @@ export default function HomePage() {
                 <li>Priority data refresh</li>
               </ul>
               <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--enterprise">
+              <p className="supporting-kicker">Enterprise</p>
+              <h2>Custom pricing</h2>
+              <ul className="pricing-features">
+                <li>Everything in Pro</li>
+                <li>Batch API access (up to 10,000 addresses/mo)</li>
+                <li>Webhook alerts</li>
+                <li>SLA guarantee</li>
+                <li>Dedicated account support</li>
+                <li>White-label report option</li>
+              </ul>
+              <a
+                href="mailto:hello@livabilityrisk.com?subject=Enterprise%20inquiry"
+                className="pricing-cta pricing-cta--enterprise"
+              >
+                Talk to us
+              </a>
             </Card>
           </div>
         </Section>

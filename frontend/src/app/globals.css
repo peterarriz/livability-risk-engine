@@ -1583,6 +1583,11 @@ button:disabled {
   max-width: 760px;
 }
 
+.pricing-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 1100px;
+}
+
 .pricing-card {
   display: flex;
   flex-direction: column;
@@ -1631,6 +1636,28 @@ button:disabled {
   background: rgba(255, 255, 255, 0.1);
   box-shadow: none;
   transform: none;
+}
+
+.pricing-card--enterprise {
+  border-color: rgba(60, 229, 179, 0.25);
+  background: linear-gradient(135deg, rgba(60, 229, 179, 0.08), rgba(95, 124, 255, 0.04)), var(--surface);
+}
+
+.pricing-cta--enterprise {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background: rgba(60, 229, 179, 0.12);
+  border: 1px solid rgba(60, 229, 179, 0.35);
+  color: #3ce5b3;
+  box-shadow: none;
+}
+
+.pricing-cta--enterprise:hover {
+  background: rgba(60, 229, 179, 0.2);
+  box-shadow: none;
+  transform: none;
+  color: #3ce5b3;
 }
 
 /* ─── Nav pricing link ────────────────────────────────────────── */
