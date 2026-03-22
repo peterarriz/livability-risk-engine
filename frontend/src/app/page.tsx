@@ -3,10 +3,12 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  CommuteChecker,
   ExplanationPanel,
   getConfidenceReasons,
   getMeaningInsights,
   ImpactWindow,
+  MobileScoreView,
   NeighborhoodContextCard,
   ScoreHero,
   ScoreSparkline,
@@ -50,6 +52,9 @@ export default function HomePage() {
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
+  // Mobile simplified view — reset to false on each new result so users always
+  // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
+  const [mobileShowFull, setMobileShowFull] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -212,7 +217,7 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
-    fetchHistory(result.address, 20).then((r) =>
+    fetchHistory(result.address, 30).then((r) =>
       setScoreHistory(
         r
           ? r.history.map((h) => ({
@@ -266,6 +271,7 @@ export default function HomePage() {
     track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
+    setMobileShowFull(false);
     try {
       const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
@@ -383,6 +389,7 @@ export default function HomePage() {
             <a href="#signals-section" className="topnav-aux-link">Signals</a>
             <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
@@ -582,6 +589,18 @@ export default function HomePage() {
             </section>
           ) : result ? (
             <section className="results results--loaded workspace-flow">
+              {/* ── Mobile simplified view (CSS-hidden on desktop ≥ 768px) ── */}
+              {!mobileShowFull && (
+                <div className="mobile-view">
+                  <MobileScoreView
+                    result={result}
+                    onShowFull={() => setMobileShowFull(true)}
+                  />
+                </div>
+              )}
+
+              {/* ── Full desktop results (CSS-hidden on mobile unless mobileShowFull) ── */}
+              <div className={`desktop-view${!mobileShowFull ? " desktop-view--mobile-hidden" : ""}`}>
               {result.disruption_score >= 61 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
@@ -595,7 +614,7 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
-                  {scoreHistory.length >= 2 && (
+                  {scoreHistory.length >= 1 && (
                     <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
                   )}
                   <div className="score-actions">
@@ -621,6 +640,14 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* ── Monitor this address — shown for score >= 50 ─────────── */}
+              {result.disruption_score >= 50 && (
+                <WatchlistForm address={result.address} score={result.disruption_score} />
+              )}
+
+              {/* ── Check my commute ─────────────────────────────────────── */}
+              <CommuteChecker homeAddress={result.address} />
+
               <div className="detail-grid detail-grid--balanced">
                 <Card className="detail-card">
                   <h2>Confidence and severity</h2>
@@ -645,11 +672,6 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
-
-              {/* ── Monitor this address — shown for score > 50 ──────────── */}
-              {result.disruption_score > 50 && (
-                <WatchlistForm address={result.address} score={result.disruption_score} />
-              )}
 
               {/* ── Neighborhood context ─────────────────────────────────── */}
               <Card className="detail-card">
@@ -726,6 +748,7 @@ export default function HomePage() {
                   </ul>
                 </Card>
               </div>
+              </div>{/* end desktop-view */}
             </section>
           ) : (
             <section className="results">
@@ -748,7 +771,7 @@ export default function HomePage() {
           description="Start free. Upgrade when you need forecasts, exports, and team access."
           className="pricing-section"
         >
-          <div className="pricing-grid">
+          <div className="pricing-grid pricing-grid--three">
             <Card className="detail-card pricing-card">
               <p className="supporting-kicker">Free</p>
               <h2>$0 / month</h2>
@@ -772,6 +795,24 @@ export default function HomePage() {
                 <li>Priority data refresh</li>
               </ul>
               <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--enterprise">
+              <p className="supporting-kicker">Enterprise</p>
+              <h2>Custom pricing</h2>
+              <ul className="pricing-features">
+                <li>Everything in Pro</li>
+                <li>Batch API access (up to 10,000 addresses/mo)</li>
+                <li>Webhook alerts</li>
+                <li>SLA guarantee</li>
+                <li>Dedicated account support</li>
+                <li>White-label report option</li>
+              </ul>
+              <a
+                href="mailto:hello@livabilityrisk.com?subject=Enterprise%20inquiry"
+                className="pricing-cta pricing-cta--enterprise"
+              >
+                Talk to us
+              </a>
             </Card>
           </div>
         </Section>

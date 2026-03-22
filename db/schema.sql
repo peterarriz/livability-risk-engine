@@ -417,3 +417,26 @@ COMMENT ON TABLE neighborhood_quality IS
     'Three region_type values: flood_zone (FEMA NFHL), community_area (Chicago crime), '
     'census_tract (Census ACS). KNN spatial lookup via geom column. '
     'Surfaced in /score response as neighborhood_context field.';
+
+
+-- ---------------------------------------------------------------------------
+-- Signal rewrites cache  (data-042)
+--
+-- Stores Claude API-generated titles and descriptions for each unique project.
+-- Keyed on project_id (source:source_id) so each permit/closure is rewritten
+-- at most once, regardless of how many /score requests reference it.
+-- Populated lazily on the first /score request that references each project_id.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS signal_rewrites (
+    project_id            TEXT        PRIMARY KEY,
+    rewritten_title       TEXT        NOT NULL,
+    rewritten_description TEXT        NOT NULL,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE signal_rewrites IS
+    'Claude API-generated clean titles and descriptions for each project signal (data-042). '
+    'Cache keyed on project_id. Populated lazily on the first /score request '
+    'that references each project. Prevents repeated API calls for the same permit.';

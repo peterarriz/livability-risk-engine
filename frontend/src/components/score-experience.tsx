@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
-import { detectNeighborhoodSlug, fetchNeighborhood, subscribeWatch } from "@/lib/api";
+import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
 import type {
+  CommuteResponse,
+  CommuteSignal,
   NeighborhoodResponse,
   NeighborhoodSlugInfo,
   ScoreHistoryEntry,
@@ -229,12 +231,21 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
   return result.top_risks.slice(0, 3).map((risk, index) => {
     const humanized = humanizeRiskText(risk);
     const impact = inferImpact(humanized, index);
+
+    // Prefer Claude-rewritten strings (data-042) when available.
+    // top_risk_details is parallel to top_risks (same index order).
+    const detail = result.top_risk_details?.[index];
+    const rewrittenTitle = detail?.rewritten_title ?? null;
+    const rewrittenDescription = detail?.rewritten_description ?? null;
+
     return {
       id: `${risk}-${index}`,
       eyebrow: inferDriverEyebrow(humanized),
-      title: inferDriverTitle(humanized),
+      title: rewrittenTitle ?? inferDriverTitle(humanized),
       impact,
-      rationale: deriveDriverRationale(humanized),
+      // Use rewritten description as rationale when available; fall back to
+      // the heuristic derivation so cards are never empty.
+      rationale: rewrittenDescription ?? deriveDriverRationale(humanized),
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,
@@ -754,57 +765,203 @@ export function ImpactWindow({ result }: ImpactWindowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// ScoreSparkline  (data-025)
-// Renders a compact SVG line chart of historical disruption scores.
+// ScoreSparkline  (data-025, enhanced)
+// 200×44 SVG line chart with:
+//   • Gradient area fill below the line
+//   • Dashed horizontal reference at Chicago average (35)
+//   • Distinct "today" dot on the current score (rightmost point)
+//   • Week-over-week trend label: "Up X pts this week" / "Down X pts" / "Stable"
 // ---------------------------------------------------------------------------
+
+const CHICAGO_AVG = 35;
+const DAY_MS = 86_400_000;
 
 type ScoreSparklineProps = {
   history: ScoreHistoryEntry[];
   currentScore: number;
 };
 
+let _sparklineCounter = 0;
+
 export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
-  // history is newest-first; reverse to render chronologically left→right.
-  const points = useMemo(() => {
-    const chronological = [...history].reverse();
-    // Append the current live score as the rightmost point.
-    const all = [...chronological, { disruption_score: currentScore, confidence: "LOW" as const, mode: "live" as const, created_at: null }];
-    return all.map((e) => e.disruption_score);
+  // Stable unique id so the SVG gradient doesn't collide when two sparklines
+  // appear on the same page (score card + neighbourhood context card).
+  const gradId = useMemo(() => `spark-fill-${++_sparklineCounter}`, []);
+  const derived = useMemo(() => {
+    const now = Date.now();
+    const cutoff30 = now - 30 * DAY_MS;
+
+    // Sort chronologically; drop entries older than 30 days.
+    const dated = history
+      .filter((e) => e.created_at != null)
+      .map((e) => ({ score: e.disruption_score, ts: new Date(e.created_at!).getTime() }))
+      .filter((e) => e.ts >= cutoff30)
+      .sort((a, b) => a.ts - b.ts);
+
+    // Undated entries (created_at null) spread across the window as fallback.
+    const undated = history
+      .filter((e) => e.created_at == null)
+      .map((e, i, arr) => ({
+        score: e.disruption_score,
+        ts: cutoff30 + ((i + 1) / (arr.length + 1)) * (30 * DAY_MS),
+      }));
+
+    const historical = [...undated, ...dated].sort((a, b) => a.ts - b.ts);
+
+    // Always append the live current score as "now".
+    const all = [...historical, { score: currentScore, ts: now }];
+    if (all.length < 2) return null;
+
+    // Week trend: compare current score vs the oldest entry >= 5 days old.
+    const fiveDaysAgo = now - 5 * DAY_MS;
+    const weekRef = historical.filter((e) => e.ts <= fiveDaysAgo).at(-1);
+    const weekDelta = weekRef != null ? currentScore - weekRef.score : null;
+
+    return { points: all.map((e) => e.score), weekDelta, count: all.length };
   }, [history, currentScore]);
 
-  if (points.length < 2) return null;
+  if (!derived) return null;
 
-  const W = 160;
-  const H = 36;
-  const PAD = 2;
-  const min = Math.max(0, Math.min(...points) - 5);
-  const max = Math.min(100, Math.max(...points) + 5);
-  const range = max - min || 1;
+  const { points, weekDelta, count } = derived;
 
-  function toX(i: number) {
-    return PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  // ── SVG layout ────────────────────────────────────────────────
+  const W = 200;
+  const H = 44;
+  const PX = 6;   // horizontal pad
+  const PY = 5;   // vertical pad
+  const innerW = W - PX * 2;
+  const innerH = H - PY * 2;
+
+  const minVal = Math.max(0,   Math.min(...points, CHICAGO_AVG) - 6);
+  const maxVal = Math.min(100, Math.max(...points, CHICAGO_AVG) + 6);
+  const range  = maxVal - minVal || 1;
+
+  const toX = (i: number) => PX + (i / (points.length - 1)) * innerW;
+  const toY = (v: number) => PY + (1 - (v - minVal) / range) * innerH;
+
+  // Line path
+  const linePath = points
+    .map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+    .join(" ");
+
+  // Closed area path (line + bottom edge)
+  const areaPath =
+    linePath +
+    ` L${toX(points.length - 1).toFixed(1)},${H} L${PX},${H} Z`;
+
+  // Chicago avg line
+  const avgY   = toY(CHICAGO_AVG);
+  const todayX = toX(points.length - 1);
+  const todayY = toY(points[points.length - 1]);
+
+  // Dot color: match score band
+  const dotColor =
+    currentScore >= 81 ? "#7c3aed" :
+    currentScore >= 61 ? "#ef4444" :
+    currentScore >= 41 ? "#f59e0b" :
+    currentScore >= 21 ? "#3ce5b3" :
+                         "#10b981";
+
+  // Trend label
+  let trendLabel: string;
+  let trendColor: string;
+  if (weekDelta === null || Math.abs(weekDelta) <= 2) {
+    trendLabel = "→ Stable this week";
+    trendColor = "#94a3b8";
+  } else if (weekDelta > 0) {
+    trendLabel = `↑ Up ${weekDelta} pts this week`;
+    trendColor = "#ef4444";
+  } else {
+    trendLabel = `↓ Down ${Math.abs(weekDelta)} pts this week`;
+    trendColor = "#10b981";
   }
-  function toY(v: number) {
-    return PAD + (1 - (v - min) / range) * (H - PAD * 2);
-  }
-
-  const pathD = points.map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
-  const lastX = toX(points.length - 1);
-  const lastY = toY(points[points.length - 1]);
-  const trend = points.length >= 2 ? points[points.length - 1] - points[points.length - 2] : 0;
-  const trendLabel = trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : "→ stable";
-  const trendColor = trend > 5 ? "#ef4444" : trend < -5 ? "#22c55e" : "#94a3b8";
 
   return (
-    <div className="sparkline-wrapper" aria-label={`Score trend over ${points.length} readings`}>
-      <div className="sparkline-meta">
-        <span className="sparkline-label">{points.length} readings</span>
-        <span className="sparkline-trend" style={{ color: trendColor }}>{trendLabel}</span>
+    <div
+      className="sparkline-wrapper"
+      aria-label={`Score history over ${count} readings. ${trendLabel}.`}
+    >
+      {/* Header row */}
+      <div className="sparkline-header">
+        <span className="sparkline-label">Score history · 30 days</span>
+        <span className="sparkline-trend" style={{ color: trendColor }}>
+          {trendLabel}
+        </span>
       </div>
-      <svg width={W} height={H} className="sparkline-svg" aria-hidden="true">
-        <path d={pathD} fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinejoin="round" />
-        <circle cx={lastX} cy={lastY} r="3" fill={trendColor} />
+
+      {/* SVG chart */}
+      <svg
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        className="sparkline-svg"
+        aria-hidden="true"
+        style={{ display: "block", overflow: "visible" }}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#84a6ff" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#84a6ff" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Area fill */}
+        <path d={areaPath} fill={`url(#${gradId})`} />
+
+        {/* Line */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#84a6ff"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+
+        {/* Chicago average dashed reference line */}
+        <line
+          x1={PX}
+          y1={avgY.toFixed(1)}
+          x2={W - PX}
+          y2={avgY.toFixed(1)}
+          stroke="rgba(148,163,184,0.45)"
+          strokeWidth="1"
+          strokeDasharray="3 3"
+        />
+        {/* "35" label at right edge of avg line */}
+        <text
+          x={W - PX + 1}
+          y={(avgY + 3.5).toFixed(1)}
+          fontSize="7"
+          fill="rgba(148,163,184,0.7)"
+          textAnchor="start"
+          fontFamily="system-ui, sans-serif"
+        >
+          35
+        </text>
+
+        {/* Today dot — outer ring */}
+        <circle
+          cx={todayX.toFixed(1)}
+          cy={todayY.toFixed(1)}
+          r="5"
+          fill={dotColor}
+          fillOpacity="0.2"
+        />
+        {/* Today dot — inner solid */}
+        <circle
+          cx={todayX.toFixed(1)}
+          cy={todayY.toFixed(1)}
+          r="3"
+          fill={dotColor}
+        />
       </svg>
+
+      {/* Chicago avg annotation */}
+      <div className="sparkline-avg-note">
+        <span className="sparkline-avg-dash" aria-hidden="true" />
+        Chicago avg: 35
+      </div>
     </div>
   );
 }
@@ -1061,15 +1218,28 @@ export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: Neig
 // existing PermitDetailPanel. Today is marked with a vertical rule.
 // ---------------------------------------------------------------------------
 
+// Semantic color palette — 5 categories matching the legend spec.
 const TL_COLOR: Record<string, string> = {
-  closure_full:        "#ef4444",   // red   — access disruption
-  closure_multi_lane:  "#f87171",   // lighter red
-  closure_single_lane: "#fca5a5",   // lightest red
-  demolition:          "#f97316",   // orange-red — construction family
-  construction:        "#fb923c",   // orange
-  light_permit:        "#facc15",   // yellow — noise / minor
+  closure_full:        "#EF4444",   // red   — traffic / access
+  closure_multi_lane:  "#EF4444",
+  closure_single_lane: "#EF4444",
+  demolition:          "#10B981",   // teal  — construction family
+  construction:        "#10B981",
+  light_permit:        "#F59E0B",   // amber — noise / minor
+  utility:             "#8B5CF6",   // purple — utility
 };
-const TL_COLOR_DEFAULT = "#60a5fa"; // blue fallback
+const TL_COLOR_DEFAULT = "#6B7280"; // gray — other
+
+// Maps impact_type → legend category key
+const TL_CATEGORY: Record<string, string> = {
+  closure_full:        "traffic",
+  closure_multi_lane:  "traffic",
+  closure_single_lane: "traffic",
+  demolition:          "construction",
+  construction:        "construction",
+  light_permit:        "noise",
+  utility:             "utility",
+};
 
 const TL_TYPE_LABEL: Record<string, string> = {
   closure_full:        "Full closure",
@@ -1078,13 +1248,15 @@ const TL_TYPE_LABEL: Record<string, string> = {
   demolition:          "Demolition",
   construction:        "Construction",
   light_permit:        "Permitted work",
+  utility:             "Utility work",
 };
 
-// Human-readable legend entries the user asked for (red/orange/yellow).
 const TL_LEGEND = [
-  { key: "closure_full",  color: "#ef4444", label: "Access disruption" },
-  { key: "construction",  color: "#fb923c", label: "Construction"       },
-  { key: "light_permit",  color: "#facc15", label: "Minor / noise"      },
+  { key: "traffic",      color: "#EF4444", label: "Traffic / Access disruption" },
+  { key: "construction", color: "#10B981", label: "Construction"                },
+  { key: "noise",        color: "#F59E0B", label: "Noise"                       },
+  { key: "utility",      color: "#8B5CF6", label: "Utility"                     },
+  { key: "other",        color: "#6B7280", label: "Other"                       },
 ] as const;
 
 const MONTH_SHORT_TL = [
@@ -1096,10 +1268,14 @@ type TLRow = {
   detail: TopRiskDetail;
   typeLabel: string;
   color: string;
+  category: string;
   startPct: number;
   endPct: number;
   openStart: boolean;
   openEnd: boolean;
+  daysLeft: number | null;   // null = open-ended, negative = already ended
+  startLabel: string;
+  endLabel: string;
 };
 
 type TLData = {
@@ -1148,18 +1324,31 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
     tick = new Date(Date.UTC(tick.getUTCFullYear(), tick.getUTCMonth() + 1, 1));
   }
 
+  const fmtDate = (iso: string | null): string => {
+    if (!iso) return "Open";
+    const d = new Date(iso + "T00:00:00Z");
+    return `${MONTH_SHORT_TL[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  };
+
   const rows: TLRow[] = dated.map((d, i) => {
     const sDate = d.start_date ? parseIso(d.start_date) : winStart;
     const eDate = d.end_date   ? parseIso(d.end_date)   : winEnd;
+    const daysLeft = d.end_date
+      ? Math.ceil((parseIso(d.end_date).getTime() - today.getTime()) / 86_400_000)
+      : null;
     return {
       id:         `tl-${d.project_id}-${i}`,
       detail:     d,
       typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
       color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
+      category:   TL_CATEGORY[d.impact_type] ?? "other",
       startPct:   toPct(sDate),
       endPct:     toPct(eDate),
       openStart:  !d.start_date,
       openEnd:    !d.end_date,
+      daysLeft,
+      startLabel: fmtDate(d.start_date),
+      endLabel:   fmtDate(d.end_date),
     };
   });
 
@@ -1170,6 +1359,7 @@ type SignalTimelineProps = { details: TopRiskDetail[] };
 
 export function SignalTimeline({ details }: SignalTimelineProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId]   = useState<string | null>(null);
 
   const data = useMemo(() => buildTLData(details), [details]);
 
@@ -1177,22 +1367,16 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 
   const { rows, todayPct, ticks } = data;
   const expandedRow = rows.find((r) => r.id === expandedId) ?? null;
+  const hoveredRow  = rows.find((r) => r.id === hoveredId)  ?? null;
   const LABEL_W = 162; // px — label column width
 
   function toggle(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  // Which legend items actually appear in this result set.
-  const presentTypes = new Set(rows.map((r) => r.detail.impact_type));
-  const visibleLegend = TL_LEGEND.filter(
-    (l) =>
-      presentTypes.has(l.key) ||
-      (l.key === "closure_full" &&
-        ["closure_full","closure_multi_lane","closure_single_lane"].some((t) => presentTypes.has(t))) ||
-      (l.key === "construction" &&
-        ["construction","demolition"].some((t) => presentTypes.has(t))),
-  );
+  // Only show legend categories that actually appear in this result set.
+  const presentCategories = new Set(rows.map((r) => r.category));
+  const visibleLegend = TL_LEGEND.filter((l) => presentCategories.has(l.key));
 
   return (
     <div>
@@ -1205,8 +1389,50 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
           Active window timeline
         </p>
         <p style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
-          Each bar spans a signal&rsquo;s active date range. Click a bar to see permit details.
+          Each bar spans a signal&rsquo;s active date range. Hover for details — click to expand permit info.
         </p>
+      </div>
+
+      {/* ── Hover info panel ────────────────────────────────────────── */}
+      <div style={{
+        minHeight: "52px",
+        marginBottom: "10px",
+        padding: hoveredRow ? "10px 14px" : "0",
+        borderRadius: "8px",
+        background: hoveredRow ? "rgba(255,255,255,0.04)" : "transparent",
+        border: hoveredRow ? "1px solid rgba(255,255,255,0.07)" : "1px solid transparent",
+        transition: "background 0.1s, border-color 0.1s",
+      }}>
+        {hoveredRow ? (
+          <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+              <span style={{
+                width: "10px", height: "10px", borderRadius: "2px",
+                background: hoveredRow.color, flexShrink: 0,
+              }} />
+              <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
+                {hoveredRow.typeLabel}
+              </strong>
+            </span>
+            {hoveredRow.detail.title && (
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #64748b)" }}>
+                {hoveredRow.detail.title}
+              </span>
+            )}
+            <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
+              {hoveredRow.startLabel} – {hoveredRow.endLabel}
+            </span>
+            {hoveredRow.detail.distance_m > 0 && (
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
+                {Math.round(hoveredRow.detail.distance_m * 3.28084).toLocaleString()} ft away
+              </span>
+            )}
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)", margin: 0, opacity: 0.5 }}>
+            Hover a bar to see signal details
+          </p>
+        )}
       </div>
 
       {/* Scrollable timeline */}
@@ -1246,8 +1472,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
           {/* ── Row body ──────────────────────────────────────────────── */}
           <div style={{ position: "relative" }}>
 
-            {/* Today vertical rule — spans full body height.
-                left = LABEL_W + todayPct% of the remaining track width */}
+            {/* Today vertical rule */}
             <div
               aria-hidden="true"
               style={{
@@ -1259,105 +1484,122 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
               }}
             />
 
-            {rows.map((row, index) => (
-              <div
-                key={row.id}
-                style={{
-                  display: "flex", alignItems: "center", height: "48px",
-                  borderBottom: index < rows.length - 1
-                    ? "1px solid rgba(255,255,255,0.045)" : "none",
-                }}
-              >
-                {/* Label column */}
-                <div style={{
-                  width: `${LABEL_W}px`, flexShrink: 0,
-                  paddingRight: "14px", textAlign: "right",
-                }}>
+            {rows.map((row, index) => {
+              const daysLabel = row.daysLeft === null
+                ? "open"
+                : row.daysLeft < 0
+                ? "ended"
+                : `${row.daysLeft}d`;
+              const barWidthPct = Math.max(row.endPct - row.startPct, 1.8);
+
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    display: "flex", alignItems: "center", height: "48px",
+                    borderBottom: index < rows.length - 1
+                      ? "1px solid rgba(255,255,255,0.045)" : "none",
+                  }}
+                >
+                  {/* Label column */}
                   <div style={{
-                    fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
-                    color: "var(--text-soft, #94a3b8)",
+                    width: `${LABEL_W}px`, flexShrink: 0,
+                    paddingRight: "14px", textAlign: "right",
                   }}>
-                    {row.typeLabel}
-                  </div>
-                  {row.detail.title && (
                     <div style={{
-                      fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
-                      overflow: "hidden", textOverflow: "ellipsis",
-                      whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
-                      marginLeft: "auto",
+                      fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
+                      color: "var(--text-soft, #94a3b8)",
                     }}>
-                      {row.detail.title}
+                      {row.typeLabel}
                     </div>
-                  )}
+                    {row.detail.title && (
+                      <div style={{
+                        fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
+                        marginLeft: "auto",
+                      }}>
+                        {row.detail.title}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Track column */}
+                  <div style={{ flex: 1, position: "relative", height: "100%" }}>
+                    {/* Centre-line guide */}
+                    <div aria-hidden="true" style={{
+                      position: "absolute", top: "50%", left: 0, right: 0,
+                      transform: "translateY(-50%)",
+                      height: "1px", background: "rgba(255,255,255,0.05)",
+                    }} />
+
+                    {/* Colored bar */}
+                    <button
+                      type="button"
+                      aria-pressed={expandedId === row.id}
+                      aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. ${row.startLabel} to ${row.endLabel}. Click for permit details.`}
+                      onClick={() => toggle(row.id)}
+                      onMouseEnter={(e) => {
+                        setHoveredId(row.id);
+                        e.currentTarget.style.opacity = "1";
+                      }}
+                      onMouseLeave={(e) => {
+                        setHoveredId(null);
+                        e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
+                      }}
+                      style={{
+                        position: "absolute",
+                        top: "50%", transform: "translateY(-50%)",
+                        left: `${row.startPct}%`,
+                        width: `${barWidthPct}%`,
+                        height: "20px",
+                        borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
+                        background: row.color,
+                        opacity: expandedId === row.id ? 1 : 0.76,
+                        cursor: "pointer",
+                        border: expandedId === row.id
+                          ? "2px solid rgba(255,255,255,0.55)"
+                          : row.openStart || row.openEnd
+                          ? `1px dashed ${row.color}`
+                          : "none",
+                        outline: "none",
+                        boxShadow: expandedId === row.id
+                          ? `0 0 0 3px ${row.color}44`
+                          : "none",
+                        transition: "opacity 0.12s, box-shadow 0.12s",
+                        zIndex: 1,
+                        // Room for the days label on the right edge
+                        paddingRight: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Days remaining — right edge of bar */}
+                      <span style={{
+                        fontSize: "0.58rem", fontWeight: 700, lineHeight: 1,
+                        color: "rgba(255,255,255,0.82)",
+                        whiteSpace: "nowrap",
+                        textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                        pointerEvents: "none",
+                      }}>
+                        {daysLabel}
+                      </span>
+                    </button>
+                  </div>
                 </div>
-
-                {/* Track column */}
-                <div style={{ flex: 1, position: "relative", height: "100%" }}>
-                  {/* Subtle centre-line guide */}
-                  <div aria-hidden="true" style={{
-                    position: "absolute", top: "50%", left: 0, right: 0,
-                    transform: "translateY(-50%)",
-                    height: "1px", background: "rgba(255,255,255,0.05)",
-                  }} />
-
-                  {/* Colored bar */}
-                  <button
-                    type="button"
-                    aria-pressed={expandedId === row.id}
-                    aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. Click for permit details.`}
-                    onClick={() => toggle(row.id)}
-                    style={{
-                      position: "absolute",
-                      top: "50%", transform: "translateY(-50%)",
-                      left: `${row.startPct}%`,
-                      width: `${Math.max(row.endPct - row.startPct, 1.8)}%`,
-                      height: "20px",
-                      // Rounded ends; open sides get a squared-off cap
-                      borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
-                      background: row.color,
-                      opacity: expandedId === row.id ? 1 : 0.76,
-                      cursor: "pointer",
-                      border: expandedId === row.id
-                        ? "2px solid rgba(255,255,255,0.55)"
-                        : row.openStart || row.openEnd
-                        ? `1px dashed ${row.color}`
-                        : "none",
-                      outline: "none",
-                      boxShadow: expandedId === row.id
-                        ? `0 0 0 3px ${row.color}44`
-                        : "none",
-                      transition: "opacity 0.12s, box-shadow 0.12s",
-                      zIndex: 1,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
-                    }}
-                  />
-
-                  {/* Distance badge — to the right of the bar */}
-                  {row.detail.distance_m > 0 && (
-                    <span style={{
-                      position: "absolute",
-                      top: "50%", transform: "translateY(-50%)",
-                      left: `calc(${row.endPct}% + 7px)`,
-                      fontSize: "0.59rem", color: "var(--text-muted, #64748b)",
-                      whiteSpace: "nowrap", pointerEvents: "none", zIndex: 1,
-                    }}>
-                      {Math.round(row.detail.distance_m * 3.28084).toLocaleString()} ft
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* ── Legend ──────────────────────────────────────────────── */}
           {visibleLegend.length > 0 && (
             <div style={{
-              display: "flex", gap: "18px", flexWrap: "wrap",
-              marginTop: "12px", paddingTop: "10px",
-              borderTop: "1px solid rgba(255,255,255,0.05)",
+              display: "flex", gap: "16px", flexWrap: "wrap",
+              marginTop: "14px", paddingTop: "12px",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              alignItems: "center",
             }}>
               {visibleLegend.map((l) => (
                 <span key={l.key} style={{
@@ -1402,19 +1644,18 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 // actual alert email delivery is gated behind Pro.
 // ---------------------------------------------------------------------------
 
+// "Drop below" thresholds — alert fires when score clears below the value.
 const WATCH_THRESHOLDS = [
-  { value: 50 as const, label: "50+", band: "Moderate", desc: "any moderate reading" },
-  { value: 65 as const, label: "65+", band: "High",     desc: "high-risk territory"  },
-  { value: 80 as const, label: "80+", band: "Severe",   desc: "severe disruption"    },
+  { value: 40 as const, label: "40", desc: "noticeable improvement" },
+  { value: 30 as const, label: "30", desc: "significant clearance"  },
+  { value: 20 as const, label: "20", desc: "near-normal conditions" },
 ];
-type ThresholdVal = 50 | 65 | 80;
+type ThresholdVal = 40 | 30 | 20;
 
-function pickDefaultThreshold(score: number): ThresholdVal {
-  // Default to the next tier above the current score so the user is alerted
-  // if conditions worsen, not just because the score is already elevated.
-  if (score >= 80) return 80;
-  if (score >= 65) return 80;
-  return 65;
+function pickDefaultThreshold(_score: number): ThresholdVal {
+  // 40 is the most useful default — catches meaningful clearance without
+  // waiting for near-zero conditions.
+  return 40;
 }
 
 type WatchFormState = "idle" | "submitting" | "confirmed" | "error";
@@ -1455,22 +1696,22 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
   if (formState === "confirmed" && confirmed) {
     return (
       <div className="watch-confirmed-card detail-card" style={{ padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
           <span style={{ fontSize: "1.15rem", color: "#22c55e", lineHeight: 1 }}>✓</span>
           <p style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text)" }}>
-            Monitoring {confirmed.address}
+            You&rsquo;ll get an email when disruption clears.
           </p>
         </div>
         <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "var(--text-soft)" }}>
-          Watching for scores of <strong>{confirmed.threshold}+</strong> ({selectedOpt.band}).
-          {" "}Alerts go to <strong>{confirmed.email}</strong>.
+          Alert fires when the score for <strong>{confirmed.address}</strong> drops below{" "}
+          <strong>{confirmed.threshold}</strong>. Watching <strong>{confirmed.email}</strong>.
         </p>
 
         <div className="watch-pro-note">
           <span className="watch-pro-badge">Pro</span>
           <span>
-            Alert emails go to Pro plan subscribers.{" "}
-            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a> email delivery.
+            Email delivery is available on the Pro plan.{" "}
+            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a>.
           </span>
         </div>
 
@@ -1484,8 +1725,6 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
   }
 
   // ── Idle / submitting / error state ──────────────────────────────────────
-  const currentBand = score >= 80 ? "Severe" : score >= 65 ? "High" : "Moderate";
-
   return (
     <div className="watch-card detail-card" style={{ padding: "20px 24px" }}>
       {/* Header */}
@@ -1495,7 +1734,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             Monitor this address
           </p>
           <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-soft)" }}>
-            Score is {score} ({currentBand}). Get notified if conditions change.
+            Score is currently <strong>{score}</strong>. Get notified when disruption clears.
           </p>
         </div>
         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
@@ -1507,7 +1746,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
         {/* Threshold selector */}
         <div style={{ marginBottom: "14px" }}>
           <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            Alert me when score reaches
+            Alert me when score drops below
           </p>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             {WATCH_THRESHOLDS.map((opt) => (
@@ -1518,17 +1757,15 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
                 onClick={() => setThreshold(opt.value)}
                 aria-pressed={threshold === opt.value}
               >
-                {opt.label} {opt.band}
+                {opt.label}
               </button>
             ))}
             <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-              Current: {score}
+              Current score: {score}
             </span>
           </div>
           <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
-            {selectedOpt.desc === "any moderate reading"
-              ? "You'll be notified whenever the score is at or above 50."
-              : `You'll be notified when the score climbs into ${selectedOpt.band.toLowerCase()} territory.`}
+            Alert fires on {selectedOpt.desc} — when score drops below {selectedOpt.label}.
           </p>
         </div>
 
@@ -1549,7 +1786,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             className="watch-submit-btn"
             disabled={!emailValid || formState === "submitting"}
           >
-            {formState === "submitting" ? "Setting up…" : "Set up alert \u2192"}
+            {formState === "submitting" ? "Setting up…" : "Set alert"}
           </button>
         </div>
 
@@ -1560,6 +1797,476 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
           </p>
         )}
       </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CommuteChecker
+// Collapsible section below the main score. User inputs a second address
+// (workplace/destination); the app queries /commute for the corridor score,
+// badge (Low/Moderate/High), and any CTA service alerts in the corridor.
+// ---------------------------------------------------------------------------
+
+type CommuteCheckerProps = {
+  homeAddress: string;
+};
+
+function _commuteBadgeColor(badge: string): string {
+  if (badge === "Low") return "#10b981";
+  if (badge === "Moderate") return "#f59e0b";
+  return "#ef4444";
+}
+
+function _commuteSignalColor(impact_type: string | null): string {
+  if (!impact_type) return "#6b7280";
+  if (impact_type.startsWith("closure")) return "#ef4444";
+  if (impact_type === "construction" || impact_type === "demolition") return "#10b981";
+  return "#f59e0b";
+}
+
+export function CommuteChecker({ homeAddress }: CommuteCheckerProps) {
+  const [isOpen, setIsOpen]       = useState(false);
+  const [workAddr, setWorkAddr]   = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult]       = useState<CommuteResponse | null>(null);
+  const [error, setError]         = useState<string | null>(null);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleCheck(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const trimmed = workAddr.trim();
+    if (!trimmed) return;
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    setShowSuggestions(false);
+    try {
+      const data = await fetchCommute(homeAddress, trimmed);
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not score commute corridor. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function handleWorkAddrChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setWorkAddr(val);
+    setResult(null);
+    setError(null);
+    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    if (val.trim().length >= 3) {
+      suggestTimerRef.current = setTimeout(async () => {
+        try {
+          const hits = await fetchSuggestions(val);
+          setSuggestions(hits);
+          setShowSuggestions(hits.length > 0);
+        } catch { /* ignore */ }
+      }, 300);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }
+
+  function pickSuggestion(s: string) {
+    setWorkAddr(s);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  const badgeColor = result ? _commuteBadgeColor(result.badge) : "#6b7280";
+
+  return (
+    <div className="commute-section">
+      <button
+        type="button"
+        className={`commute-toggle${isOpen ? " commute-toggle--open" : ""}`}
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+      >
+        <span className="commute-toggle-label">
+          <span className="commute-toggle-icon" aria-hidden="true">🚇</span>
+          Check my commute
+        </span>
+        <span className="commute-toggle-caret" aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {isOpen && (
+        <div className="commute-panel">
+          <p className="commute-description">
+            Add a destination to score disruption along your commute corridor. The app queries all
+            active signals between the two addresses and checks for CTA service alerts.
+          </p>
+
+          <form className="commute-form" onSubmit={handleCheck}>
+            <div className="commute-addr-display">
+              <span className="commute-addr-pin commute-addr-pin--home" aria-hidden="true">A</span>
+              <span className="commute-addr-text">{homeAddress}</span>
+            </div>
+            <div className="commute-input-row">
+              <span className="commute-addr-pin commute-addr-pin--work" aria-hidden="true">B</span>
+              <div className="commute-input-shell">
+                <input
+                  id="commute-work"
+                  className="commute-work-input"
+                  type="text"
+                  placeholder="Enter workplace or destination address"
+                  value={workAddr}
+                  onChange={handleWorkAddrChange}
+                  onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  autoComplete="off"
+                  required
+                />
+                {showSuggestions && (
+                  <ul className="commute-suggestions" role="listbox">
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        className="commute-suggestion-item"
+                        onMouseDown={() => pickSuggestion(s)}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="commute-submit-btn"
+                disabled={isLoading || !workAddr.trim()}
+              >
+                {isLoading ? "Scoring…" : "Score corridor"}
+              </button>
+            </div>
+          </form>
+
+          {error && <p className="commute-error">{error}</p>}
+
+          {result && (
+            <div className="commute-result">
+              {/* Score + badge row */}
+              <div className="commute-badge-row">
+                <div className="commute-score-block">
+                  <span className="commute-score-num" style={{ color: badgeColor }}>
+                    {result.commute_score}
+                  </span>
+                  <span className="commute-score-label">corridor score</span>
+                </div>
+                <span
+                  className="commute-badge"
+                  style={{
+                    background: `${badgeColor}1a`,
+                    border: `1px solid ${badgeColor}40`,
+                    color: badgeColor,
+                  }}
+                >
+                  {result.badge} disruption
+                </span>
+                <span className="commute-signals-count">
+                  {result.signals_count} active signal{result.signals_count !== 1 ? "s" : ""} in corridor
+                </span>
+              </div>
+
+              {/* Corridor construction/closure signals */}
+              {result.signals.length > 0 && (
+                <div className="commute-signals-block">
+                  <p className="commute-block-heading">Corridor signals</p>
+                  <ul className="commute-signals-list">
+                    {result.signals.slice(0, 6).map((sig: CommuteSignal, i: number) => (
+                      <li key={i} className="commute-signal-item">
+                        <span
+                          className="commute-signal-dot"
+                          style={{ background: _commuteSignalColor(sig.impact_type) }}
+                          aria-hidden="true"
+                        />
+                        <span className="commute-signal-title">
+                          {sig.title ?? sig.impact_type ?? "Unknown signal"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* CTA transit alerts */}
+              {result.transit_alerts.length > 0 && (
+                <div className="commute-signals-block">
+                  <p className="commute-block-heading">CTA service alerts in corridor</p>
+                  <ul className="commute-signals-list">
+                    {result.transit_alerts.slice(0, 5).map((alert: CommuteSignal, i: number) => (
+                      <li key={i} className="commute-signal-item commute-signal-item--transit">
+                        <span className="commute-signal-dot commute-signal-dot--transit" aria-hidden="true" />
+                        <span className="commute-signal-title">
+                          {alert.title ?? "CTA service alert"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* CTA stations with no active alerts */}
+              {result.transit_stations.length > 0 && result.transit_alerts.length === 0 && (
+                <p className="commute-transit-clear">
+                  {result.transit_stations.length} CTA station
+                  {result.transit_stations.length !== 1 ? "s" : ""} in corridor — no active service alerts.
+                </p>
+              )}
+
+              {result.mode === "demo" && (
+                <p className="commute-demo-note">
+                  Demo data — connect a live database for real corridor signals.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MobileScoreView
+// Shown only on screens < 768px via CSS. Replaces the full results section
+// with a three-zone layout optimised for "standing outside an apartment".
+//  1. Giant score hero (top ~40% of viewport)
+//  2. Three horizontally-scrolling signal pills
+//  3. Share + Monitor CTAs, then "Switch to full report →"
+// ---------------------------------------------------------------------------
+
+type MobileScoreViewProps = {
+  result: ScoreResponse;
+  onShowFull: () => void;
+};
+
+function _mobileBand(score: number): { label: string; color: string } {
+  if (score <= 24) return { label: "Low Risk",      color: "#10b981" };
+  if (score <= 49) return { label: "Moderate Risk", color: "#f59e0b" };
+  if (score <= 74) return { label: "High Risk",     color: "#ef4444" };
+  return             { label: "Severe Risk",    color: "#7c3aed" };
+}
+
+function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {
+  if (title) return title.length > 38 ? title.slice(0, 35) + "…" : title;
+  const MAP: Record<string, string> = {
+    closure_full:         "Full Road Closure",
+    closure_multi_lane:   "Multi-lane Closure",
+    closure_single_lane:  "Lane Closure",
+    construction:         "Construction",
+    demolition:           "Demolition",
+    light_permit:         "Street Permit",
+    utility:              "Utility Work",
+  };
+  return MAP[impactType ?? ""] ?? "Active Signal";
+}
+
+function _pillColor(impactType: string | null | undefined): string {
+  if (!impactType) return "#6b7280";
+  if (impactType.startsWith("closure")) return "#ef4444";
+  if (impactType === "construction" || impactType === "demolition") return "#10b981";
+  if (impactType === "light_permit") return "#f59e0b";
+  return "#8b5cf6";
+}
+
+export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
+  const band = _mobileBand(result.disruption_score);
+
+  // ── Share state ──────────────────────────────────────────────────────────
+  const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
+
+  async function handleShare() {
+    if (shareState === "loading") return;
+    setShareState("loading");
+    try {
+      const saved = await saveReport(result);
+      const url = `${window.location.origin}/report/${saved.report_id}`;
+      if (typeof navigator.share === "function") {
+        await navigator.share({
+          title: `Disruption score — ${result.address}`,
+          text: `${result.address} scores ${result.disruption_score}/100 (${band.label}) for near-term construction disruption.`,
+          url,
+        });
+        setShareState("idle");
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareState("copied");
+        setTimeout(() => setShareState("idle"), 2500);
+      }
+    } catch {
+      setShareState("error");
+      setTimeout(() => setShareState("idle"), 2000);
+    }
+  }
+
+  // ── Monitor (watchlist) state ────────────────────────────────────────────
+  const [monitorOpen, setMonitorOpen]         = useState(false);
+  const [monitorEmail, setMonitorEmail]       = useState("");
+  const [monitorStatus, setMonitorStatus]     = useState<"idle" | "sending" | "done" | "error">("idle");
+
+  const monitorEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(monitorEmail);
+
+  async function handleMonitor(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!monitorEmailValid || monitorStatus === "sending") return;
+    setMonitorStatus("sending");
+    try {
+      await subscribeWatch({ email: monitorEmail, address: result.address, threshold: 40 });
+      setMonitorStatus("done");
+    } catch {
+      setMonitorStatus("error");
+    }
+  }
+
+  // ── Signal pills (top 3) ─────────────────────────────────────────────────
+  const pills = useMemo(() => {
+    const details = result.top_risk_details ?? [];
+    if (details.length > 0) {
+      return details.slice(0, 3).map((d) => ({
+        label: _pillLabel(d.impact_type, d.rewritten_title ?? d.title),
+        color: _pillColor(d.impact_type),
+        key: d.project_id,
+      }));
+    }
+    return (result.top_risks ?? []).slice(0, 3).map((t, i) => ({
+      label: _pillLabel(null, t),
+      color: "#f59e0b",
+      key: String(i),
+    }));
+  }, [result]);
+
+  const extraCount = (result.top_risk_details?.length ?? result.top_risks?.length ?? 0) - 3;
+
+  return (
+    <div className="msv" aria-label="Mobile score summary">
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <div className="msv-hero" style={{ "--msv-band-color": band.color } as React.CSSProperties}>
+        <p className="msv-eyebrow">Disruption Score</p>
+        <div className="msv-score" style={{ color: band.color }}>
+          {result.disruption_score}
+        </div>
+        <p className="msv-band" style={{ color: band.color }}>{band.label}</p>
+        <p className="msv-address">{result.address}</p>
+        {result.mode === "demo" && (
+          <span className="msv-demo-badge">Demo data</span>
+        )}
+      </div>
+
+      {/* ── Signal pills ──────────────────────────────────────────────────── */}
+      {pills.length > 0 && (
+        <div className="msv-pills-section">
+          <p className="msv-pills-label">Active signals nearby</p>
+          <div className="msv-pills-scroll" role="list">
+            {pills.map((pill) => (
+              <span
+                key={pill.key}
+                role="listitem"
+                className="msv-pill"
+                style={{
+                  background: `${pill.color}18`,
+                  border: `1px solid ${pill.color}45`,
+                  color: pill.color,
+                }}
+              >
+                <span
+                  className="msv-pill-dot"
+                  style={{ background: pill.color }}
+                  aria-hidden="true"
+                />
+                {pill.label}
+              </span>
+            ))}
+            {extraCount > 0 && (
+              <button
+                type="button"
+                className="msv-pill msv-pill--more"
+                onClick={onShowFull}
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#94a3b8" }}
+              >
+                +{extraCount} more
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Actions ───────────────────────────────────────────────────────── */}
+      <div className="msv-actions">
+        {/* Share */}
+        <button
+          type="button"
+          className="msv-action-btn msv-action-btn--share"
+          onClick={handleShare}
+          disabled={shareState === "loading"}
+        >
+          <span aria-hidden="true">{shareState === "copied" ? "✓" : shareState === "error" ? "✗" : "↗"}</span>
+          {shareState === "loading" ? "Saving…"
+            : shareState === "copied" ? "Link copied!"
+            : shareState === "error"  ? "Share failed"
+            : "Share this score"}
+        </button>
+
+        {/* Monitor */}
+        {monitorStatus === "done" ? (
+          <div className="msv-monitor-confirmed">
+            <span aria-hidden="true">✓</span> Alert set — you&rsquo;ll hear when disruption clears.
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={`msv-action-btn msv-action-btn--monitor${monitorOpen ? " msv-action-btn--active" : ""}`}
+              onClick={() => setMonitorOpen((v) => !v)}
+            >
+              <span aria-hidden="true">🔔</span>
+              Monitor this address
+            </button>
+            {monitorOpen && (
+              <form className="msv-monitor-form" onSubmit={handleMonitor}>
+                <input
+                  type="email"
+                  className="msv-monitor-input"
+                  placeholder="your@email.com"
+                  value={monitorEmail}
+                  onChange={(e) => setMonitorEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                  aria-label="Email for disruption alerts"
+                />
+                <button
+                  type="submit"
+                  className="msv-monitor-submit"
+                  disabled={!monitorEmailValid || monitorStatus === "sending"}
+                >
+                  {monitorStatus === "sending" ? "Setting up…" : "Alert me below 40"}
+                </button>
+                {monitorStatus === "error" && (
+                  <p className="msv-monitor-error">Could not set alert. Try again.</p>
+                )}
+                <p className="msv-monitor-hint">
+                  Fires when score drops below 40. Pro plan required for email delivery.
+                </p>
+              </form>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Switch to full report ─────────────────────────────────────────── */}
+      <div className="msv-full-link">
+        <button type="button" className="msv-full-btn" onClick={onShowFull}>
+          Switch to full report →
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,8 @@ export type ScoreMode = "live" | "demo";
 // Structured metadata for a single top-risk contributor (data-024).
 // Parallel to the plain-English top_risks strings but machine-readable,
 // allowing the frontend to render permit IDs, dates, and source links.
+// data-042 adds rewritten_title and rewritten_description: Claude-generated
+// clean labels cached in the DB so they are only computed once per project.
 export type TopRiskDetail = {
   project_id: string;
   source: string;
@@ -18,6 +20,11 @@ export type TopRiskDetail = {
   address: string | null;
   notes?: string | null;
   weighted_score: number;
+  // Claude-rewritten display strings (data-042). Present when ANTHROPIC_API_KEY
+  // is configured on the backend; null when running in demo mode or when the
+  // rewrite call failed.
+  rewritten_title?: string | null;
+  rewritten_description?: string | null;
 };
 
 export type ImpactType =
@@ -598,6 +605,53 @@ export type NeighborhoodResponse = {
   sample_size?: number;
 };
 
+// ── Best Streets ─────────────────────────────────────────────────────────────
+
+export type BestStreetsBlock = {
+  block: string;
+  avg_score: number;
+  active_projects: number;
+};
+
+export type BestStreetsResponse = {
+  slug: string;
+  name: string;
+  quietest_blocks: BestStreetsBlock[];
+  busiest_blocks: BestStreetsBlock[];
+  last_updated: string;
+  mode: "live" | "demo";
+  meta_description: string;
+};
+
+/**
+ * Fetch best-streets block data for a neighborhood.
+ * Called server-side from the /neighborhood/[slug]/best-streets page.
+ * Returns null when the backend is unreachable.
+ */
+export async function fetchBestStreets(slug: string): Promise<BestStreetsResponse | null> {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!apiBaseUrl) return null;
+  try {
+    const url = new URL(`/neighborhood/${slug}/best-streets`, apiBaseUrl);
+    const resp = await fetch(url.toString(), { next: { revalidate: 86400 } });
+    if (!resp.ok) return null;
+    return (await resp.json()) as BestStreetsResponse;
+  } catch {
+    return null;
+  }
+}
+
+// ── All known neighborhood slugs (mirrors _NEIGHBORHOODS in backend/app/main.py) ──
+export const ALL_NEIGHBORHOOD_SLUGS = [
+  "wicker-park", "logan-square", "river-north", "lincoln-park",
+  "pilsen", "loop", "uptown", "bridgeport",
+  "old-town", "gold-coast", "streeterville", "south-loop",
+  "andersonville", "rogers-park", "bucktown", "ukrainian-village",
+  "humboldt-park", "hyde-park", "ravenswood", "avondale",
+] as const;
+
+export type NeighborhoodSlug = typeof ALL_NEIGHBORHOOD_SLUGS[number];
+
 // ── Neighborhood bbox map — mirrors the static config in backend/app/main.py ──
 // Used client-side to detect which neighborhood a scored address falls within,
 // without an extra round-trip to the server.
@@ -609,14 +663,26 @@ type NeighborhoodBbox = {
 };
 
 export const NEIGHBORHOOD_BBOXES: Record<string, NeighborhoodBbox> = {
-  "wicker-park":  { min_lat: 41.8990, min_lon: -87.6950, max_lat: 41.9180, max_lon: -87.6600, name: "Wicker Park",  center: { lat: 41.9088, lon: -87.6776 } },
-  "logan-square": { min_lat: 41.9100, min_lon: -87.7250, max_lat: 41.9330, max_lon: -87.6900, name: "Logan Square", center: { lat: 41.9217, lon: -87.7082 } },
-  "river-north":  { min_lat: 41.8850, min_lon: -87.6500, max_lat: 41.9030, max_lon: -87.6200, name: "River North",  center: { lat: 41.8940, lon: -87.6340 } },
-  "lincoln-park": { min_lat: 41.9100, min_lon: -87.6630, max_lat: 41.9380, max_lon: -87.6270, name: "Lincoln Park", center: { lat: 41.9240, lon: -87.6450 } },
-  "pilsen":       { min_lat: 41.8470, min_lon: -87.6850, max_lat: 41.8650, max_lon: -87.6430, name: "Pilsen",        center: { lat: 41.8560, lon: -87.6640 } },
-  "loop":         { min_lat: 41.8740, min_lon: -87.6480, max_lat: 41.8920, max_lon: -87.6180, name: "The Loop",      center: { lat: 41.8827, lon: -87.6323 } },
-  "uptown":       { min_lat: 41.9540, min_lon: -87.6680, max_lat: 41.9750, max_lon: -87.6390, name: "Uptown",        center: { lat: 41.9650, lon: -87.6540 } },
-  "bridgeport":   { min_lat: 41.8250, min_lon: -87.6600, max_lat: 41.8460, max_lon: -87.6300, name: "Bridgeport",   center: { lat: 41.8350, lon: -87.6444 } },
+  "wicker-park":       { min_lat: 41.8990, min_lon: -87.6950, max_lat: 41.9180, max_lon: -87.6600, name: "Wicker Park",        center: { lat: 41.9088, lon: -87.6776 } },
+  "logan-square":      { min_lat: 41.9100, min_lon: -87.7250, max_lat: 41.9330, max_lon: -87.6900, name: "Logan Square",       center: { lat: 41.9217, lon: -87.7082 } },
+  "river-north":       { min_lat: 41.8850, min_lon: -87.6500, max_lat: 41.9030, max_lon: -87.6200, name: "River North",        center: { lat: 41.8940, lon: -87.6340 } },
+  "lincoln-park":      { min_lat: 41.9100, min_lon: -87.6630, max_lat: 41.9380, max_lon: -87.6270, name: "Lincoln Park",       center: { lat: 41.9240, lon: -87.6450 } },
+  "pilsen":            { min_lat: 41.8470, min_lon: -87.6850, max_lat: 41.8650, max_lon: -87.6430, name: "Pilsen",             center: { lat: 41.8560, lon: -87.6640 } },
+  "loop":              { min_lat: 41.8740, min_lon: -87.6480, max_lat: 41.8920, max_lon: -87.6180, name: "The Loop",           center: { lat: 41.8827, lon: -87.6323 } },
+  "uptown":            { min_lat: 41.9540, min_lon: -87.6680, max_lat: 41.9750, max_lon: -87.6390, name: "Uptown",             center: { lat: 41.9650, lon: -87.6540 } },
+  "bridgeport":        { min_lat: 41.8250, min_lon: -87.6600, max_lat: 41.8460, max_lon: -87.6300, name: "Bridgeport",        center: { lat: 41.8350, lon: -87.6444 } },
+  "old-town":          { min_lat: 41.9010, min_lon: -87.6490, max_lat: 41.9180, max_lon: -87.6260, name: "Old Town",           center: { lat: 41.9095, lon: -87.6373 } },
+  "gold-coast":        { min_lat: 41.8940, min_lon: -87.6400, max_lat: 41.9110, max_lon: -87.6170, name: "Gold Coast",         center: { lat: 41.9026, lon: -87.6289 } },
+  "streeterville":     { min_lat: 41.8840, min_lon: -87.6270, max_lat: 41.9000, max_lon: -87.6080, name: "Streeterville",      center: { lat: 41.8920, lon: -87.6180 } },
+  "south-loop":        { min_lat: 41.8590, min_lon: -87.6430, max_lat: 41.8770, max_lon: -87.6140, name: "South Loop",         center: { lat: 41.8680, lon: -87.6280 } },
+  "andersonville":     { min_lat: 41.9730, min_lon: -87.6700, max_lat: 41.9890, max_lon: -87.6450, name: "Andersonville",      center: { lat: 41.9810, lon: -87.6580 } },
+  "rogers-park":       { min_lat: 41.9940, min_lon: -87.6810, max_lat: 42.0120, max_lon: -87.6550, name: "Rogers Park",        center: { lat: 42.0030, lon: -87.6690 } },
+  "bucktown":          { min_lat: 41.9090, min_lon: -87.6980, max_lat: 41.9260, max_lon: -87.6720, name: "Bucktown",           center: { lat: 41.9170, lon: -87.6850 } },
+  "ukrainian-village": { min_lat: 41.8870, min_lon: -87.6870, max_lat: 41.9030, max_lon: -87.6620, name: "Ukrainian Village",  center: { lat: 41.8950, lon: -87.6750 } },
+  "humboldt-park":     { min_lat: 41.8910, min_lon: -87.7380, max_lat: 41.9090, max_lon: -87.7060, name: "Humboldt Park",      center: { lat: 41.9000, lon: -87.7220 } },
+  "hyde-park":         { min_lat: 41.7840, min_lon: -87.6090, max_lat: 41.8060, max_lon: -87.5810, name: "Hyde Park",          center: { lat: 41.7950, lon: -87.5950 } },
+  "ravenswood":        { min_lat: 41.9620, min_lon: -87.6860, max_lat: 41.9790, max_lon: -87.6610, name: "Ravenswood",         center: { lat: 41.9700, lon: -87.6740 } },
+  "avondale":          { min_lat: 41.9360, min_lon: -87.7230, max_lat: 41.9540, max_lon: -87.6970, name: "Avondale",           center: { lat: 41.9450, lon: -87.7100 } },
 };
 
 export type NeighborhoodSlugInfo = { slug: string; name: string; exact: boolean };
@@ -749,4 +815,55 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     };
   }
   return { score, source: "live" };
+}
+
+// ── Commute corridor scoring ──────────────────────────────────────────────────
+
+export type CommuteSignal = {
+  title: string | null;
+  impact_type: string | null;
+  lat: number | null;
+  lon: number | null;
+  source: string;
+};
+
+export type CommuteResponse = {
+  home: string;
+  work: string;
+  commute_score: number;
+  badge: "Low" | "Moderate" | "High";
+  signals_count: number;
+  signals: CommuteSignal[];
+  transit_stations: Array<{ name: string; lat: number; lon: number }>;
+  transit_alerts: CommuteSignal[];
+  home_coords: { lat: number; lon: number } | null;
+  work_coords: { lat: number; lon: number } | null;
+  mode: "live" | "demo";
+};
+
+/**
+ * Score the disruption along a commute corridor between two addresses.
+ * POSTs to /commute with { home, work }.
+ * Returns null when the backend is not configured.
+ */
+export async function fetchCommute(
+  home: string,
+  work: string,
+): Promise<CommuteResponse> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new ApiError("Backend not configured. Cannot score commute corridor.");
+  }
+  const url = buildApiUrl("/commute");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ home, work }),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({})) as { detail?: string };
+    throw new ApiError(data.detail ?? `Commute scoring failed (${resp.status}).`);
+  }
+  return (await resp.json()) as CommuteResponse;
 }
