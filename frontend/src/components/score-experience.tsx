@@ -1070,15 +1070,28 @@ export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: Neig
 // existing PermitDetailPanel. Today is marked with a vertical rule.
 // ---------------------------------------------------------------------------
 
+// Semantic color palette — 5 categories matching the legend spec.
 const TL_COLOR: Record<string, string> = {
-  closure_full:        "#ef4444",   // red   — access disruption
-  closure_multi_lane:  "#f87171",   // lighter red
-  closure_single_lane: "#fca5a5",   // lightest red
-  demolition:          "#f97316",   // orange-red — construction family
-  construction:        "#fb923c",   // orange
-  light_permit:        "#facc15",   // yellow — noise / minor
+  closure_full:        "#EF4444",   // red   — traffic / access
+  closure_multi_lane:  "#EF4444",
+  closure_single_lane: "#EF4444",
+  demolition:          "#10B981",   // teal  — construction family
+  construction:        "#10B981",
+  light_permit:        "#F59E0B",   // amber — noise / minor
+  utility:             "#8B5CF6",   // purple — utility
 };
-const TL_COLOR_DEFAULT = "#60a5fa"; // blue fallback
+const TL_COLOR_DEFAULT = "#6B7280"; // gray — other
+
+// Maps impact_type → legend category key
+const TL_CATEGORY: Record<string, string> = {
+  closure_full:        "traffic",
+  closure_multi_lane:  "traffic",
+  closure_single_lane: "traffic",
+  demolition:          "construction",
+  construction:        "construction",
+  light_permit:        "noise",
+  utility:             "utility",
+};
 
 const TL_TYPE_LABEL: Record<string, string> = {
   closure_full:        "Full closure",
@@ -1087,13 +1100,15 @@ const TL_TYPE_LABEL: Record<string, string> = {
   demolition:          "Demolition",
   construction:        "Construction",
   light_permit:        "Permitted work",
+  utility:             "Utility work",
 };
 
-// Human-readable legend entries the user asked for (red/orange/yellow).
 const TL_LEGEND = [
-  { key: "closure_full",  color: "#ef4444", label: "Access disruption" },
-  { key: "construction",  color: "#fb923c", label: "Construction"       },
-  { key: "light_permit",  color: "#facc15", label: "Minor / noise"      },
+  { key: "traffic",      color: "#EF4444", label: "Traffic / Access disruption" },
+  { key: "construction", color: "#10B981", label: "Construction"                },
+  { key: "noise",        color: "#F59E0B", label: "Noise"                       },
+  { key: "utility",      color: "#8B5CF6", label: "Utility"                     },
+  { key: "other",        color: "#6B7280", label: "Other"                       },
 ] as const;
 
 const MONTH_SHORT_TL = [
@@ -1105,10 +1120,14 @@ type TLRow = {
   detail: TopRiskDetail;
   typeLabel: string;
   color: string;
+  category: string;
   startPct: number;
   endPct: number;
   openStart: boolean;
   openEnd: boolean;
+  daysLeft: number | null;   // null = open-ended, negative = already ended
+  startLabel: string;
+  endLabel: string;
 };
 
 type TLData = {
@@ -1157,18 +1176,31 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
     tick = new Date(Date.UTC(tick.getUTCFullYear(), tick.getUTCMonth() + 1, 1));
   }
 
+  const fmtDate = (iso: string | null): string => {
+    if (!iso) return "Open";
+    const d = new Date(iso + "T00:00:00Z");
+    return `${MONTH_SHORT_TL[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  };
+
   const rows: TLRow[] = dated.map((d, i) => {
     const sDate = d.start_date ? parseIso(d.start_date) : winStart;
     const eDate = d.end_date   ? parseIso(d.end_date)   : winEnd;
+    const daysLeft = d.end_date
+      ? Math.ceil((parseIso(d.end_date).getTime() - today.getTime()) / 86_400_000)
+      : null;
     return {
       id:         `tl-${d.project_id}-${i}`,
       detail:     d,
       typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
       color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
+      category:   TL_CATEGORY[d.impact_type] ?? "other",
       startPct:   toPct(sDate),
       endPct:     toPct(eDate),
       openStart:  !d.start_date,
       openEnd:    !d.end_date,
+      daysLeft,
+      startLabel: fmtDate(d.start_date),
+      endLabel:   fmtDate(d.end_date),
     };
   });
 
@@ -1179,6 +1211,7 @@ type SignalTimelineProps = { details: TopRiskDetail[] };
 
 export function SignalTimeline({ details }: SignalTimelineProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId]   = useState<string | null>(null);
 
   const data = useMemo(() => buildTLData(details), [details]);
 
@@ -1186,22 +1219,16 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 
   const { rows, todayPct, ticks } = data;
   const expandedRow = rows.find((r) => r.id === expandedId) ?? null;
+  const hoveredRow  = rows.find((r) => r.id === hoveredId)  ?? null;
   const LABEL_W = 162; // px — label column width
 
   function toggle(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  // Which legend items actually appear in this result set.
-  const presentTypes = new Set(rows.map((r) => r.detail.impact_type));
-  const visibleLegend = TL_LEGEND.filter(
-    (l) =>
-      presentTypes.has(l.key) ||
-      (l.key === "closure_full" &&
-        ["closure_full","closure_multi_lane","closure_single_lane"].some((t) => presentTypes.has(t))) ||
-      (l.key === "construction" &&
-        ["construction","demolition"].some((t) => presentTypes.has(t))),
-  );
+  // Only show legend categories that actually appear in this result set.
+  const presentCategories = new Set(rows.map((r) => r.category));
+  const visibleLegend = TL_LEGEND.filter((l) => presentCategories.has(l.key));
 
   return (
     <div>
@@ -1214,8 +1241,50 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
           Active window timeline
         </p>
         <p style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)", margin: 0 }}>
-          Each bar spans a signal&rsquo;s active date range. Click a bar to see permit details.
+          Each bar spans a signal&rsquo;s active date range. Hover for details — click to expand permit info.
         </p>
+      </div>
+
+      {/* ── Hover info panel ────────────────────────────────────────── */}
+      <div style={{
+        minHeight: "52px",
+        marginBottom: "10px",
+        padding: hoveredRow ? "10px 14px" : "0",
+        borderRadius: "8px",
+        background: hoveredRow ? "rgba(255,255,255,0.04)" : "transparent",
+        border: hoveredRow ? "1px solid rgba(255,255,255,0.07)" : "1px solid transparent",
+        transition: "background 0.1s, border-color 0.1s",
+      }}>
+        {hoveredRow ? (
+          <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+              <span style={{
+                width: "10px", height: "10px", borderRadius: "2px",
+                background: hoveredRow.color, flexShrink: 0,
+              }} />
+              <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
+                {hoveredRow.typeLabel}
+              </strong>
+            </span>
+            {hoveredRow.detail.title && (
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #64748b)" }}>
+                {hoveredRow.detail.title}
+              </span>
+            )}
+            <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
+              {hoveredRow.startLabel} – {hoveredRow.endLabel}
+            </span>
+            {hoveredRow.detail.distance_m > 0 && (
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
+                {Math.round(hoveredRow.detail.distance_m * 3.28084).toLocaleString()} ft away
+              </span>
+            )}
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)", margin: 0, opacity: 0.5 }}>
+            Hover a bar to see signal details
+          </p>
+        )}
       </div>
 
       {/* Scrollable timeline */}
@@ -1255,8 +1324,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
           {/* ── Row body ──────────────────────────────────────────────── */}
           <div style={{ position: "relative" }}>
 
-            {/* Today vertical rule — spans full body height.
-                left = LABEL_W + todayPct% of the remaining track width */}
+            {/* Today vertical rule */}
             <div
               aria-hidden="true"
               style={{
@@ -1268,105 +1336,122 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
               }}
             />
 
-            {rows.map((row, index) => (
-              <div
-                key={row.id}
-                style={{
-                  display: "flex", alignItems: "center", height: "48px",
-                  borderBottom: index < rows.length - 1
-                    ? "1px solid rgba(255,255,255,0.045)" : "none",
-                }}
-              >
-                {/* Label column */}
-                <div style={{
-                  width: `${LABEL_W}px`, flexShrink: 0,
-                  paddingRight: "14px", textAlign: "right",
-                }}>
+            {rows.map((row, index) => {
+              const daysLabel = row.daysLeft === null
+                ? "open"
+                : row.daysLeft < 0
+                ? "ended"
+                : `${row.daysLeft}d`;
+              const barWidthPct = Math.max(row.endPct - row.startPct, 1.8);
+
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    display: "flex", alignItems: "center", height: "48px",
+                    borderBottom: index < rows.length - 1
+                      ? "1px solid rgba(255,255,255,0.045)" : "none",
+                  }}
+                >
+                  {/* Label column */}
                   <div style={{
-                    fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
-                    color: "var(--text-soft, #94a3b8)",
+                    width: `${LABEL_W}px`, flexShrink: 0,
+                    paddingRight: "14px", textAlign: "right",
                   }}>
-                    {row.typeLabel}
-                  </div>
-                  {row.detail.title && (
                     <div style={{
-                      fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
-                      overflow: "hidden", textOverflow: "ellipsis",
-                      whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
-                      marginLeft: "auto",
+                      fontSize: "0.72rem", fontWeight: 600, lineHeight: 1.3,
+                      color: "var(--text-soft, #94a3b8)",
                     }}>
-                      {row.detail.title}
+                      {row.typeLabel}
                     </div>
-                  )}
+                    {row.detail.title && (
+                      <div style={{
+                        fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
+                        marginLeft: "auto",
+                      }}>
+                        {row.detail.title}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Track column */}
+                  <div style={{ flex: 1, position: "relative", height: "100%" }}>
+                    {/* Centre-line guide */}
+                    <div aria-hidden="true" style={{
+                      position: "absolute", top: "50%", left: 0, right: 0,
+                      transform: "translateY(-50%)",
+                      height: "1px", background: "rgba(255,255,255,0.05)",
+                    }} />
+
+                    {/* Colored bar */}
+                    <button
+                      type="button"
+                      aria-pressed={expandedId === row.id}
+                      aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. ${row.startLabel} to ${row.endLabel}. Click for permit details.`}
+                      onClick={() => toggle(row.id)}
+                      onMouseEnter={(e) => {
+                        setHoveredId(row.id);
+                        e.currentTarget.style.opacity = "1";
+                      }}
+                      onMouseLeave={(e) => {
+                        setHoveredId(null);
+                        e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
+                      }}
+                      style={{
+                        position: "absolute",
+                        top: "50%", transform: "translateY(-50%)",
+                        left: `${row.startPct}%`,
+                        width: `${barWidthPct}%`,
+                        height: "20px",
+                        borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
+                        background: row.color,
+                        opacity: expandedId === row.id ? 1 : 0.76,
+                        cursor: "pointer",
+                        border: expandedId === row.id
+                          ? "2px solid rgba(255,255,255,0.55)"
+                          : row.openStart || row.openEnd
+                          ? `1px dashed ${row.color}`
+                          : "none",
+                        outline: "none",
+                        boxShadow: expandedId === row.id
+                          ? `0 0 0 3px ${row.color}44`
+                          : "none",
+                        transition: "opacity 0.12s, box-shadow 0.12s",
+                        zIndex: 1,
+                        // Room for the days label on the right edge
+                        paddingRight: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Days remaining — right edge of bar */}
+                      <span style={{
+                        fontSize: "0.58rem", fontWeight: 700, lineHeight: 1,
+                        color: "rgba(255,255,255,0.82)",
+                        whiteSpace: "nowrap",
+                        textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                        pointerEvents: "none",
+                      }}>
+                        {daysLabel}
+                      </span>
+                    </button>
+                  </div>
                 </div>
-
-                {/* Track column */}
-                <div style={{ flex: 1, position: "relative", height: "100%" }}>
-                  {/* Subtle centre-line guide */}
-                  <div aria-hidden="true" style={{
-                    position: "absolute", top: "50%", left: 0, right: 0,
-                    transform: "translateY(-50%)",
-                    height: "1px", background: "rgba(255,255,255,0.05)",
-                  }} />
-
-                  {/* Colored bar */}
-                  <button
-                    type="button"
-                    aria-pressed={expandedId === row.id}
-                    aria-label={`${row.typeLabel}${row.detail.title ? ": " + row.detail.title : ""}. Click for permit details.`}
-                    onClick={() => toggle(row.id)}
-                    style={{
-                      position: "absolute",
-                      top: "50%", transform: "translateY(-50%)",
-                      left: `${row.startPct}%`,
-                      width: `${Math.max(row.endPct - row.startPct, 1.8)}%`,
-                      height: "20px",
-                      // Rounded ends; open sides get a squared-off cap
-                      borderRadius: `${row.openStart ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openEnd ? 3 : 5}px ${row.openStart ? 3 : 5}px`,
-                      background: row.color,
-                      opacity: expandedId === row.id ? 1 : 0.76,
-                      cursor: "pointer",
-                      border: expandedId === row.id
-                        ? "2px solid rgba(255,255,255,0.55)"
-                        : row.openStart || row.openEnd
-                        ? `1px dashed ${row.color}`
-                        : "none",
-                      outline: "none",
-                      boxShadow: expandedId === row.id
-                        ? `0 0 0 3px ${row.color}44`
-                        : "none",
-                      transition: "opacity 0.12s, box-shadow 0.12s",
-                      zIndex: 1,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = expandedId === row.id ? "1" : "0.76";
-                    }}
-                  />
-
-                  {/* Distance badge — to the right of the bar */}
-                  {row.detail.distance_m > 0 && (
-                    <span style={{
-                      position: "absolute",
-                      top: "50%", transform: "translateY(-50%)",
-                      left: `calc(${row.endPct}% + 7px)`,
-                      fontSize: "0.59rem", color: "var(--text-muted, #64748b)",
-                      whiteSpace: "nowrap", pointerEvents: "none", zIndex: 1,
-                    }}>
-                      {Math.round(row.detail.distance_m * 3.28084).toLocaleString()} ft
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* ── Legend ──────────────────────────────────────────────── */}
           {visibleLegend.length > 0 && (
             <div style={{
-              display: "flex", gap: "18px", flexWrap: "wrap",
-              marginTop: "12px", paddingTop: "10px",
-              borderTop: "1px solid rgba(255,255,255,0.05)",
+              display: "flex", gap: "16px", flexWrap: "wrap",
+              marginTop: "14px", paddingTop: "12px",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              alignItems: "center",
             }}>
               {visibleLegend.map((l) => (
                 <span key={l.key} style={{
