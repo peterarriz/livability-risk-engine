@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits_ckan.py
-task: data-039
+task: data-039, data-043
 lane: data
 
 CKAN-based building permit ingest for US cities that do NOT use Socrata.
@@ -10,6 +10,7 @@ Supported cities (verified to use CKAN open data portals):
   - Philadelphia  (data.phila.gov)
   - San Antonio   (data.sanantonio.gov)
   - San Diego     (data.sandiego.gov)
+  - Denver        (data.denvergov.org)
 
 CKAN API pattern:
   Paginated fetch:
@@ -190,6 +191,34 @@ CITY_CONFIGS: list[dict] = [
         "lon_field":        "lng",
         "addr_field":       "address",
         "city_state":       "San Diego, CA",
+        "discover_query":   "building permit",
+    },
+    {
+        # Denver — Building Permits.
+        # Portal: https://data.denvergov.org (OpenGov/CKAN stack)
+        # Package slug: "building-permits"
+        # Discover resource_id:
+        #   python backend/ingest/us_city_permits_ckan.py --city denver --discover
+        #   curl "https://data.denvergov.org/api/3/action/package_search?q=building+permit&rows=5"
+        # Fields based on Denver Open Data catalog (2026-03-22); verify via --discover.
+        # Denver's CKAN uses "permit_no", "permit_type", "work_description",
+        # "issued_date", "geo_lat", "geo_lon", "full_address".
+        # Note: Denver may also expose data as a direct CSV download at:
+        #   https://www.denvergov.org/media/gis/DataCatalog/building_permits/csv/building_permits.csv
+        #   If CKAN API is unavailable, a future task can add a CSV-based ingest.
+        "city_name":        "Denver",
+        "source_key":       "denver",
+        "domain":           "data.denvergov.org",
+        "resource_id":      "VERIFY_VIA_DISCOVER",  # run --discover to get the UUID
+        "id_field":         "permit_no",
+        "type_field":       "permit_type",
+        "desc_field":       "work_description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "geo_lat",
+        "lon_field":        "geo_lon",
+        "addr_field":       "full_address",
+        "city_state":       "Denver, CO",
         "discover_query":   "building permit",
     },
 ]
@@ -611,7 +640,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Ingest US city building permits from CKAN open data portals.\n\n"
-            "Cities: Houston, Philadelphia, San Antonio, San Diego."
+            "Cities: Houston, Philadelphia, San Antonio, San Diego, Denver."
         )
     )
     parser.add_argument(
