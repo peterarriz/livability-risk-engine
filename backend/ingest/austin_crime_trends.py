@@ -6,8 +6,8 @@ lane: data
 Ingests Austin APD crime data and calculates 12-month crime trends by sector.
 
 Source:
-  https://data.austintexas.gov/resource/g3bk-zscf.json
-  Dataset: APD Crime Reports (Austin Police Department)
+  https://data.austintexas.gov/resource/fdj4-gpfu.json
+  Dataset: Crime Reports (Austin Police Department)
 
 Method:
   1. Aggregate crime counts by sector for the last 12 months (current window).
@@ -41,13 +41,13 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-CRIMES_URL = "https://data.austintexas.gov/resource/g3bk-zscf.json"
+CRIMES_URL = "https://data.austintexas.gov/resource/fdj4-gpfu.json"
 SOCRATA_DOMAIN = "data.austintexas.gov"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/austin_crime_trends.json")
 
 # Date field and district field in the Austin APD crime dataset
-DATE_FIELD = "occurred_date_time"
+DATE_FIELD = "occ_date"
 DISTRICT_FIELD = "sector"
 
 # Changes within ±5% are classified as STABLE.
@@ -68,9 +68,11 @@ def fetch_crime_counts_with_centroids(
     end_date: datetime,
 ) -> dict[str, dict]:
     """
-    Fetch total crime counts and approximate centroids per sector for a date range.
-    Uses SoQL GROUP BY to compute counts and avg lat/lon server-side.
-    Returns dict: sector → {count, avg_lat, avg_lon}.
+    Fetch total crime counts per sector for a date range.
+    Uses SoQL GROUP BY to compute counts server-side.
+    Note: The fdj4-gpfu dataset does not include lat/lon columns,
+    so centroids are not available.
+    Returns dict: sector → {count, lat (None), lon (None)}.
     """
     where_clause = (
         f"{DATE_FIELD} >= '{_date_str(start_date)}' "
@@ -79,9 +81,7 @@ def fetch_crime_counts_with_centroids(
     params: dict = {
         "$select": (
             f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            "avg(latitude) as avg_lat, "
-            "avg(longitude) as avg_lon"
+            "count(*) as crime_count"
         ),
         "$where": where_clause,
         "$group": DISTRICT_FIELD,
@@ -103,15 +103,7 @@ def fetch_crime_counts_with_centroids(
             count = int(row.get("crime_count", 0))
         except (TypeError, ValueError):
             count = 0
-        try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[sector] = {"count": count, "lat": avg_lat, "lon": avg_lon}
+        results[sector] = {"count": count, "lat": None, "lon": None}
 
     return results
 
