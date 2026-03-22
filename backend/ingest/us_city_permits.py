@@ -12,19 +12,13 @@ Supported sources (configured in CITY_CONFIGS):
   - Austin         (data.austintexas.gov)
   - New York City Street Closures (data.cityofnewyork.us)
   - Seattle        (data.seattle.gov)
-  - Portland       (data.portlandoregon.gov)
-  - Nashville      (data.nashville.gov)
-  - Boston         (data.boston.gov)
-  - Detroit        (data.detroitmi.gov)
-  - Memphis        (data.memphistn.gov)
-  - Louisville     (data.louisvilleky.gov)
-  - Baltimore      (data.baltimorecity.gov)
-  - Milwaukee      (data.milwaukee.gov)
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
     A future task can add an ArcGIS REST ingest if needed.
-  - Denver — uses CKAN/OpenGov; see us_city_permits_ckan.py.
+  - Denver, Boston, Milwaukee — use CKAN; see us_city_permits_ckan.py.
+  - Portland, Nashville, Detroit, Memphis, Louisville, Baltimore — portals
+    are down, non-Socrata, or returning non-JSON. Removed 2026-03-22.
 
 NOTE ON DATASET IDs:
   Dataset IDs below were researched from public Socrata catalog metadata as of
@@ -109,8 +103,9 @@ CITY_CONFIGS: list[dict] = [
         # Dataset: "DOB Permit Issuance" (ipu4-2q9a)
         # Verified 2026-03-21 via catalog API.
         # Note: date fields are text (MM/DD/YYYY), not calendar_date.
-        # SoQL date comparison won't work, so we skip the date filter and
-        # order by dobrundate DESC to get the most recently processed records.
+        # SoQL date comparison won't work on text dates, so we skip the
+        # date filter and cap via max_records to get the most recent permits
+        # ordered by dobrundate DESC.
         "city_name":        "New York City",
         "source_key":       "nyc",
         "domain":           "data.cityofnewyork.us",
@@ -121,6 +116,7 @@ CITY_CONFIGS: list[dict] = [
         "issue_date_field": "dobrundate",
         "exp_date_field":   "expiration_date",
         "skip_date_filter": True,
+        "max_records":      50000,
         "lat_field":        "gis_latitude",
         "lon_field":        "gis_longitude",
         "loc_field":        None,
@@ -129,23 +125,23 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Los Angeles — LA BUILD PERMITS (LADBS).
+        # Los Angeles — Building Permits Issued 2020-Present.
         # Portal: https://data.lacity.org
-        # Dataset: "LA BUILD PERMITS" (xnhu-aczu)
-        # Verified 2026-03-21 — yv23-pmwf returned 403 (requires auth).
+        # Dataset: "Building and Safety - Building Permits Issued from 2020 to Present (N)" (pi9x-tg5x)
+        # Verified 2026-03-22 — old dataset xnhu-aczu was a stale filter view returning 0 records.
         "city_name":        "Los Angeles",
         "source_key":       "los_angeles",
         "domain":           "data.lacity.org",
-        "dataset_id":       "xnhu-aczu",
-        "id_field":         "pcis_permit",
+        "dataset_id":       "pi9x-tg5x",
+        "id_field":         "permit_nbr",
         "type_field":       "permit_type",
-        "desc_field":       "work_description",
+        "desc_field":       "work_desc",
         "issue_date_field": "issue_date",
         "exp_date_field":   None,
-        "lat_field":        None,
-        "lon_field":        None,
+        "lat_field":        "lat",
+        "lon_field":        "lon",
         "loc_field":        None,
-        "addr_field":       "street_name",
+        "addr_field":       "primary_address",
         "city_state":       "Los Angeles, CA",
         "where_clause":     None,
     },
@@ -227,179 +223,18 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Seattle, WA",
         "where_clause":     None,
     },
-    {
-        # Portland — Bureau of Development Services Building Permits.
-        # Portal: https://data.portlandoregon.gov
-        # Dataset: "Building Permits" (dn2b-wfmq)
-        # Verify: curl "https://data.portlandoregon.gov/api/catalog/v1?q=building+permits&limit=5"
-        # Note: Socrata field names are lowercase in the JSON API response.
-        "city_name":        "Portland",
-        "source_key":       "portland",
-        "domain":           "data.portlandoregon.gov",
-        "dataset_id":       "dn2b-wfmq",
-        "id_field":         "permit_nbr",
-        "type_field":       "permit_type",
-        "desc_field":       "work_description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "site_lat",
-        "lon_field":        "site_lng",
-        "loc_field":        None,
-        "addr_field":       "site_address",
-        "city_state":       "Portland, OR",
-        "where_clause":     None,
-    },
-    {
-        # Nashville — Building Permits.
-        # Portal: https://data.nashville.gov
-        # Dataset: "Building Permits" (3h5a-gtgq)
-        # Verify: curl "https://data.nashville.gov/api/catalog/v1?q=building+permits&limit=5"
-        # Note: mapped_location is a Socrata point type; lat/lon extracted via loc_field fallback.
-        "city_name":        "Nashville",
-        "source_key":       "nashville",
-        "domain":           "data.nashville.gov",
-        "dataset_id":       "3h5a-gtgq",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type_description",
-        "desc_field":       "work_description",
-        "issue_date_field": "date_issued",
-        "exp_date_field":   None,
-        "lat_field":        None,
-        "lon_field":        None,
-        "loc_field":        "mapped_location",
-        "addr_field":       "address",
-        "city_state":       "Nashville, TN",
-        "where_clause":     None,
-    },
-    {
-        # Boston — Building Permits.
-        # Portal: https://data.boston.gov
-        # Dataset: "Building Permits" (6ddd-wiua)
-        # Verify: curl "https://data.boston.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Boston",
-        "source_key":       "boston",
-        "domain":           "data.boston.gov",
-        "dataset_id":       "6ddd-wiua",
-        "id_field":         "permitnumber",
-        "type_field":       "permittypedescr",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "lat",
-        "lon_field":        "long",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Boston, MA",
-        "where_clause":     None,
-    },
-    {
-        # Detroit — Building Permits.
-        # Portal: https://data.detroitmi.gov
-        # Dataset: "Building Permits" (but4-ky7y)
-        # Verify: curl "https://data.detroitmi.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Detroit",
-        "source_key":       "detroit",
-        "domain":           "data.detroitmi.gov",
-        "dataset_id":       "but4-ky7y",
-        "id_field":         "permit_no",
-        "type_field":       "permit_type",
-        "desc_field":       "permit_description",
-        "issue_date_field": "permit_issued",
-        "exp_date_field":   None,
-        "lat_field":        "lat",
-        "lon_field":        "lng",
-        "loc_field":        None,
-        "addr_field":       "site_address",
-        "city_state":       "Detroit, MI",
-        "where_clause":     None,
-    },
-    {
-        # Memphis — Building Permits.
-        # Portal: https://data.memphistn.gov
-        # Dataset: "Building Permits" (g7rd-i96y)
-        # Verify: curl "https://data.memphistn.gov/api/catalog/v1?q=building+permits&limit=5"
-        # Note: Memphis portal availability has been inconsistent; verify dataset_id if fetch fails.
-        "city_name":        "Memphis",
-        "source_key":       "memphis",
-        "domain":           "data.memphistn.gov",
-        "dataset_id":       "g7rd-i96y",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "work_description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Memphis, TN",
-        "where_clause":     None,
-    },
-    {
-        # Louisville — Building Permits.
-        # Portal: https://data.louisvilleky.gov
-        # Dataset: "Building Permits" (aytd-x45v)
-        # Verify: curl "https://data.louisvilleky.gov/api/catalog/v1?q=building+permits&limit=5"
-        # Note: Louisville portal may require verification — dataset ID is best-effort.
-        "city_name":        "Louisville",
-        "source_key":       "louisville",
-        "domain":           "data.louisvilleky.gov",
-        "dataset_id":       "aytd-x45v",
-        "id_field":         "appl_no",
-        "type_field":       "permit_type",
-        "desc_field":       "work_description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "location_1",
-        "city_state":       "Louisville, KY",
-        "where_clause":     None,
-    },
-    {
-        # Baltimore — Building Permits.
-        # Portal: https://data.baltimorecity.gov
-        # Dataset: "Building Permits" (fesm-tgxf)
-        # Verify: curl "https://data.baltimorecity.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Baltimore",
-        "source_key":       "baltimore",
-        "domain":           "data.baltimorecity.gov",
-        "dataset_id":       "fesm-tgxf",
-        "id_field":         "permitnumber",
-        "type_field":       "permittype",
-        "desc_field":       "description",
-        "issue_date_field": "issueddate",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Baltimore, MD",
-        "where_clause":     None,
-    },
-    {
-        # Milwaukee — Building Permits.
-        # Portal: https://data.milwaukee.gov
-        # Dataset: "Building Permits" (xbvy-uuqt)
-        # Verify: curl "https://data.milwaukee.gov/api/catalog/v1?q=building+permits&limit=5"
-        # Note: Milwaukee portal is smaller; dataset_id should be verified if fetch returns 0.
-        "city_name":        "Milwaukee",
-        "source_key":       "milwaukee",
-        "domain":           "data.milwaukee.gov",
-        "dataset_id":       "xbvy-uuqt",
-        "id_field":         "permitnum",
-        "type_field":       "permittype",
-        "desc_field":       "work_description",
-        "issue_date_field": "dateissued",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Milwaukee, WI",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — non-Socrata portals (verified 2026-03-22):
+    #
+    #   portland     — data.portlandoregon.gov DNS not resolving
+    #   nashville    — data.nashville.gov returns non-JSON (not Socrata)
+    #   detroit      — data.detroitmi.gov returns non-JSON (not Socrata)
+    #   memphis      — data.memphistn.gov returns non-JSON (not Socrata)
+    #   louisville   — data.louisvilleky.gov returns non-JSON (not Socrata)
+    #   baltimore    — data.baltimorecity.gov returns non-JSON (not Socrata)
+    #   boston        — data.boston.gov uses CKAN; moved to us_city_permits_ckan.py
+    #   milwaukee    — data.milwaukee.gov uses CKAN; moved to us_city_permits_ckan.py
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.
@@ -521,6 +356,11 @@ def fetch_city_permits(
 
             if dry_run and offset >= PAGE_SIZE:
                 print("  Dry-run: stopping after first page.")
+                break
+
+            max_records = config.get("max_records")
+            if max_records and offset >= max_records:
+                print(f"  Reached max_records cap ({max_records}). Stopping.")
                 break
 
             if len(records) < PAGE_SIZE:
