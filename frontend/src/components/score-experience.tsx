@@ -229,12 +229,21 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
   return result.top_risks.slice(0, 3).map((risk, index) => {
     const humanized = humanizeRiskText(risk);
     const impact = inferImpact(humanized, index);
+
+    // Prefer Claude-rewritten strings (data-042) when available.
+    // top_risk_details is parallel to top_risks (same index order).
+    const detail = result.top_risk_details?.[index];
+    const rewrittenTitle = detail?.rewritten_title ?? null;
+    const rewrittenDescription = detail?.rewritten_description ?? null;
+
     return {
       id: `${risk}-${index}`,
       eyebrow: inferDriverEyebrow(humanized),
-      title: inferDriverTitle(humanized),
+      title: rewrittenTitle ?? inferDriverTitle(humanized),
       impact,
-      rationale: deriveDriverRationale(humanized),
+      // Use rewritten description as rationale when available; fall back to
+      // the heuristic derivation so cards are never empty.
+      rationale: rewrittenDescription ?? deriveDriverRationale(humanized),
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,

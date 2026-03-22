@@ -332,7 +332,8 @@ def _score_live(address: str) -> dict:
       3. Query nearby projects from canonical DB
       4. Apply scoring engine → ScoreResult
       5. Query neighborhood quality context (data-040) — non-fatal if table absent
-      6. Return as dict matching API contract (includes latitude/longitude)
+      6. Enrich top_risk_details with Claude-rewritten titles (data-042, cache-first)
+      7. Return as dict matching API contract (includes latitude/longitude)
     """
     from backend.ingest.geocode import geocode_address
     from backend.scoring.query import (
@@ -341,6 +342,7 @@ def _score_live(address: str) -> dict:
         get_nearby_projects,
         get_neighborhood_context,
     )
+    from backend.scoring.rewrite import enrich_top_risk_details
 
     conn = get_db_connection()
     try:
@@ -362,18 +364,27 @@ def _score_live(address: str) -> dict:
                 conn.rollback()
             except Exception:
                 pass
+
+        result = compute_score(nearby, address)
+        result_dict = {
+            **asdict(result),
+            "mode": "live",
+            "fallback_reason": None,
+            "latitude": lat,
+            "longitude": lon,
+            "neighborhood_context": neighborhood_context,
+        }
+
+        # Enrich top_risk_details with Claude-rewritten titles and descriptions
+        # (data-042).  Cache-first: only calls Claude for project_ids not yet
+        # seen.  Non-fatal: falls back gracefully when API key is absent.
+        result_dict["top_risk_details"] = enrich_top_risk_details(
+            result_dict.get("top_risk_details") or [], conn
+        )
     finally:
         conn.close()
 
-    result = compute_score(nearby, address)
-    return {
-        **asdict(result),
-        "mode": "live",
-        "fallback_reason": None,
-        "latitude": lat,
-        "longitude": lon,
-        "neighborhood_context": neighborhood_context,
-    }
+    return result_dict
 
 
 # ---------------------------------------------------------------------------

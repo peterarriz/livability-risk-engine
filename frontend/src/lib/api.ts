@@ -5,6 +5,8 @@ export type ScoreMode = "live" | "demo";
 // Structured metadata for a single top-risk contributor (data-024).
 // Parallel to the plain-English top_risks strings but machine-readable,
 // allowing the frontend to render permit IDs, dates, and source links.
+// data-042 adds rewritten_title and rewritten_description: Claude-generated
+// clean labels cached in the DB so they are only computed once per project.
 export type TopRiskDetail = {
   project_id: string;
   source: string;
@@ -18,6 +20,11 @@ export type TopRiskDetail = {
   address: string | null;
   notes?: string | null;
   weighted_score: number;
+  // Claude-rewritten display strings (data-042). Present when ANTHROPIC_API_KEY
+  // is configured on the backend; null when running in demo mode or when the
+  // rewrite call failed.
+  rewritten_title?: string | null;
+  rewritten_description?: string | null;
 };
 
 export type ImpactType =

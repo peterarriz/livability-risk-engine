@@ -452,6 +452,45 @@ tasks:
       provides sufficient coverage for state/federal road construction impacting
       Chicago neighborhoods. Next: data-038.
 
+  - id: data-042
+    title: Claude-powered signal card rewriter with DB cache
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Problem: top_risk card titles exposed raw permit strings like
+      "Lane or curb Closure near huron between addresses 900–909 (Permitted work
+      (opening phase)) closure ~ ~144 ft; active through 2026-04-15".
+      Solution: backend/scoring/rewrite.py calls claude-opus-4-6 to generate a
+      clean 1-line title and 1-sentence description for each top_risk_detail.
+      Cache: signal_rewrites table (project_id TEXT PK) stores results so each
+      unique permit/closure is rewritten at most once — no repeated API calls.
+      Integration: _score_live() in main.py calls enrich_top_risk_details()
+      with the open DB connection after compute_score() and before returning.
+      The DB connection was moved inside the try/finally block to support this.
+      Frontend: buildRiskCards() in score-experience.tsx checks
+      detail.rewritten_title / detail.rewritten_description first; falls back to
+      the heuristic inferDriverTitle() / deriveDriverRationale() if null.
+      Types: TopRiskDetail in api.ts has rewritten_title?: string|null and
+      rewritten_description?: string|null (optional for backward compat).
+      Dependency: anthropic>=0.50.0 added to backend/requirements.txt.
+      Schema: signal_rewrites table added to db/schema.sql (idempotent CREATE IF NOT EXISTS).
+      Operator steps:
+        1. Apply updated schema: ./scripts/apply_schema.sh
+           (adds signal_rewrites table — idempotent, safe to run again)
+        2. Set ANTHROPIC_API_KEY env var on Railway backend service
+        3. Optionally set CLAUDE_REWRITE_MODEL=claude-haiku-4-5 for lower latency
+           (default is claude-opus-4-6)
+        4. Redeploy backend
+        5. Validate: hit /score for any address and confirm top_risk_details items
+           contain non-null rewritten_title and rewritten_description fields.
+      Graceful degradation: if ANTHROPIC_API_KEY is unset or call fails, the
+      original top_risk_details are returned unchanged (no rewritten fields added).
+      Cache is lazily populated — first request per project_id pays API cost;
+      all subsequent requests are free DB reads.
+      Next: consider data-043 to backfill rewrites for all existing projects
+      in a background job so first-load latency is eliminated.
+
   - id: data-041
     title: Fix neighborhood page — zero project count and missing map circles
     status: done
