@@ -54,9 +54,16 @@ DEFAULT_OUTPUT_PATH = Path("data/raw/kansas_city_crime_trends.json")
 
 # Date field and district field in the KCPD crime dataset.
 # Verify by sampling: curl "https://data.kcmo.org/resource/kagq-28me.json?$limit=1"
-# Common alternatives: "from_date", "reported_date", "report_date"
+# Known KCPD crime dataset fields (2026 schema):
+#   "report_no", "reported_date", "from_date", "to_date", "description",
+#   "ibrs", "address", "city", "zip_code", "rep_dist_num", "involvement",
+#   "race", "sex", "age", "firearm_used_flag", "location", "x", "y"
+# Common date field alternatives: "reported_date" (confirmed), "from_date"
 DATE_FIELD = "reported_date"
-# Common alternatives: "patrol_division", "division", "beat"
+# Common district field alternatives: "rep_dist_num" (reporting district number),
+# "patrol_division" (if grouped by division), "beat"
+# Note: KCPD data may not have a "division" field — "rep_dist_num" is more common.
+# If this script returns 0 divisions, try DISTRICT_FIELD = "rep_dist_num".
 DISTRICT_FIELD = "division"
 
 # Changes within ±5% are classified as STABLE.
