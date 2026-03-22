@@ -522,18 +522,41 @@ def get_history(
 
 # ---------------------------------------------------------------------------
 # /health endpoint (app-020)
-# Real readiness check — distinguishes configured vs actually-connected state.
-# Never raises 5xx. DB unavailability is reflected in the response body.
+# Lightweight liveness check — responds instantly so Railway's healthchecker
+# never times out waiting for a DB connection.  DB connectivity is reported
+# via /health/db (a separate, slower probe for operators / CI).
+# Never raises 5xx. DB state is reflected in the response body of /health/db.
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
 def health() -> dict:
     """
-    Backend readiness check for operators and CI.
+    Lightweight liveness probe for Railway's healthchecker.
+
+    Responds immediately — does NOT attempt a DB connection so the endpoint
+    always returns within milliseconds regardless of DB state.
+
+    Fields:
+      status:        always "ok"
+      mode:          "live" if DATABASE_URL or POSTGRES_HOST is set, else "unconfigured"
+      db_configured: true if DATABASE_URL or POSTGRES_HOST env var is present
+    """
+    db_configured = _is_db_configured()
+    return {
+        "status": "ok",
+        "mode": "live" if db_configured else "unconfigured",
+        "db_configured": db_configured,
+    }
+
+
+@app.get("/health/db")
+def health_db() -> dict:
+    """
+    DB connectivity probe for operators and CI.  Separate from /health so the
+    Railway liveness check is never blocked by a slow or unavailable DB.
 
     Fields:
       status:             always "ok" (endpoint never hard-fails)
-      mode:               "live" if DATABASE_URL or POSTGRES_HOST is set, else "demo"
       db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
@@ -554,7 +577,6 @@ def health() -> dict:
 
     response: dict = {
         "status": "ok",
-        "mode": "live" if db_configured else "unconfigured",
         "db_configured": db_configured,
         "db_connection": db_connection,
         "last_ingest_status": None,
