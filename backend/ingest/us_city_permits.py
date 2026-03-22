@@ -230,38 +230,11 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Kansas City, MO — Building Permit Applications.
-        # Portal: https://data.kcmo.org  (Socrata)
-        # Dataset: "Building Permit Applications"
-        # Verify dataset_id:
-        #   curl "https://data.kcmo.org/api/catalog/v1?q=building+permit&limit=5"
-        # Sample first record to confirm field names:
-        #   curl "https://data.kcmo.org/resource/i6pc-e4ph.json?$limit=1"
-        #
-        # Field name alternatives (verify via sample above):
-        #   id_field:         "permitnum" or "permit_number"
-        #   type_field:       "permittype" or "permit_type"
-        #   desc_field:       "workdesc" or "description"
-        #   issue_date_field: "applicationdate" or "issue_date" or "issued_date"
-        #   addr_field:       "address" or "addr_no_formatted"
-        #
-        # skip_date_filter=True: date field name is uncertain; fetch most-recent
-        # records via $order DESC and cap at max_records to avoid full-table scan.
-        "city_name":        "Kansas City",
-        "source_key":       "kansas_city",
-        "domain":           "data.kcmo.org",
-        "dataset_id":       "i6pc-e4ph",  # verify via catalog API
-        "id_field":         "permitnum",
-        "type_field":       "permittype",
-        "desc_field":       "workdesc",
-        "issue_date_field": "applicationdate",
-        "exp_date_field":   None,
-        "skip_date_filter": True,
-        "max_records":      5000,
         # Kansas City, MO — Building Permits (CPD Dataset).
         # Portal: https://data.kcmo.org  (Socrata)
         # Dataset: "Permits - CPD Dataset" (ntw8-aacc)
         # Verified 2026-03-22 via catalog API and sample query.
+        # Note: old dataset i6pc-e4ph returns 404; ntw8-aacc is the correct one.
         # Fields verified: permitnum, permittypedesc, description, issueddate,
         #   expiresdate, latitude, longitude, originaladdress1.
         "city_name":        "Kansas City",
@@ -278,41 +251,6 @@ CITY_CONFIGS: list[dict] = [
         "loc_field":        None,
         "addr_field":       "originaladdress1",
         "city_state":       "Kansas City, MO",
-        "where_clause":     None,
-    },
-    {
-        # Indianapolis, IN — Building Permits.
-        # Portal: https://data.indy.gov  (may be OpenDataSoft, not Socrata)
-        # Dataset: "Development Services — Permits"
-        # Verify dataset_id and portal type:
-        #   curl "https://data.indy.gov/api/catalog/v1?q=building+permit&limit=5"
-        # If that fails (not Socrata), try OpenDataSoft catalog:
-        #   curl "https://data.indy.gov/api/explore/v2.1/catalog/datasets?q=permit&limit=5"
-        # Sample first record to confirm field names:
-        #   curl "https://data.indy.gov/resource/bf8m-7stk.json?$limit=1"
-        #
-        # Field name alternatives (verify via sample above):
-        #   id_field:         "permit_nbr" or "permitnumber" or "permit_number"
-        #   issue_date_field: "issue_date" or "issued_date" or "date_issued"
-        #
-        # skip_date_filter=True: portal type and date field name are uncertain;
-        # fetch most-recent records via $order DESC and cap at max_records.
-        "city_name":        "Indianapolis",
-        "source_key":       "indianapolis",
-        "domain":           "data.indy.gov",
-        "dataset_id":       "bf8m-7stk",  # verify via catalog API
-        "id_field":         "permit_nbr",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "skip_date_filter": True,
-        "max_records":      5000,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Indianapolis, IN",
         "where_clause":     None,
     },
     # -----------------------------------------------------------------

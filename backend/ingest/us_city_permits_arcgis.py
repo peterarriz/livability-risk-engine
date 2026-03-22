@@ -7,11 +7,10 @@ ArcGIS REST FeatureServer ingest for building permits in cities that publish
 open data via ArcGIS Hub or ArcGIS Server (not Socrata or CKAN).
 
 Supported cities:
-  - Phoenix     (phoenixopendata.com — ArcGIS Hub)
+  - Phoenix     (maps.phoenix.gov — ArcGIS MapServer)
   - Columbus    (opendata.columbus.gov — ArcGIS Hub)
   - Minneapolis (opendata.minneapolismn.gov — ArcGIS Hub)
-  - Charlotte   (data.charlottenc.gov — ArcGIS Hub)
-  - Jacksonville (coj.net — ArcGIS Server)
+  - Charlotte   (meckgis.mecklenburgcountync.gov — ArcGIS FeatureServer)
 
 ArcGIS REST FeatureServer query pattern:
   GET {service_url}/query
@@ -113,128 +112,96 @@ import requests
 
 CITY_CONFIGS: list[dict] = [
     {
-        # Phoenix — Building Permits.
-        # Portal: https://www.phoenixopendata.com
-        # Open data portal: https://www.phoenixopendata.com/datasets/building-permits
-        # ArcGIS Hub org: Phoenix uses ArcGIS Hub for open data publishing.
-        # Service URL: verify via --discover or by visiting the portal and clicking API.
-        # Known Phoenix ArcGIS server: gismaps.phoenix.gov
-        # Field names estimated from Phoenix permit schema conventions.
-        # Verify: python backend/ingest/us_city_permits_arcgis.py --city phoenix --discover
+        # Phoenix, AZ — Planning Permits.
+        # Server: maps.phoenix.gov (MapServer — supports same query API as FeatureServer)
+        # Verified 2026-03-22 via direct query.
+        # Note: phoenixopendata.com redirects to ArcGIS Hub but the actual
+        # permit layer is on maps.phoenix.gov, NOT gismaps.phoenix.gov.
         "city_name":        "Phoenix",
         "source_key":       "phoenix",
         "service_url":      (
-            "https://gismaps.phoenix.gov/arcgis/rest/services"
-            "/BuildingPermits/FeatureServer/0"
-        ),  # VERIFY — run --discover or visit phoenixopendata.com
+            "https://maps.phoenix.gov/pub/rest/services"
+            "/Public/Planning_Permit/MapServer/1"
+        ),
         "portal_url":       "https://www.phoenixopendata.com",
-        "id_field":         "permitnumber",
-        "type_field":       "workclass",
-        "desc_field":       "description",
-        "issue_date_field": "issuedate",
-        "exp_date_field":   "expirationdate",
-        "addr_field":       "originaladdress1",
+        "id_field":         "PER_NUM",
+        "type_field":       "PER_TYPE_DESC",
+        "desc_field":       "SCOPE_DESC",
+        "issue_date_field": "PER_ISSUE_DATE",
+        "exp_date_field":   "PER_EXPIRE_DATE",
+        "addr_field":       "STREET_FULL_NAME",
         "city_state":       "Phoenix, AZ",
         "skip_date_filter": False,
         "max_records":      None,
     },
     {
-        # Columbus — Building Permits.
+        # Columbus, OH — Building Permits.
         # Portal: https://opendata.columbus.gov
-        # ArcGIS Hub org ID: clPWQKPvjdaLFNJX
-        # Service URL: verify via --discover or by visiting the portal.
-        # Known Columbus ArcGIS online org: services6.arcgis.com/clPWQKPvjdaLFNJX
-        # Field names estimated from Columbus permit schema.
-        # Verify: python backend/ingest/us_city_permits_arcgis.py --city columbus --discover
+        # FeatureServer verified 2026-03-22.
         "city_name":        "Columbus",
         "source_key":       "columbus",
         "service_url":      (
-            "https://services6.arcgis.com/clPWQKPvjdaLFNJX/arcgis/rest/services"
+            "https://services1.arcgis.com/9yy6msODkIBzkUXU/arcgis/rest/services"
             "/Building_Permits/FeatureServer/0"
-        ),  # VERIFY — run --discover or visit opendata.columbus.gov
+        ),
         "portal_url":       "https://opendata.columbus.gov",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "addr_field":       "address",
+        "id_field":         "B1_ALT_ID",
+        "type_field":       "B1_PER_TYPE",
+        "desc_field":       "B1_PER_SUB_TYPE",
+        "issue_date_field": "ISSUED_DT",
+        "exp_date_field":   None,
+        "addr_field":       "SITE_ADDRESS",
         "city_state":       "Columbus, OH",
         "skip_date_filter": False,
         "max_records":      None,
     },
     {
-        # Minneapolis — Building Permits.
+        # Minneapolis, MN — CCS Permits.
         # Portal: https://opendata.minneapolismn.gov
-        # ArcGIS Hub org ID: afSMGVsC7QlRK1kZ
-        # Service URL: verify via --discover or by visiting the portal.
-        # Field names estimated from Minneapolis permit schema.
-        # Verify: python backend/ingest/us_city_permits_arcgis.py --city minneapolis --discover
+        # FeatureServer verified 2026-03-22.
         "city_name":        "Minneapolis",
         "source_key":       "minneapolis",
         "service_url":      (
             "https://services.arcgis.com/afSMGVsC7QlRK1kZ/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),  # VERIFY — run --discover or visit opendata.minneapolismn.gov
+            "/CCS_Permits/FeatureServer/0"
+        ),
         "portal_url":       "https://opendata.minneapolismn.gov",
-        "id_field":         "permitnum",
-        "type_field":       "permittype",
-        "desc_field":       "workdescription",
-        "issue_date_field": "issuedate",
-        "exp_date_field":   "expirationdate",
-        "addr_field":       "fulladdress",
+        "id_field":         "permitNumber",
+        "type_field":       "permitType",
+        "desc_field":       "comments",
+        "issue_date_field": "issueDate",
+        "exp_date_field":   None,
+        "addr_field":       "Display",
         "city_state":       "Minneapolis, MN",
         "skip_date_filter": False,
         "max_records":      None,
     },
     {
-        # Charlotte — Building Permits.
-        # Portal: https://data.charlottenc.gov
-        # ArcGIS Hub: Charlotte-Mecklenburg uses ArcGIS Hub for open data.
-        # Service URL: verify via --discover or by visiting the portal.
-        # Field names estimated from Charlotte permit schema.
-        # Verify: python backend/ingest/us_city_permits_arcgis.py --city charlotte --discover
+        # Charlotte, NC (Mecklenburg County) — Building Permits.
+        # Server: meckgis.mecklenburgcountync.gov
+        # FeatureServer verified 2026-03-22.
         "city_name":        "Charlotte",
         "source_key":       "charlotte",
         "service_url":      (
-            "https://mcmap.org/api/transit/arcgis/rest/services"
-            "/CATS_Boundaries/FeatureServer/0"
-        ),  # VERIFY — run --discover or visit data.charlottenc.gov
+            "https://meckgis.mecklenburgcountync.gov/server/rest/services"
+            "/BuildingPermits/FeatureServer/0"
+        ),
         "portal_url":       "https://data.charlottenc.gov",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "work_description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   "expiration_date",
-        "addr_field":       "address",
+        "id_field":         "permitnum",
+        "type_field":       "permittype",
+        "desc_field":       "workdesc",
+        "issue_date_field": "issuedate",
+        "exp_date_field":   None,
+        "addr_field":       "projadd",
         "city_state":       "Charlotte, NC",
         "skip_date_filter": False,
         "max_records":      None,
     },
-    {
-        # Jacksonville — Building Permits.
-        # Portal: https://www.coj.net/departments/planning-and-development
-        # GIS server: maps.coj.net
-        # Service URL: verify via --discover or by visiting COJ GIS portal.
-        # Field names estimated from Jacksonville permit schema.
-        # Verify: python backend/ingest/us_city_permits_arcgis.py --city jacksonville --discover
-        "city_name":        "Jacksonville",
-        "source_key":       "jacksonville",
-        "service_url":      (
-            "https://maps.coj.net/arcgis/rest/services"
-            "/BuildingInspections/PermitSearch/FeatureServer/0"
-        ),  # VERIFY — run --discover or visit coj.net GIS portal
-        "portal_url":       "https://www.coj.net",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "addr_field":       "address",
-        "city_state":       "Jacksonville, FL",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Jacksonville (verified 2026-03-22):
+    #   maps.coj.net and gis.coj.net both return 404. No building permit
+    #   FeatureServer found on ArcGIS Online either.
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.
@@ -258,19 +225,18 @@ def _build_date_where(config: dict, cutoff_epoch_ms: int) -> str | None:
     """
     Build a SQL WHERE clause for date filtering.
 
-    ArcGIS accepts epoch milliseconds in a date comparison:
-      issue_date >= <epoch_ms>
-
-    Some services require the DATE or TIMESTAMP literal format:
-      issue_date >= DATE '2025-12-21'
-
-    We use epoch ms first; if that returns 0 records, the caller can
-    retry without a date filter.
+    Uses TIMESTAMP literal format which is widely supported across ArcGIS
+    Server and ArcGIS Online hosted FeatureServer/MapServer endpoints.
+    Raw epoch ms comparison (field >= 123456789) is NOT supported by most
+    servers despite being accepted in some documentation.
     """
     if config.get("skip_date_filter"):
         return None
     date_field = config["issue_date_field"]
-    return f"{date_field} >= {cutoff_epoch_ms}"
+    # Convert epoch ms to TIMESTAMP literal
+    cutoff_dt = datetime.fromtimestamp(cutoff_epoch_ms / 1000, tz=timezone.utc)
+    cutoff_str = cutoff_dt.strftime("%Y-%m-%d %H:%M:%S")
+    return f"{date_field} >= TIMESTAMP '{cutoff_str}'"
 
 
 def fetch_page(
