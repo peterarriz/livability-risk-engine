@@ -482,16 +482,42 @@ tasks:
       fix any incorrect IDs found.
 
   - id: data-039
-    title: Validate and fix US city permit dataset IDs via live dry-run
+    title: Implement CKAN-based city permit ingest — Houston, Philadelphia, San Antonio, San Diego
+    status: done
+    priority: high
+    github_issue: 105
+    notes_for_next_agent: >
+      Script: backend/ingest/us_city_permits_ckan.py
+      Implements CKAN datastore_search (with SQL fallback) for 4 cities
+      that do not use Socrata: Houston, Philadelphia, San Antonio, San Diego.
+      Resource IDs in CITY_CONFIGS were researched from training knowledge
+      — NOT live-verified. Before running in production:
+        python backend/ingest/us_city_permits_ckan.py --city houston --discover
+        python backend/ingest/us_city_permits_ckan.py --city philadelphia --discover
+        python backend/ingest/us_city_permits_ckan.py --city san_antonio --discover
+        python backend/ingest/us_city_permits_ckan.py --city san_diego --discover
+      Then update resource_id (and field names if needed) in CITY_CONFIGS.
+      Output: data/raw/us_city_permits_<source_key>.json (same schema as Socrata).
+      Next task: data-040 — live-verify CKAN resource IDs and field names.
+
+  - id: data-040
+    title: Live-verify CKAN resource IDs and field names for 4 cities
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      data-038 added backend/ingest/us_city_permits.py with 9 US city configs.
-      Dataset IDs were researched from training knowledge — not live-verified.
-      Run: python backend/ingest/us_city_permits.py --dry-run
-      For any city returning 0 records or HTTP errors, verify the correct
-      dataset ID at:
-        https://<domain>/api/catalog/v1?q=building+permits&limit=5
-      Update the dataset_id and field names in CITY_CONFIGS as needed.
-      Once all cities pass dry-run, mark this task done.
+      data-039 added backend/ingest/us_city_permits_ckan.py with resource_ids
+      researched from training knowledge — not live-verified.
+      Steps:
+        1. Run --discover for each city to confirm resource UUIDs:
+             python backend/ingest/us_city_permits_ckan.py --city houston --discover
+             python backend/ingest/us_city_permits_ckan.py --city philadelphia --discover
+             python backend/ingest/us_city_permits_ckan.py --city san_antonio --discover
+             python backend/ingest/us_city_permits_ckan.py --city san_diego --discover
+        2. Sample one record per city to inspect field names:
+             curl "https://<domain>/api/3/action/datastore_search?resource_id=<UUID>&limit=1"
+        3. Update resource_id, id_field, type_field, desc_field, issue_date_field,
+           lat_field, lon_field in CITY_CONFIGS for any cities that fail.
+        4. Run --dry-run to confirm records are returned:
+             python backend/ingest/us_city_permits_ckan.py --dry-run
+        5. Mark this task done once all 4 cities return records in dry-run.
