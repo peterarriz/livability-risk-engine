@@ -552,5 +552,54 @@ tasks:
       Dataset IDs for Memphis, Louisville, Milwaukee are lower-confidence estimates;
       verify each with: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5"
       All cities fail gracefully (non-fatal errors) so bad dataset_ids won't block others.
-      Next: data-044 — validate dry-run for all 13 Socrata + 5 CKAN cities,
+      Next: data-045 — validate dry-run for all 13 Socrata + 5 CKAN cities,
       confirm Denver resource_id, wire new cities into run_pipeline.py.
+
+  - id: data-044
+    title: Research and implement crime data for all live US cities
+    status: done
+    priority: high
+    github_issue: 116
+    notes_for_next_agent: >
+      Three new ingest scripts added:
+        - backend/ingest/austin_crime_trends.py — APD Crime Reports from
+          data.austintexas.gov (dataset g3bk-zscf), grouped by sector (A-H).
+        - backend/ingest/seattle_crime_trends.py — SPD Crime Data 2008-Present
+          from data.seattle.gov (dataset tazs-3rd5), grouped by precinct
+          (N, E, S, W, SW).
+        - backend/ingest/nyc_crime_trends.py — NYPD Complaint Data from
+          data.cityofnewyork.us. Queries both historic (qgea-i56i) and YTD
+          (5uac-w243) datasets, merges results for full 24-month coverage.
+          Grouped by addr_pct_cd (precinct, ~77 NYPD precincts).
+      All three scripts follow the chicago_crime_trends.py pattern exactly:
+        - SoQL GROUP BY with server-side aggregation.
+        - Approximate centroids via avg(latitude)/avg(longitude) in the GROUP BY.
+        - region_type matches district type (sector or precinct).
+        - Output to data/raw/{city}_crime_trends.json.
+        - --dry-run support and SOCRATA_APP_TOKEN env var.
+      load_neighborhood_quality.py updated to include crime_austin,
+      crime_seattle, crime_nyc source keys.
+      FBI UCR research: api.usa.gov/crime/fbi/cde/ requires API key and
+      provides state/agency aggregates only — not useful for neighborhood scoring.
+      Validate with dry-run before first production ingest:
+        python backend/ingest/austin_crime_trends.py --dry-run
+        python backend/ingest/seattle_crime_trends.py --dry-run
+        python backend/ingest/nyc_crime_trends.py --dry-run
+      Next: data-045 — wire new crime scripts into run_pipeline.py.
+
+  - id: data-045
+    title: Wire US city crime ingest into run_pipeline.py and validate dry-runs
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Three crime ingest scripts from data-044 need to be added to run_pipeline.py
+      as non-fatal steps (following the chicago_crime_trends pattern):
+        - austin_crime_trends.py  → data/raw/austin_crime_trends.json
+        - seattle_crime_trends.py → data/raw/seattle_crime_trends.json
+        - nyc_crime_trends.py     → data/raw/nyc_crime_trends.json
+      load_neighborhood_quality.py already knows about the new staging files.
+      Also validate dry-runs for all 13 Socrata + 5 CKAN permit cities.
+      Confirm Denver resource_id in us_city_permits_ckan.py (currently
+      "VERIFY_VIA_DISCOVER"):
+        python backend/ingest/us_city_permits_ckan.py --city denver --discover
