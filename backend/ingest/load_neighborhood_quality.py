@@ -16,13 +16,7 @@ Reads from staging files written by:
   backend/ingest/boston_crime_trends.py        → data/raw/boston_crime_trends.json
   backend/ingest/milwaukee_crime_trends.py     → data/raw/milwaukee_crime_trends.json
   backend/ingest/census_acs.py                 → data/raw/census_acs.json
-  backend/ingest/fema_flood_zones.py      → data/raw/fema_flood_zones.json
-  backend/ingest/chicago_crime_trends.py  → data/raw/chicago_crime_trends.json
-  backend/ingest/austin_crime_trends.py   → data/raw/austin_crime_trends.json
-  backend/ingest/seattle_crime_trends.py  → data/raw/seattle_crime_trends.json
-  backend/ingest/nyc_crime_trends.py      → data/raw/nyc_crime_trends.json
-  backend/ingest/census_acs.py            → data/raw/census_acs.json
-  backend/ingest/il_school_ratings.py     → data/raw/il_school_ratings.json
+  backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -79,9 +73,6 @@ STAGING_FILES = {
     "crime_denver":        Path("data/raw/denver_crime_trends.json"),
     "crime_boston":        Path("data/raw/boston_crime_trends.json"),
     "crime_milwaukee":     Path("data/raw/milwaukee_crime_trends.json"),
-    "crime_austin":  Path("data/raw/austin_crime_trends.json"),
-    "crime_seattle": Path("data/raw/seattle_crime_trends.json"),
-    "crime_nyc":     Path("data/raw/nyc_crime_trends.json"),
     # data-045: IL school ratings
     "schools":       Path("data/raw/il_school_ratings.json"),
 }
@@ -257,9 +248,8 @@ def parse_args() -> argparse.Namespace:
             "fema", "crime", "census",
             "crime_austin", "crime_seattle", "crime_nyc",
             "crime_kansas_city", "crime_denver", "crime_boston", "crime_milwaukee",
-            "all",
+            "schools", "all",
         ],
-        choices=["fema", "crime", "census", "crime_austin", "crime_seattle", "crime_nyc", "schools", "all"],
         default="all",
         help="Which staging source to load (default: all).",
     )
