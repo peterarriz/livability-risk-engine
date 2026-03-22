@@ -482,7 +482,26 @@ tasks:
       fix any incorrect IDs found.
 
   - id: data-039
-    title: Validate and fix US city permit dataset IDs via live dry-run
+    title: Implement CKAN-based city permit ingest — Houston, Philadelphia, San Antonio, San Diego
+    status: done
+    priority: high
+    github_issue: 105
+    notes_for_next_agent: >
+      Script: backend/ingest/us_city_permits_ckan.py
+      Implements CKAN datastore_search (with SQL fallback) for 4 cities
+      that do not use Socrata: Houston, Philadelphia, San Antonio, San Diego.
+      Resource IDs in CITY_CONFIGS were researched from training knowledge
+      — NOT live-verified. Before running in production:
+        python backend/ingest/us_city_permits_ckan.py --city houston --discover
+        python backend/ingest/us_city_permits_ckan.py --city philadelphia --discover
+        python backend/ingest/us_city_permits_ckan.py --city san_antonio --discover
+        python backend/ingest/us_city_permits_ckan.py --city san_diego --discover
+      Then update resource_id (and field names if needed) in CITY_CONFIGS.
+      Output: data/raw/us_city_permits_<source_key>.json (same schema as Socrata).
+      Next task: data-040 — live-verify CKAN resource IDs and field names.
+
+  - id: data-040
+    title: Live-verify CKAN resource IDs and field names for 4 cities
     status: backlog
     priority: high
     github_issue: ~
