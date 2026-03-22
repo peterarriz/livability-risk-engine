@@ -208,6 +208,16 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches CPS school performance ratings (SY2425 progress reports)
+        # joined with school coordinates from the SY2324 profile dataset.
+        # Stored in neighborhood_quality table (region_type='school').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch IL school ratings (CPS)",
+        "cmd": [sys.executable, "backend/ingest/il_school_ratings.py"],
+        "skip_key": "skip_school_ratings",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -360,6 +370,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-ckan-cities",
         action="store_true",
         help="Skip the CKAN city permits fetch step (Boston, Milwaukee, etc.).",
+    )
+    parser.add_argument(
+        "--skip-school-ratings",
+        action="store_true",
+        help="Skip the IL school ratings fetch step (CPS).",
     )
     parser.add_argument(
         "--skip-neighborhood-quality",

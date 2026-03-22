@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044
+task: data-040, data-044, data-045
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -12,6 +12,7 @@ Reads from staging files written by:
   backend/ingest/seattle_crime_trends.py  → data/raw/seattle_crime_trends.json
   backend/ingest/nyc_crime_trends.py      → data/raw/nyc_crime_trends.json
   backend/ingest/census_acs.py            → data/raw/census_acs.json
+  backend/ingest/il_school_ratings.py     → data/raw/il_school_ratings.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -24,6 +25,7 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --source crime_seattle
   python backend/ingest/load_neighborhood_quality.py --source crime_nyc
   python backend/ingest/load_neighborhood_quality.py --source census
+  python backend/ingest/load_neighborhood_quality.py --source schools
 
 Prerequisites:
   - DATABASE_URL or POSTGRES_* env vars must be set
@@ -58,6 +60,8 @@ STAGING_FILES = {
     "crime_austin":  Path("data/raw/austin_crime_trends.json"),
     "crime_seattle": Path("data/raw/seattle_crime_trends.json"),
     "crime_nyc":     Path("data/raw/nyc_crime_trends.json"),
+    # data-045: IL school ratings
+    "schools":       Path("data/raw/il_school_ratings.json"),
 }
 
 CURRENT_YEAR = _dt.datetime.now().year
@@ -68,11 +72,13 @@ UPSERT_SQL = """
         fema_flood_zone, flood_risk,
         crime_12mo, crime_prior_12mo, crime_trend, crime_trend_pct,
         median_income, population, vacancy_rate, housing_age_med,
+        school_name, school_rating, school_attainment, school_growth,
         geom, data_year
     )
     VALUES (
         %s, %s,
         %s, %s,
+        %s, %s, %s, %s,
         %s, %s, %s, %s,
         %s, %s, %s, %s,
         ST_GeomFromText(%s, 4326),
@@ -89,6 +95,10 @@ UPSERT_SQL = """
         population       = EXCLUDED.population,
         vacancy_rate     = EXCLUDED.vacancy_rate,
         housing_age_med  = EXCLUDED.housing_age_med,
+        school_name      = EXCLUDED.school_name,
+        school_rating    = EXCLUDED.school_rating,
+        school_attainment = EXCLUDED.school_attainment,
+        school_growth    = EXCLUDED.school_growth,
         geom             = EXCLUDED.geom,
         data_year        = EXCLUDED.data_year,
         updated_at       = now();
@@ -132,7 +142,7 @@ def _geom_wkt(record: dict) -> str | None:
 
 
 def _record_to_params(record: dict) -> tuple:
-    """Convert a staging record to the SQL parameter tuple for UPSERT_SQL (14 params)."""
+    """Convert a staging record to the SQL parameter tuple for UPSERT_SQL (18 params)."""
     return (
         record.get("region_type"),
         record.get("region_id"),
@@ -149,6 +159,11 @@ def _record_to_params(record: dict) -> tuple:
         record.get("population"),
         record.get("vacancy_rate"),
         record.get("housing_age_med"),
+        # School rating fields
+        record.get("school_name"),
+        record.get("school_rating"),
+        record.get("school_attainment"),
+        record.get("school_growth"),
         # geom as WKT (NULL-safe: ST_GeomFromText(NULL, 4326) → NULL)
         _geom_wkt(record),
         # data_year
@@ -216,7 +231,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["fema", "crime", "census", "crime_austin", "crime_seattle", "crime_nyc", "all"],
+        choices=["fema", "crime", "census", "crime_austin", "crime_seattle", "crime_nyc", "schools", "all"],
         default="all",
         help="Which staging source to load (default: all).",
     )
