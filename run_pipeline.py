@@ -148,6 +148,33 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches FEMA NFHL flood zone polygon centroids for Chicago metro.
+        # Stored in neighborhood_quality table (region_type='flood_zone').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch FEMA flood zones (Chicago metro)",
+        "cmd": [sys.executable, "backend/ingest/fema_flood_zones.py"],
+        "skip_key": "skip_fema",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago crime counts by community area, calculates 12-month trends.
+        # Stored in neighborhood_quality table (region_type='community_area').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago crime trends (community area)",
+        "cmd": [sys.executable, "backend/ingest/chicago_crime_trends.py"],
+        "skip_key": "skip_crime_trends",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Census ACS 5-year demographics for Cook County census tracts.
+        # Stored in neighborhood_quality table (region_type='census_tract').
+        # No API key required. Failures are non-fatal.
+        "name": "Fetch Census ACS demographics (Cook County tracts)",
+        "cmd": [sys.executable, "backend/ingest/census_acs.py"],
+        "skip_key": "skip_census_acs",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -156,6 +183,16 @@ STEPS = [
         "name": "Load projects into DB",
         "cmd": [sys.executable, "backend/ingest/load_projects.py", "--prune-days", "90"],
         "prune_args": True,
+    },
+    {
+        # Loads neighborhood quality staging files (FEMA, crime, Census ACS)
+        # into the neighborhood_quality table. Non-fatal: fails gracefully if
+        # staging files are missing or DB table not yet created.
+        "name": "Load neighborhood quality into DB",
+        "cmd": [sys.executable, "backend/ingest/load_neighborhood_quality.py"],
+        "skip_key": "skip_neighborhood_quality",
+        "non_fatal": True,
+        "dry_run_passthrough": True,
     },
 ]
 
@@ -185,7 +222,7 @@ def run_step(step: dict, args: argparse.Namespace) -> bool:
         except ValueError:
             pass
 
-    if args.dry_run and step.get("prune_args"):
+    if args.dry_run and (step.get("prune_args") or step.get("dry_run_passthrough")):
         cmd.append("--dry-run")
 
     print(f"\n── {step['name']} ──────────────────────────────")
@@ -255,6 +292,26 @@ def parse_args() -> argparse.Namespace:
         "--skip-events",
         action="store_true",
         help="Skip the Chicago special events permits fetch step.",
+    )
+    parser.add_argument(
+        "--skip-fema",
+        action="store_true",
+        help="Skip the FEMA flood zones fetch step.",
+    )
+    parser.add_argument(
+        "--skip-crime-trends",
+        action="store_true",
+        help="Skip the Chicago crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-census-acs",
+        action="store_true",
+        help="Skip the Census ACS demographics fetch step.",
+    )
+    parser.add_argument(
+        "--skip-neighborhood-quality",
+        action="store_true",
+        help="Skip the neighborhood quality DB load step.",
     )
     parser.add_argument(
         "--dry-run",
