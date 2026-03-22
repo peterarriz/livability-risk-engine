@@ -452,6 +452,30 @@ tasks:
       provides sufficient coverage for state/federal road construction impacting
       Chicago neighborhoods. Next: data-038.
 
+  - id: data-041
+    title: Fix neighborhood page — zero project count and missing map circles
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Root cause was a three-part bug in _get_projects_in_bbox (backend/app/main.py):
+        1. Column name mismatch: query used `lat, lon` but the projects table
+           has `latitude, longitude`. This caused a SQL error that was silently
+           caught, returning [] every time even with live DB data.
+        2. Filter used lat/lon BETWEEN instead of the spatial index. Switched to
+           ST_Within(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326))
+           to match the /score endpoint pattern and use the GIST index on geom.
+        3. Coordinates extracted with COALESCE(ST_Y(geom), latitude) and
+           COALESCE(ST_X(geom), longitude) so rows where lat/lon columns are NULL
+           but geom is populated are still returned with valid coordinates for map rendering.
+      Status filter expanded from 'active' to ('active', 'planned') to match
+      the score endpoint's SCOREABLE_STATUSES.
+      Frontend (frontend/src/app/neighborhood/[slug]/page.tsx):
+        - Fallback message updated to: "No active signals in this neighborhood
+          right now — check back after the next daily data refresh at 06:00 UTC."
+      Next: validate with live DB by hitting /neighborhood/wicker-park and
+      confirming project_count > 0 and map circles render.
+
   - id: data-038
     title: Add CDOT traffic signal outage data source
     status: backlog

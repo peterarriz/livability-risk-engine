@@ -905,8 +905,15 @@ _NEIGHBORHOODS: dict[str, dict] = {
 def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> list[dict]:
     """
     Query active projects within a bounding box from the canonical projects table.
+
+    Uses the same PostGIS geom index as the /score endpoint (ST_Within +
+    ST_MakeEnvelope) so rows with a NULL latitude/longitude but a valid geom
+    are still returned.  Coordinates are extracted from the geometry via
+    ST_Y/ST_X and fall back to the stored latitude/longitude columns so both
+    legacy and new rows are handled correctly.
+
     Returns a list of JSON-serializable project dicts.
-    Falls back to an empty list when DB is not configured.
+    Falls back to an empty list when DB is not configured or on any error.
     """
     if not _is_db_configured():
         return []
@@ -917,16 +924,27 @@ def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lo
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT project_id, source, impact_type, title,
-                           start_date, end_date, status, lat, lon
+                    SELECT
+                        project_id,
+                        source,
+                        impact_type,
+                        title,
+                        start_date,
+                        end_date,
+                        status,
+                        COALESCE(ST_Y(geom), latitude)  AS lat,
+                        COALESCE(ST_X(geom), longitude) AS lon
                     FROM projects
-                    WHERE status = 'active'
-                      AND lat BETWEEN %s AND %s
-                      AND lon BETWEEN %s AND %s
-                    ORDER BY start_date DESC
+                    WHERE status IN ('active', 'planned')
+                      AND geom IS NOT NULL
+                      AND ST_Within(
+                          geom,
+                          ST_MakeEnvelope(%s, %s, %s, %s, 4326)
+                      )
+                    ORDER BY start_date DESC NULLS LAST
                     LIMIT 200
                     """,
-                    (min_lat, max_lat, min_lon, max_lon),
+                    (min_lon, min_lat, max_lon, max_lat),
                 )
                 rows = cur.fetchall()
         finally:
@@ -943,8 +961,8 @@ def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lo
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
                 "status": status,
-                "lat": lat,
-                "lon": lon,
+                "lat": float(lat) if lat is not None else None,
+                "lon": float(lon) if lon is not None else None,
             })
         return projects
     except Exception as exc:
