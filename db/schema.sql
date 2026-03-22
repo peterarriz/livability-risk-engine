@@ -384,6 +384,12 @@ CREATE TABLE IF NOT EXISTS neighborhood_quality (
     vacancy_rate    NUMERIC(5, 2),          -- % of housing units that are vacant
     housing_age_med INT,                    -- median year structure built
 
+    -- School ratings (populated for region_type = 'school')
+    school_name     TEXT,                   -- school name
+    school_rating   TEXT,                   -- overall rating: EXCELLING / STRONG / DEVELOPING / EMERGING
+    school_attainment TEXT,                 -- student attainment vs expectations
+    school_growth   TEXT,                   -- student growth vs expectations
+
     -- Spatial centroid for KNN proximity lookup
     geom            GEOMETRY(Point, 4326),
 
@@ -409,13 +415,17 @@ CREATE INDEX IF NOT EXISTS nq_geom_census_idx
     ON neighborhood_quality USING GIST (geom)
     WHERE region_type = 'census_tract' AND geom IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS nq_geom_school_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE region_type = 'school' AND geom IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS nq_region_type_idx
     ON neighborhood_quality (region_type);
 
 COMMENT ON TABLE neighborhood_quality IS
     'Neighborhood quality reference layer (data-040). '
-    'Three region_type values: flood_zone (FEMA NFHL), community_area (Chicago crime), '
-    'census_tract (Census ACS). KNN spatial lookup via geom column. '
+    'Four region_type values: flood_zone (FEMA NFHL), community_area (Chicago crime), '
+    'census_tract (Census ACS), school (CPS ratings). KNN spatial lookup via geom column. '
     'Surfaced in /score response as neighborhood_context field.';
 
 

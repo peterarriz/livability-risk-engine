@@ -175,6 +175,49 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches Austin APD crime data and calculates 12-month trends by sector.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Austin crime trends",
+        "cmd": [sys.executable, "backend/ingest/austin_crime_trends.py"],
+        "skip_key": "skip_austin_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Seattle SPD crime data and calculates 12-month trends by precinct.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Seattle crime trends",
+        "cmd": [sys.executable, "backend/ingest/seattle_crime_trends.py"],
+        "skip_key": "skip_seattle_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches NYC NYPD complaint data and calculates 12-month trends by precinct.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch NYC crime trends",
+        "cmd": [sys.executable, "backend/ingest/nyc_crime_trends.py"],
+        "skip_key": "skip_nyc_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches building permits from CKAN-based city open data portals
+        # (Boston, Milwaukee, and other non-Socrata cities).
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (CKAN cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits_ckan.py"],
+        "skip_key": "skip_ckan_cities",
+        "non_fatal": True,
+    },
+    {
+        # Fetches CPS school performance ratings (SY2425 progress reports)
+        # joined with school coordinates from the SY2324 profile dataset.
+        # Stored in neighborhood_quality table (region_type='school').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch IL school ratings (CPS)",
+        "cmd": [sys.executable, "backend/ingest/il_school_ratings.py"],
+        "skip_key": "skip_school_ratings",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -307,6 +350,31 @@ def parse_args() -> argparse.Namespace:
         "--skip-census-acs",
         action="store_true",
         help="Skip the Census ACS demographics fetch step.",
+    )
+    parser.add_argument(
+        "--skip-austin-crime",
+        action="store_true",
+        help="Skip the Austin crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-seattle-crime",
+        action="store_true",
+        help="Skip the Seattle crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-nyc-crime",
+        action="store_true",
+        help="Skip the NYC crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-ckan-cities",
+        action="store_true",
+        help="Skip the CKAN city permits fetch step (Boston, Milwaukee, etc.).",
+    )
+    parser.add_argument(
+        "--skip-school-ratings",
+        action="store_true",
+        help="Skip the IL school ratings fetch step (CPS).",
     )
     parser.add_argument(
         "--skip-neighborhood-quality",
