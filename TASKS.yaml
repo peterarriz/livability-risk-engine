@@ -427,21 +427,30 @@ tasks:
 
   - id: data-039
     title: Validate live /score endpoint returns real DB data post-ingest
-    status: backlog
+    status: in-progress
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      DB is live, ingest has run. Validate that /score returns mode="live"
-      with real project rows for known Chicago addresses.
-      Steps:
-        1. Confirm Railway backend URL = NEXT_PUBLIC_API_URL in Vercel.
-        2. curl "<backend>/score?address=100+W+Randolph+St+Chicago+IL"
-           → expect mode="live", top_risk_details non-empty.
-        3. curl "<backend>/health" → db_connection=true, last_ingest_status=success.
-        4. Check /history?address=... has rows from pipeline run.
-        5. If still demo: verify DATABASE_URL is set on Railway backend service
-           (not just in GitHub Actions secrets).
-      Once validated, mark data-019 done and create data-040 for next task.
+      Code changes in this task:
+        - Fixed duplicate _build_top_risk_details definition in backend/scoring/query.py
+          (first incomplete definition removed; second correct version kept).
+        - Fixed double-call to _build_top_risk_details in compute_score() (duplicate line removed).
+        - Added scripts/validate_live.py — run with --backend <railway-url> or BACKEND_URL= env var.
+          Exits 0 if all checks pass, 1 if any fail. Tests /health, /score, /debug/score, /history.
+        - Added .github/workflows/validate.yml — manual-trigger GHA that runs validate_live.py.
+          Trigger via GitHub → Actions → "Validate live backend" → Run workflow → enter backend URL.
+
+      Operator steps still required (need dashboard access):
+        1. Confirm Railway backend service has DATABASE_URL env var set.
+           (Railway → your project → backend service → Variables tab)
+        2. Confirm FRONTEND_ORIGIN is set to https://livability-risk-engine.vercel.app on the backend service.
+        3. Confirm NEXT_PUBLIC_API_URL in Vercel is set to the Railway public URL.
+           (Vercel → project → Settings → Environment Variables)
+        4. Run the validation workflow:
+           GitHub → Actions → "Validate live backend" → Run workflow → enter Railway URL.
+           OR run locally: python scripts/validate_live.py --backend https://<your-app>.up.railway.app
+        5. If all checks pass: mark data-039 done, mark data-019 done, create data-040.
+        6. If /score still returns mode="demo": see common failure modes in docs/deploy_readiness_checklist.md.
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
