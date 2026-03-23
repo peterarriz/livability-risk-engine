@@ -1111,14 +1111,36 @@ tasks:
       Next: data-052 — live dry-run validation with network access.
 
   - id: data-052
-    title: Live dry-run validation of data-050 scripts (requires network access)
+    title: Expand Census ACS demographics to all active permit cities
+    status: done
+    priority: high
+    github_issue: 143
+    notes_for_next_agent: >
+      Completed 2026-03-23. Expanded backend/ingest/census_acs.py from
+      Cook County only (1 county) to all 29 counties containing active permit
+      cities. COUNTIES list now covers: Cook/IL, Los Angeles/CA, King/WA,
+      Travis/TX, Suffolk/MA, Franklin/OH, Maricopa/AZ, Davidson/TN,
+      Baltimore City/MD, Mecklenburg/NC, Hennepin/MN, San Francisco/CA,
+      all 5 NYC counties (New York/Kings/Queens/Bronx/Richmond), Clark/NV,
+      Pima/AZ, Sacramento/CA, Jackson/MO, Denver/CO, Milwaukee/WI, Duval/FL,
+      Tarrant/TX, Marion/IN, Santa Clara/CA, Bernalillo/NM, Wake/NC.
+      fetch_acs_data() and fetch_tract_centroids() now loop through all
+      counties and merge into one combined output file (data/raw/census_acs.json).
+      run_pipeline.py step name updated to "all active-permit counties".
+      Next: data-053 — live dry-run validation of data-050 city crime/permit
+      scripts (was originally planned as data-052 in TASKS.yaml before this
+      issue superseded it; see notes in data-051 entry for the full command list).
+
+  - id: data-053
+    title: Live dry-run validation of data-050 city crime and permit scripts
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      data-051 completed static code review — all scripts match SKILL.md.
-      This task requires live network access to validate the ArcGIS service
-      URLs and Socrata dataset IDs from data-050 against live APIs.
+      data-051 completed static code review of all 10 crime scripts and 4
+      permit configs — all match SKILL.md structurally. This task requires
+      live network access to confirm ArcGIS service URLs and Socrata dataset
+      IDs against live APIs, then remove MUST VERIFY comments.
       Run each of the following and fix any endpoint/field errors found:
         python backend/ingest/charlotte_crime_trends.py --dry-run
         python backend/ingest/columbus_crime_trends.py --dry-run
@@ -1137,4 +1159,4 @@ tasks:
       For any failures: check SKILL.md Common Failures section, use --discover
       flag to find correct ArcGIS endpoint, fix field names, re-run --dry-run.
       After confirming: remove MUST VERIFY comments from scripts and SKILL.md.
-      Create a GitHub issue for data-052 before executing, then create data-053.
+      Create a GitHub issue for data-053 before executing, then create data-054.
