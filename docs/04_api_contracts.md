@@ -1,5 +1,100 @@
 # API Contracts
 
+---
+
+## `/score/batch` endpoint  (data-045)
+
+- **Method**: `POST`
+- **Content-Type**: `application/json`
+- **Auth**: `X-API-Key` header required — always, regardless of `REQUIRE_API_KEY` env var
+- **Limit**: maximum 200 addresses per request (422 if exceeded)
+
+### Request body
+
+```json
+{
+  "addresses": [
+    "1600 W Chicago Ave, Chicago, IL",
+    "700 W Grand Ave, Chicago, IL"
+  ]
+}
+```
+
+### Response
+
+```json
+{
+  "batch_id": "a3f1c8d2-...",
+  "scored": 2,
+  "failed": 0,
+  "results": [
+    {
+      "address": "1600 W Chicago Ave, Chicago, IL",
+      "disruption_score": 54,
+      "confidence": "HIGH",
+      "severity": {"noise": "LOW", "traffic": "HIGH", "dust": "LOW"},
+      "top_risks": ["Multi-lane closure on W Chicago Ave within roughly 110 meters; active through 2026-03-26"],
+      "explanation": "...",
+      "mode": "live",
+      "error": null
+    },
+    ...
+  ]
+}
+```
+
+### Per-address failure handling
+
+When a single address fails (geocode failure, scoring error), it is returned inline with:
+- `error`: string describing the failure
+- All other fields: `null`
+
+The overall request returns 200 even when some addresses fail. Check `failed` in the response envelope.
+
+### Notes
+
+- `batch_id` is a UUID generated per request and written to `score_history` for all successful results.
+- Addresses are scored in parallel (up to 10 concurrent workers).
+- `nearby_signals` is not included in batch output.
+
+---
+
+## `/score/batch/csv` endpoint  (data-045)
+
+- **Method**: `POST`
+- **Content-Type**: `multipart/form-data`
+- **Auth**: `X-API-Key` header required — always
+- **Limit**: maximum 200 addresses (rows beyond 200 are ignored)
+
+### Request
+
+Upload a CSV file as the `file` field (multipart). One address per row. An optional header row with value `address` (case-insensitive) is skipped automatically. Excel BOM is handled.
+
+```
+address
+1600 W Chicago Ave, Chicago, IL
+700 W Grand Ave, Chicago, IL
+```
+
+### Response
+
+Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with columns:
+
+| Column | Description |
+|---|---|
+| `address` | Input address echoed back |
+| `disruption_score` | Integer 0–100 (empty on error) |
+| `confidence` | HIGH / MEDIUM / LOW (empty on error) |
+| `severity_noise` | HIGH / MEDIUM / LOW |
+| `severity_traffic` | HIGH / MEDIUM / LOW |
+| `severity_dust` | HIGH / MEDIUM / LOW |
+| `top_risk_1` | First top-risk string (empty if none) |
+| `top_risk_2` | Second top-risk string (empty if none) |
+| `top_risk_3` | Third top-risk string (empty if none) |
+| `error` | Error message if address failed; empty on success |
+
+---
+
 ## `/score` endpoint
 - **Method**: `GET`
 - **Query param**: `address` (required, Chicago address string)

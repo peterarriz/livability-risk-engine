@@ -638,19 +638,27 @@ tasks:
 
   - id: data-045
     title: Batch scoring endpoint — score multiple addresses in one request
-    status: backlog
+    status: done
     priority: medium
     github_issue: ~
     notes_for_next_agent: >
-      Enterprise buyers (relocation firms, corporate real estate portfolios)
-      need to score 50–200 addresses at once, not one at a time via /score.
-      Add a POST /score/batch endpoint to backend/app/main.py:
-        - Request body: {"addresses": ["addr1", "addr2", ...]} (max 200)
-        - Response: {"results": [{address, disruption_score, confidence,
-          severity, top_risks, explanation, error?}, ...], "scored": N,
-          "failed": N}
-        - Geocode in parallel (asyncio.gather or ThreadPoolExecutor)
-        - Cap at 200 addresses per request; return 422 if over limit
+      Completed 2026-03-23. Two endpoints added to backend/app/main.py:
+        POST /score/batch — JSON body {"addresses": [...]} (max 200).
+          Returns {batch_id, scored, failed, results[]}. Each result has
+          address, disruption_score, confidence, severity, top_risks,
+          explanation, mode, error (null on success).
+        POST /score/batch/csv — multipart CSV upload (file field), returns
+          text/csv download with columns: address, disruption_score,
+          confidence, severity_noise, severity_traffic, severity_dust,
+          top_risk_1..3, error.
+      Both endpoints use ThreadPoolExecutor (10 workers) for parallel scoring.
+      Both always require X-API-Key (require_api_key dependency — ignores
+      REQUIRE_API_KEY env var, unlike the single /score endpoint).
+      score_history batch_id column added: ALTER TABLE in db/schema.sql.
+      python-multipart added to backend/requirements.txt.
+      Documented in docs/04_api_contracts.md.
+      Next: data-046 (utility outage data sources) or add rate-limiting
+      per batch request to protect the geocoder from abuse.
         - API key auth required (always — do not allow unauthenticated batch)
         - Log batch size to score_history with a batch_id field
       Also add a POST /score/batch/csv endpoint that accepts multipart
