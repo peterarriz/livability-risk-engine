@@ -393,6 +393,129 @@ tasks:
       using a .skip-link CSS class in globals.css. This is a WCAG 2.1 AA
       requirement.
 
+  - id: data-021
+    title: Shareable report pages — /save endpoint + /report/[id] page
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /save endpoint stores score result and returns a report ID.
+      /report/[id] page renders a read-only shareable report.
+      Completed by another agent.
+
+  - id: data-022
+    title: Persist address history to localStorage
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Address search history persisted to localStorage.
+      Completed by another agent alongside data-023/024.
+
+  - id: data-023
+    title: Add /compare page for side-by-side address comparison
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /compare page enables side-by-side scoring of two addresses.
+      Completed by another agent alongside data-022/024.
+
+  - id: data-024
+    title: Add structured top_risk_details to ScoreResult and ScoreResponse
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      top_risk_details field added to ScoreResult dataclass and /score response.
+      Completed by another agent alongside data-022/023.
+
+  - id: data-025
+    title: Score history table + /history endpoint + fetchHistory()
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      score_history table used for /history endpoint.
+      fetchHistory() added to frontend/src/lib/api.ts.
+      Completed by another agent alongside data-026/027.
+
+  - id: data-026
+    title: Add neighborhood heat map pages /neighborhood/[slug]
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /neighborhood/[slug] pages render aggregate risk data by neighborhood.
+      Completed by another agent.
+
+  - id: data-027
+    title: Add API key auth middleware for /score
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      REQUIRE_API_KEY env var gates /score behind API key auth.
+      Currently disabled on Railway (not set). Completed by another agent.
+
+  - id: data-028
+    title: Developer portal /api-access page with endpoint docs and code examples
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      /api-access page documents all endpoints with curl/Python/JS examples.
+      Completed by another agent alongside data-029.
+
+  - id: data-029
+    title: CSV and PDF export endpoints
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      /export/csv and /export/pdf endpoints added to backend.
+      Completed by another agent alongside data-028.
+
+  - id: data-030
+    title: Score alert watchlist — watchlist/alert_log tables + /watch endpoints
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      watchlist and alert_log tables in schema.sql.
+      /watch POST/DELETE endpoints added.
+      python-dotenv support added for local DATABASE_URL config.
+      Completed by another agent.
+
+  - id: data-031
+    title: Add Illinois statewide data sources — IDOT and Cook County
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      IDOT road construction (ArcGIS REST) and Cook County permits added.
+      backend/ingest/idot_road_projects.py created.
+      Completed by another agent.
+
+  - id: data-032
+    title: Illinois city permits geocoding and additional IL data coverage
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      IL city permits geocoded. Additional data sources researched.
+      Date lookback bug fixed. Completed by another agent alongside data-033.
+
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, IL cities, IDOT verified
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Verified IDOT dataset IDs. Cook County + IL city permit sources added.
+      Replaced 7 broken dataset IDs with verified sources.
+      Completed by another agent.
+
   - id: data-036
     title: Implement Chicago 311 requests, film permits, and special events data sources
     status: done
@@ -429,13 +552,14 @@ tasks:
       mode="live" with db_configured=true. Frontend at livability-risk-engine.vercel.app
       successfully calling live backend. data-019 and data-039 both closed.
 
-  - id: data-040
+  - id: data-041
     title: Set up ingest monitoring and alerting
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
       Full stack is live as of 2026-03-23. Next priority is observability.
+      data-040 was already taken by another agent (do not reuse that ID).
       1. Add failure notification (Slack webhook or GitHub Actions email) to
          .github/workflows/ingest.yml on job failure.
       2. Add row-count regression check in run_pipeline.py or ingest.yml:
