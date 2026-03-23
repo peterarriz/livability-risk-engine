@@ -4,35 +4,41 @@ task: data-047
 lane: data
 
 Ingests Portland Police Bureau crime data and calculates 12-month crime trends
-by precinct.
+by offense category.
 
 Source:
-  Portland Police Bureau publishes crime data via ArcGIS FeatureServer.
-  Service: Portland Maps Open Data — PPB Crime Incidents
-  URL: https://services.arcgis.com/quVN97tn06YNGj9s/arcgis/rest/services
-       /CrimeData/FeatureServer/0
+  Portland Maps Open Data — Public Crime MapServer
+  https://www.portlandmaps.com/arcgis/rest/services/Public/Crime/MapServer
 
-  IMPORTANT: Verify this URL before first production run.
-  To discover the correct service URL, search Portland's open data hub:
-    https://hub.arcgis.com/api/v3/datasets?q=crime+portland&page[size]=10
-  Or visit:
-    https://opendata.portland.gov  (or https://portlandoregon.gov/police/60082)
+  Verified 2026-03-23 via direct query.
 
-  Key fields (verify with --dry-run):
-    CaseNumber       — unique incident ID
-    OccurDate        — epoch milliseconds
-    OffenseType      — crime category
-    Neighborhood     — neighborhood name
-    PrecinctsCity    — precinct code (N, NE, NW, SE, SW, etc.)
-    OpenDataLat, OpenDataLon — coordinates
+  Three "All Locations" layers cover all crime types:
+    Layer 1  — All Property Crime Locations
+    Layer 40 — All Person Crime Locations
+    Layer 59 — All Society Crime Locations
+
+  Key fields (shared across all three layers):
+    OBJECTID              — row ID
+    REPORTED_DATETIME     — epoch milliseconds
+    CrimeType             — specific offense (e.g. "Theft From Motor Vehicle")
+    OffenseGroupDescription — offense group (e.g. "Larceny Offenses")
+    CategoryName          — top-level category (Property / Person / Society)
+
+  Note: These layers have NO precinct, neighborhood, or ZIP field. Coordinates
+  are embedded in point geometry (Web Mercator). We group by
+  OffenseGroupDescription across all three layers.
+
+  The MapServer requires POST for outStatistics queries and uses
+  date '...' SQL literals (not TIMESTAMP '...').
 
 Method:
-  1. Query crime counts + avg lat/lon by precinct for the last 12 months.
-  2. Query crime counts + avg lat/lon by precinct for the prior 12 months.
+  1. Query crime counts by OffenseGroupDescription for the last 12 months
+     across all three layers.
+  2. Query crime counts by OffenseGroupDescription for the prior 12 months.
   3. Calculate percent change → crime_trend: INCREASING / DECREASING / STABLE.
 
 Output:
-  data/raw/portland_crime_trends.json — precinct crime trend records
+  data/raw/portland_crime_trends.json — offense-group crime trend records
 
 Usage:
   python backend/ingest/portland_crime_trends.py
@@ -53,19 +59,21 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-ARCGIS_BASE_URL = (
-    "https://services.arcgis.com/quVN97tn06YNGj9s/arcgis/rest/services"
-    "/CrimeData/FeatureServer/0/query"
+MAPSERVER_BASE = (
+    "https://www.portlandmaps.com/arcgis/rest/services/Public/Crime/MapServer"
 )
+
+# All-locations layers covering Property, Person, and Society crimes.
+CRIME_LAYER_IDS = [1, 40, 59]
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/portland_crime_trends.json")
 
-# ArcGIS field names — verify with:
-#   curl "<ARCGIS_BASE_URL>?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "OccurDate"        # epoch milliseconds
-DISTRICT_FIELD = "PrecinctsCity"
-LAT_FIELD = "OpenDataLat"
-LON_FIELD = "OpenDataLon"
+DATE_FIELD = "REPORTED_DATETIME"          # epoch milliseconds
+GROUP_FIELD = "OffenseGroupDescription"   # offense group
+
+# Portland city center (used as fallback — no per-group coordinates available).
+PORTLAND_LAT = 45.5152
+PORTLAND_LON = -122.6784
 
 # Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0
@@ -75,67 +83,72 @@ STABLE_THRESHOLD_PCT = 5.0
 # ArcGIS REST queries
 # ---------------------------------------------------------------------------
 
-def _timestamp_str(dt: datetime) -> str:
-    """Format datetime as ArcGIS SQL TIMESTAMP literal."""
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+def _date_str(dt: datetime) -> str:
+    """Format datetime as ArcGIS SQL date literal: date 'YYYY-MM-DD'."""
+    return f"date '{dt.strftime('%Y-%m-%d')}'"
 
 
-def fetch_crime_counts_with_centroids(
+def _fetch_layer_counts(
+    layer_id: int,
     start_date: datetime,
     end_date: datetime,
-) -> dict[str, dict]:
+) -> dict[str, int]:
     """
-    Fetch total crime counts and approximate centroids per precinct for a date range.
+    Fetch crime counts grouped by OffenseGroupDescription for one layer
+    within a date range.  Returns dict: group_name → count.
+    """
+    url = f"{MAPSERVER_BASE}/{layer_id}/query"
 
-    Uses ArcGIS outStatistics for server-side aggregation by PrecinctsCity.
-    Returns dict: precinct → {count, lat, lon}.
-    """
     where_clause = (
-        f"{DATE_FIELD} >= TIMESTAMP '{_timestamp_str(start_date)}' "
-        f"AND {DATE_FIELD} < TIMESTAMP '{_timestamp_str(end_date)}'"
+        f"{DATE_FIELD} >= {_date_str(start_date)} "
+        f"AND {DATE_FIELD} < {_date_str(end_date)}"
     )
 
     out_statistics = json.dumps([
         {"statisticType": "count", "onStatisticField": "OBJECTID",
          "outStatisticFieldName": "crime_count"},
-        {"statisticType": "avg", "onStatisticField": LAT_FIELD,
-         "outStatisticFieldName": "avg_lat"},
-        {"statisticType": "avg", "onStatisticField": LON_FIELD,
-         "outStatisticFieldName": "avg_lon"},
     ])
 
-    params = {
+    data = {
         "where": where_clause,
-        "groupByFieldsForStatistics": DISTRICT_FIELD,
+        "groupByFieldsForStatistics": GROUP_FIELD,
         "outStatistics": out_statistics,
         "f": "json",
     }
 
-    resp = requests.get(ARCGIS_BASE_URL, params=params, timeout=60)
+    resp = requests.post(url, data=data, timeout=60)
     resp.raise_for_status()
-    data = resp.json()
+    payload = resp.json()
 
-    if "error" in data:
-        raise RuntimeError(f"ArcGIS query error: {data['error']}")
+    if "error" in payload:
+        raise RuntimeError(
+            f"ArcGIS query error (layer {layer_id}): {payload['error']}"
+        )
 
-    results: dict[str, dict] = {}
-    for feature in data.get("features", []):
+    results: dict[str, int] = {}
+    for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        precinct = str(attrs.get(DISTRICT_FIELD) or "").strip().upper()
-        if not precinct:
+        group = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not group:
             continue
-        count = int(attrs.get("crime_count", 0))
-        try:
-            avg_lat = float(attrs.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(attrs.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[precinct] = {"count": count, "lat": avg_lat, "lon": avg_lon}
-
+        results[group] = results.get(group, 0) + int(attrs.get("crime_count", 0))
     return results
+
+
+def fetch_crime_counts(
+    start_date: datetime,
+    end_date: datetime,
+) -> dict[str, int]:
+    """
+    Fetch total crime counts by offense group across all crime layers.
+    Returns dict: group_name → count.
+    """
+    combined: dict[str, int] = {}
+    for layer_id in CRIME_LAYER_IDS:
+        layer_counts = _fetch_layer_counts(layer_id, start_date, end_date)
+        for group, count in layer_counts.items():
+            combined[group] = combined.get(group, 0) + count
+    return combined
 
 
 # ---------------------------------------------------------------------------
@@ -161,34 +174,31 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 # ---------------------------------------------------------------------------
 
 def build_trend_records(
-    current_data: dict[str, dict],
-    prior_data: dict[str, dict],
+    current_data: dict[str, int],
+    prior_data: dict[str, int],
 ) -> list[dict]:
     """
     Merge current and prior crime counts to produce trend records.
-    All precincts appearing in either window get a record.
+    All offense groups appearing in either window get a record.
     """
-    all_precincts = set(current_data.keys()) | set(prior_data.keys())
+    all_groups = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for precinct in sorted(all_precincts):
-        curr = current_data.get(precinct, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(precinct, {"count": 0, "lat": None, "lon": None})
-        current_count = curr["count"]
-        prior_count = prev["count"]
+    for group in sorted(all_groups):
+        current_count = current_data.get(group, 0)
+        prior_count = prior_data.get(group, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        lat = curr["lat"] or prev["lat"]
-        lon = curr["lon"] or prev["lon"]
+        slug = group.lower().replace(" ", "_").replace("/", "_")
         records.append({
-            "region_type": "precinct",
-            "region_id": f"portland_precinct_{precinct.lower().replace(' ', '_')}",
-            "district_id": precinct,
-            "district_name": f"Portland Precinct {precinct}",
+            "region_type": "city",
+            "region_id": f"portland_offense_{slug}",
+            "district_id": group,
+            "district_name": f"Portland — {group}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": lat,
-            "longitude": lon,
+            "latitude": PORTLAND_LAT,
+            "longitude": PORTLAND_LON,
         })
     return records
 
@@ -201,7 +211,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "portland_crime_trends",
-        "source_url": ARCGIS_BASE_URL.replace("/query", ""),
+        "source_url": MAPSERVER_BASE,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -217,7 +227,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Portland PPB crime trends by precinct from ArcGIS REST API."
+        description="Ingest Portland PPB crime trends by offense group from ArcGIS MapServer."
     )
     parser.add_argument(
         "--output",
@@ -241,34 +251,38 @@ def main() -> None:
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Portland crime counts ({_timestamp_str(current_start)} → {_timestamp_str(now)})...")
+    print(f"Fetching current 12-month Portland crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    print(f"  Querying layers {CRIME_LAYER_IDS} ...")
     try:
-        current_data = fetch_crime_counts_with_centroids(current_start, now)
+        current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(current_data)} precincts with current crime data.")
+    total_current = sum(current_data.values())
+    print(f"  {len(current_data)} offense groups, {total_current:,} total crimes.")
 
-    print(f"\nFetching prior 12-month Portland crime counts ({_timestamp_str(prior_start)} → {_timestamp_str(prior_end)})...")
+    print(f"\nFetching prior 12-month Portland crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    print(f"  Querying layers {CRIME_LAYER_IDS} ...")
     try:
-        prior_data = fetch_crime_counts_with_centroids(prior_start, prior_end)
+        prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(prior_data)} precincts with prior crime data.")
+    total_prior = sum(prior_data.values())
+    print(f"  {len(prior_data)} offense groups, {total_prior:,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} precinct trend records.")
+    print(f"\nBuilt {len(records)} offense-group trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} precincts")
+        print(f"  {trend}: {count} groups")
 
     if args.dry_run:
-        print("Dry-run mode: skipping file write.")
+        print("\nDry-run mode: skipping file write.")
         if records:
             print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
         return
