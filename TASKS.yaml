@@ -556,7 +556,7 @@ tasks:
     title: Set up ingest monitoring and alerting
     status: backlog
     priority: high
-    github_issue: ~
+    github_issue: 133
     notes_for_next_agent: >
       Full stack is live as of 2026-03-23. Next priority is observability.
       data-040 was already taken by another agent (do not reuse that ID).
