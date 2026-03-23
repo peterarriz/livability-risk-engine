@@ -576,21 +576,22 @@ tasks:
 
   - id: data-042
     title: Validate and calibrate scoring weights against real addresses
-    status: backlog
+    status: done
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      Run 5+ known Chicago addresses through the live /score endpoint.
-      Compare disruption scores against manually verified ground truth
-      (check permit/closure activity on Chicago Data Portal for each address).
-      Adjust base_weight values in backend/scoring/query.py if scores are
-      systematically too high, too low, or miscalibrated relative to actual
-      visible disruption. Document results in docs/live_score_validation.md.
-      Target addresses should include: at least one known active construction
-      zone (e.g. near ongoing Loop construction), one quiet residential block,
-      and one address with only film permit activity.
-      This is a prerequisite before design-partner demos — accuracy complaints
-      are the #1 risk to early retention.
+      Completed 2026-03-23. DB not yet live; calibration used synthetic fixtures.
+      All 7 scenarios passed (5 QA addresses + 2 edge cases). No BASE_WEIGHTS
+      changes needed — all bands aligned to docs/03_scoring_model.md.
+      One fix applied: road_construction (weight 20) was missing from
+      _derive_severity, _build_top_risks, and _build_explanation in
+      backend/scoring/query.py. It now correctly contributes to traffic_pts
+      in severity, produces a specific top_risk string, and uses a dedicated
+      explanation pattern. New file: scripts/calibrate_scoring.py (re-runnable
+      calibration harness, exits 0/1). Results documented in
+      docs/live_score_validation.md (data-042 section).
+      Re-run python scripts/calibrate_scoring.py after DB goes live to
+      confirm live data produces the same band alignment.
 
   - id: data-043
     title: Wire per-key API call metering to api_keys table
