@@ -42,11 +42,13 @@ type RiskCardModel = {
   id: string;
   eyebrow: string;
   title: string;
+  distance: string | null;  // data-043: pre-formatted "~N ft away" string
   impact: "High" | "Medium" | "Low";
-  rationale: string;
+  signalDetail: string;     // "Signal detail" section: Claude description or rawText
+  rationale: string;        // "Why this matters" section: Claude why_it_matters or heuristic
   evidence: string;
   chips: string[];
-  rawText: string;        // humanized full signal text for expanded detail
+  rawText: string;          // original humanized text (fallback)
 };
 
 type TimelineSummary = {
@@ -232,20 +234,25 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
     const humanized = humanizeRiskText(risk);
     const impact = inferImpact(humanized, index);
 
-    // Prefer Claude-rewritten strings (data-042) when available.
+    // data-043: prefer the richer 4-field display card when available.
+    // Falls back through: display_title → rewritten_title → heuristic.
     // top_risk_details is parallel to top_risks (same index order).
     const detail = result.top_risk_details?.[index];
-    const rewrittenTitle = detail?.rewritten_title ?? null;
-    const rewrittenDescription = detail?.rewritten_description ?? null;
+    const displayTitle = detail?.display_title ?? detail?.rewritten_title ?? null;
+    const description = detail?.description ?? detail?.rewritten_description ?? null;
+    const whyItMatters = detail?.why_it_matters ?? null;
+    const distanceLabel = detail?.distance ?? null;
 
     return {
       id: `${risk}-${index}`,
       eyebrow: inferDriverEyebrow(humanized),
-      title: rewrittenTitle ?? inferDriverTitle(humanized),
+      title: displayTitle ?? inferDriverTitle(humanized),
+      distance: distanceLabel,
       impact,
-      // Use rewritten description as rationale when available; fall back to
-      // the heuristic derivation so cards are never empty.
-      rationale: rewrittenDescription ?? deriveDriverRationale(humanized),
+      // "Signal detail" section: use Claude description, fall back to rawText
+      signalDetail: description ?? humanized,
+      // "Why this matters" section: use Claude why_it_matters, fall back to heuristic
+      rationale: whyItMatters ?? description ?? deriveDriverRationale(humanized),
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,
@@ -565,6 +572,27 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
         <p className="permit-detail-label">Permit / closure detail</p>
         <button type="button" className="permit-detail-close" onClick={onClose} aria-label="Close details">×</button>
       </div>
+
+      {/* data-043: show Claude-generated display card at the top when available */}
+      {(detail.display_title || detail.description || detail.why_it_matters) && (
+        <div className="permit-detail-summary">
+          {detail.display_title && (
+            <p className="permit-detail-summary-title">{detail.display_title}</p>
+          )}
+          {detail.distance && (
+            <p className="permit-detail-summary-distance">{detail.distance}</p>
+          )}
+          {detail.description && (
+            <p className="permit-detail-summary-desc">{detail.description}</p>
+          )}
+          {detail.why_it_matters && (
+            <p className="permit-detail-summary-why">
+              <strong>Why it matters:</strong> {detail.why_it_matters}
+            </p>
+          )}
+        </div>
+      )}
+
       <dl className="permit-detail-dl">
         <div>
           <dt>Project ID</dt>
@@ -696,7 +724,7 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
           <div className="risk-detail-body">
             <div className="risk-detail-section">
               <p className="risk-detail-label">Signal detail</p>
-              <p className="risk-detail-text">{expandedCard.rawText}</p>
+              <p className="risk-detail-text">{expandedCard.signalDetail}</p>
             </div>
 
             <div className="risk-detail-section">
@@ -1411,18 +1439,25 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
                 background: hoveredRow.color, flexShrink: 0,
               }} />
               <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
-                {hoveredRow.typeLabel}
+                {/* data-043: prefer Claude display_title over raw title */}
+                {hoveredRow.detail.display_title ?? hoveredRow.detail.title ?? hoveredRow.typeLabel}
               </strong>
             </span>
-            {hoveredRow.detail.title && (
+            {hoveredRow.detail.description && (
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #64748b)" }}>
-                {hoveredRow.detail.title}
+                {hoveredRow.detail.description}
               </span>
             )}
             <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
               {hoveredRow.startLabel} – {hoveredRow.endLabel}
             </span>
-            {hoveredRow.detail.distance_m > 0 && (
+            {/* data-043: show pre-formatted distance when available, else compute */}
+            {(hoveredRow.detail.distance ?? (hoveredRow.detail.distance_m > 0 ? null : null)) && (
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
+                {hoveredRow.detail.distance}
+              </span>
+            )}
+            {!hoveredRow.detail.distance && hoveredRow.detail.distance_m > 0 && (
               <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
                 {Math.round(hoveredRow.detail.distance_m * 3.28084).toLocaleString()} ft away
               </span>
@@ -1512,14 +1547,15 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
                     }}>
                       {row.typeLabel}
                     </div>
-                    {row.detail.title && (
+                    {/* data-043: prefer display_title over raw title in Gantt row label */}
+                    {(row.detail.display_title ?? row.detail.title) && (
                       <div style={{
                         fontSize: "0.6rem", color: "var(--text-muted, #64748b)",
                         overflow: "hidden", textOverflow: "ellipsis",
                         whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
                         marginLeft: "auto",
                       }}>
-                        {row.detail.title}
+                        {row.detail.display_title ?? row.detail.title}
                       </div>
                     )}
                   </div>
