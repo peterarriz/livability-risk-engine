@@ -4,35 +4,33 @@ task: data-050
 lane: data
 
 Ingests Phoenix Police Department crime data and calculates 12-month
-crime trends by district.
+crime trends by ZIP code.
 
 Source:
-  ArcGIS FeatureServer — phoenixopendata.com (ArcGIS Hub)
-  Service: Phoenix Police Department Crime Incidents
+  CKAN Datastore — phoenixopendata.com
+  Dataset: Crime Data
+  Resource ID: 0ce3411a-2fc6-4302-a33f-167f68608a20
 
-  MUST VERIFY service URL before production:
-    python backend/ingest/phoenix_crime_trends.py --discover
-    Or visit: https://www.phoenixopendata.com and search "crime" or "police incidents"
+  Key fields:
+    "OCCURRED ON"        — text date (MM/DD/YYYY  HH:MM)
+    "ZIP"                — ZIP code
+    "UCR CRIME CATEGORY" — crime type
+    "GRID"               — police grid (too granular; ZIP preferred)
 
-  Estimated service URL:
-    https://services.arcgis.com/ubE5oANDhCRLGBDO/arcgis/rest/services
-    /PhoenixPD_Crime_Statistics/FeatureServer/0
+  Note: Phoenix does NOT have an ArcGIS FeatureServer for crime incidents.
+  The portal runs CKAN 2.9 with a PostgreSQL-backed Datastore SQL API.
 
-  Verify sample record:
-    curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-
-  Key fields (MUST VERIFY via sample query):
-    OCCURRED_ON   — date of incident
-    DISTRICT      — police district (1-8)
-    Latitude, Longitude — coordinates
+Method:
+  1. Aggregate crime counts by ZIP for the last 12 months.
+  2. Aggregate crime counts by ZIP for the prior 12 months.
+  3. Calculate percent change -> crime_trend: INCREASING / DECREASING / STABLE.
 
 Output:
-  data/raw/phoenix_crime_trends.json — district crime trend records
+  data/raw/phoenix_crime_trends.json — ZIP crime trend records
 
 Usage:
   python backend/ingest/phoenix_crime_trends.py
   python backend/ingest/phoenix_crime_trends.py --dry-run
-  python backend/ingest/phoenix_crime_trends.py --discover
 """
 
 from __future__ import annotations
@@ -49,21 +47,14 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://www.phoenixopendata.com, search "crime" or
-# "police incidents", open the dataset, click "API" → copy FeatureServer URL.
-# Phoenix PD publishes crime stats; this is an estimated URL.
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/ubE5oANDhCRLGBDO/arcgis/rest/services"
-    "/PhoenixPD_Crime_Statistics/FeatureServer/0"
-)
-PORTAL_ORG_ID = "ubE5oANDhCRLGBDO"
+CKAN_SQL_URL = "https://www.phoenixopendata.com/api/3/action/datastore_search_sql"
+RESOURCE_ID = "0ce3411a-2fc6-4302-a33f-167f68608a20"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/phoenix_crime_trends.json")
 
-# MUST VERIFY field names via sample query:
-#   curl "{FEATURESERVER_URL}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "OCCURRED_ON"
-GROUP_FIELD = "DISTRICT"
+# Field names (quoted in SQL because they contain spaces)
+DATE_FIELD = "OCCURRED ON"
+GROUP_FIELD = "ZIP"
 
 PHOENIX_LAT = 33.4484
 PHOENIX_LON = -112.0740
@@ -71,48 +62,39 @@ PHOENIX_LON = -112.0740
 STABLE_THRESHOLD_PCT = 5.0
 
 
-def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
-
-
 def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
+    """
+    Fetch crime counts grouped by ZIP code via CKAN Datastore SQL.
+    """
+    start_str = start_date.strftime("%m/%d/%Y")
+    end_str = end_date.strftime("%m/%d/%Y")
 
-    where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
+    sql = (
+        f'SELECT "{GROUP_FIELD}", COUNT(*) as crime_count '
+        f'FROM "{RESOURCE_ID}" '
+        f'WHERE TO_DATE(LEFT("{DATE_FIELD}", 10), \'MM/DD/YYYY\') >= \'{start_date:%Y-%m-%d}\'::date '
+        f'AND TO_DATE(LEFT("{DATE_FIELD}", 10), \'MM/DD/YYYY\') < \'{end_date:%Y-%m-%d}\'::date '
+        f'AND "{GROUP_FIELD}" IS NOT NULL AND "{GROUP_FIELD}" != \'\' '
+        f'GROUP BY "{GROUP_FIELD}"'
     )
 
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
-
-    params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
-    }
-
-    resp = requests.post(url, data=params, timeout=60)
+    resp = requests.get(CKAN_SQL_URL, params={"sql": sql}, timeout=120)
     resp.raise_for_status()
     payload = resp.json()
 
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+    if not payload.get("success"):
+        error = payload.get("error", {})
+        raise RuntimeError(f"CKAN SQL error: {error}")
 
     results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not district:
+    for record in payload.get("result", {}).get("records", []):
+        zip_code = str(record.get(GROUP_FIELD) or "").strip()
+        if not zip_code:
             continue
-        count = int(attrs.get("crime_count", 0) or attrs.get("CRIME_COUNT", 0))
-        results[district] = results.get(district, 0) + count
+        results[zip_code] = results.get(zip_code, 0) + int(record.get("crime_count", 0))
     return results
 
 
@@ -133,18 +115,17 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    all_zips = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for district in sorted(all_districts):
-        current_count = current_data.get(district, 0)
-        prior_count = prior_data.get(district, 0)
+    for zip_code in sorted(all_zips):
+        current_count = current_data.get(zip_code, 0)
+        prior_count = prior_data.get(zip_code, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = district.lower().replace(" ", "_")
         records.append({
-            "region_type": "district",
-            "region_id": f"phoenix_district_{slug}",
-            "district_id": district,
-            "district_name": f"Phoenix Police District {district}",
+            "region_type": "zip",
+            "region_id": f"phoenix_zip_{zip_code}",
+            "district_id": zip_code,
+            "district_name": f"Phoenix ZIP {zip_code}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -159,7 +140,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "phoenix_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source_url": CKAN_SQL_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -169,45 +150,17 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     print(f"\nWrote {len(records)} records to {output_path}")
 
 
-def discover(org_id: str) -> None:
-    """Query ArcGIS Hub for crime datasets in this org."""
-    hub_url = "https://hub.arcgis.com/api/v3/search"
-    params = {
-        "q": "crime police incidents",
-        "filter[orgid]": org_id,
-        "fields[datasets]": "id,name,url",
-        "page[size]": 5,
-    }
-    try:
-        resp = requests.get(hub_url, params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        print("ArcGIS Hub search results (crime/police incidents):")
-        for item in data.get("data", []):
-            attrs = item.get("attributes", {})
-            print(f"  {attrs.get('name','?')} — {attrs.get('url','?')}")
-    except Exception as exc:
-        print(f"Discover failed: {exc}")
-    print(f"\nAlso try: https://www.phoenixopendata.com (search 'crime')")
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Phoenix PD crime trends by district from ArcGIS FeatureServer."
+        description="Ingest Phoenix PD crime trends by ZIP from CKAN Datastore."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--discover", action="store_true",
-                        help="Query ArcGIS Hub for available crime datasets.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-
-    if args.discover:
-        discover(PORTAL_ORG_ID)
-        return
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
@@ -215,34 +168,34 @@ def main() -> None:
     prior_end = current_start
 
     print(f"Fetching current 12-month Phoenix crime counts "
-          f"({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+          f"({current_start:%Y-%m-%d} \u2192 {now:%Y-%m-%d})...")
     try:
         current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
-        print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
+        print(f"ERROR: failed to fetch current crime counts \u2014 {exc}", file=sys.stderr)
         sys.exit(1)
     total_current = sum(current_data.values())
-    print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
+    print(f"  {len(current_data)} ZIP codes, {total_current:,} total crimes.")
 
     print(f"\nFetching prior 12-month Phoenix crime counts "
-          f"({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+          f"({prior_start:%Y-%m-%d} \u2192 {prior_end:%Y-%m-%d})...")
     try:
         prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:
-        print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
+        print(f"ERROR: failed to fetch prior crime counts \u2014 {exc}", file=sys.stderr)
         sys.exit(1)
     total_prior = sum(prior_data.values())
-    print(f"  {len(prior_data)} districts, {total_prior:,} total crimes.")
+    print(f"  {len(prior_data)} ZIP codes, {total_prior:,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} district trend records.")
+    print(f"\nBuilt {len(records)} ZIP trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} districts")
+        print(f"  {trend}: {count} ZIP codes")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")
