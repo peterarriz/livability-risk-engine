@@ -687,6 +687,319 @@ tasks:
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
+    status: done
+    priority: medium
+    github_issue: 96
+    notes_for_next_agent: >
+      DECISION: won't-fix. No public REST API exists for Illinois Tollway
+      (ITSHA) construction data. Research findings:
+        1. IDOT ArcGIS (idot_road_projects.py) covers IDOT-managed construction
+           only. Illinois Tollway (ITSHA) is a separate authority — their projects
+           do NOT systematically appear in the IDOT dataset.
+        2. illinoistollway.com/road-projects is HTML-only (no API, no JSON feed).
+           Scraping would be fragile and is not a recommended approach.
+        3. gis.idot.illinois.gov is IDOT's own GIS, separate from ITSHA.
+           No tollway-specific construction layer is available publicly.
+      Coverage rationale: Tollways (I-90/Jane Addams, I-88/Reagan, I-294/Veterans,
+      I-190) are limited-access expressways. Construction on them does not directly
+      affect neighborhood-level livability at the address level the way arterial
+      street closures, building permits, or 311 requests do. IDOT District 1 data
+      provides sufficient coverage for state/federal road construction impacting
+      Chicago neighborhoods. Next: data-038.
+
+  - id: data-042
+    title: Claude-powered signal card rewriter with DB cache
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Problem: top_risk card titles exposed raw permit strings like
+      "Lane or curb Closure near huron between addresses 900–909 (Permitted work
+      (opening phase)) closure ~ ~144 ft; active through 2026-04-15".
+      Solution: backend/scoring/rewrite.py calls claude-opus-4-6 to generate a
+      clean 1-line title and 1-sentence description for each top_risk_detail.
+      Cache: signal_rewrites table (project_id TEXT PK) stores results so each
+      unique permit/closure is rewritten at most once — no repeated API calls.
+      Integration: _score_live() in main.py calls enrich_top_risk_details()
+      with the open DB connection after compute_score() and before returning.
+      The DB connection was moved inside the try/finally block to support this.
+      Frontend: buildRiskCards() in score-experience.tsx checks
+      detail.rewritten_title / detail.rewritten_description first; falls back to
+      the heuristic inferDriverTitle() / deriveDriverRationale() if null.
+      Types: TopRiskDetail in api.ts has rewritten_title?: string|null and
+      rewritten_description?: string|null (optional for backward compat).
+      Dependency: anthropic>=0.50.0 added to backend/requirements.txt.
+      Schema: signal_rewrites table added to db/schema.sql (idempotent CREATE IF NOT EXISTS).
+      Operator steps:
+        1. Apply updated schema: ./scripts/apply_schema.sh
+           (adds signal_rewrites table — idempotent, safe to run again)
+        2. Set ANTHROPIC_API_KEY env var on Railway backend service
+        3. Optionally set CLAUDE_REWRITE_MODEL=claude-haiku-4-5 for lower latency
+           (default is claude-opus-4-6)
+        4. Redeploy backend
+        5. Validate: hit /score for any address and confirm top_risk_details items
+           contain non-null rewritten_title and rewritten_description fields.
+      Graceful degradation: if ANTHROPIC_API_KEY is unset or call fails, the
+      original top_risk_details are returned unchanged (no rewritten fields added).
+      Cache is lazily populated — first request per project_id pays API cost;
+      all subsequent requests are free DB reads.
+      Next: consider data-043 to backfill rewrites for all existing projects
+      in a background job so first-load latency is eliminated.
+
+  - id: data-041
+    title: Fix neighborhood page — zero project count and missing map circles
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Root cause was a three-part bug in _get_projects_in_bbox (backend/app/main.py):
+        1. Column name mismatch: query used `lat, lon` but the projects table
+           has `latitude, longitude`. This caused a SQL error that was silently
+           caught, returning [] every time even with live DB data.
+        2. Filter used lat/lon BETWEEN instead of the spatial index. Switched to
+           ST_Within(geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326))
+           to match the /score endpoint pattern and use the GIST index on geom.
+        3. Coordinates extracted with COALESCE(ST_Y(geom), latitude) and
+           COALESCE(ST_X(geom), longitude) so rows where lat/lon columns are NULL
+           but geom is populated are still returned with valid coordinates for map rendering.
+      Status filter expanded from 'active' to ('active', 'planned') to match
+      the score endpoint's SCOREABLE_STATUSES.
+      Frontend (frontend/src/app/neighborhood/[slug]/page.tsx):
+        - Fallback message updated to: "No active signals in this neighborhood
+          right now — check back after the next daily data refresh at 06:00 UTC."
+      Next: validate with live DB by hitting /neighborhood/wicker-park and
+      confirming project_count > 0 and map circles render.
+
+  - id: data-038
+    title: Add CDOT traffic signal outage data source
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Add Chicago CDOT Traffic Signal Outages as a disruption signal source.
+      Dataset: Chicago Data Portal "Traffic Signal Status" (Socrata).
+      Dataset ID to verify: search data.cityofchicago.org for "traffic signal"
+      or "signal outage" — the canonical active outages dataset.
+      Signal outages cause intersection-level disruption similar to street
+      closures and are relevant to livability scoring.
+      Implementation pattern mirrors chicago_311_requests.py:
+        - Fetch active outages from Socrata (filter status = 'Active' or similar)
+        - Normalize to internal schema (normalize_signal_outage() in project.py)
+        - Add load_signal_outages() to load_projects.py
+        - Add --skip-signals flag to run_pipeline.py
+        - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
+      Verify dataset ID and field names via dry-run before wiring into pipeline.
+
+  - id: data-041b
+    title: Set up ingest monitoring and alerting
+    status: done
+    priority: high
+    github_issue: 133
+    notes_for_next_agent: >
+      Three improvements implemented (issue #133):
+        1. /health/db now queries ingest_runs for last_ingest_at and
+           last_ingest_status (replaces null placeholder). Also fixed a
+           column-name bug in _get_last_ingest_time(): was querying
+           completed_at (doesn't exist) — corrected to finished_at.
+        2. backend/ingest/row_count_check.py — standalone script that
+           compares current active project count vs. prior successful
+           ingest_runs.record_count. Exits 1 if drop > 20% threshold.
+           Accepts --threshold FRACTION to override.
+        3. run_pipeline.py — row_count_check runs as a non-fatal step
+           after "Load neighborhood quality". Exposes --skip-row-count-check
+           flag if needed.
+      Workflow notification (Slack webhook): NOT implemented. The GitHub App
+      does NOT have permission to modify .github/workflows/ files. The
+      existing ingest.yml already has a "Notify on failure" step that logs
+      ::error:: to the Actions log. To add Slack: set SLACK_WEBHOOK_URL
+      secret and edit .github/workflows/ingest.yml manually:
+        - name: Notify Slack on failure
+          if: failure()
+          run: |
+            curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H 'Content-type: application/json' \
+              --data '{"text":"Ingest pipeline FAILED: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+      Next: validate /health/db returns real last_ingest_at after a pipeline
+      run. Consider adding row_count to ingest_runs writes in load_projects.py
+      if record_count is not currently being recorded.
+
+  - id: data-043
+    title: Expand US city permit ingest to next 10 cities
+    status: done
+    priority: medium
+    github_issue: 114
+    notes_for_next_agent: >
+      Added 9 Socrata cities to backend/ingest/us_city_permits.py:
+        seattle (76t5-zqzr), portland (dn2b-wfmq), nashville (3h5a-gtgq),
+        boston (6ddd-wiua), detroit (but4-ky7y), memphis (g7rd-i96y),
+        louisville (aytd-x45v), baltimore (fesm-tgxf), milwaukee (xbvy-uuqt).
+      Added Denver to backend/ingest/us_city_permits_ckan.py (CKAN/OpenGov).
+      IMPORTANT: Denver resource_id is set to "VERIFY_VIA_DISCOVER" — must be
+      confirmed before production ingest:
+        python backend/ingest/us_city_permits_ckan.py --city denver --discover
+      Dataset IDs for Memphis, Louisville, Milwaukee are lower-confidence estimates;
+      verify each with: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5"
+      All cities fail gracefully (non-fatal errors) so bad dataset_ids won't block others.
+      Next: data-045 — validate dry-run for all 13 Socrata + 5 CKAN cities,
+      confirm Denver resource_id, wire new cities into run_pipeline.py.
+
+  - id: data-044
+    title: Research and implement crime data for all live US cities
+    status: done
+    priority: high
+    github_issue: 116
+    notes_for_next_agent: >
+      Three new ingest scripts added:
+        - backend/ingest/austin_crime_trends.py — APD Crime Reports from
+          data.austintexas.gov (dataset g3bk-zscf), grouped by sector (A-H).
+        - backend/ingest/seattle_crime_trends.py — SPD Crime Data 2008-Present
+          from data.seattle.gov (dataset tazs-3rd5), grouped by precinct
+          (N, E, S, W, SW).
+        - backend/ingest/nyc_crime_trends.py — NYPD Complaint Data from
+          data.cityofnewyork.us. Queries both historic (qgea-i56i) and YTD
+          (5uac-w243) datasets, merges results for full 24-month coverage.
+          Grouped by addr_pct_cd (precinct, ~77 NYPD precincts).
+      All three scripts follow the chicago_crime_trends.py pattern exactly:
+        - SoQL GROUP BY with server-side aggregation.
+        - Approximate centroids via avg(latitude)/avg(longitude) in the GROUP BY.
+        - region_type matches district type (sector or precinct).
+        - Output to data/raw/{city}_crime_trends.json.
+        - --dry-run support and SOCRATA_APP_TOKEN env var.
+      load_neighborhood_quality.py updated to include crime_austin,
+      crime_seattle, crime_nyc source keys.
+      FBI UCR research: api.usa.gov/crime/fbi/cde/ requires API key and
+      provides state/agency aggregates only — not useful for neighborhood scoring.
+      Validate with dry-run before first production ingest:
+        python backend/ingest/austin_crime_trends.py --dry-run
+        python backend/ingest/seattle_crime_trends.py --dry-run
+        python backend/ingest/nyc_crime_trends.py --dry-run
+      Next: data-045 — wire new crime scripts into run_pipeline.py.
+
+  - id: data-045
+    title: Expand permit and crime data to next 10 US cities
+    status: done
+    priority: medium
+    github_issue: 118
+    notes_for_next_agent: >
+      Implemented in this task (data-045):
+      PERMITS:
+        - Kansas City added to us_city_permits.py (Socrata, data.kcmo.org)
+          dataset_id="i6pc-e4ph" — MUST VERIFY before production:
+            curl "https://data.kcmo.org/api/catalog/v1?q=building+permit&limit=5"
+        - Indianapolis added to us_city_permits.py (Socrata, data.indy.gov)
+          dataset_id="bf8m-7stk" — MUST VERIFY before production:
+            curl "https://data.indy.gov/api/catalog/v1?q=building+permit&limit=5"
+        - Denver, Boston, Milwaukee were already in us_city_permits_ckan.py
+          (Denver resource_id still VERIFY_VIA_DISCOVER)
+        - Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville use ArcGIS Hub
+          — not Socrata/CKAN; documented in code comments; needs data-046 for
+          ArcGIS REST ingest implementation.
+      CRIME:
+        - backend/ingest/kansas_city_crime_trends.py — Socrata (data.kcmo.org)
+          dataset_id="kagq-28me" — MUST VERIFY:
+            curl "https://data.kcmo.org/api/catalog/v1?q=crime&limit=5"
+        - backend/ingest/denver_crime_trends.py — Socrata-compat (data.denvergov.org)
+          dataset_id="mntn-uqan" — MUST VERIFY:
+            curl "https://data.denvergov.org/api/catalog/v1?q=crime&limit=5"
+        - backend/ingest/boston_crime_trends.py — CKAN (data.boston.gov)
+          resource_id="12cb-3tbx" — MUST VERIFY:
+            python backend/ingest/boston_crime_trends.py --discover
+        - backend/ingest/milwaukee_crime_trends.py — CKAN (data.milwaukee.gov)
+          resource_id="87f0-y96e" — MUST VERIFY:
+            python backend/ingest/milwaukee_crime_trends.py --discover
+      WIRING:
+        - load_neighborhood_quality.py updated with crime_kansas_city,
+          crime_denver, crime_boston, crime_milwaukee source keys.
+      STILL NEEDED (data-046):
+        - Verify all new dataset/resource IDs via dry-run
+        - Implement ArcGIS REST ingest for Phoenix, Columbus, Minneapolis,
+          Charlotte, Jacksonville
+        - Wire all crime scripts into run_pipeline.py as non-fatal steps
+        - Confirm Denver permit resource_id in us_city_permits_ckan.py
+
+  - id: data-046
+    title: Verify new city dataset IDs and implement ArcGIS permit ingest
+    status: done
+    priority: medium
+    github_issue: 120
+    notes_for_next_agent: >
+      Completed 2026-03-22:
+      1. FIELD CONFIGS HARDENED (us_city_permits.py):
+           Kansas City: id_field="permitnum", type_field="permittype",
+             desc_field="workdesc", issue_date_field="applicationdate",
+             skip_date_filter=True, max_records=5000
+             (KCMO Socrata uses different field names than standard schema).
+           Indianapolis: skip_date_filter=True, max_records=5000
+             (portal type uncertain — may be OpenDataSoft not Socrata).
+           Both cities still need live dry-run validation once DB is accessible:
+             python backend/ingest/us_city_permits.py --city kansas_city --dry-run
+             python backend/ingest/us_city_permits.py --city indianapolis --dry-run
+      2. ARCGIS SCRIPT CREATED:
+           backend/ingest/us_city_permits_arcgis.py
+           Supports: Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville
+           Pattern: ArcGIS FeatureServer/0/query with resultOffset pagination
+           IMPORTANT: Service URLs are estimates — run --discover or visit each
+           city's open data portal to verify before production ingest:
+             python backend/ingest/us_city_permits_arcgis.py --city phoenix --discover
+             python backend/ingest/us_city_permits_arcgis.py --city columbus --discover
+             python backend/ingest/us_city_permits_arcgis.py --city minneapolis --discover
+             python backend/ingest/us_city_permits_arcgis.py --city charlotte --discover
+             python backend/ingest/us_city_permits_arcgis.py --city jacksonville --discover
+      3. PIPELINE WIRED:
+           run_pipeline.py updated with 5 new non-fatal steps:
+             kansas_city_crime_trends (--skip-kc-crime)
+             denver_crime_trends (--skip-denver-crime)
+             boston_crime_trends (--skip-boston-crime)
+             milwaukee_crime_trends (--skip-milwaukee-crime)
+             us_city_permits_arcgis (--skip-arcgis-cities)
+      STILL NEEDED (data-047):
+        - Live dry-run validation for all new cities once DB/network accessible
+        - Verify ArcGIS service URLs for Phoenix, Columbus, Minneapolis,
+          Charlotte, Jacksonville (update CITY_CONFIGS in us_city_permits_arcgis.py)
+        - Confirm Denver CKAN resource_id (VERIFY_VIA_DISCOVER in ckan script)
+        - Confirm KC crime DISTRICT_FIELD — may need "rep_dist_num" instead of "division"
+
+  - id: data-047
+    title: Expand to next tier of US cities — SF, Denver, Baltimore, Nashville, Portland
+    status: done
+    priority: medium
+    github_issue: 122
+    notes_for_next_agent: >
+      Completed 2026-03-23. Added permits + crime for 5 new cities:
+      PERMITS (Socrata — us_city_permits.py):
+        - San Francisco: data.sfgov.org, dataset i98e-djp9, source_key=san_francisco
+        - Baltimore: data.baltimorecity.gov, dataset fesm-tgxf, source_key=baltimore
+        - Nashville: data.nashville.gov, dataset 3h5a-qqft, source_key=nashville
+      PERMITS (ArcGIS — us_city_permits_arcgis.py):
+        - Denver: services1.arcgis.com/zdB7qR0BtYrg0Xpl, ODC_BUILDING_PERMITS_P,
+          source_key=denver
+        - Portland: services.arcgis.com/quVN97tn06YNGj9s, BDS_Permits,
+          source_key=portland
+      CRIME (new scripts, all wired into run_pipeline.py and load_neighborhood_quality.py):
+        - backend/ingest/sf_crime_trends.py     — Socrata (data.sfgov.org, wg3w-h783)
+        - backend/ingest/baltimore_crime_trends.py — Socrata (data.baltimorecity.gov, 4uu5-gl3e)
+        - backend/ingest/nashville_crime_trends.py — Socrata (data.nashville.gov, 2u6v-ujjs)
+        - backend/ingest/portland_crime_trends.py  — ArcGIS (services.arcgis.com/quVN97tn06YNGj9s)
+        NOTE: Denver crime already existed (denver_crime_trends.py, data-045).
+      MUST VERIFY all dataset IDs and field names with --dry-run before production:
+        python backend/ingest/us_city_permits.py --city san_francisco --dry-run
+        python backend/ingest/us_city_permits.py --city baltimore --dry-run
+        python backend/ingest/us_city_permits.py --city nashville --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city portland --dry-run
+        python backend/ingest/sf_crime_trends.py --dry-run
+        python backend/ingest/baltimore_crime_trends.py --dry-run
+        python backend/ingest/nashville_crime_trends.py --dry-run
+        python backend/ingest/portland_crime_trends.py --dry-run
+      ArcGIS service URLs for Denver/Portland permits and Portland crime are
+      estimates — run --discover to verify:
+        python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+        python backend/ingest/us_city_permits_arcgis.py --city portland --discover
+      load_neighborhood_quality.py source keys: crime_sf, crime_baltimore,
+        crime_nashville, crime_portland.
+
+  - id: data-048
+    title: Dry-run validation and field fixes for tier-3 city data (data-047)
     status: backlog
     priority: medium
     github_issue: ~

@@ -1060,3 +1060,30 @@ tasks:
       - Live state reads as production-ready while demo fallback remains explicit but subordinate
       - Frontend production build passes
     notes_for_next_agent: "Completed production-hardening pass across the score workflow. Search suggestions now use a premium dark dropdown with keyboard navigation. Results flow is reorganized into score → interpretation → confidence/severity → drivers → map/timeline/supporting context. Demo language was reduced in the primary flow while fallback labeling remains explicit. Verified with 'cd frontend && npm run build'."
+  - id: data-043
+    lane: data
+    type: feature
+    title: "4-field Claude signal display cards with signal_display cache"
+    owner: data
+    status: done
+    priority: high
+    files:
+      - db/schema.sql
+      - backend/scoring/rewrite.py
+      - frontend/src/lib/api.ts
+      - frontend/src/components/score-experience.tsx
+      - backend/app/main.py
+    dependencies:
+      - data-042
+    acceptance_criteria:
+      - signal_display table added to schema.sql with display_title, distance, description, why_it_matters columns
+      - Claude API called with 4-field prompt; result cached in signal_display keyed on project_id
+      - Option A deterministic formatter runs when API key absent or call fails (never throws)
+      - enrich_top_risk_details returns display_title, distance, description, why_it_matters on every detail
+      - rewritten_title and rewritten_description still populated for backward compat
+      - TopRiskDetail type in api.ts includes all 4 new fields
+      - Signal cards (TopRiskGrid) use display_title as title, description as Signal detail, why_it_matters as Why this matters
+      - PermitDetailPanel shows Claude display card (title, distance, description, why_it_matters) at the top
+      - Gantt timeline hover tooltip and row label use display_title instead of raw permit title
+      - CSV export includes display_title, distance, description, why_it_matters columns
+    notes_for_next_agent: "Completed. signal_display table is new; signal_rewrites (data-042) is kept for migration reads. Option A formatter is _format_option_a() in rewrite.py — mirrors heuristics from frontend buildRiskCards. Frontend uses display_title -> rewritten_title -> inferred chain so existing cached data keeps working. No PDF export endpoint exists yet (Pro plan gate in page.tsx); add display fields there when /export/pdf is implemented. Next: data-044 should add permit summary CSS styles for permit-detail-summary-* classes added to score-experience.tsx."

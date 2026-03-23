@@ -536,6 +536,106 @@ def compute_score(
 
 
 # ---------------------------------------------------------------------------
+# Neighborhood quality context lookup  (data-040)
+# ---------------------------------------------------------------------------
+
+NEIGHBORHOOD_CONTEXT_SQL = {
+    "flood": """
+        SELECT fema_flood_zone, flood_risk
+        FROM neighborhood_quality
+        WHERE region_type = 'flood_zone' AND geom IS NOT NULL
+        ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        LIMIT 1;
+    """,
+    "crime": """
+        SELECT crime_12mo, crime_prior_12mo, crime_trend, crime_trend_pct
+        FROM neighborhood_quality
+        WHERE region_type = 'community_area' AND geom IS NOT NULL
+        ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        LIMIT 1;
+    """,
+    "census": """
+        SELECT median_income, population, vacancy_rate, housing_age_med
+        FROM neighborhood_quality
+        WHERE region_type = 'census_tract' AND geom IS NOT NULL
+        ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        LIMIT 1;
+    """,
+}
+
+
+def get_neighborhood_context(
+    lat: float,
+    lon: float,
+    db_conn,
+) -> dict | None:
+    """
+    Return neighborhood quality context for a lat/lon coordinate.
+
+    Performs three KNN spatial queries against the neighborhood_quality table:
+      1. Nearest flood zone record (FEMA flood risk)
+      2. Nearest community area record (Chicago crime trend)
+      3. Nearest census tract record (Census ACS demographics)
+
+    Returns a dict with all available fields, or None if the table is empty
+    or does not exist yet (graceful degradation before data-040 ingest runs).
+
+    Args:
+        lat: Query latitude (WGS84).
+        lon: Query longitude (WGS84).
+        db_conn: An open psycopg2 connection.
+
+    Returns:
+        Dict with neighborhood context fields, or None.
+    """
+    if not HAS_PSYCOPG2:
+        return None
+
+    context: dict = {}
+
+    try:
+        with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Flood zone
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["flood"], (lon, lat))
+            row = cur.fetchone()
+            if row:
+                context["fema_flood_zone"] = row["fema_flood_zone"]
+                context["flood_risk"] = row["flood_risk"]
+
+            # Crime trend
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["crime"], (lon, lat))
+            row = cur.fetchone()
+            if row:
+                context["crime_trend"] = row["crime_trend"]
+                context["crime_trend_pct"] = (
+                    float(row["crime_trend_pct"])
+                    if row["crime_trend_pct"] is not None
+                    else None
+                )
+                context["crime_12mo"] = row["crime_12mo"]
+
+            # Census ACS demographics
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["census"], (lon, lat))
+            row = cur.fetchone()
+            if row:
+                context["median_income"] = row["median_income"]
+                context["population"] = row["population"]
+                context["vacancy_rate"] = (
+                    float(row["vacancy_rate"])
+                    if row["vacancy_rate"] is not None
+                    else None
+                )
+                context["housing_age_med"] = row["housing_age_med"]
+
+    except Exception:
+        # neighborhood_quality table may not exist yet (pre data-040 schema).
+        # Return None so the /score endpoint degrades gracefully.
+        return None
+
+    return context if context else None
+
+
+# ---------------------------------------------------------------------------
 # DB connection helper
 # ---------------------------------------------------------------------------
 

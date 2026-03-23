@@ -87,6 +87,16 @@ STEPS = [
         "skip_key": "skip_il_cities",
     },
     {
+        # Fetches building permits and street closures for the top 10 US cities
+        # (NYC, LA, Houston, Phoenix, Philadelphia, San Antonio, San Diego,
+        # Dallas, Austin) from their Socrata open data portals.
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (top 10 cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits.py"],
+        "skip_key": "skip_us_cities",
+        "non_fatal": True,
+    },
+    {
         # Fetches CTA planned service alerts (track work, station closures,
         # construction-related reroutes). No API key required.
         "name": "Fetch CTA planned service alerts",
@@ -139,6 +149,227 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Fetches FEMA NFHL flood zone polygon centroids for Chicago metro.
+        # Stored in neighborhood_quality table (region_type='flood_zone').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch FEMA flood zones (Chicago metro)",
+        "cmd": [sys.executable, "backend/ingest/fema_flood_zones.py"],
+        "skip_key": "skip_fema",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Chicago crime counts by community area, calculates 12-month trends.
+        # Stored in neighborhood_quality table (region_type='community_area').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Chicago crime trends (community area)",
+        "cmd": [sys.executable, "backend/ingest/chicago_crime_trends.py"],
+        "skip_key": "skip_crime_trends",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Census ACS 5-year demographics for Cook County census tracts.
+        # Stored in neighborhood_quality table (region_type='census_tract').
+        # No API key required. Failures are non-fatal.
+        "name": "Fetch Census ACS demographics (Cook County tracts)",
+        "cmd": [sys.executable, "backend/ingest/census_acs.py"],
+        "skip_key": "skip_census_acs",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Austin APD crime data and calculates 12-month trends by sector.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Austin crime trends",
+        "cmd": [sys.executable, "backend/ingest/austin_crime_trends.py"],
+        "skip_key": "skip_austin_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Seattle SPD crime data and calculates 12-month trends by precinct.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch Seattle crime trends",
+        "cmd": [sys.executable, "backend/ingest/seattle_crime_trends.py"],
+        "skip_key": "skip_seattle_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches NYC NYPD complaint data and calculates 12-month trends by precinct.
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch NYC crime trends",
+        "cmd": [sys.executable, "backend/ingest/nyc_crime_trends.py"],
+        "skip_key": "skip_nyc_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Kansas City KCPD crime data and calculates 12-month trends by division.
+        # Source: data.kcmo.org (Socrata). Failures are non-fatal.
+        "name": "Fetch Kansas City crime trends",
+        "cmd": [sys.executable, "backend/ingest/kansas_city_crime_trends.py"],
+        "skip_key": "skip_kc_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Denver DPD crime data and calculates 12-month trends by district.
+        # Source: data.denvergov.org (Socrata-compatible). Failures are non-fatal.
+        "name": "Fetch Denver crime trends",
+        "cmd": [sys.executable, "backend/ingest/denver_crime_trends.py"],
+        "skip_key": "skip_denver_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Boston BPD crime data and calculates 12-month trends by district.
+        # Source: data.boston.gov (CKAN). Failures are non-fatal.
+        "name": "Fetch Boston crime trends",
+        "cmd": [sys.executable, "backend/ingest/boston_crime_trends.py"],
+        "skip_key": "skip_boston_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Milwaukee MPS crime data and calculates 12-month trends by district.
+        # Source: data.milwaukee.gov (CKAN). Failures are non-fatal.
+        "name": "Fetch Milwaukee crime trends",
+        "cmd": [sys.executable, "backend/ingest/milwaukee_crime_trends.py"],
+        "skip_key": "skip_milwaukee_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches building permits from CKAN-based city open data portals
+        # (Boston, Milwaukee, and other non-Socrata cities).
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (CKAN cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits_ckan.py"],
+        "skip_key": "skip_ckan_cities",
+        "non_fatal": True,
+    },
+    {
+        # Fetches building permits from ArcGIS FeatureServer portals
+        # (Phoenix, Columbus, Minneapolis, Charlotte, Denver, Portland).
+        # NOTE: Service URLs require verification before first production run.
+        #   Run: python backend/ingest/us_city_permits_arcgis.py --discover
+        #   or visit each city's open data portal to confirm the FeatureServer URL.
+        # Individual city failures are non-fatal — pipeline continues.
+        "name": "Fetch US city permits (ArcGIS cities)",
+        "cmd": [sys.executable, "backend/ingest/us_city_permits_arcgis.py"],
+        "skip_key": "skip_arcgis_cities",
+        "non_fatal": True,
+    },
+    {
+        # Fetches SFPD crime data and calculates 12-month trends by police district.
+        # Source: data.sfgov.org (Socrata). Failures are non-fatal.
+        "name": "Fetch San Francisco crime trends",
+        "cmd": [sys.executable, "backend/ingest/sf_crime_trends.py"],
+        "skip_key": "skip_sf_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches BPD crime data and calculates 12-month trends by district.
+        # Source: data.baltimorecity.gov (Socrata). Failures are non-fatal.
+        "name": "Fetch Baltimore crime trends",
+        "cmd": [sys.executable, "backend/ingest/baltimore_crime_trends.py"],
+        "skip_key": "skip_baltimore_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Metro Nashville PD crime data and calculates 12-month trends by precinct.
+        # Source: data.nashville.gov (Socrata). Failures are non-fatal.
+        "name": "Fetch Nashville crime trends",
+        "cmd": [sys.executable, "backend/ingest/nashville_crime_trends.py"],
+        "skip_key": "skip_nashville_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Portland PPB crime data and calculates 12-month trends by precinct.
+        # Source: ArcGIS FeatureServer. Failures are non-fatal.
+        "name": "Fetch Portland crime trends",
+        "cmd": [sys.executable, "backend/ingest/portland_crime_trends.py"],
+        "skip_key": "skip_portland_crime",
+        "non_fatal": True,
+    },
+    # -----------------------------------------------------------------
+    # data-049: Tier-4 city crime trends (12 new cities)
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Washington DC crime trends",
+        "cmd": [sys.executable, "backend/ingest/dc_crime_trends.py"],
+        "skip_key": "skip_dc_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Oklahoma City crime trends",
+        "cmd": [sys.executable, "backend/ingest/oklahoma_city_crime_trends.py"],
+        "skip_key": "skip_okc_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch San Antonio crime trends",
+        "cmd": [sys.executable, "backend/ingest/san_antonio_crime_trends.py"],
+        "skip_key": "skip_san_antonio_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch San Diego crime trends",
+        "cmd": [sys.executable, "backend/ingest/san_diego_crime_trends.py"],
+        "skip_key": "skip_san_diego_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Memphis crime trends",
+        "cmd": [sys.executable, "backend/ingest/memphis_crime_trends.py"],
+        "skip_key": "skip_memphis_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Louisville crime trends",
+        "cmd": [sys.executable, "backend/ingest/louisville_crime_trends.py"],
+        "skip_key": "skip_louisville_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Fresno crime trends",
+        "cmd": [sys.executable, "backend/ingest/fresno_crime_trends.py"],
+        "skip_key": "skip_fresno_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Sacramento crime trends",
+        "cmd": [sys.executable, "backend/ingest/sacramento_crime_trends.py"],
+        "skip_key": "skip_sacramento_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Las Vegas crime trends",
+        "cmd": [sys.executable, "backend/ingest/las_vegas_crime_trends.py"],
+        "skip_key": "skip_las_vegas_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch El Paso crime trends",
+        "cmd": [sys.executable, "backend/ingest/el_paso_crime_trends.py"],
+        "skip_key": "skip_el_paso_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Tucson crime trends",
+        "cmd": [sys.executable, "backend/ingest/tucson_crime_trends.py"],
+        "skip_key": "skip_tucson_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Houston crime trends",
+        "cmd": [sys.executable, "backend/ingest/houston_crime_trends.py"],
+        "skip_key": "skip_houston_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches CPS school performance ratings (SY2425 progress reports)
+        # joined with school coordinates from the SY2324 profile dataset.
+        # Stored in neighborhood_quality table (region_type='school').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch IL school ratings (CPS)",
+        "cmd": [sys.executable, "backend/ingest/il_school_ratings.py"],
+        "skip_key": "skip_school_ratings",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -147,6 +378,27 @@ STEPS = [
         "name": "Load projects into DB",
         "cmd": [sys.executable, "backend/ingest/load_projects.py", "--prune-days", "90"],
         "prune_args": True,
+    },
+    {
+        # Loads neighborhood quality staging files (FEMA, crime, Census ACS)
+        # into the neighborhood_quality table. Non-fatal: fails gracefully if
+        # staging files are missing or DB table not yet created.
+        "name": "Load neighborhood quality into DB",
+        "cmd": [sys.executable, "backend/ingest/load_neighborhood_quality.py"],
+        "skip_key": "skip_neighborhood_quality",
+        "non_fatal": True,
+        "dry_run_passthrough": True,
+    },
+    {
+        # data-041: Row-count regression check.
+        # Alerts if active project count drops >20% vs prior successful run.
+        # Non-fatal so the pipeline still exits 0 on transient anomalies;
+        # the check prints a clear REGRESSION DETECTED message to stderr
+        # which surfaces in GitHub Actions logs.
+        "name": "Row-count regression check",
+        "cmd": [sys.executable, "backend/ingest/row_count_check.py"],
+        "skip_key": "skip_row_count_check",
+        "non_fatal": True,
     },
 ]
 
@@ -300,7 +552,7 @@ def run_step(step: dict, args: argparse.Namespace) -> bool:
         except ValueError:
             pass
 
-    if args.dry_run and step.get("prune_args"):
+    if args.dry_run and (step.get("prune_args") or step.get("dry_run_passthrough")):
         cmd.append("--dry-run")
 
     print(f"\n── {step['name']} ──────────────────────────────")
@@ -337,6 +589,11 @@ def parse_args() -> argparse.Namespace:
         help="Skip the IL city permits fetch step (Cook County + cities).",
     )
     parser.add_argument(
+        "--skip-us-cities",
+        action="store_true",
+        help="Skip the US city permits fetch step (top 10 US cities).",
+    )
+    parser.add_argument(
         "--skip-cta",
         action="store_true",
         help="Skip the CTA planned service alerts fetch step.",
@@ -365,6 +622,114 @@ def parse_args() -> argparse.Namespace:
         "--skip-events",
         action="store_true",
         help="Skip the Chicago special events permits fetch step.",
+    )
+    parser.add_argument(
+        "--skip-fema",
+        action="store_true",
+        help="Skip the FEMA flood zones fetch step.",
+    )
+    parser.add_argument(
+        "--skip-crime-trends",
+        action="store_true",
+        help="Skip the Chicago crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-census-acs",
+        action="store_true",
+        help="Skip the Census ACS demographics fetch step.",
+    )
+    parser.add_argument(
+        "--skip-austin-crime",
+        action="store_true",
+        help="Skip the Austin crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-seattle-crime",
+        action="store_true",
+        help="Skip the Seattle crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-nyc-crime",
+        action="store_true",
+        help="Skip the NYC crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-kc-crime",
+        action="store_true",
+        help="Skip the Kansas City crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-denver-crime",
+        action="store_true",
+        help="Skip the Denver crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-boston-crime",
+        action="store_true",
+        help="Skip the Boston crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-milwaukee-crime",
+        action="store_true",
+        help="Skip the Milwaukee crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-ckan-cities",
+        action="store_true",
+        help="Skip the CKAN city permits fetch step (Boston, Milwaukee, etc.).",
+    )
+    parser.add_argument(
+        "--skip-arcgis-cities",
+        action="store_true",
+        help="Skip the ArcGIS city permits fetch step (Phoenix, Columbus, Minneapolis, Charlotte, Denver, Portland).",
+    )
+    parser.add_argument(
+        "--skip-sf-crime",
+        action="store_true",
+        help="Skip the San Francisco crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-baltimore-crime",
+        action="store_true",
+        help="Skip the Baltimore crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-nashville-crime",
+        action="store_true",
+        help="Skip the Nashville crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-portland-crime",
+        action="store_true",
+        help="Skip the Portland crime trends fetch step.",
+    )
+    # data-049: Tier-4 city crime trends skip flags
+    parser.add_argument("--skip-dc-crime", action="store_true", help="Skip the DC crime trends fetch step.")
+    parser.add_argument("--skip-okc-crime", action="store_true", help="Skip the Oklahoma City crime trends fetch step.")
+    parser.add_argument("--skip-san-antonio-crime", action="store_true", help="Skip the San Antonio crime trends fetch step.")
+    parser.add_argument("--skip-san-diego-crime", action="store_true", help="Skip the San Diego crime trends fetch step.")
+    parser.add_argument("--skip-memphis-crime", action="store_true", help="Skip the Memphis crime trends fetch step.")
+    parser.add_argument("--skip-louisville-crime", action="store_true", help="Skip the Louisville crime trends fetch step.")
+    parser.add_argument("--skip-fresno-crime", action="store_true", help="Skip the Fresno crime trends fetch step.")
+    parser.add_argument("--skip-sacramento-crime", action="store_true", help="Skip the Sacramento crime trends fetch step.")
+    parser.add_argument("--skip-las-vegas-crime", action="store_true", help="Skip the Las Vegas crime trends fetch step.")
+    parser.add_argument("--skip-el-paso-crime", action="store_true", help="Skip the El Paso crime trends fetch step.")
+    parser.add_argument("--skip-tucson-crime", action="store_true", help="Skip the Tucson crime trends fetch step.")
+    parser.add_argument("--skip-houston-crime", action="store_true", help="Skip the Houston crime trends fetch step.")
+    parser.add_argument(
+        "--skip-school-ratings",
+        action="store_true",
+        help="Skip the IL school ratings fetch step (CPS).",
+    )
+    parser.add_argument(
+        "--skip-neighborhood-quality",
+        action="store_true",
+        help="Skip the neighborhood quality DB load step.",
+    )
+    parser.add_argument(
+        "--skip-row-count-check",
+        action="store_true",
+        help="Skip the post-ingest row-count regression check.",
     )
     parser.add_argument(
         "--dry-run",
