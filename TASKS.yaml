@@ -557,6 +557,39 @@ tasks:
         - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
       Verify dataset ID and field names via dry-run before wiring into pipeline.
 
+  - id: data-041b
+    title: Set up ingest monitoring and alerting
+    status: done
+    priority: high
+    github_issue: 133
+    notes_for_next_agent: >
+      Three improvements implemented (issue #133):
+        1. /health/db now queries ingest_runs for last_ingest_at and
+           last_ingest_status (replaces null placeholder). Also fixed a
+           column-name bug in _get_last_ingest_time(): was querying
+           completed_at (doesn't exist) — corrected to finished_at.
+        2. backend/ingest/row_count_check.py — standalone script that
+           compares current active project count vs. prior successful
+           ingest_runs.record_count. Exits 1 if drop > 20% threshold.
+           Accepts --threshold FRACTION to override.
+        3. run_pipeline.py — row_count_check runs as a non-fatal step
+           after "Load neighborhood quality". Exposes --skip-row-count-check
+           flag if needed.
+      Workflow notification (Slack webhook): NOT implemented. The GitHub App
+      does NOT have permission to modify .github/workflows/ files. The
+      existing ingest.yml already has a "Notify on failure" step that logs
+      ::error:: to the Actions log. To add Slack: set SLACK_WEBHOOK_URL
+      secret and edit .github/workflows/ingest.yml manually:
+        - name: Notify Slack on failure
+          if: failure()
+          run: |
+            curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H 'Content-type: application/json' \
+              --data '{"text":"Ingest pipeline FAILED: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+      Next: validate /health/db returns real last_ingest_at after a pipeline
+      run. Consider adding row_count to ingest_runs writes in load_projects.py
+      if record_count is not currently being recorded.
+
   - id: data-043
     title: Expand US city permit ingest to next 10 cities
     status: done
