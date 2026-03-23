@@ -332,3 +332,6 @@ COMMENT ON TABLE api_keys IS
 -- have api_keys without them (created before data-043).
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS call_count     INT         NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_called_at TIMESTAMPTZ;
+
+-- Idempotent migration: add batch_id to score_history for batch scoring (data-045).
+ALTER TABLE score_history ADD COLUMN IF NOT EXISTS batch_id TEXT;
