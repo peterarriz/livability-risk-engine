@@ -401,3 +401,36 @@ COMMENT ON TABLE signal_rewrites IS
     'Claude API-generated clean titles and descriptions for each project signal (data-042). '
     'Cache keyed on project_id. Populated lazily on the first /score request '
     'that references each project. Prevents repeated API calls for the same permit.';
+
+
+-- ---------------------------------------------------------------------------
+-- Signal display cache  (data-043)
+--
+-- Stores the full 4-field Claude-generated display card for each unique project:
+--   display_title   — short human title, ≤60 chars
+--   distance        — pre-formatted distance string, e.g. "~1,100 ft away"
+--   description     — one-sentence factual description, ≤120 chars
+--   why_it_matters  — one-sentence practical impact explanation, ≤120 chars
+--
+-- Supersedes signal_rewrites (data-042) with richer output.  Keyed on
+-- project_id so each permit/closure is enriched at most once regardless of
+-- how many /score requests reference it.  Falls back to Option A deterministic
+-- formatter when the Claude API call fails.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS signal_display (
+    project_id      TEXT        PRIMARY KEY,
+    display_title   TEXT        NOT NULL,
+    distance        TEXT        NOT NULL,
+    description     TEXT        NOT NULL,
+    why_it_matters  TEXT        NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE signal_display IS
+    'Claude API-generated 4-field display cards for each project signal (data-043). '
+    'Keyed on project_id. Populated lazily on the first /score request that references '
+    'each project. Falls back to Option A deterministic formatter on API failure. '
+    'Supersedes signal_rewrites with richer display_title, distance, description, '
+    'and why_it_matters fields.';

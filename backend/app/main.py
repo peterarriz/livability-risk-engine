@@ -2058,6 +2058,8 @@ def export_csv(
             "distance_m", "title", "source", "source_id",
             "impact_type", "status", "start_date", "end_date",
             "address", "weighted_score",
+            # data-043: Claude-generated display fields (empty when not enriched)
+            "display_title", "distance", "description", "why_it_matters",
         ],
         extrasaction="ignore",
     )
