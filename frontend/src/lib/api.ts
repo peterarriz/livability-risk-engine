@@ -559,11 +559,7 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
     response = await fetch(url.toString(), { cache: "no-store" });
   } catch (err) {
     logFrontendFallback("frontend_network_error", String(err));
-    return {
-      score: buildDemoScore(address),
-      source: "demo",
-      note: "Backend is temporarily unreachable — showing sample data.",
-    };
+    throw new ApiError("Backend is temporarily unreachable. Please try again.");
   }
 
   if (!response.ok) {

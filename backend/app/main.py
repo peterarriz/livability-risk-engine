@@ -406,33 +406,10 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    When a live DB is configured: geocodes, queries projects, and scores live.
-    When DB is not configured: returns the approved demo scenario so the frontend
-    always receives a structured response (never a raw 503).
-    Response includes mode, fallback_reason, and latitude/longitude for map display.
+    Geocodes the address, queries nearby projects from Railway Postgres, and
+    returns a live score. Raises 422 if the address cannot be geocoded, 503
+    on unexpected scoring errors.
     """
-    # When no DB is configured, return a demo response.
-    # Include pre-resolved coords for known addresses so the frontend map pin works
-    # without a second geocode round-trip.
-    _KNOWN_COORDS: dict[str, tuple[float, float]] = {
-        "1600 W Chicago Ave, Chicago, IL": (41.8956, -87.6606),
-        "700 W Grand Ave, Chicago, IL": (41.8910, -87.6462),
-        "233 S Wacker Dr, Chicago, IL": (41.8788, -87.6359),
-    }
-    if not _is_db_configured():
-        known = _KNOWN_COORDS.get(address)
-        lat, lon = (known[0], known[1]) if known else (None, None)
-        if lat is None:
-            try:
-                from backend.ingest.geocode import geocode_address
-                coords = geocode_address(address)
-                if coords:
-                    lat, lon = coords
-            except Exception:
-                pass
-        log.info("score address=%r mode=demo fallback_reason=db_not_configured", address)
-        return _build_demo_response(address, "db_not_configured", lat, lon)
-
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)

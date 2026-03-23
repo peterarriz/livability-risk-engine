@@ -146,21 +146,16 @@ tasks:
 
   - id: data-017
     title: Apply schema and run live ingest against Railway database
-    status: in-progress
+    status: done
     priority: high
     github_issue: 30
     notes_for_next_agent: >
-      Code changes are done (PR on branch claude/issue-30-20260319-1800):
-        - run_pipeline.py created
-        - scripts/apply_schema.sh created
-        - Demo fallback removed from backend/app/main.py
-        - Demo fallback removed from frontend/src/lib/api.ts
-      Remaining manual steps (require DATABASE_URL secret):
-        1. Apply schema: DATABASE_URL=$SECRET ./scripts/apply_schema.sh
-        2. Run ingest:   DATABASE_URL=$SECRET python run_pipeline.py
-        3. Validate:     curl "$BACKEND_URL/health" → db_connection=true
-                         curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago"
-      Once validated, this task is done. Next: data-018 (schedule ingest cron).
+      DB is fully live on Railway (public URL in DATABASE_URL GitHub secret).
+      Schema applied idempotently via scripts/apply_schema.sh.
+      Daily ingest pipeline ran successfully (run #7, 13m 45s).
+      Demo fallback removed from backend/app/main.py /score endpoint.
+      Demo fallback removed from frontend/src/lib/api.ts fetchScore().
+      /score now returns live data or raises HTTP errors — no silent demo mode.
 
   - id: data-018
     title: Deploy FastAPI backend to Railway — code delivery
@@ -429,6 +424,24 @@ tasks:
         - Illinois Tollway construction (separate portal, needs ArcGIS research → data-037)
       Next: validate dataset IDs by running dry-run after DB is live,
       then create data-037 for Illinois Tollway construction.
+
+  - id: data-039
+    title: Validate live /score endpoint returns real DB data post-ingest
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      DB is live, ingest has run. Validate that /score returns mode="live"
+      with real project rows for known Chicago addresses.
+      Steps:
+        1. Confirm Railway backend URL = NEXT_PUBLIC_API_URL in Vercel.
+        2. curl "<backend>/score?address=100+W+Randolph+St+Chicago+IL"
+           → expect mode="live", top_risk_details non-empty.
+        3. curl "<backend>/health" → db_connection=true, last_ingest_status=success.
+        4. Check /history?address=... has rows from pipeline run.
+        5. If still demo: verify DATABASE_URL is set on Railway backend service
+           (not just in GitHub Actions secrets).
+      Once validated, mark data-019 done and create data-040 for next task.
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
