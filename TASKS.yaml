@@ -449,3 +449,25 @@ tasks:
       (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
       If no clean API is found, consider using IDOT District 1 as sufficient
       coverage and marking this task as won't-fix.
+
+  - id: data-038
+    title: Remove PostGIS dependency — use haversine lat/lon radius query
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Railway standard Postgres has no PostGIS. Three changes made:
+        1. db/schema.sql — removed CREATE EXTENSION postgis and geom column
+           from projects table; added projects_location_idx (lat, lon) instead.
+        2. backend/ingest/load_projects.py — removed geom from UPSERT_SQL.
+        3. backend/scoring/query.py — replaced ST_DWithin/ST_Distance with
+           haversine bounding-box + exact haversine distance in plain SQL.
+      Next step: run the DDL below in Railway query console to create the
+      missing tables (projects, score_history, watchlist, alert_log, ingest_runs),
+      then run the ingest pipeline. The corrected DDL is in db/schema.sql.
+      To create only the missing tables quickly, run:
+        CREATE TABLE IF NOT EXISTS projects (...)  -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS ingest_runs (...) -- already exists, skip
+        CREATE TABLE IF NOT EXISTS score_history (...) -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS watchlist (...) -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS alert_log (...) -- see db/schema.sql

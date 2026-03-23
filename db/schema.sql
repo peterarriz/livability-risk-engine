@@ -17,7 +17,8 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- pgcrypto is available on Railway standard Postgres.
+-- PostGIS is NOT required — spatial queries use haversine lat/lon math.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 
@@ -137,7 +138,8 @@ CREATE TABLE IF NOT EXISTS projects (
     address         TEXT,                   -- normalized address string
     latitude        DOUBLE PRECISION,
     longitude       DOUBLE PRECISION,
-    geom            GEOMETRY(Point, 4326),  -- PostGIS point; used for radius queries
+    -- geom column removed (data-038): Railway Postgres has no PostGIS.
+    -- Radius queries use haversine lat/lon math instead of ST_DWithin.
 
     -- Scoring metadata (populated by normalization; not changed by scoring engine)
     -- severity_hint is a pre-computed signal for the scoring engine to use as
@@ -151,11 +153,11 @@ CREATE TABLE IF NOT EXISTS projects (
     CONSTRAINT projects_source_source_id_unique UNIQUE (source, source_id)
 );
 
--- Spatial index — the core index for radius queries in data-009.
--- ST_DWithin on geom is the primary scoring query pattern.
-CREATE INDEX IF NOT EXISTS projects_geom_idx
-    ON projects USING GIST (geom)
-    WHERE geom IS NOT NULL;
+-- Lat/lon composite index — used for bounding-box pre-filter in haversine queries.
+-- Replaces the PostGIS GIST index removed in data-038.
+CREATE INDEX IF NOT EXISTS projects_location_idx
+    ON projects (latitude, longitude)
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 -- Date indexes for timing multiplier lookups.
 CREATE INDEX IF NOT EXISTS projects_start_date_idx
@@ -175,8 +177,9 @@ CREATE INDEX IF NOT EXISTS projects_source_idx
     ON projects (source, source_id);
 
 COMMENT ON TABLE projects IS
-    'Canonical normalized project table (data-005). '
-    'All scoring queries run against this table. '
+    'Canonical normalized project table (data-005, updated data-038). '
+    'All scoring queries run against this table using haversine lat/lon math. '
+    'PostGIS geom column removed in data-038 (Railway has no PostGIS). '
     'Raw source records are preserved in raw_building_permits and raw_street_closures. '
     'Schema changes require Data + App review per docs/06_team_working_agreement.md.';
 
@@ -189,10 +192,6 @@ COMMENT ON COLUMN projects.impact_type IS
     'in docs/03_scoring_model.md. Drives scoring engine weight assignment. '
     'Valid values: closure_full, closure_multi_lane, closure_single_lane, '
     'demolition, construction, light_permit.';
-
-COMMENT ON COLUMN projects.geom IS
-    'PostGIS Point geometry in WGS84 (SRID 4326). '
-    'Primary index for ST_DWithin radius queries in the scoring engine.';
 
 COMMENT ON COLUMN projects.severity_hint IS
     'Pre-computed severity hint from normalization. '

@@ -95,8 +95,13 @@ SCOREABLE_STATUSES = ("active", "planned", "unknown")
 # Default search radius in meters.
 DEFAULT_RADIUS_M = 500
 
-# SQL query uses ST_DWithin for index-efficient radius filtering.
-# ST_Distance returns meters when using geography cast.
+# SQL query uses a haversine bounding-box pre-filter + exact haversine distance.
+# No PostGIS required — works on Railway's standard Postgres.
+#
+# Parameter order: lon, lat, statuses, lat, lat, lon, lat_min, lat_max, lon_min, lon_max, radius_m
+#
+# The bounding-box WHERE clause uses the projects_location_idx composite index
+# to avoid a full-table scan before computing haversine distance.
 NEARBY_PROJECTS_SQL = """
     SELECT
         project_id,
@@ -112,19 +117,27 @@ NEARBY_PROJECTS_SQL = """
         latitude,
         longitude,
         severity_hint,
-        ST_Distance(
-            geom::geography,
-            ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+        6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((latitude - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(latitude)) *
+                power(sin(radians((longitude - %s) / 2.0)), 2)
+            )
         ) AS distance_m
     FROM projects
     WHERE
         status = ANY(%s)
-        AND geom IS NOT NULL
-        AND ST_DWithin(
-            geom::geography,
-            ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-            %s
-        )
+        AND latitude  IS NOT NULL
+        AND longitude IS NOT NULL
+        AND latitude  BETWEEN %s AND %s
+        AND longitude BETWEEN %s AND %s
+        AND 6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((latitude - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(latitude)) *
+                power(sin(radians((longitude - %s) / 2.0)), 2)
+            )
+        ) <= %s
     ORDER BY distance_m ASC
     LIMIT 20;
 """
@@ -155,10 +168,26 @@ def get_nearby_projects(
             "Install with: pip install psycopg2-binary"
         )
 
+    # Bounding box degrees for pre-filter.
+    # 1° lat ≈ 111,320 m; 1° lon ≈ 111,320 * cos(lat) m.
+    # Use slightly generous divisors so the bbox is never smaller than the radius.
+    lat_delta = radius_m / 111_000.0
+    lon_delta = radius_m / (111_000.0 * math.cos(math.radians(lat)) + 1e-9)
+
     with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         cur.execute(
             NEARBY_PROJECTS_SQL,
-            (lon, lat, list(SCOREABLE_STATUSES), lon, lat, radius_m),
+            (
+                # SELECT distance_m expression params (lat, lat, lon)
+                lat, lat, lon,
+                # WHERE status
+                list(SCOREABLE_STATUSES),
+                # WHERE bounding box
+                lat - lat_delta, lat + lat_delta,
+                lon - lon_delta, lon + lon_delta,
+                # WHERE haversine <= radius_m (lat, lat, lon, radius_m)
+                lat, lat, lon, radius_m,
+            ),
         )
         rows = cur.fetchall()
 
