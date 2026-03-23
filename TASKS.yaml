@@ -569,6 +569,121 @@ tasks:
       Railway backend: https://livability-risk-engine-production-2bad.up.railway.app
       Frontend: https://livability-risk-engine.vercel.app
 
+  - id: data-042
+    title: Validate and calibrate scoring weights against real addresses
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Run 5+ known Chicago addresses through the live /score endpoint.
+      Compare disruption scores against manually verified ground truth
+      (check permit/closure activity on Chicago Data Portal for each address).
+      Adjust base_weight values in backend/scoring/query.py if scores are
+      systematically too high, too low, or miscalibrated relative to actual
+      visible disruption. Document results in docs/live_score_validation.md.
+      Target addresses should include: at least one known active construction
+      zone (e.g. near ongoing Loop construction), one quiet residential block,
+      and one address with only film permit activity.
+      This is a prerequisite before design-partner demos — accuracy complaints
+      are the #1 risk to early retention.
+
+  - id: data-043
+    title: Wire per-key API call metering to api_keys table
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      The api_keys table exists (data-027) and REQUIRE_API_KEY auth is
+      implemented but disabled. Per-call metering is required for the
+      $0.10/call Spot tier billing model (see docs/pricing_model.md).
+      Tasks:
+        1. Add a `call_count` integer column and `last_called_at` timestamp
+           to the api_keys table in db/schema.sql (migration-safe: ALTER TABLE
+           IF NOT EXISTS or add to CREATE TABLE IF NOT EXISTS).
+        2. In backend/app/main.py, after successful /score response, increment
+           call_count and set last_called_at for the authenticated key.
+           Use a fire-and-forget UPDATE (catch and log errors, don't fail the
+           request).
+        3. Add a GET /usage endpoint that returns {call_count, last_called_at,
+           key_label} for the authenticated key — allows customers to self-serve
+           check usage.
+        4. Document in docs/04_api_contracts.md.
+      This is blocking the revenue model — without it, Stripe metered billing
+      has no source of truth.
+
+  - id: data-044
+    title: Post-ingest data quality validation step
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Add a validation step at the end of run_pipeline.py (or as a separate
+      script scripts/validate_ingest.py) that queries the projects table and
+      reports on data quality issues. Checks to implement:
+        1. Missing coordinates: SELECT COUNT(*) WHERE latitude IS NULL
+           OR longitude IS NULL — alert if >5% of active records.
+        2. Stale end dates: COUNT WHERE end_date < NOW() - interval '30 days'
+           AND status = 'active' — these should be closed, not active.
+        3. Duplicate source IDs: COUNT(*) - COUNT(DISTINCT source_id) per
+           source_type — non-zero means the upsert ON CONFLICT clause is not
+           matching correctly.
+        4. Zero-weight records: records with impact_type not in the weight
+           map in query.py — these silently contribute 0 to scores.
+      The validation script should exit with code 1 if any check fails
+      thresholds, so GitHub Actions fails the ingest job and triggers alerting
+      (once data-041 adds failure notifications).
+      Write output to stdout in a format compatible with the smoke-check
+      section of .github/workflows/ingest.yml.
+
+  - id: data-045
+    title: Batch scoring endpoint — score multiple addresses in one request
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Enterprise buyers (relocation firms, corporate real estate portfolios)
+      need to score 50–200 addresses at once, not one at a time via /score.
+      Add a POST /score/batch endpoint to backend/app/main.py:
+        - Request body: {"addresses": ["addr1", "addr2", ...]} (max 200)
+        - Response: {"results": [{address, disruption_score, confidence,
+          severity, top_risks, explanation, error?}, ...], "scored": N,
+          "failed": N}
+        - Geocode in parallel (asyncio.gather or ThreadPoolExecutor)
+        - Cap at 200 addresses per request; return 422 if over limit
+        - API key auth required (always — do not allow unauthenticated batch)
+        - Log batch size to score_history with a batch_id field
+      Also add a POST /score/batch/csv endpoint that accepts multipart
+      file upload (CSV with one address per line) and returns CSV output.
+      Document both endpoints in docs/04_api_contracts.md.
+      This unlocks the Enterprise tier ($1,500/mo) described in pricing_model.md.
+
+  - id: data-046
+    title: Add utility outage and repair data sources to scoring model
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Utility disruptions (water main breaks, gas line repairs, electrical
+      outages) are major livability signals not currently in the model.
+      Research and implement:
+        1. Chicago Water Main Breaks — Chicago Data Portal Socrata.
+           Search for "water main" on data.cityofchicago.org.
+           Alternatively check 311 service requests filtered by
+           SR_TYPE = 'Water Main Break' in the v6vf-nfxy dataset
+           (already ingested — may just need a new filter + normalizer).
+        2. ComEd Planned Outages — ComEd publishes outage data.
+           Check for an API or structured feed at comed.com/outages.
+           If no API, mark as won't-fix.
+        3. Peoples Gas construction — Peoples Gas pipeline work.
+           Check Chicago Data Portal or Illinois Commerce Commission data.
+           Search ILCC filings or Peoples Gas public GIS data.
+      For any source found: add ingest script in backend/ingest/,
+      add normalizer in backend/models/project.py using impact_type
+      'utility_outage' or 'utility_repair', add base_weight to
+      backend/scoring/query.py (suggested: utility_outage=25, utility_repair=15),
+      add load function to backend/ingest/load_projects.py,
+      and wire into run_pipeline.py with a --skip-utilities flag.
+
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
     status: backlog
