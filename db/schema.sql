@@ -297,3 +297,38 @@ COMMENT ON TABLE alert_log IS
     'Records of triggered score alerts (data-030). One row per alert check '
     'that crossed the threshold. Used to prevent duplicate alerts and track '
     'notification history.';
+
+
+-- ---------------------------------------------------------------------------
+-- API keys  (data-027, metering added data-043)
+--
+-- Stores hashed API keys for /score authentication (opt-in via REQUIRE_API_KEY).
+-- call_count and last_called_at are updated on every authenticated /score call
+-- so operators can meter usage for billing (see docs/pricing_model.md).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    id            BIGSERIAL   PRIMARY KEY,
+    prefix        TEXT        NOT NULL,   -- first 8 hex chars of random portion
+    key_hash      TEXT        NOT NULL,   -- sha256(full_key)
+    label         TEXT        NOT NULL DEFAULT '',
+    is_active     BOOLEAN     NOT NULL DEFAULT true,
+    call_count    INT         NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at  TIMESTAMPTZ,
+    last_called_at TIMESTAMPTZ,
+
+    CONSTRAINT api_keys_prefix_unique UNIQUE (prefix)
+);
+
+CREATE INDEX IF NOT EXISTS api_keys_prefix_idx ON api_keys (prefix);
+CREATE INDEX IF NOT EXISTS api_keys_active_idx ON api_keys (is_active);
+
+COMMENT ON TABLE api_keys IS
+    'Hashed API keys for /score authentication (data-027). '
+    'call_count incremented on each authenticated call for usage metering (data-043).';
+
+-- Idempotent migration: add metering columns to existing deployments that
+-- have api_keys without them (created before data-043).
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS call_count     INT         NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_called_at TIMESTAMPTZ;

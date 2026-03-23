@@ -594,27 +594,26 @@ tasks:
 
   - id: data-043
     title: Wire per-key API call metering to api_keys table
-    status: backlog
+    status: done
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      The api_keys table exists (data-027) and REQUIRE_API_KEY auth is
-      implemented but disabled. Per-call metering is required for the
-      $0.10/call Spot tier billing model (see docs/pricing_model.md).
-      Tasks:
-        1. Add a `call_count` integer column and `last_called_at` timestamp
-           to the api_keys table in db/schema.sql (migration-safe: ALTER TABLE
-           IF NOT EXISTS or add to CREATE TABLE IF NOT EXISTS).
-        2. In backend/app/main.py, after successful /score response, increment
-           call_count and set last_called_at for the authenticated key.
-           Use a fire-and-forget UPDATE (catch and log errors, don't fail the
-           request).
-        3. Add a GET /usage endpoint that returns {call_count, last_called_at,
-           key_label} for the authenticated key — allows customers to self-serve
-           check usage.
-        4. Document in docs/04_api_contracts.md.
-      This is blocking the revenue model — without it, Stripe metered billing
-      has no source of truth.
+      Completed 2026-03-23. Three changes landed:
+      1. db/schema.sql: api_keys table added (was missing from schema entirely).
+         Includes call_count INT DEFAULT 0 and last_called_at TIMESTAMPTZ.
+         Two idempotent ALTER TABLE ... ADD COLUMN IF NOT EXISTS statements
+         at the bottom of schema.sql handle existing Railway deployments.
+         Run `bash scripts/apply_schema.sh` to apply to Railway.
+      2. backend/app/main.py verify_api_key: the UPDATE that sets last_used_at
+         now also sets last_called_at = now() and call_count = call_count + 1.
+         Fire-and-forget (errors logged, never fail the /score request).
+      3. backend/app/main.py GET /usage: new endpoint, requires valid API key
+         in X-API-Key header. Returns {prefix, label, call_count, last_called_at}.
+         Allows customers to self-serve check their usage without contacting support.
+      IMPORTANT: REQUIRE_API_KEY is still disabled on Railway by default.
+      Metering only accumulates when REQUIRE_API_KEY=true is set. For billing,
+      enable it when the first paying customer onboards.
+      Next: data-042 — validate scoring weights against real addresses.
 
   - id: data-044
     title: Post-ingest data quality validation step
