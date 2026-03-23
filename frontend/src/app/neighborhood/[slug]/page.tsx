@@ -157,7 +157,7 @@ function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
   if (projects.length === 0) {
     return (
       <p style={{ color: "var(--color-muted, #888)", fontSize: "14px" }}>
-        No active projects found in this neighborhood right now.
+        No active signals in this neighborhood right now — check back after the next daily data refresh at 06:00 UTC.
       </p>
     );
   }

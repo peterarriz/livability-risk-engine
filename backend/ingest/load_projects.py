@@ -84,6 +84,7 @@ from backend.models.project import (
     normalize_permit,
     normalize_special_event,
     normalize_traffic_crash,
+    normalize_us_city_permit,
 )
 
 # ---------------------------------------------------------------------------
@@ -101,6 +102,8 @@ DEFAULT_FILM_PERMITS_FILE      = Path("data/raw/chicago_film_permits.json")
 DEFAULT_SPECIAL_EVENTS_FILE    = Path("data/raw/chicago_special_events.json")
 DEFAULT_IL_CITIES_DIR          = Path("data/raw")
 IL_CITIES_FILE_GLOB            = "il_city_permits_*.json"
+DEFAULT_US_CITIES_DIR          = Path("data/raw")
+US_CITIES_FILE_GLOB            = "us_city_permits_*.json"
 
 # Statuses we consider worth loading into the scoring table.
 # Completed records are skipped to keep the projects table focused
@@ -766,6 +769,60 @@ def load_il_city_permits(
     return all_stats
 
 
+def load_us_city_permits(
+    us_cities_dir: Path,
+    conn=None,
+    dry_run: bool = False,
+) -> list[LoadStats]:
+    """
+    Load US city permit records from all us_city_permits_*.json staging files
+    found in us_cities_dir.
+
+    Returns one LoadStats per staging file processed.
+    """
+    staging_files = sorted(us_cities_dir.glob(US_CITIES_FILE_GLOB))
+
+    if not staging_files:
+        print(f"\nNo US city permit staging files found in {us_cities_dir} "
+              f"(pattern: {US_CITIES_FILE_GLOB}). Skipping.")
+        return []
+
+    all_stats: list[LoadStats] = []
+
+    for staging_path in staging_files:
+        source_label = staging_path.stem  # e.g. "us_city_permits_nyc"
+        print(f"\nLoading {source_label}...")
+        stats = LoadStats(source=source_label)
+
+        raw = read_staging_file(staging_path)
+        if not raw:
+            all_stats.append(stats)
+            continue
+
+        projects = normalize_records(raw, normalize_us_city_permit, stats)
+        print(f"  Normalized to {len(projects)} scoreable projects")
+
+        if dry_run:
+            print("  Dry-run: skipping DB write.")
+            if projects:
+                sample = _project_to_db_params(projects[0])
+                print(f"  Sample project: {json.dumps({k: str(v) for k, v in sample.items()}, indent=4)}")
+            all_stats.append(stats)
+            continue
+
+        run_id = log_run_start(conn, source_label)
+        try:
+            upsert_projects(projects, conn, stats)
+            log_run_finish(conn, run_id, stats, "done")
+        except Exception as exc:
+            log_run_finish(conn, run_id, stats, "failed", str(exc))
+            raise
+
+        all_stats.append(stats)
+
+    return all_stats
+
+
 # ---------------------------------------------------------------------------
 # DB connection
 # ---------------------------------------------------------------------------
@@ -803,7 +860,7 @@ def parse_args() -> argparse.Namespace:
         "--source",
         choices=[
             "permits", "closures", "idot_roads", "cta_alerts",
-            "traffic_crashes", "divvy_stations", "il_cities",
+            "traffic_crashes", "divvy_stations", "il_cities", "us_cities",
             "requests_311", "film_permits", "special_events", "all",
         ],
         default="all",
@@ -866,6 +923,15 @@ def parse_args() -> argparse.Namespace:
         help=(
             f"Directory containing il_city_permits_*.json staging files "
             f"(default: {DEFAULT_IL_CITIES_DIR})."
+        ),
+    )
+    parser.add_argument(
+        "--us-cities-dir",
+        type=Path,
+        default=DEFAULT_US_CITIES_DIR,
+        help=(
+            f"Directory containing us_city_permits_*.json staging files "
+            f"(default: {DEFAULT_US_CITIES_DIR})."
         ),
     )
     parser.add_argument(
@@ -949,6 +1015,10 @@ def main() -> None:
         if args.source in ("il_cities", "all"):
             il_stats = load_il_city_permits(args.il_cities_dir, conn, args.dry_run)
             all_stats.extend(il_stats)
+
+        if args.source in ("us_cities", "all"):
+            us_stats = load_us_city_permits(args.us_cities_dir, conn, args.dry_run)
+            all_stats.extend(us_stats)
 
         if args.prune_days is not None and conn is not None:
             print(f"\nPruning completed records older than {args.prune_days} days...")

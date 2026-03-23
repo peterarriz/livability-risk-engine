@@ -297,3 +297,107 @@ COMMENT ON TABLE alert_log IS
     'Records of triggered score alerts (data-030). One row per alert check '
     'that crossed the threshold. Used to prevent duplicate alerts and track '
     'notification history.';
+
+
+-- ---------------------------------------------------------------------------
+-- Neighborhood quality reference layer  (data-040)
+--
+-- Stores neighborhood-level context data from three sources:
+--   1. FEMA NFHL flood zone designations (region_type = 'flood_zone')
+--   2. Chicago community-area crime trends (region_type = 'community_area')
+--   3. Census ACS 5-year demographics   (region_type = 'census_tract')
+--
+-- Each row has a geom (centroid point) for KNN spatial lookup.
+-- At /score request time, the nearest record of each region_type is returned
+-- as the neighborhood_context field in the API response.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS neighborhood_quality (
+    id              BIGSERIAL   PRIMARY KEY,
+
+    -- Geographic region identifier
+    region_type     TEXT        NOT NULL,   -- 'flood_zone' | 'community_area' | 'census_tract'
+    region_id       TEXT        NOT NULL,   -- stable unique ID per region_type
+
+    -- FEMA flood data (populated for region_type = 'flood_zone')
+    fema_flood_zone TEXT,                   -- 'A', 'AE', 'X', 'X500', 'VE', etc.
+    flood_risk      TEXT,                   -- 'HIGH', 'MODERATE', 'MINIMAL', 'UNKNOWN'
+
+    -- Crime trend data (populated for region_type = 'community_area')
+    crime_12mo      INT,                    -- total crimes in last 12 months
+    crime_prior_12mo INT,                   -- total crimes in prior 12 months
+    crime_trend     TEXT,                   -- 'INCREASING', 'DECREASING', 'STABLE'
+    crime_trend_pct NUMERIC(6, 1),          -- percentage change vs prior period
+
+    -- Census ACS demographics (populated for region_type = 'census_tract')
+    median_income   INT,                    -- median household income (dollars)
+    population      INT,                    -- total population
+    vacancy_rate    NUMERIC(5, 2),          -- % of housing units that are vacant
+    housing_age_med INT,                    -- median year structure built
+
+    -- School ratings (populated for region_type = 'school')
+    school_name     TEXT,                   -- school name
+    school_rating   TEXT,                   -- overall rating: EXCELLING / STRONG / DEVELOPING / EMERGING
+    school_attainment TEXT,                 -- student attainment vs expectations
+    school_growth   TEXT,                   -- student growth vs expectations
+
+    -- Spatial centroid for KNN proximity lookup
+    geom            GEOMETRY(Point, 4326),
+
+    -- Audit
+    data_year       INT,
+    ingested_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT nq_region_unique UNIQUE (region_type, region_id)
+);
+
+-- Partial spatial indexes per region_type for efficient KNN queries
+-- in get_neighborhood_context() in backend/scoring/query.py.
+CREATE INDEX IF NOT EXISTS nq_geom_flood_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE region_type = 'flood_zone' AND geom IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS nq_geom_crime_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE region_type = 'community_area' AND geom IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS nq_geom_census_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE region_type = 'census_tract' AND geom IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS nq_geom_school_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE region_type = 'school' AND geom IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS nq_region_type_idx
+    ON neighborhood_quality (region_type);
+
+COMMENT ON TABLE neighborhood_quality IS
+    'Neighborhood quality reference layer (data-040). '
+    'Four region_type values: flood_zone (FEMA NFHL), community_area (Chicago crime), '
+    'census_tract (Census ACS), school (CPS ratings). KNN spatial lookup via geom column. '
+    'Surfaced in /score response as neighborhood_context field.';
+
+
+-- ---------------------------------------------------------------------------
+-- Signal rewrites cache  (data-042)
+--
+-- Stores Claude API-generated titles and descriptions for each unique project.
+-- Keyed on project_id (source:source_id) so each permit/closure is rewritten
+-- at most once, regardless of how many /score requests reference it.
+-- Populated lazily on the first /score request that references each project_id.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS signal_rewrites (
+    project_id            TEXT        PRIMARY KEY,
+    rewritten_title       TEXT        NOT NULL,
+    rewritten_description TEXT        NOT NULL,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE signal_rewrites IS
+    'Claude API-generated clean titles and descriptions for each project signal (data-042). '
+    'Cache keyed on project_id. Populated lazily on the first /score request '
+    'that references each project. Prevents repeated API calls for the same permit.';
