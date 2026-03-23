@@ -552,5 +552,193 @@ tasks:
       Dataset IDs for Memphis, Louisville, Milwaukee are lower-confidence estimates;
       verify each with: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=5"
       All cities fail gracefully (non-fatal errors) so bad dataset_ids won't block others.
-      Next: data-044 — validate dry-run for all 13 Socrata + 5 CKAN cities,
+      Next: data-045 — validate dry-run for all 13 Socrata + 5 CKAN cities,
       confirm Denver resource_id, wire new cities into run_pipeline.py.
+
+  - id: data-044
+    title: Research and implement crime data for all live US cities
+    status: done
+    priority: high
+    github_issue: 116
+    notes_for_next_agent: >
+      Three new ingest scripts added:
+        - backend/ingest/austin_crime_trends.py — APD Crime Reports from
+          data.austintexas.gov (dataset g3bk-zscf), grouped by sector (A-H).
+        - backend/ingest/seattle_crime_trends.py — SPD Crime Data 2008-Present
+          from data.seattle.gov (dataset tazs-3rd5), grouped by precinct
+          (N, E, S, W, SW).
+        - backend/ingest/nyc_crime_trends.py — NYPD Complaint Data from
+          data.cityofnewyork.us. Queries both historic (qgea-i56i) and YTD
+          (5uac-w243) datasets, merges results for full 24-month coverage.
+          Grouped by addr_pct_cd (precinct, ~77 NYPD precincts).
+      All three scripts follow the chicago_crime_trends.py pattern exactly:
+        - SoQL GROUP BY with server-side aggregation.
+        - Approximate centroids via avg(latitude)/avg(longitude) in the GROUP BY.
+        - region_type matches district type (sector or precinct).
+        - Output to data/raw/{city}_crime_trends.json.
+        - --dry-run support and SOCRATA_APP_TOKEN env var.
+      load_neighborhood_quality.py updated to include crime_austin,
+      crime_seattle, crime_nyc source keys.
+      FBI UCR research: api.usa.gov/crime/fbi/cde/ requires API key and
+      provides state/agency aggregates only — not useful for neighborhood scoring.
+      Validate with dry-run before first production ingest:
+        python backend/ingest/austin_crime_trends.py --dry-run
+        python backend/ingest/seattle_crime_trends.py --dry-run
+        python backend/ingest/nyc_crime_trends.py --dry-run
+      Next: data-045 — wire new crime scripts into run_pipeline.py.
+
+  - id: data-045
+    title: Expand permit and crime data to next 10 US cities
+    status: done
+    priority: medium
+    github_issue: 118
+    notes_for_next_agent: >
+      Implemented in this task (data-045):
+      PERMITS:
+        - Kansas City added to us_city_permits.py (Socrata, data.kcmo.org)
+          dataset_id="i6pc-e4ph" — MUST VERIFY before production:
+            curl "https://data.kcmo.org/api/catalog/v1?q=building+permit&limit=5"
+        - Indianapolis added to us_city_permits.py (Socrata, data.indy.gov)
+          dataset_id="bf8m-7stk" — MUST VERIFY before production:
+            curl "https://data.indy.gov/api/catalog/v1?q=building+permit&limit=5"
+        - Denver, Boston, Milwaukee were already in us_city_permits_ckan.py
+          (Denver resource_id still VERIFY_VIA_DISCOVER)
+        - Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville use ArcGIS Hub
+          — not Socrata/CKAN; documented in code comments; needs data-046 for
+          ArcGIS REST ingest implementation.
+      CRIME:
+        - backend/ingest/kansas_city_crime_trends.py — Socrata (data.kcmo.org)
+          dataset_id="kagq-28me" — MUST VERIFY:
+            curl "https://data.kcmo.org/api/catalog/v1?q=crime&limit=5"
+        - backend/ingest/denver_crime_trends.py — Socrata-compat (data.denvergov.org)
+          dataset_id="mntn-uqan" — MUST VERIFY:
+            curl "https://data.denvergov.org/api/catalog/v1?q=crime&limit=5"
+        - backend/ingest/boston_crime_trends.py — CKAN (data.boston.gov)
+          resource_id="12cb-3tbx" — MUST VERIFY:
+            python backend/ingest/boston_crime_trends.py --discover
+        - backend/ingest/milwaukee_crime_trends.py — CKAN (data.milwaukee.gov)
+          resource_id="87f0-y96e" — MUST VERIFY:
+            python backend/ingest/milwaukee_crime_trends.py --discover
+      WIRING:
+        - load_neighborhood_quality.py updated with crime_kansas_city,
+          crime_denver, crime_boston, crime_milwaukee source keys.
+      STILL NEEDED (data-046):
+        - Verify all new dataset/resource IDs via dry-run
+        - Implement ArcGIS REST ingest for Phoenix, Columbus, Minneapolis,
+          Charlotte, Jacksonville
+        - Wire all crime scripts into run_pipeline.py as non-fatal steps
+        - Confirm Denver permit resource_id in us_city_permits_ckan.py
+
+  - id: data-046
+    title: Verify new city dataset IDs and implement ArcGIS permit ingest
+    status: done
+    priority: medium
+    github_issue: 120
+    notes_for_next_agent: >
+      Completed 2026-03-22:
+      1. FIELD CONFIGS HARDENED (us_city_permits.py):
+           Kansas City: id_field="permitnum", type_field="permittype",
+             desc_field="workdesc", issue_date_field="applicationdate",
+             skip_date_filter=True, max_records=5000
+             (KCMO Socrata uses different field names than standard schema).
+           Indianapolis: skip_date_filter=True, max_records=5000
+             (portal type uncertain — may be OpenDataSoft not Socrata).
+           Both cities still need live dry-run validation once DB is accessible:
+             python backend/ingest/us_city_permits.py --city kansas_city --dry-run
+             python backend/ingest/us_city_permits.py --city indianapolis --dry-run
+      2. ARCGIS SCRIPT CREATED:
+           backend/ingest/us_city_permits_arcgis.py
+           Supports: Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville
+           Pattern: ArcGIS FeatureServer/0/query with resultOffset pagination
+           IMPORTANT: Service URLs are estimates — run --discover or visit each
+           city's open data portal to verify before production ingest:
+             python backend/ingest/us_city_permits_arcgis.py --city phoenix --discover
+             python backend/ingest/us_city_permits_arcgis.py --city columbus --discover
+             python backend/ingest/us_city_permits_arcgis.py --city minneapolis --discover
+             python backend/ingest/us_city_permits_arcgis.py --city charlotte --discover
+             python backend/ingest/us_city_permits_arcgis.py --city jacksonville --discover
+      3. PIPELINE WIRED:
+           run_pipeline.py updated with 5 new non-fatal steps:
+             kansas_city_crime_trends (--skip-kc-crime)
+             denver_crime_trends (--skip-denver-crime)
+             boston_crime_trends (--skip-boston-crime)
+             milwaukee_crime_trends (--skip-milwaukee-crime)
+             us_city_permits_arcgis (--skip-arcgis-cities)
+      STILL NEEDED (data-047):
+        - Live dry-run validation for all new cities once DB/network accessible
+        - Verify ArcGIS service URLs for Phoenix, Columbus, Minneapolis,
+          Charlotte, Jacksonville (update CITY_CONFIGS in us_city_permits_arcgis.py)
+        - Confirm Denver CKAN resource_id (VERIFY_VIA_DISCOVER in ckan script)
+        - Confirm KC crime DISTRICT_FIELD — may need "rep_dist_num" instead of "division"
+
+  - id: data-047
+    title: Expand to next tier of US cities — SF, Denver, Baltimore, Nashville, Portland
+    status: done
+    priority: medium
+    github_issue: 122
+    notes_for_next_agent: >
+      Completed 2026-03-23. Added permits + crime for 5 new cities:
+      PERMITS (Socrata — us_city_permits.py):
+        - San Francisco: data.sfgov.org, dataset i98e-djp9, source_key=san_francisco
+        - Baltimore: data.baltimorecity.gov, dataset fesm-tgxf, source_key=baltimore
+        - Nashville: data.nashville.gov, dataset 3h5a-qqft, source_key=nashville
+      PERMITS (ArcGIS — us_city_permits_arcgis.py):
+        - Denver: services1.arcgis.com/zdB7qR0BtYrg0Xpl, ODC_BUILDING_PERMITS_P,
+          source_key=denver
+        - Portland: services.arcgis.com/quVN97tn06YNGj9s, BDS_Permits,
+          source_key=portland
+      CRIME (new scripts, all wired into run_pipeline.py and load_neighborhood_quality.py):
+        - backend/ingest/sf_crime_trends.py     — Socrata (data.sfgov.org, wg3w-h783)
+        - backend/ingest/baltimore_crime_trends.py — Socrata (data.baltimorecity.gov, 4uu5-gl3e)
+        - backend/ingest/nashville_crime_trends.py — Socrata (data.nashville.gov, 2u6v-ujjs)
+        - backend/ingest/portland_crime_trends.py  — ArcGIS (services.arcgis.com/quVN97tn06YNGj9s)
+        NOTE: Denver crime already existed (denver_crime_trends.py, data-045).
+      MUST VERIFY all dataset IDs and field names with --dry-run before production:
+        python backend/ingest/us_city_permits.py --city san_francisco --dry-run
+        python backend/ingest/us_city_permits.py --city baltimore --dry-run
+        python backend/ingest/us_city_permits.py --city nashville --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city portland --dry-run
+        python backend/ingest/sf_crime_trends.py --dry-run
+        python backend/ingest/baltimore_crime_trends.py --dry-run
+        python backend/ingest/nashville_crime_trends.py --dry-run
+        python backend/ingest/portland_crime_trends.py --dry-run
+      ArcGIS service URLs for Denver/Portland permits and Portland crime are
+      estimates — run --discover to verify:
+        python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+        python backend/ingest/us_city_permits_arcgis.py --city portland --discover
+      load_neighborhood_quality.py source keys: crime_sf, crime_baltimore,
+        crime_nashville, crime_portland.
+
+  - id: data-048
+    title: Dry-run validation and field fixes for tier-3 city data (data-047)
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Validate all data-047 cities with live --dry-run once network/DB is accessible.
+      1. Socrata permits — verify dataset IDs and field names:
+           python backend/ingest/us_city_permits.py --city san_francisco --dry-run
+           python backend/ingest/us_city_permits.py --city baltimore --dry-run
+           python backend/ingest/us_city_permits.py --city nashville --dry-run
+         If 0 records returned, check dataset_id via catalog API:
+           curl "https://data.sfgov.org/api/catalog/v1?q=building+permits&limit=5"
+           curl "https://data.baltimorecity.gov/api/catalog/v1?q=building+permits&limit=5"
+           curl "https://data.nashville.gov/api/catalog/v1?q=building+permits&limit=5"
+      2. ArcGIS permits — verify service URLs via --discover:
+           python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+           python backend/ingest/us_city_permits_arcgis.py --city portland --discover
+         Then dry-run:
+           python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
+           python backend/ingest/us_city_permits_arcgis.py --city portland --dry-run
+      3. Crime scripts dry-run:
+           python backend/ingest/sf_crime_trends.py --dry-run
+           python backend/ingest/baltimore_crime_trends.py --dry-run
+           python backend/ingest/nashville_crime_trends.py --dry-run
+           python backend/ingest/portland_crime_trends.py --dry-run
+         Portland crime ArcGIS URL also needs --discover verification.
+      4. Fix any field name mismatches found (update DATE_FIELD, DISTRICT_FIELD,
+         id_field, addr_field, etc. in the relevant scripts).
+      5. Also validate older data-046 ArcGIS cities (phoenix, columbus, etc.) and
+         data-045 crime scripts (boston, milwaukee, kansas_city, denver) if not
+         already validated.
