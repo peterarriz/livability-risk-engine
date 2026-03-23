@@ -306,6 +306,112 @@ CITY_CONFIGS: list[dict] = [
     #   hub.arcgis.com/legacy — no longer Socrata portals.
     #   Moved to us_city_permits_arcgis.py (data-048).
     # -----------------------------------------------------------------
+    {
+        # Washington DC — Building Permits.
+        # Portal: https://opendata.dc.gov
+        # Dataset: "Building Permits" (addl-w6ut or similar)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://opendata.dc.gov/api/catalog/v1?q=building+permits&limit=5"
+        "city_name":        "Washington DC",
+        "source_key":       "dc",
+        "domain":           "opendata.dc.gov",
+        "dataset_id":       "awqx-tuwv",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description_of_work",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   "expiration_date",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "full_address",
+        "city_state":       "Washington, DC",
+        "where_clause":     None,
+    },
+    {
+        # Oklahoma City — Building Permits.
+        # Portal: https://data.okc.gov
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.okc.gov/api/catalog/v1?q=building+permits&limit=5"
+        "city_name":        "Oklahoma City",
+        "source_key":       "oklahoma_city",
+        "domain":           "data.okc.gov",
+        "dataset_id":       "bsum-mkwp",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Oklahoma City, OK",
+        "where_clause":     None,
+    },
+    {
+        # Louisville — Building Permits.
+        # Portal: https://data.louisvilleky.gov
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.louisvilleky.gov/api/catalog/v1?q=building+permits&limit=5"
+        "city_name":        "Louisville",
+        "source_key":       "louisville",
+        "domain":           "data.louisvilleky.gov",
+        "dataset_id":       "5mge-bwiz",
+        "id_field":         "permit_id",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Louisville, KY",
+        "where_clause":     None,
+    },
+    {
+        # Fresno — Building Permits.
+        # Portal: https://data.fresno.gov
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.fresno.gov/api/catalog/v1?q=building+permits&limit=5"
+        "city_name":        "Fresno",
+        "source_key":       "fresno",
+        "domain":           "data.fresno.gov",
+        "dataset_id":       "sxvh-bkgt",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Fresno, CA",
+        "where_clause":     None,
+    },
+    {
+        # Sacramento — Building Permits.
+        # Portal: https://data.cityofsacramento.org
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.cityofsacramento.org/api/catalog/v1?q=building+permits&limit=5"
+        "city_name":        "Sacramento",
+        "source_key":       "sacramento",
+        "domain":           "data.cityofsacramento.org",
+        "dataset_id":       "rent-6pka",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Sacramento, CA",
+        "where_clause":     None,
+    },
     # -----------------------------------------------------------------
     # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
     #

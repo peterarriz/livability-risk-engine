@@ -296,6 +296,72 @@ CITY_CONFIGS: list[dict] = [
         "skip_date_filter": False,
         "max_records":      None,
     },
+    {
+        # Las Vegas, NV — Building Permits.
+        # Portal: https://opendataportal-lasvegas.opendata.arcgis.com
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city las_vegas --discover
+        "city_name":        "Las Vegas",
+        "source_key":       "las_vegas",
+        "service_url":      (
+            "https://services.arcgis.com/VIkzGEMZbaSsMGLk/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://opendataportal-lasvegas.opendata.arcgis.com",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Las Vegas, NV",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # El Paso, TX — Building Permits.
+        # Portal: https://data.elpasotexas.gov
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city el_paso --discover
+        "city_name":        "El Paso",
+        "source_key":       "el_paso",
+        "service_url":      (
+            "https://services.arcgis.com/YGBqHTHNMoJPJOav/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.elpasotexas.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "El Paso, TX",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Tucson, AZ — Building Permits.
+        # Portal: https://gisdata.tucsonaz.gov
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city tucson --discover
+        "city_name":        "Tucson",
+        "source_key":       "tucson",
+        "service_url":      (
+            "https://gisdata.tucsonaz.gov/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://gisdata.tucsonaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Tucson, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
     # -----------------------------------------------------------------
     # REMOVED — Jacksonville (verified 2026-03-22):
     #   maps.coj.net and gis.coj.net both return 404. No building permit
