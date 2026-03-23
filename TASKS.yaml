@@ -169,21 +169,14 @@ tasks:
 
   - id: data-019
     title: Deploy FastAPI backend to Railway — operator steps and validation
-    status: in-progress
+    status: done
     priority: high
     github_issue: 49
     notes_for_next_agent: >
-      Code is in place (railway.toml, Procfile, /health endpoint).
-      Remaining manual steps (require dashboard access):
-        1. railway.app → New Project → Deploy from GitHub → peterarriz/livability-risk-engine
-        2. Add Railway Postgres service to same project (DATABASE_URL auto-injected)
-        3. Set FRONTEND_ORIGIN = https://livability-risk-engine.vercel.app
-        4. Copy Railway public URL (e.g. https://livability-risk-engine.up.railway.app)
-        5. vercel.com → Settings → Env Vars → NEXT_PUBLIC_API_URL = <railway-url>
-        6. Redeploy frontend
-        7. Validate: curl <railway-url>/health  → db_connection=true
-                     curl "<railway-url>/score?address=100+W+Randolph+St+Chicago+IL"
-      Once validated, mark this task done and proceed to data-020.
+      Railway backend is live at https://livability-risk-engine-production-2bad.up.railway.app.
+      /health returns {"status":"ok","mode":"live","db_configured":true}.
+      NEXT_PUBLIC_API_URL set in Vercel to Railway URL. Frontend redeployed from main.
+      End-to-end live scoring confirmed working.
 
   - id: data-020
     title: Schedule recurring ingest pipeline via GitHub Actions cron
@@ -427,30 +420,30 @@ tasks:
 
   - id: data-039
     title: Validate live /score endpoint returns real DB data post-ingest
-    status: in-progress
+    status: done
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      Code changes in this task:
-        - Fixed duplicate _build_top_risk_details definition in backend/scoring/query.py
-          (first incomplete definition removed; second correct version kept).
-        - Fixed double-call to _build_top_risk_details in compute_score() (duplicate line removed).
-        - Added scripts/validate_live.py — run with --backend <railway-url> or BACKEND_URL= env var.
-          Exits 0 if all checks pass, 1 if any fail. Tests /health, /score, /debug/score, /history.
-        - Added .github/workflows/validate.yml — manual-trigger GHA that runs validate_live.py.
-          Trigger via GitHub → Actions → "Validate live backend" → Run workflow → enter backend URL.
+      Live end-to-end scoring confirmed working. Railway backend at
+      https://livability-risk-engine-production-2bad.up.railway.app returns
+      mode="live" with db_configured=true. Frontend at livability-risk-engine.vercel.app
+      successfully calling live backend. data-019 and data-039 both closed.
 
-      Operator steps still required (need dashboard access):
-        1. Confirm Railway backend service has DATABASE_URL env var set.
-           (Railway → your project → backend service → Variables tab)
-        2. Confirm FRONTEND_ORIGIN is set to https://livability-risk-engine.vercel.app on the backend service.
-        3. Confirm NEXT_PUBLIC_API_URL in Vercel is set to the Railway public URL.
-           (Vercel → project → Settings → Environment Variables)
-        4. Run the validation workflow:
-           GitHub → Actions → "Validate live backend" → Run workflow → enter Railway URL.
-           OR run locally: python scripts/validate_live.py --backend https://<your-app>.up.railway.app
-        5. If all checks pass: mark data-039 done, mark data-019 done, create data-040.
-        6. If /score still returns mode="demo": see common failure modes in docs/deploy_readiness_checklist.md.
+  - id: data-040
+    title: Set up ingest monitoring and alerting
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Full stack is live as of 2026-03-23. Next priority is observability.
+      1. Add failure notification (Slack webhook or GitHub Actions email) to
+         .github/workflows/ingest.yml on job failure.
+      2. Add row-count regression check in run_pipeline.py or ingest.yml:
+         query ingest_runs for prior count, alert if drop >20%.
+      3. Update /health endpoint in backend/app/main.py to query ingest_runs
+         table and return last_ingest_at and last_ingest_status fields.
+      Railway backend: https://livability-risk-engine-production-2bad.up.railway.app
+      Frontend: https://livability-risk-engine.vercel.app
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
