@@ -617,27 +617,23 @@ tasks:
 
   - id: data-044
     title: Post-ingest data quality validation step
-    status: backlog
+    status: done
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      Add a validation step at the end of run_pipeline.py (or as a separate
-      script scripts/validate_ingest.py) that queries the projects table and
-      reports on data quality issues. Checks to implement:
-        1. Missing coordinates: SELECT COUNT(*) WHERE latitude IS NULL
-           OR longitude IS NULL — alert if >5% of active records.
-        2. Stale end dates: COUNT WHERE end_date < NOW() - interval '30 days'
-           AND status = 'active' — these should be closed, not active.
-        3. Duplicate source IDs: COUNT(*) - COUNT(DISTINCT source_id) per
-           source_type — non-zero means the upsert ON CONFLICT clause is not
-           matching correctly.
-        4. Zero-weight records: records with impact_type not in the weight
-           map in query.py — these silently contribute 0 to scores.
-      The validation script should exit with code 1 if any check fails
-      thresholds, so GitHub Actions fails the ingest job and triggers alerting
-      (once data-041 adds failure notifications).
-      Write output to stdout in a format compatible with the smoke-check
-      section of .github/workflows/ingest.yml.
+      Completed 2026-03-23. Two changes landed:
+      1. scripts/validate_ingest.py — standalone script with four checks:
+           CHECK 1: Missing coords (>5% active records → hard fail)
+           CHECK 2: Stale active records with end_date >30 days past (>10% → hard fail)
+           CHECK 3: Duplicate (source, source_id) pairs (any → hard fail)
+           CHECK 4: Unknown impact_type values not in BASE_WEIGHTS (any → hard fail)
+         Exits 0 if all pass, exits 1 on any hard failure.
+         Can be run manually: DATABASE_URL="..." python scripts/validate_ingest.py
+      2. .github/workflows/ingest.yml — "Data quality validation" step added
+         after the smoke check, before the failure notifier.
+         Skipped on dry_run=true (same as smoke check).
+      Thresholds are constants at the top of validate_ingest.py — easy to adjust.
+      Next: data-042 — validate and calibrate scoring weights against real addresses.
 
   - id: data-045
     title: Batch scoring endpoint — score multiple addresses in one request

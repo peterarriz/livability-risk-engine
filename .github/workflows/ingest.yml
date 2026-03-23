@@ -105,6 +105,12 @@ jobs:
               raise SystemExit('ERROR: No active projects found after ingest')
           "
 
+      - name: Data quality validation
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/validate_ingest.py
+
       - name: Notify on failure
         if: failure()
         env:
