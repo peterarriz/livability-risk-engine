@@ -49,6 +49,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Ensure the project root is on PYTHONPATH so subprocesses can resolve
 # package imports like ``from backend.ingest.geocode import ...``.
@@ -402,6 +403,130 @@ STEPS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Ingest run tracking  (data-041)
+# Writes to the ingest_runs table so /health/db can report freshness and
+# so the regression check can compare current vs prior record counts.
+# All DB calls are best-effort — failures are logged but never abort the pipeline.
+# ---------------------------------------------------------------------------
+
+def _get_db_url() -> Optional[str]:
+    return os.environ.get("DATABASE_URL") or None
+
+
+def _record_run_start(db_url: str) -> Optional[int]:
+    """Insert a 'running' row into ingest_runs. Returns the new row ID."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url, connect_timeout=5)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ingest_runs (source, status) VALUES (%s, %s) RETURNING id",
+                ("pipeline", "running"),
+            )
+            row_id = cur.fetchone()[0]
+        conn.close()
+        return row_id
+    except Exception as exc:
+        print(f"WARN: could not record ingest run start: {exc}", file=sys.stderr)
+        return None
+
+
+def _check_regression_and_finish(
+    db_url: str, run_id: Optional[int], failed_step: Optional[str]
+) -> None:
+    """
+    Query active project count, compare against the previous successful run,
+    then write the final status to ingest_runs.
+
+    Exits with code 1 if:
+      - a pipeline step already failed (failed_step is set), OR
+      - active project count dropped >20% compared to the prior run.
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url, connect_timeout=5)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM projects WHERE status = 'active'")
+            current_count: int = cur.fetchone()[0]
+
+            # Last *finished* successful run (the current run is still 'running')
+            cur.execute(
+                """SELECT record_count FROM ingest_runs
+                   WHERE status = 'success' AND record_count IS NOT NULL
+                   ORDER BY finished_at DESC LIMIT 1"""
+            )
+            prior_row = cur.fetchone()
+
+        regression_error: Optional[str] = None
+        if prior_row is not None:
+            prior_count: int = prior_row[0]
+            if prior_count > 0:
+                drop_pct = (prior_count - current_count) / prior_count * 100
+                if drop_pct > 20:
+                    regression_error = (
+                        f"Active project count dropped {drop_pct:.1f}% "
+                        f"(was {prior_count}, now {current_count}). "
+                        f">20% regression threshold exceeded."
+                    )
+                    print(f"ERROR: {regression_error}", file=sys.stderr)
+                elif drop_pct > 0:
+                    print(
+                        f"Row count: {current_count} active projects "
+                        f"(down {drop_pct:.1f}% from {prior_count} — within 20% threshold)."
+                    )
+                else:
+                    print(
+                        f"Row count: {current_count} active projects "
+                        f"(up from {prior_count})."
+                    )
+            else:
+                print(f"Row count: {current_count} active projects.")
+        else:
+            print(f"Row count: {current_count} active projects (no prior run to compare).")
+
+        # Determine final status
+        if failed_step:
+            final_status = "failed"
+            error_msg = f"Pipeline aborted at step: {failed_step}"
+        elif regression_error:
+            final_status = "failed"
+            error_msg = regression_error
+        else:
+            final_status = "success"
+            error_msg = None
+
+        # Write final row
+        with conn.cursor() as cur:
+            if run_id is not None:
+                cur.execute(
+                    """UPDATE ingest_runs
+                       SET finished_at = now(), status = %s, record_count = %s, error_msg = %s
+                       WHERE id = %s""",
+                    (final_status, current_count, error_msg, run_id),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO ingest_runs (source, finished_at, status, record_count, error_msg)
+                       VALUES (%s, now(), %s, %s, %s)""",
+                    ("pipeline", final_status, current_count, error_msg),
+                )
+        conn.close()
+
+        if final_status == "failed":
+            sys.exit(1)
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"WARN: could not record ingest run finish: {exc}", file=sys.stderr)
+        # Still exit 1 if a step failed
+        if failed_step:
+            sys.exit(1)
+
+
 def run_step(step: dict, args: argparse.Namespace) -> bool:
     """Run a single pipeline step. Returns True on success."""
     if step.get("skip_key") and getattr(args, step["skip_key"], False):
@@ -629,6 +754,12 @@ def main() -> None:
 
     print("══ LRE INGEST PIPELINE ═══════════════════════════════════════")
 
+    # Record pipeline start in ingest_runs (best-effort; skipped on dry-run)
+    db_url = _get_db_url()
+    run_id: Optional[int] = None
+    if db_url and not args.dry_run:
+        run_id = _record_run_start(db_url)
+
     failed: list[str] = []
     for step in STEPS:
         ok = run_step(step, args)
@@ -643,7 +774,15 @@ def main() -> None:
         print("All steps completed successfully.")
         print("\nNext: verify live scoring at http://localhost:8000/score?address=<address>")
         print("      or check /health to confirm db_connection=true")
-    else:
+
+    # Record final status + regression check (best-effort; skipped on dry-run)
+    if db_url and not args.dry_run:
+        _check_regression_and_finish(
+            db_url,
+            run_id,
+            failed_step=failed[0] if failed else None,
+        )
+    elif failed:
         print(f"Pipeline FAILED at: {failed[0]}", file=sys.stderr)
         sys.exit(1)
 

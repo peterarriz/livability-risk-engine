@@ -300,137 +300,35 @@ COMMENT ON TABLE alert_log IS
 
 
 -- ---------------------------------------------------------------------------
--- Neighborhood quality reference layer  (data-040)
+-- API keys  (data-027, metering added data-043)
 --
--- Stores neighborhood-level context data from three sources:
---   1. FEMA NFHL flood zone designations (region_type = 'flood_zone')
---   2. Chicago community-area crime trends (region_type = 'community_area')
---   3. Census ACS 5-year demographics   (region_type = 'census_tract')
---
--- Each row has a geom (centroid point) for KNN spatial lookup.
--- At /score request time, the nearest record of each region_type is returned
--- as the neighborhood_context field in the API response.
+-- Stores hashed API keys for /score authentication (opt-in via REQUIRE_API_KEY).
+-- call_count and last_called_at are updated on every authenticated /score call
+-- so operators can meter usage for billing (see docs/pricing_model.md).
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS neighborhood_quality (
-    id              BIGSERIAL   PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS api_keys (
+    id            BIGSERIAL   PRIMARY KEY,
+    prefix        TEXT        NOT NULL,   -- first 8 hex chars of random portion
+    key_hash      TEXT        NOT NULL,   -- sha256(full_key)
+    label         TEXT        NOT NULL DEFAULT '',
+    is_active     BOOLEAN     NOT NULL DEFAULT true,
+    call_count    INT         NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at  TIMESTAMPTZ,
+    last_called_at TIMESTAMPTZ,
 
-    -- Geographic region identifier
-    region_type     TEXT        NOT NULL,   -- 'flood_zone' | 'community_area' | 'census_tract'
-    region_id       TEXT        NOT NULL,   -- stable unique ID per region_type
-
-    -- FEMA flood data (populated for region_type = 'flood_zone')
-    fema_flood_zone TEXT,                   -- 'A', 'AE', 'X', 'X500', 'VE', etc.
-    flood_risk      TEXT,                   -- 'HIGH', 'MODERATE', 'MINIMAL', 'UNKNOWN'
-
-    -- Crime trend data (populated for region_type = 'community_area')
-    crime_12mo      INT,                    -- total crimes in last 12 months
-    crime_prior_12mo INT,                   -- total crimes in prior 12 months
-    crime_trend     TEXT,                   -- 'INCREASING', 'DECREASING', 'STABLE'
-    crime_trend_pct NUMERIC(6, 1),          -- percentage change vs prior period
-
-    -- Census ACS demographics (populated for region_type = 'census_tract')
-    median_income   INT,                    -- median household income (dollars)
-    population      INT,                    -- total population
-    vacancy_rate    NUMERIC(5, 2),          -- % of housing units that are vacant
-    housing_age_med INT,                    -- median year structure built
-
-    -- School ratings (populated for region_type = 'school')
-    school_name     TEXT,                   -- school name
-    school_rating   TEXT,                   -- overall rating: EXCELLING / STRONG / DEVELOPING / EMERGING
-    school_attainment TEXT,                 -- student attainment vs expectations
-    school_growth   TEXT,                   -- student growth vs expectations
-
-    -- Spatial centroid for KNN proximity lookup
-    geom            GEOMETRY(Point, 4326),
-
-    -- Audit
-    data_year       INT,
-    ingested_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT nq_region_unique UNIQUE (region_type, region_id)
+    CONSTRAINT api_keys_prefix_unique UNIQUE (prefix)
 );
 
--- Partial spatial indexes per region_type for efficient KNN queries
--- in get_neighborhood_context() in backend/scoring/query.py.
-CREATE INDEX IF NOT EXISTS nq_geom_flood_idx
-    ON neighborhood_quality USING GIST (geom)
-    WHERE region_type = 'flood_zone' AND geom IS NOT NULL;
+CREATE INDEX IF NOT EXISTS api_keys_prefix_idx ON api_keys (prefix);
+CREATE INDEX IF NOT EXISTS api_keys_active_idx ON api_keys (is_active);
 
-CREATE INDEX IF NOT EXISTS nq_geom_crime_idx
-    ON neighborhood_quality USING GIST (geom)
-    WHERE region_type = 'community_area' AND geom IS NOT NULL;
+COMMENT ON TABLE api_keys IS
+    'Hashed API keys for /score authentication (data-027). '
+    'call_count incremented on each authenticated call for usage metering (data-043).';
 
-CREATE INDEX IF NOT EXISTS nq_geom_census_idx
-    ON neighborhood_quality USING GIST (geom)
-    WHERE region_type = 'census_tract' AND geom IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS nq_geom_school_idx
-    ON neighborhood_quality USING GIST (geom)
-    WHERE region_type = 'school' AND geom IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS nq_region_type_idx
-    ON neighborhood_quality (region_type);
-
-COMMENT ON TABLE neighborhood_quality IS
-    'Neighborhood quality reference layer (data-040). '
-    'Four region_type values: flood_zone (FEMA NFHL), community_area (Chicago crime), '
-    'census_tract (Census ACS), school (CPS ratings). KNN spatial lookup via geom column. '
-    'Surfaced in /score response as neighborhood_context field.';
-
-
--- ---------------------------------------------------------------------------
--- Signal rewrites cache  (data-042)
---
--- Stores Claude API-generated titles and descriptions for each unique project.
--- Keyed on project_id (source:source_id) so each permit/closure is rewritten
--- at most once, regardless of how many /score requests reference it.
--- Populated lazily on the first /score request that references each project_id.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS signal_rewrites (
-    project_id            TEXT        PRIMARY KEY,
-    rewritten_title       TEXT        NOT NULL,
-    rewritten_description TEXT        NOT NULL,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-COMMENT ON TABLE signal_rewrites IS
-    'Claude API-generated clean titles and descriptions for each project signal (data-042). '
-    'Cache keyed on project_id. Populated lazily on the first /score request '
-    'that references each project. Prevents repeated API calls for the same permit.';
-
-
--- ---------------------------------------------------------------------------
--- Signal display cache  (data-043)
---
--- Stores the full 4-field Claude-generated display card for each unique project:
---   display_title   — short human title, ≤60 chars
---   distance        — pre-formatted distance string, e.g. "~1,100 ft away"
---   description     — one-sentence factual description, ≤120 chars
---   why_it_matters  — one-sentence practical impact explanation, ≤120 chars
---
--- Supersedes signal_rewrites (data-042) with richer output.  Keyed on
--- project_id so each permit/closure is enriched at most once regardless of
--- how many /score requests reference it.  Falls back to Option A deterministic
--- formatter when the Claude API call fails.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS signal_display (
-    project_id      TEXT        PRIMARY KEY,
-    display_title   TEXT        NOT NULL,
-    distance        TEXT        NOT NULL,
-    description     TEXT        NOT NULL,
-    why_it_matters  TEXT        NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-COMMENT ON TABLE signal_display IS
-    'Claude API-generated 4-field display cards for each project signal (data-043). '
-    'Keyed on project_id. Populated lazily on the first /score request that references '
-    'each project. Falls back to Option A deterministic formatter on API failure. '
-    'Supersedes signal_rewrites with richer display_title, distance, description, '
-    'and why_it_matters fields.';
+-- Idempotent migration: add metering columns to existing deployments that
+-- have api_keys without them (created before data-043).
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS call_count     INT         NOT NULL DEFAULT 0;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_called_at TIMESTAMPTZ;

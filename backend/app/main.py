@@ -220,10 +220,14 @@ async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
                 )
                 row = cur.fetchone()
                 if row and row[1]:
-                    # Update last_used_at asynchronously — best-effort, non-blocking
+                    # Update usage counters — best-effort, non-blocking
                     try:
                         cur.execute(
-                            "UPDATE api_keys SET last_used_at = now() WHERE prefix = %s",
+                            """UPDATE api_keys
+                               SET last_used_at = now(),
+                                   last_called_at = now(),
+                                   call_count = call_count + 1
+                               WHERE prefix = %s""",
                             (prefix,),
                         )
                         conn.commit()
@@ -295,6 +299,55 @@ def create_api_key(
         "prefix": prefix,
         "label": label.strip(),
         "note": "Store this key securely — it cannot be retrieved again.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /usage endpoint  (data-043)
+# Returns call count and last-called timestamp for the authenticated key.
+# Requires a valid API key in X-API-Key header (same as /score).
+# ---------------------------------------------------------------------------
+
+@app.get("/usage", dependencies=[Depends(verify_api_key)])
+def get_usage(x_api_key: str | None = Header(None)) -> dict:
+    """
+    Return usage metrics for the authenticated API key.
+
+    Fields:
+      prefix:         first 8 chars of your key (safe to share)
+      label:          human-readable label set when the key was created
+      call_count:     total number of authenticated /score calls made with this key
+      last_called_at: ISO timestamp of the most recent /score call (null if never called)
+    """
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = x_api_key[4:][:8]
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT prefix, label, call_count, last_called_at FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("get_usage DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Usage service temporarily unavailable") from exc
+
+    if not row:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    return {
+        "prefix": row[0],
+        "label": row[1],
+        "call_count": row[2],
+        "last_called_at": row[3].isoformat() if row[3] else None,
     }
 
 
@@ -573,8 +626,9 @@ def health_db() -> dict:
       db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
-      last_ingest_at:     ISO timestamp of most recent ingest run (any status), or null
-      last_ingest_status: status string from most recent ingest run, or null
+      last_ingest_at:     ISO timestamp of the most recent finished ingest run (null if none)
+      last_ingest_status: "success" | "failed" | "running" from the most recent run (null if none)
+      last_ingest_count:  active project count recorded at end of the last run (null if none)
     """
     # task: data-041 — add last_ingest_at and last_ingest_status from ingest_runs
     db_configured = _is_db_configured()
@@ -582,27 +636,28 @@ def health_db() -> dict:
     db_error = None
     last_ingest_at = None
     last_ingest_status = None
+    last_ingest_count = None
 
     if db_configured:
         try:
             from backend.scoring.query import get_db_connection
             conn = get_db_connection()
+            db_connection = True
             try:
-                db_connection = True
                 with conn.cursor() as cur:
                     cur.execute(
-                        """
-                        SELECT finished_at, status
-                        FROM ingest_runs
-                        WHERE finished_at IS NOT NULL
-                        ORDER BY finished_at DESC
-                        LIMIT 1
-                        """
+                        """SELECT finished_at, status, record_count
+                           FROM ingest_runs
+                           WHERE finished_at IS NOT NULL
+                           ORDER BY finished_at DESC LIMIT 1"""
                     )
                     row = cur.fetchone()
                     if row:
-                        last_ingest_at = row[0].replace(microsecond=0).isoformat() + "Z"
+                        last_ingest_at = row[0].isoformat() if row[0] else None
                         last_ingest_status = row[1]
+                        last_ingest_count = row[2]
+            except Exception:
+                pass  # ingest_runs table may not exist on first deploy
             finally:
                 conn.close()
         except Exception as exc:
@@ -615,6 +670,7 @@ def health_db() -> dict:
         "db_connection": db_connection,
         "last_ingest_at": last_ingest_at,
         "last_ingest_status": last_ingest_status,
+        "last_ingest_count": last_ingest_count,
     }
     if db_error is not None:
         response["db_error"] = db_error

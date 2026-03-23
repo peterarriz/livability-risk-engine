@@ -53,6 +53,7 @@ from backend.models.project import (
     IMPACT_FULL_CLOSURE,
     IMPACT_LIGHT_PERMIT,
     IMPACT_MULTI_LANE,
+    IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
     Project,
 )
@@ -280,7 +281,8 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
     traffic_pts = sum(
         w for np, w in contributions
         if np.project.impact_type in (
-            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE
+            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
+            IMPACT_ROAD_CONSTRUCTION,
         )
     )
     noise_pts = sum(
@@ -356,6 +358,8 @@ def _build_top_risks(
             risk = f"Lane or curb closure near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_DEMOLITION:
             risk = f"Active demolition or excavation near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_ROAD_CONSTRUCTION:
+            risk = f"Active road reconstruction or resurfacing near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_CONSTRUCTION:
             risk = f"Active construction permit near {p.title} {dist_str}"
         else:
@@ -419,6 +423,9 @@ def _build_explanation(
     if p.impact_type in (IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE):
         lead = f"A nearby lane or street closure ({p.title}, {dist_str}) is the main driver"
         category = "traffic disruption"
+    elif p.impact_type == IMPACT_ROAD_CONSTRUCTION:
+        lead = f"Nearby road reconstruction or resurfacing work ({p.title}, {dist_str}) is the main driver"
+        category = "traffic and access disruption"
     elif p.impact_type == IMPACT_DEMOLITION:
         lead = f"Nearby demolition or excavation ({p.title}, {dist_str}) is the main driver"
         category = "noise and dust disruption"
@@ -438,12 +445,12 @@ def _build_explanation(
     secondary = ""
     if len(contributions) > 1:
         sec_np, sec_w = contributions[1]
-        sec_cat = "traffic" if sec_np.project.impact_type in (
-            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE
-        ) else "construction"
-        top_cat = "traffic" if p.impact_type in (
-            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE
-        ) else "construction"
+        _traffic_types = (
+            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
+            IMPACT_ROAD_CONSTRUCTION,
+        )
+        sec_cat = "traffic" if sec_np.project.impact_type in _traffic_types else "construction"
+        top_cat = "traffic" if p.impact_type in _traffic_types else "construction"
         if sec_cat != top_cat and sec_w >= top_w * 0.50:
             secondary = f" A secondary {sec_cat} signal nearby adds further context."
 
