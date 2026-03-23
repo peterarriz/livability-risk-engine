@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits.py
-task: data-038, data-043, data-045, data-047
+task: data-038, data-043, data-045, data-047, data-048
 lane: data
 
 Generic Socrata-based ingest for building permits across major US cities,
@@ -14,8 +14,8 @@ Supported sources (configured in CITY_CONFIGS):
   - Seattle        (data.seattle.gov)
   - Kansas City    (data.kcmo.org)  [added data-045]
   - San Francisco  (data.sfgov.org) [added data-047]
-  - Baltimore      (data.baltimorecity.gov) [added data-047]
-  - Nashville      (data.nashville.gov)     [added data-047]
+  - Baltimore      — REMOVED data-048: migrated to ArcGIS Hub
+  - Nashville      — REMOVED data-048: migrated to ArcGIS Hub
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
@@ -23,8 +23,10 @@ NOT SUPPORTED (no Socrata portal):
   - Indianapolis — data.indy.gov uses ArcGIS Hub; no building permit dataset
     is published (only ordinance PDFs). Verified 2026-03-22.
   - Denver, Boston, Milwaukee — use CKAN; see us_city_permits_ckan.py.
-  - Portland, Nashville, Detroit, Memphis, Louisville, Baltimore — portals
+  - Portland, Detroit, Memphis, Louisville — portals
     are down, non-Socrata, or returning non-JSON. Removed 2026-03-22.
+  - Baltimore, Nashville — migrated to ArcGIS Hub. Moved to
+    us_city_permits_arcgis.py (data-048).
   - Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville — use ArcGIS Hub
     or custom portals; not Socrata/CKAN. Research needed for ArcGIS REST ingest.
     See notes in TASKS.yaml data-045.
@@ -263,13 +265,11 @@ CITY_CONFIGS: list[dict] = [
     #                  dataset is published (only ordinance PDFs). Verified
     #                  2026-03-22 via Hub search + GIS server scan.
     #   portland     — uses ArcGIS Hub; see us_city_permits_arcgis.py (data-047)
-    #   nashville    — re-added to Socrata above (data-047); previous non-JSON
-    #                  error was likely transient; MUST VERIFY --dry-run
+    #   nashville    — migrated to ArcGIS Hub; see us_city_permits_arcgis.py (data-048)
     #   detroit      — data.detroitmi.gov returns non-JSON (not Socrata)
     #   memphis      — data.memphistn.gov returns non-JSON (not Socrata)
     #   louisville   — data.louisvilleky.gov returns non-JSON (not Socrata)
-    #   baltimore    — re-added to Socrata above (data-047); previous non-JSON
-    #                  error was likely transient; MUST VERIFY --dry-run
+    #   baltimore    — migrated to ArcGIS Hub; see us_city_permits_arcgis.py (data-048)
     #   boston       — data.boston.gov uses CKAN; moved to us_city_permits_ckan.py
     #   milwaukee    — data.milwaukee.gov uses CKAN; moved to us_city_permits_ckan.py
     {
@@ -280,8 +280,9 @@ CITY_CONFIGS: list[dict] = [
         # MUST VERIFY dataset_id and field names before production:
         #   curl "https://data.sfgov.org/api/catalog/v1?q=building+permits&limit=5"
         #   curl "https://data.sfgov.org/resource/i98e-djp9.json?$limit=1"
-        # Note: address is constructed from street_number + street_name fields.
-        # latitude/longitude are top-level fields on this dataset.
+        # Note: No top-level lat/lon fields — coordinates are in "location"
+        # (GeoJSON Point: {"type":"Point","coordinates":[-122.4, 37.8]}).
+        # Address is constructed from street_number + street_name + street_suffix.
         "city_name":        "San Francisco",
         "source_key":       "san_francisco",
         "domain":           "data.sfgov.org",
@@ -291,63 +292,20 @@ CITY_CONFIGS: list[dict] = [
         "desc_field":       "description",
         "issue_date_field": "issued_date",
         "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
+        "lat_field":        None,
+        "lon_field":        None,
+        "loc_field":        "location",
         "addr_field":       "street_number",
+        "addr_extra_fields": ["street_name", "street_suffix"],
         "city_state":       "San Francisco, CA",
         "where_clause":     None,
     },
-    {
-        # Baltimore, MD — Building Permits.
-        # Portal: https://data.baltimorecity.gov  (Socrata)
-        # Dataset: "Building Permits" (fesm-tgxf)
-        # MUST VERIFY dataset_id and field names before production:
-        #   curl "https://data.baltimorecity.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   curl "https://data.baltimorecity.gov/resource/fesm-tgxf.json?$limit=1"
-        # Note: Previous runs returned non-JSON errors — may have been a transient
-        # rate-limit or portal issue. Re-verify with --dry-run.
-        "city_name":        "Baltimore",
-        "source_key":       "baltimore",
-        "domain":           "data.baltimorecity.gov",
-        "dataset_id":       "fesm-tgxf",
-        "id_field":         "permitnumber",
-        "type_field":       "permittype",
-        "desc_field":       "description",
-        "issue_date_field": "issueddate",
-        "exp_date_field":   "expirationdate",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "propertyaddress",
-        "city_state":       "Baltimore, MD",
-        "where_clause":     None,
-    },
-    {
-        # Nashville, TN — Building Permits.
-        # Portal: https://data.nashville.gov  (Socrata)
-        # Dataset: "Building Permits" (3h5a-qqft)
-        # MUST VERIFY dataset_id and field names before production:
-        #   curl "https://data.nashville.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   curl "https://data.nashville.gov/resource/3h5a-qqft.json?$limit=1"
-        # Note: Previous runs returned non-JSON errors — may have been a transient
-        # rate-limit or portal issue. Re-verify with --dry-run.
-        "city_name":        "Nashville",
-        "source_key":       "nashville",
-        "domain":           "data.nashville.gov",
-        "dataset_id":       "3h5a-qqft",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type_cat",
-        "desc_field":       "comments",
-        "issue_date_field": "permit_date",
-        "exp_date_field":   None,
-        "lat_field":        "mapped_location.latitude",
-        "lon_field":        "mapped_location.longitude",
-        "loc_field":        "mapped_location",
-        "addr_field":       "permit_address",
-        "city_state":       "Nashville, TN",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Baltimore + Nashville (verified 2026-03-23):
+    #   data.baltimorecity.gov and data.nashville.gov both redirect to
+    #   hub.arcgis.com/legacy — no longer Socrata portals.
+    #   Moved to us_city_permits_arcgis.py (data-048).
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
     #
@@ -576,6 +534,14 @@ def normalize_raw_record(record: dict, config: dict) -> dict:
     """
     lat, lon = _extract_lat_lon(record, config)
 
+    # Build address from primary field + any extra fields (e.g. street_name, suffix).
+    addr_parts = [str(record.get(config["addr_field"], "") or "")]
+    for extra in config.get("addr_extra_fields", []):
+        val = str(record.get(extra, "") or "").strip()
+        if val:
+            addr_parts.append(val)
+    address = " ".join(p for p in addr_parts if p.strip())
+
     return {
         "source_key":      config["source_key"],
         "city_name":       config["city_name"],
@@ -585,7 +551,7 @@ def normalize_raw_record(record: dict, config: dict) -> dict:
         "description":     record.get(config["desc_field"], "") or "",
         "issue_date":      record.get(config["issue_date_field"], "") or "",
         "expiration_date": record.get(config.get("exp_date_field") or "", "") or "",
-        "address":         record.get(config["addr_field"], "") or "",
+        "address":         address,
         "latitude":        lat,
         "longitude":       lon,
     }

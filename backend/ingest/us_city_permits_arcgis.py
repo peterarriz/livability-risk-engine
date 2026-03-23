@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits_arcgis.py
-task: data-046, data-047
+task: data-046, data-047, data-048
 lane: data
 
 ArcGIS REST FeatureServer ingest for building permits in cities that publish
@@ -13,6 +13,8 @@ Supported cities:
   - Charlotte   (meckgis.mecklenburgcountync.gov — ArcGIS FeatureServer)
   - Denver      (opendata-geospatialdenver.hub.arcgis.com — ArcGIS Hub) [data-047]
   - Portland    (gis.portlandoregon.gov — ArcGIS Hub) [data-047]
+  - Baltimore   (egisdata.baltimorecity.gov — ArcGIS Server) [data-048]
+  - Nashville   (services2.arcgis.com — ArcGIS Hub) [data-048]
 
 ArcGIS REST FeatureServer query pattern:
   GET {service_url}/query
@@ -246,6 +248,51 @@ CITY_CONFIGS: list[dict] = [
         "exp_date_field":   None,
         "addr_field":       "SITE_ADDRESS",
         "city_state":       "Portland, OR",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Baltimore, MD — Building Permits (DHCD Open Baltimore Datasets).
+        # Server: egisdata.baltimorecity.gov (ArcGIS Server)
+        # Verified 2026-03-23 via direct query (276k records).
+        # Note: data.baltimorecity.gov now redirects to ArcGIS Hub.
+        # Native SR is Maryland State Plane (WKID 2248); use outSR=4326.
+        "city_name":        "Baltimore",
+        "source_key":       "baltimore",
+        "service_url":      (
+            "https://egisdata.baltimorecity.gov/egis/rest/services"
+            "/Housing/DHCD_Open_Baltimore_Datasets/FeatureServer/3"
+        ),
+        "portal_url":       "https://data.baltimorecity.gov",
+        "id_field":         "CaseNumber",
+        "type_field":       "Description",
+        "desc_field":       "Description",
+        "issue_date_field": "IssuedDate",
+        "exp_date_field":   "ExpirationDate",
+        "addr_field":       "Address",
+        "city_state":       "Baltimore, MD",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Nashville, TN — Building Permits Issued.
+        # Server: services2.arcgis.com (ArcGIS Online hosted)
+        # Verified 2026-03-23 via direct query (29k records).
+        # Note: data.nashville.gov now redirects to ArcGIS Hub.
+        "city_name":        "Nashville",
+        "source_key":       "nashville",
+        "service_url":      (
+            "https://services2.arcgis.com/HdTo6HJqh92wn4D8/arcgis/rest/services"
+            "/Building_Permits_Issued_2/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.nashville.gov",
+        "id_field":         "Permit__",
+        "type_field":       "Permit_Type_Description",
+        "desc_field":       "Purpose",
+        "issue_date_field": "Date_Issued",
+        "exp_date_field":   None,
+        "addr_field":       "Address",
+        "city_state":       "Nashville, TN",
         "skip_date_filter": False,
         "max_records":      None,
     },

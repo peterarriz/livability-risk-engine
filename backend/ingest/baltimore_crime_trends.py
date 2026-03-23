@@ -1,29 +1,34 @@
 """
 backend/ingest/baltimore_crime_trends.py
-task: data-047
+task: data-048
 lane: data
 
 Ingests Baltimore Police Department crime data and calculates 12-month
-crime trends by district.
+crime trends by district via ArcGIS REST API.
 
 Source:
-  https://data.baltimorecity.gov/resource/4uu5-gl3e.json
-  Dataset: BPD Part 1 Victim Based Crime Data
+  NIBRS Group A Crime Data (2022-present):
+  https://services1.arcgis.com/UWYHeuuJISiGmgXx/arcgis/rest/services
+      /NIBRS_GroupA_Crime_Data/FeatureServer/0
 
-  Verify dataset ID:
-    curl "https://data.baltimorecity.gov/api/catalog/v1?q=crime&limit=5"
+  Verified 2026-03-23 via direct query (242k records).
+  Note: data.baltimorecity.gov (former Socrata portal) now redirects to
+  ArcGIS Hub. The actual data lives on ArcGIS Online.
 
   Key fields:
-    rowid       — unique row ID
-    crimedate   — ISO date string (e.g. "2024-01-15T00:00:00.000")
-    district    — police district name (CENTRAL, EASTERN, etc.)
-    latitude, longitude — coordinates
+    CCNumber       — case number (string)
+    CrimeDateTime  — epoch milliseconds
+    Description    — offense type
+    New_District   — police district (CENTRAL, EASTERN, etc.)
+    Latitude       — string (not numeric — avg() not supported in outStatistics)
+    Longitude      — string
 
 Method:
-  1. Aggregate crime counts by district for the last 12 months.
+  1. Aggregate crime counts by district for the last 12 months via outStatistics.
   2. Aggregate crime counts by district for the prior 12 months.
   3. Calculate percent change → crime_trend: INCREASING / DECREASING / STABLE.
-  4. Compute approximate district centroids from average lat/lon of incidents.
+  4. Use well-known Baltimore district centroids (Latitude/Longitude are strings
+     so server-side avg() is not possible).
 
 Output:
   data/raw/baltimore_crime_trends.json — district crime trend records
@@ -31,16 +36,12 @@ Output:
 Usage:
   python backend/ingest/baltimore_crime_trends.py
   python backend/ingest/baltimore_crime_trends.py --dry-run
-
-Environment variables (optional):
-  SOCRATA_APP_TOKEN  — increases Socrata API rate limits
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -51,79 +52,84 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-CRIMES_URL = "https://data.baltimorecity.gov/resource/4uu5-gl3e.json"
-SOCRATA_DOMAIN = "data.baltimorecity.gov"
+ARCGIS_BASE_URL = (
+    "https://services1.arcgis.com/UWYHeuuJISiGmgXx/arcgis/rest/services"
+    "/NIBRS_GroupA_Crime_Data/FeatureServer/0/query"
+)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/baltimore_crime_trends.json")
 
-# Date field and district field in the BPD crime dataset.
-# Verify field names:
-#   curl "https://data.baltimorecity.gov/resource/4uu5-gl3e.json?$limit=1" | python -m json.tool
-DATE_FIELD = "crimedate"
-DISTRICT_FIELD = "district"
+DATE_FIELD = "CrimeDateTime"      # epoch milliseconds
+DISTRICT_FIELD = "New_District"
+COUNT_FIELD = "CCNumber"           # used for count() — OBJECTID doesn't exist
 
 # Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0
 
+# Well-known Baltimore police district centroids (approximate).
+# Latitude/Longitude fields on this dataset are strings, so server-side
+# avg() via outStatistics is not supported.
+DISTRICT_CENTROIDS: dict[str, tuple[float, float]] = {
+    "CENTRAL":   (39.2904, -76.6122),
+    "EASTERN":   (39.2989, -76.5840),
+    "NORTHEAST": (39.3226, -76.5779),
+    "NORTHERN":  (39.3380, -76.6250),
+    "NORTHWEST": (39.3162, -76.6590),
+    "SOUTHEAST": (39.2750, -76.5710),
+    "SOUTHERN":  (39.2650, -76.6200),
+    "SOUTHWEST": (39.2830, -76.6530),
+    "WESTERN":   (39.3060, -76.6450),
+}
+
 
 # ---------------------------------------------------------------------------
-# Crime aggregate queries
+# ArcGIS REST queries
 # ---------------------------------------------------------------------------
 
-def _date_str(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT00:00:00")
+def _timestamp_str(dt: datetime) -> str:
+    """Format datetime as ArcGIS SQL TIMESTAMP literal."""
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def fetch_crime_counts_with_centroids(
-    app_token: str | None,
+def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
-) -> dict[str, dict]:
+) -> dict[str, int]:
     """
-    Fetch total crime counts and average centroids per district for a date range.
-    Uses SoQL GROUP BY to compute counts and centroids server-side.
-    Returns dict: district → {count, lat, lon}.
+    Fetch total crime counts per district for a date range via outStatistics.
+    Returns dict: district → count.
     """
     where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
+        f"{DATE_FIELD} >= TIMESTAMP '{_timestamp_str(start_date)}' "
+        f"AND {DATE_FIELD} < TIMESTAMP '{_timestamp_str(end_date)}'"
     )
-    params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            "avg(latitude) as avg_lat, "
-            "avg(longitude) as avg_lon"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 200,
+
+    out_statistics = json.dumps([
+        {"statisticType": "count", "onStatisticField": COUNT_FIELD,
+         "outStatisticFieldName": "crime_count"},
+    ])
+
+    params = {
+        "where": where_clause,
+        "groupByFieldsForStatistics": DISTRICT_FIELD,
+        "outStatistics": out_statistics,
+        "f": "json",
     }
-    if app_token:
-        params["$$app_token"] = app_token
 
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
+    resp = requests.get(ARCGIS_BASE_URL, params=params, timeout=60)
     resp.raise_for_status()
-    rows = resp.json()
+    data = resp.json()
 
-    results: dict[str, dict] = {}
-    for row in rows:
-        district = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
-        if not district:
+    if "error" in data:
+        raise RuntimeError(f"ArcGIS query error: {data['error']}")
+
+    results: dict[str, int] = {}
+    for feature in data.get("features", []):
+        attrs = feature["attributes"]
+        district = str(attrs.get(DISTRICT_FIELD) or "").strip().upper()
+        if not district or district in ("", "N/A"):
             continue
-        try:
-            count = int(row.get("crime_count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[district] = {"count": count, "lat": avg_lat, "lon": avg_lon}
+        results[district] = int(attrs.get("crime_count", 0))
 
     return results
 
@@ -151,8 +157,8 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 # ---------------------------------------------------------------------------
 
 def build_trend_records(
-    current_data: dict[str, dict],
-    prior_data: dict[str, dict],
+    current_data: dict[str, int],
+    prior_data: dict[str, int],
 ) -> list[dict]:
     """
     Merge current and prior crime counts to produce trend records.
@@ -161,13 +167,12 @@ def build_trend_records(
     all_districts = set(current_data.keys()) | set(prior_data.keys())
     records = []
     for district in sorted(all_districts):
-        curr = current_data.get(district, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(district, {"count": 0, "lat": None, "lon": None})
-        current_count = curr["count"]
-        prior_count = prev["count"]
+        current_count = current_data.get(district, 0)
+        prior_count = prior_data.get(district, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        lat = curr["lat"] or prev["lat"]
-        lon = curr["lon"] or prev["lon"]
+        centroid = DISTRICT_CENTROIDS.get(district)
+        lat = centroid[0] if centroid else None
+        lon = centroid[1] if centroid else None
         records.append({
             "region_type": "district",
             "region_id": f"baltimore_district_{district.lower().replace(' ', '_')}",
@@ -191,7 +196,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "baltimore_crime_trends",
-        "source_url": CRIMES_URL,
+        "source_url": ARCGIS_BASE_URL.replace("/query", ""),
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -207,7 +212,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest BPD crime trends by district from the Socrata API."
+        description="Ingest BPD crime trends by district from ArcGIS REST API."
     )
     parser.add_argument(
         "--output",
@@ -225,31 +230,23 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    app_token = os.environ.get("SOCRATA_APP_TOKEN")
-
-    if not app_token:
-        print(
-            "Note: SOCRATA_APP_TOKEN not set. "
-            "Requests will be rate-limited. "
-            "Register free at https://dev.socrata.com/register"
-        )
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Baltimore crime counts ({_date_str(current_start)} → {_date_str(now)})...")
+    print(f"Fetching current 12-month Baltimore crime counts ({_timestamp_str(current_start)} → {_timestamp_str(now)})...")
     try:
-        current_data = fetch_crime_counts_with_centroids(app_token, current_start, now)
+        current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     print(f"  {len(current_data)} districts with current crime data.")
 
-    print(f"\nFetching prior 12-month Baltimore crime counts ({_date_str(prior_start)} → {_date_str(prior_end)})...")
+    print(f"\nFetching prior 12-month Baltimore crime counts ({_timestamp_str(prior_start)} → {_timestamp_str(prior_end)})...")
     try:
-        prior_data = fetch_crime_counts_with_centroids(app_token, prior_start, prior_end)
+        prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
