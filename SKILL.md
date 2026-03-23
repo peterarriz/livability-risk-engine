@@ -52,6 +52,13 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | El Paso | `el_paso_crime_trends.py` | `services.arcgis.com/YGBqHTHNMoJPJOav/.../EPPD_Crime_Data/FeatureServer/0` | `Date_Reported` | `Category` | `el_paso_crime_trends.json` |
 | Tucson | `tucson_crime_trends.py` | `services3.arcgis.com/9coHY2fvuFjG9HQX/.../Tucson_Police_Reported_Crimes/FeatureServer/8` | `DateOccurred` | `Division` | `tucson_crime_trends.json` |
 | San Antonio | `san_antonio_crime_trends.py` | `services.arcgis.com/g1fRTDLeMgspWrYp/.../CFS_SAPD_7Days/FeatureServer/0` | (none; 7-day rolling) | `PatrolDistrict` | `san_antonio_crime_trends.json` |
+| Columbus | `columbus_crime_trends.py` | `services1.arcgis.com/9yy6msODkIBzkUXU/.../CPD_Offense_Data/FeatureServer/0` | `REPORT_DATE` | `ZONE` | `columbus_crime_trends.json` |
+| Phoenix | `phoenix_crime_trends.py` | `services.arcgis.com/ubE5oANDhCRLGBDO/.../PhoenixPD_Crime_Statistics/FeatureServer/0` | `OCCURRED_ON` | `DISTRICT` | `phoenix_crime_trends.json` |
+| San Jose | `san_jose_crime_trends.py` | `services.arcgis.com/p8Tul9YqBFRRdPqD/.../SJPD_Crime/FeatureServer/0` | `IncidentDate` | `District` | `san_jose_crime_trends.json` |
+| Jacksonville | `jacksonville_crime_trends.py` | `services.arcgis.com/Dv0qhb5jJMSEEVJL/.../JSO_Crime_Incidents/FeatureServer/0` | `IncidentDate` | `Zone` | `jacksonville_crime_trends.json` |
+| Fort Worth | `fort_worth_crime_trends.py` | `services.arcgis.com/AHCzmZstRKFEQEqv/.../FWPD_Crime/FeatureServer/0` | `FromDate` | `Division` | `fort_worth_crime_trends.json` |
+| Indianapolis | `indianapolis_crime_trends.py` | `services.arcgis.com/ghDnFwW5bG9Ljzwi/.../IMPD_Crime_Statistics/FeatureServer/0` | `occurred_dt` | `district` | `indianapolis_crime_trends.json` |
+| Albuquerque | `albuquerque_crime_trends.py` | `services.arcgis.com/3HnGBxB8VqLCXhUn/.../APD_Crime/FeatureServer/0` | `OCCURRED_DT` | `AREA_COMMAND` | `albuquerque_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -67,6 +74,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 |------|--------|-------------|-------------|------------|-------------|--------|
 | Boston | `boston_crime_trends.py` | data.boston.gov | `b973d8cb-eeb2-4e7e-99da-c92938efc9c0` | `OCCURRED_ON_DATE` | `DISTRICT` | `boston_crime_trends.json` |
 | Milwaukee | `milwaukee_crime_trends.py` | data.milwaukee.gov | `87843297-a6fa-46d4-ba5d-cb342fb2d3bb` | `ReportedDateTime` | `POLICE` | `milwaukee_crime_trends.json` |
+| Charlotte | `charlotte_crime_trends.py` | data.charlottenc.gov | `cdym-9n4y` (MUST VERIFY) | `date_reported` | `division` | `charlotte_crime_trends.json` |
+| Minneapolis | `minneapolis_crime_trends.py` | data.minneapolismn.gov | `k65s-ce4x` (MUST VERIFY) | `reporteddate` | `precinct` | `minneapolis_crime_trends.json` |
+| Raleigh | `raleigh_crime_trends.py` | data.raleighnc.gov | `d9dc-ixwq` (MUST VERIFY) | `reported_date` | `district` | `raleigh_crime_trends.json` |
 
 ### CSV-Based
 
@@ -95,6 +105,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Louisville | `louisville` | data.louisvilleky.gov | `5mge-bwiz` | `permit_id` | `issued_date` |
 | Fresno | `fresno` | data.fresno.gov | `sxvh-bkgt` | `permit_number` | `issue_date` |
 | Sacramento | `sacramento` | data.cityofsacramento.org | `rent-6pka` | `permit_number` | `issued_date` |
+| Raleigh | `raleigh` | data.raleighnc.gov | `k4n2-jcgh` (MUST VERIFY) | `permit_number` | `issued_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -111,6 +122,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Las Vegas | `las_vegas` | services.arcgis.com/VIkzGEMZbaSsMGLk/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
 | El Paso | `el_paso` | services.arcgis.com/YGBqHTHNMoJPJOav/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
 | Tucson | `tucson` | gisdata.tucsonaz.gov/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
+| San Jose | `san_jose` | services.arcgis.com/p8Tul9YqBFRRdPqD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Fort Worth | `fort_worth` | services.arcgis.com/AHCzmZstRKFEQEqv/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Albuquerque | `albuquerque` | services.arcgis.com/3HnGBxB8VqLCXhUn/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
