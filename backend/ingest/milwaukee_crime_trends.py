@@ -9,7 +9,7 @@ by district.
 Source:
   https://data.milwaukee.gov (CKAN portal)
   Dataset: "Wibr" or "Police Incidents" (MPS)
-  Resource ID: estimate — verify via --discover
+  Resource ID: 87843297-a6fa-46d4-ba5d-cb342fb2d3bb
 
   Verify resource_id:
     python backend/ingest/milwaukee_crime_trends.py --discover
@@ -52,16 +52,14 @@ CKAN_DOMAIN = "data.milwaukee.gov"
 # Verify this resource_id:
 #   python backend/ingest/milwaukee_crime_trends.py --discover
 # Common Milwaukee crime datasets: "wibr" (Wibr crime data), "police-incidents"
-RESOURCE_ID = "87f0-y96e"  # estimate — verify via --discover
+RESOURCE_ID = "87843297-a6fa-46d4-ba5d-cb342fb2d3bb"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/milwaukee_crime_trends.json")
 
 # Date field and district field in the MPS crime dataset.
 # Verify by sampling: curl "https://data.milwaukee.gov/api/3/action/datastore_search?resource_id=<UUID>&limit=1"
-# Common alternatives: "reported_date_time", "report_date", "ardate"
-DATE_FIELD = "reporteddatetimeoffense"
-# Common alternatives: "district", "location_district", "police_district"
-DISTRICT_FIELD = "policedistrict"
+DATE_FIELD = "ReportedDateTime"
+DISTRICT_FIELD = "POLICE"
 
 # Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0

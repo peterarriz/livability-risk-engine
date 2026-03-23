@@ -9,7 +9,7 @@ by district.
 Source:
   https://data.boston.gov (CKAN portal)
   Dataset: "Crime Incident Reports" (BPD)
-  Resource ID: 12cb-3tbx (estimate — verify via --discover)
+  Resource ID: b973d8cb-eeb2-4e7e-99da-c92938efc9c0
 
   Verify resource_id:
     python backend/ingest/boston_crime_trends.py --discover
@@ -52,16 +52,15 @@ CKAN_DOMAIN = "data.boston.gov"
 
 # Verify this resource_id:
 #   curl "https://data.boston.gov/api/3/action/package_search?q=crime+incident&rows=5"
-RESOURCE_ID = "12cb-3tbx"  # estimate — verify via --discover
+RESOURCE_ID = "b973d8cb-eeb2-4e7e-99da-c92938efc9c0"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/boston_crime_trends.json")
 
 # Date field and district field in the BPD crime dataset.
 # Verify by sampling: curl "https://data.boston.gov/api/3/action/datastore_search?resource_id=<UUID>&limit=1"
 # Common alternatives: "occurred_on_date", "date", "offense_date"
-DATE_FIELD = "occurred_on_date"
-# Common alternatives: "district", "reporting_area", "neighborhood"
-DISTRICT_FIELD = "district"
+DATE_FIELD = "OCCURRED_ON_DATE"
+DISTRICT_FIELD = "DISTRICT"
 
 # Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0
