@@ -716,29 +716,38 @@ tasks:
     priority: medium
     github_issue: ~
     notes_for_next_agent: >
-      Validate all data-047 cities with live --dry-run once network/DB is accessible.
-      1. Socrata permits — verify dataset IDs and field names:
-           python backend/ingest/us_city_permits.py --city san_francisco --dry-run
-           python backend/ingest/us_city_permits.py --city baltimore --dry-run
-           python backend/ingest/us_city_permits.py --city nashville --dry-run
-         If 0 records returned, check dataset_id via catalog API:
-           curl "https://data.sfgov.org/api/catalog/v1?q=building+permits&limit=5"
-           curl "https://data.baltimorecity.gov/api/catalog/v1?q=building+permits&limit=5"
-           curl "https://data.nashville.gov/api/catalog/v1?q=building+permits&limit=5"
-      2. ArcGIS permits — verify service URLs via --discover:
-           python backend/ingest/us_city_permits_arcgis.py --city denver --discover
-           python backend/ingest/us_city_permits_arcgis.py --city portland --discover
-         Then dry-run:
-           python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
-           python backend/ingest/us_city_permits_arcgis.py --city portland --dry-run
-      3. Crime scripts dry-run:
-           python backend/ingest/sf_crime_trends.py --dry-run
-           python backend/ingest/baltimore_crime_trends.py --dry-run
-           python backend/ingest/nashville_crime_trends.py --dry-run
-           python backend/ingest/portland_crime_trends.py --dry-run
-         Portland crime ArcGIS URL also needs --discover verification.
-      4. Fix any field name mismatches found (update DATE_FIELD, DISTRICT_FIELD,
-         id_field, addr_field, etc. in the relevant scripts).
-      5. Also validate older data-046 ArcGIS cities (phoenix, columbus, etc.) and
-         data-045 crime scripts (boston, milwaukee, kansas_city, denver) if not
-         already validated.
+      Illinois Tollway construction data is NOT on the Chicago Data Portal.
+      The Illinois Tollway publishes project data at:
+        https://www.illinoistollway.com/road-projects (HTML page, not API)
+        https://www.illinoistollway.com/roadwork/construction (alternative)
+      Potential approaches:
+        1. Check if IDOT ArcGIS REST API includes tollway projects
+           (the existing idot_road_projects.py covers IDOT districts 1-9).
+        2. Scrape illinoistollway.com — requires HTML parsing, fragile.
+        3. Check https://gis.idot.illinois.gov for tollway layer.
+      The IDOT ingest already covers state road construction near Chicago
+      (District 1). Tollway is primarily I-90/94, I-88, I-294/I-90.
+      If no clean API is found, consider using IDOT District 1 as sufficient
+      coverage and marking this task as won't-fix.
+
+  - id: data-038
+    title: Remove PostGIS dependency — use haversine lat/lon radius query
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Railway standard Postgres has no PostGIS. Three changes made:
+        1. db/schema.sql — removed CREATE EXTENSION postgis and geom column
+           from projects table; added projects_location_idx (lat, lon) instead.
+        2. backend/ingest/load_projects.py — removed geom from UPSERT_SQL.
+        3. backend/scoring/query.py — replaced ST_DWithin/ST_Distance with
+           haversine bounding-box + exact haversine distance in plain SQL.
+      Next step: run the DDL below in Railway query console to create the
+      missing tables (projects, score_history, watchlist, alert_log, ingest_runs),
+      then run the ingest pipeline. The corrected DDL is in db/schema.sql.
+      To create only the missing tables quickly, run:
+        CREATE TABLE IF NOT EXISTS projects (...)  -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS ingest_runs (...) -- already exists, skip
+        CREATE TABLE IF NOT EXISTS score_history (...) -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS watchlist (...) -- see db/schema.sql
+        CREATE TABLE IF NOT EXISTS alert_log (...) -- see db/schema.sql

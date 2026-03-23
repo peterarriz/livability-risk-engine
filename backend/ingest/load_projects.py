@@ -160,7 +160,6 @@ INSERT INTO projects (
     address,
     latitude,
     longitude,
-    geom,
     severity_hint,
     normalized_at,
     updated_at
@@ -178,7 +177,6 @@ VALUES (
     %(address)s,
     %(latitude)s,
     %(longitude)s,
-    ST_SetSRID(ST_MakePoint(%(longitude)s, %(latitude)s), 4326),
     %(severity_hint)s,
     NOW(),
     NOW()
@@ -193,7 +191,6 @@ ON CONFLICT (source, source_id) DO UPDATE SET
     address        = EXCLUDED.address,
     latitude       = EXCLUDED.latitude,
     longitude      = EXCLUDED.longitude,
-    geom           = EXCLUDED.geom,
     severity_hint  = EXCLUDED.severity_hint,
     updated_at     = NOW();
 """
