@@ -313,6 +313,17 @@ STEPS = [
         "non_fatal": True,
         "dry_run_passthrough": True,
     },
+    {
+        # data-041: Row-count regression check.
+        # Alerts if active project count drops >20% vs prior successful run.
+        # Non-fatal so the pipeline still exits 0 on transient anomalies;
+        # the check prints a clear REGRESSION DETECTED message to stderr
+        # which surfaces in GitHub Actions logs.
+        "name": "Row-count regression check",
+        "cmd": [sys.executable, "backend/ingest/row_count_check.py"],
+        "skip_key": "skip_row_count_check",
+        "non_fatal": True,
+    },
 ]
 
 
@@ -501,6 +512,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-neighborhood-quality",
         action="store_true",
         help="Skip the neighborhood quality DB load step.",
+    )
+    parser.add_argument(
+        "--skip-row-count-check",
+        action="store_true",
+        help="Skip the post-ingest row-count regression check.",
     )
     parser.add_argument(
         "--dry-run",

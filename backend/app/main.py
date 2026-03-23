@@ -573,26 +573,48 @@ def health_db() -> dict:
       db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
-      last_ingest_status: reserved for future ingest tracking; null for MVP
+      last_ingest_at:     ISO timestamp of most recent ingest run (any status), or null
+      last_ingest_status: status string from most recent ingest run, or null
     """
+    # task: data-041 — add last_ingest_at and last_ingest_status from ingest_runs
     db_configured = _is_db_configured()
     db_connection = False
     db_error = None
+    last_ingest_at = None
+    last_ingest_status = None
 
     if db_configured:
         try:
             from backend.scoring.query import get_db_connection
             conn = get_db_connection()
-            conn.close()
-            db_connection = True
+            try:
+                db_connection = True
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT finished_at, status
+                        FROM ingest_runs
+                        WHERE finished_at IS NOT NULL
+                        ORDER BY finished_at DESC
+                        LIMIT 1
+                        """
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        last_ingest_at = row[0].replace(microsecond=0).isoformat() + "Z"
+                        last_ingest_status = row[1]
+            finally:
+                conn.close()
         except Exception as exc:
             db_error = str(exc)
+            db_connection = False
 
     response: dict = {
         "status": "ok",
         "db_configured": db_configured,
         "db_connection": db_connection,
-        "last_ingest_status": None,
+        "last_ingest_at": last_ingest_at,
+        "last_ingest_status": last_ingest_status,
     }
     if db_error is not None:
         response["db_error"] = db_error
@@ -1168,7 +1190,7 @@ def _get_last_ingest_time() -> str:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT MAX(completed_at) FROM ingest_runs WHERE status = 'success'"
+                    "SELECT MAX(finished_at) FROM ingest_runs WHERE status = 'success'"
                 )
                 row = cur.fetchone()
                 if row and row[0]:
