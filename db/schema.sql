@@ -18,6 +18,7 @@
 -- ---------------------------------------------------------------------------
 
 CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 
 -- ---------------------------------------------------------------------------
@@ -237,10 +238,10 @@ CREATE TABLE IF NOT EXISTS score_history (
 CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
     ON score_history (address, scored_at DESC);
 
-COMMENT ON TABLE reports IS
-    'Saved score snapshots (data-021). Each row is a /score response stored '
-    'so the user can share a persistent /report/<report_id> URL. '
-    'score_json is the full API response payload.';
+COMMENT ON TABLE score_history IS
+    'Saved score snapshots per address (data-025). Each row is a /score response '
+    'stored so the frontend can render a sparkline trend over time. '
+    'Only live-mode scores are written.';
 
 
 -- ---------------------------------------------------------------------------
@@ -249,66 +250,6 @@ COMMENT ON TABLE reports IS
 -- Users subscribe an email + score threshold to a Chicago address.
 -- When the disruption score crosses that threshold, an entry is written to
 -- alert_log (email delivery is stubbed for the MVP).
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS watchlist (
-    id          BIGSERIAL   PRIMARY KEY,
-    email       TEXT        NOT NULL,
-    address     TEXT        NOT NULL,
-    -- threshold is an integer disruption score (0–100).
-    -- An alert fires when the live score meets or exceeds this value.
-    threshold   INT         NOT NULL CHECK (threshold BETWEEN 0 AND 100),
-    -- token is used for unsubscribe links so no auth is required.
-    token       TEXT        NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT watchlist_email_address_unique UNIQUE (email, address)
-);
-
-CREATE INDEX IF NOT EXISTS watchlist_email_idx
-    ON watchlist (email);
-
-CREATE INDEX IF NOT EXISTS watchlist_address_idx
-    ON watchlist (address);
-
-COMMENT ON TABLE watchlist IS
-    'Email alert subscriptions (data-030). Each row subscribes an email address '
-    'to score alerts for a Chicago address when the disruption score crosses threshold. '
-    'token is used in unsubscribe links.';
-
-COMMENT ON COLUMN watchlist.threshold IS
-    'Disruption score (0–100). An alert is triggered when the live score is >= this value.';
-
-COMMENT ON COLUMN watchlist.token IS
-    'Unsubscribe token — included in alert emails so users can opt out without auth.';
-
-
-CREATE TABLE IF NOT EXISTS alert_log (
-    id              BIGSERIAL   PRIMARY KEY,
-    watchlist_id    BIGINT      NOT NULL REFERENCES watchlist(id) ON DELETE CASCADE,
-    score           INT         NOT NULL,
-    triggered_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS alert_log_watchlist_id_idx
-    ON alert_log (watchlist_id);
-
-CREATE INDEX IF NOT EXISTS alert_log_triggered_at_idx
-    ON alert_log (triggered_at DESC);
-
-COMMENT ON TABLE api_keys IS
-    'Hashed API keys for optional /score access gating (data-027). '
-    'Keys are only enforced when REQUIRE_API_KEY=true. '
-    'Full key is never stored — only the SHA-256 hash.';
-
-
--- ---------------------------------------------------------------------------
--- Score alert watchlist  (data-030)
---
--- Users subscribe to score alerts for a specific address + email.
--- When the disruption score crosses threshold_score, an entry is written
--- to alert_log. Actual email delivery requires SMTP configuration.
--- Unsubscribe via GET /watch/unsubscribe?token=<token>.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS watchlist (
@@ -325,22 +266,33 @@ CREATE TABLE IF NOT EXISTS watchlist (
 
 CREATE INDEX IF NOT EXISTS watchlist_token_idx ON watchlist (token);
 CREATE INDEX IF NOT EXISTS watchlist_active_idx ON watchlist (is_active, address);
+CREATE INDEX IF NOT EXISTS watchlist_email_idx ON watchlist (email);
+CREATE INDEX IF NOT EXISTS watchlist_address_idx ON watchlist (address);
 
 COMMENT ON TABLE watchlist IS
     'Score alert subscriptions (data-030). Subscribe by email + address. '
     'When disruption_score >= threshold_score an alert_log row is written. '
     'Unsubscribe via GET /watch/unsubscribe?token=<uuid>.';
 
+COMMENT ON COLUMN watchlist.threshold_score IS
+    'Disruption score (0–100). An alert is triggered when the live score is >= this value.';
+
+COMMENT ON COLUMN watchlist.token IS
+    'Unsubscribe token — included in alert emails so users can opt out without auth.';
+
 
 CREATE TABLE IF NOT EXISTS alert_log (
-    id              BIGSERIAL   PRIMARY KEY,
-    watchlist_id    BIGINT      NOT NULL REFERENCES watchlist(id),
-    disruption_score INT        NOT NULL,
-    triggered_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    id               BIGSERIAL   PRIMARY KEY,
+    watchlist_id     BIGINT      NOT NULL REFERENCES watchlist(id) ON DELETE CASCADE,
+    disruption_score INT         NOT NULL,
+    triggered_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS alert_log_watchlist_idx
     ON alert_log (watchlist_id, triggered_at DESC);
+
+CREATE INDEX IF NOT EXISTS alert_log_triggered_at_idx
+    ON alert_log (triggered_at DESC);
 
 COMMENT ON TABLE alert_log IS
     'Records of triggered score alerts (data-030). One row per alert check '
