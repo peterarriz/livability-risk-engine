@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits_ckan.py
-task: data-039
+task: data-039, data-043, data-045
 lane: data
 
 CKAN-based building permit ingest for US cities that do NOT use Socrata.
@@ -10,6 +10,14 @@ Supported cities (verified to use CKAN open data portals):
   - Philadelphia  (data.phila.gov)
   - San Antonio   (data.sanantonio.gov)
   - San Diego     (data.sandiego.gov)
+  - Boston        (data.boston.gov)     [resource_id verified 2026-03-22]
+  - Milwaukee     (data.milwaukee.gov)  [resource_id verified 2026-03-22]
+
+NOT YET IMPLEMENTED — ArcGIS Hub / custom portals (data-045):
+  - Minneapolis  (opendata.minneapolismn.gov) — ArcGIS Hub
+  - Charlotte    (data.charlottenc.gov)       — ArcGIS/custom
+  - Jacksonville (coj.net)                    — ArcGIS/custom
+  These require an ArcGIS REST ingest approach; see notes in TASKS.yaml data-046.
 
 CKAN API pattern:
   Paginated fetch:
@@ -191,6 +199,58 @@ CITY_CONFIGS: list[dict] = [
         "addr_field":       "address",
         "city_state":       "San Diego, CA",
         "discover_query":   "building permit",
+    },
+    # -----------------------------------------------------------------
+    # REMOVED — Denver (verified 2026-03-22):
+    #   data.denvergov.org is NOT CKAN — it redirects (301) to ArcGIS Hub
+    #   (opendata-geospatialdenver.hub.arcgis.com). Denver publishes permits
+    #   via ArcGIS FeatureServer:
+    #     ODC_DEV_RESIDENTIALCONSTPERMIT_P (residential)
+    #     ODC_DEV_COMMERCIALCONSTPERMIT_P  (commercial)
+    #   A future task can add an ArcGIS REST ingest for Denver permits.
+    # -----------------------------------------------------------------
+    {
+        # Boston — Approved Building Permits.
+        # Portal: https://data.boston.gov (CKAN)
+        # Package: "approved-building-permits"
+        # Resource verified 2026-03-22 via datastore_search.
+        # Note: use y_latitude / x_longitude (NOT gpsx/gpsy which are state plane coords).
+        "city_name":        "Boston",
+        "source_key":       "boston",
+        "domain":           "data.boston.gov",
+        "resource_id":      "6ddcd912-32a0-43df-9908-63574f8c7e77",
+        "id_field":         "permitnumber",
+        "type_field":       "permittypedescr",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "y_latitude",
+        "lon_field":        "x_longitude",
+        "addr_field":       "address",
+        "city_state":       "Boston, MA",
+        "discover_query":   "building permits",
+    },
+    {
+        # Milwaukee — Residential and Commercial Permit Work Data.
+        # Portal: https://data.milwaukee.gov (CKAN)
+        # Package: "buildingpermits"
+        # Resource verified 2026-03-22 via datastore_search.
+        # Note: no lat/lon columns — address must be geocoded downstream.
+        # No free-text description; "Use of Building" is closest metadata.
+        "city_name":        "Milwaukee",
+        "source_key":       "milwaukee",
+        "domain":           "data.milwaukee.gov",
+        "resource_id":      "828e9630-d7cb-42e4-960e-964eae916397",
+        "id_field":         "Record ID",
+        "type_field":       "Permit Type",
+        "desc_field":       "Use of Building",
+        "issue_date_field": "Date Issued",
+        "exp_date_field":   None,
+        "lat_field":        None,
+        "lon_field":        None,
+        "addr_field":       "Address",
+        "city_state":       "Milwaukee, WI",
+        "discover_query":   "building permits",
     },
 ]
 
@@ -611,7 +671,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Ingest US city building permits from CKAN open data portals.\n\n"
-            "Cities: Houston, Philadelphia, San Antonio, San Diego."
+            "Cities: Houston, Philadelphia, San Antonio, San Diego, Boston, Milwaukee."
         )
     )
     parser.add_argument(

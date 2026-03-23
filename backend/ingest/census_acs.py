@@ -156,7 +156,7 @@ def fetch_tract_centroids() -> dict[str, tuple[float, float]]:
 
     while True:
         params = {
-            "where": f"STATEFP='{STATE_FIPS}' AND COUNTYFP='{COUNTY_FIPS}'",
+            "where": f"STATE='{STATE_FIPS}' AND COUNTY='{COUNTY_FIPS}'",
             "outFields": "TRACT,INTPTLAT,INTPTLON",
             "returnGeometry": "false",
             "resultRecordCount": TIGER_PAGE_SIZE,

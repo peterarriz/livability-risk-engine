@@ -41,7 +41,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-CRIMES_URL = "https://data.cityofchicago.org/resource/31yy-ehbz.json"
+CRIMES_URL = "https://data.cityofchicago.org/resource/ijzp-q8t2.json"
 COMMUNITY_AREAS_URL = "https://data.cityofchicago.org/resource/igwz-8jzy.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/chicago_crime_trends.json")
