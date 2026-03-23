@@ -554,20 +554,25 @@ tasks:
 
   - id: data-041
     title: Set up ingest monitoring and alerting
-    status: backlog
+    status: done
     priority: high
     github_issue: 133
     notes_for_next_agent: >
-      Full stack is live as of 2026-03-23. Next priority is observability.
-      data-040 was already taken by another agent (do not reuse that ID).
-      1. Add failure notification (Slack webhook or GitHub Actions email) to
-         .github/workflows/ingest.yml on job failure.
-      2. Add row-count regression check in run_pipeline.py or ingest.yml:
-         query ingest_runs for prior count, alert if drop >20%.
-      3. Update /health endpoint in backend/app/main.py to query ingest_runs
-         table and return last_ingest_at and last_ingest_status fields.
-      Railway backend: https://livability-risk-engine-production-2bad.up.railway.app
-      Frontend: https://livability-risk-engine.vercel.app
+      Completed 2026-03-23. Three changes landed:
+      1. run_pipeline.py: writes to ingest_runs table on every non-dry-run.
+         Inserts 'running' row at start, updates to 'success'/'failed' with
+         record_count and error_msg at finish. Also does a regression check:
+         if active project count drops >20% vs prior run, exits 1 (fails the
+         GitHub Actions job and triggers Slack alert).
+      2. .github/workflows/ingest.yml: "Notify on failure" step now posts to
+         Slack via SLACK_WEBHOOK_URL secret (if set). Falls back to GitHub
+         ::error:: annotation (which triggers the standard GitHub Actions email)
+         if secret is not configured. Add SLACK_WEBHOOK_URL to GitHub repo
+         secrets to enable Slack alerts.
+      3. backend/app/main.py /health/db: now queries ingest_runs for the most
+         recent finished run and returns last_ingest_at (ISO timestamp),
+         last_ingest_status ('success'/'failed'), and last_ingest_count (int).
+      Next: data-043 — wire API call metering to api_keys table.
 
   - id: data-042
     title: Validate and calibrate scoring weights against real addresses

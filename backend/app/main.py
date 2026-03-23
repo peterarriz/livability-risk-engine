@@ -537,18 +537,39 @@ def health_db() -> dict:
       db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
-      last_ingest_status: reserved for future ingest tracking; null for MVP
+      last_ingest_at:     ISO timestamp of the most recent finished ingest run (null if none)
+      last_ingest_status: "success" | "failed" | "running" from the most recent run (null if none)
+      last_ingest_count:  active project count recorded at end of the last run (null if none)
     """
     db_configured = _is_db_configured()
     db_connection = False
     db_error = None
+    last_ingest_at = None
+    last_ingest_status = None
+    last_ingest_count = None
 
     if db_configured:
         try:
             from backend.scoring.query import get_db_connection
             conn = get_db_connection()
-            conn.close()
             db_connection = True
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT finished_at, status, record_count
+                           FROM ingest_runs
+                           WHERE finished_at IS NOT NULL
+                           ORDER BY finished_at DESC LIMIT 1"""
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        last_ingest_at = row[0].isoformat() if row[0] else None
+                        last_ingest_status = row[1]
+                        last_ingest_count = row[2]
+            except Exception:
+                pass  # ingest_runs table may not exist on first deploy
+            finally:
+                conn.close()
         except Exception as exc:
             db_error = str(exc)
 
@@ -556,7 +577,9 @@ def health_db() -> dict:
         "status": "ok",
         "db_configured": db_configured,
         "db_connection": db_connection,
-        "last_ingest_status": None,
+        "last_ingest_at": last_ingest_at,
+        "last_ingest_status": last_ingest_status,
+        "last_ingest_count": last_ingest_count,
     }
     if db_error is not None:
         response["db_error"] = db_error

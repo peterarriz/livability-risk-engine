@@ -107,6 +107,14 @@ jobs:
 
       - name: Notify on failure
         if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           echo "::error::Ingest pipeline failed. Check the logs above."
           echo "::notice::Run manually: python run_pipeline.py --dry-run to diagnose."
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            curl -s -o /dev/null -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\":\"🚨 *LRE ingest pipeline failed* — active project scores may be stale.\n<${RUN_URL}|View logs> · Run \`python run_pipeline.py --dry-run\` to diagnose.\"}"
+          fi
