@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits_arcgis.py
-task: data-046
+task: data-046, data-047
 lane: data
 
 ArcGIS REST FeatureServer ingest for building permits in cities that publish
@@ -11,6 +11,8 @@ Supported cities:
   - Columbus    (opendata.columbus.gov — ArcGIS Hub)
   - Minneapolis (opendata.minneapolismn.gov — ArcGIS Hub)
   - Charlotte   (meckgis.mecklenburgcountync.gov — ArcGIS FeatureServer)
+  - Denver      (opendata-geospatialdenver.hub.arcgis.com — ArcGIS Hub) [data-047]
+  - Portland    (gis.portlandoregon.gov — ArcGIS Hub) [data-047]
 
 ArcGIS REST FeatureServer query pattern:
   GET {service_url}/query
@@ -194,6 +196,56 @@ CITY_CONFIGS: list[dict] = [
         "exp_date_field":   None,
         "addr_field":       "projadd",
         "city_state":       "Charlotte, NC",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Denver, CO — Building Permits.
+        # Portal: https://opendata-geospatialdenver.hub.arcgis.com
+        # ArcGIS Hub org: services1.arcgis.com/zdB7qR0BtYrg0Xpl (Denver's org ID)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+        #   Or visit: https://opendata-geospatialdenver.hub.arcgis.com
+        #   Search "building permits" and copy the FeatureServer/0 URL.
+        # Note: data.denvergov.org redirects to ArcGIS Hub (not Socrata/CKAN).
+        "city_name":        "Denver",
+        "source_key":       "denver",
+        "service_url":      (
+            "https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/arcgis/rest/services"
+            "/ODC_BUILDING_PERMITS_P/FeatureServer/0"
+        ),
+        "portal_url":       "https://opendata-geospatialdenver.hub.arcgis.com",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "WORK_DESC",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   "EXPIRATION_DATE",
+        "addr_field":       "ADDRESS",
+        "city_state":       "Denver, CO",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Portland, OR — Building Permits.
+        # Portal: https://gis.portlandoregon.gov  (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city portland --discover
+        #   Or visit: https://gis.portlandoregon.gov
+        #   Search "building permits" and copy the FeatureServer/0 URL.
+        "city_name":        "Portland",
+        "source_key":       "portland",
+        "service_url":      (
+            "https://services.arcgis.com/quVN97tn06YNGj9s/arcgis/rest/services"
+            "/BDS_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://gis.portlandoregon.gov",
+        "id_field":         "PERMIT_NBR",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "WORK_DESC",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "SITE_ADDRESS",
+        "city_state":       "Portland, OR",
         "skip_date_filter": False,
         "max_records":      None,
     },

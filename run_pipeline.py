@@ -241,7 +241,7 @@ STEPS = [
     },
     {
         # Fetches building permits from ArcGIS FeatureServer portals
-        # (Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville).
+        # (Phoenix, Columbus, Minneapolis, Charlotte, Denver, Portland).
         # NOTE: Service URLs require verification before first production run.
         #   Run: python backend/ingest/us_city_permits_arcgis.py --discover
         #   or visit each city's open data portal to confirm the FeatureServer URL.
@@ -249,6 +249,38 @@ STEPS = [
         "name": "Fetch US city permits (ArcGIS cities)",
         "cmd": [sys.executable, "backend/ingest/us_city_permits_arcgis.py"],
         "skip_key": "skip_arcgis_cities",
+        "non_fatal": True,
+    },
+    {
+        # Fetches SFPD crime data and calculates 12-month trends by police district.
+        # Source: data.sfgov.org (Socrata). Failures are non-fatal.
+        "name": "Fetch San Francisco crime trends",
+        "cmd": [sys.executable, "backend/ingest/sf_crime_trends.py"],
+        "skip_key": "skip_sf_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches BPD crime data and calculates 12-month trends by district.
+        # Source: data.baltimorecity.gov (Socrata). Failures are non-fatal.
+        "name": "Fetch Baltimore crime trends",
+        "cmd": [sys.executable, "backend/ingest/baltimore_crime_trends.py"],
+        "skip_key": "skip_baltimore_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Metro Nashville PD crime data and calculates 12-month trends by precinct.
+        # Source: data.nashville.gov (Socrata). Failures are non-fatal.
+        "name": "Fetch Nashville crime trends",
+        "cmd": [sys.executable, "backend/ingest/nashville_crime_trends.py"],
+        "skip_key": "skip_nashville_crime",
+        "non_fatal": True,
+    },
+    {
+        # Fetches Portland PPB crime data and calculates 12-month trends by precinct.
+        # Source: ArcGIS FeatureServer. Failures are non-fatal.
+        "name": "Fetch Portland crime trends",
+        "cmd": [sys.executable, "backend/ingest/portland_crime_trends.py"],
+        "skip_key": "skip_portland_crime",
         "non_fatal": True,
     },
     {
@@ -438,7 +470,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-arcgis-cities",
         action="store_true",
-        help="Skip the ArcGIS city permits fetch step (Phoenix, Columbus, Minneapolis, Charlotte, Jacksonville).",
+        help="Skip the ArcGIS city permits fetch step (Phoenix, Columbus, Minneapolis, Charlotte, Denver, Portland).",
+    )
+    parser.add_argument(
+        "--skip-sf-crime",
+        action="store_true",
+        help="Skip the San Francisco crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-baltimore-crime",
+        action="store_true",
+        help="Skip the Baltimore crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-nashville-crime",
+        action="store_true",
+        help="Skip the Nashville crime trends fetch step.",
+    )
+    parser.add_argument(
+        "--skip-portland-crime",
+        action="store_true",
+        help="Skip the Portland crime trends fetch step.",
     )
     parser.add_argument(
         "--skip-school-ratings",

@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits.py
-task: data-038, data-043, data-045
+task: data-038, data-043, data-045, data-047
 lane: data
 
 Generic Socrata-based ingest for building permits across major US cities,
@@ -13,6 +13,9 @@ Supported sources (configured in CITY_CONFIGS):
   - New York City Street Closures (data.cityofnewyork.us)
   - Seattle        (data.seattle.gov)
   - Kansas City    (data.kcmo.org)  [added data-045]
+  - San Francisco  (data.sfgov.org) [added data-047]
+  - Baltimore      (data.baltimorecity.gov) [added data-047]
+  - Nashville      (data.nashville.gov)     [added data-047]
 
 NOT SUPPORTED (no Socrata portal):
   - San Jose — the city uses ArcGIS Hub / GeoHub (gis.sanjoseca.gov).
@@ -259,14 +262,92 @@ CITY_CONFIGS: list[dict] = [
     #   indianapolis — data.indy.gov uses ArcGIS Hub; no building permit
     #                  dataset is published (only ordinance PDFs). Verified
     #                  2026-03-22 via Hub search + GIS server scan.
-    #   portland     — data.portlandoregon.gov DNS not resolving
-    #   nashville    — data.nashville.gov returns non-JSON (not Socrata)
+    #   portland     — uses ArcGIS Hub; see us_city_permits_arcgis.py (data-047)
+    #   nashville    — re-added to Socrata above (data-047); previous non-JSON
+    #                  error was likely transient; MUST VERIFY --dry-run
     #   detroit      — data.detroitmi.gov returns non-JSON (not Socrata)
     #   memphis      — data.memphistn.gov returns non-JSON (not Socrata)
     #   louisville   — data.louisvilleky.gov returns non-JSON (not Socrata)
-    #   baltimore    — data.baltimorecity.gov returns non-JSON (not Socrata)
-    #   boston        — data.boston.gov uses CKAN; moved to us_city_permits_ckan.py
+    #   baltimore    — re-added to Socrata above (data-047); previous non-JSON
+    #                  error was likely transient; MUST VERIFY --dry-run
+    #   boston       — data.boston.gov uses CKAN; moved to us_city_permits_ckan.py
     #   milwaukee    — data.milwaukee.gov uses CKAN; moved to us_city_permits_ckan.py
+    {
+        # San Francisco — Building Permits.
+        # Portal: https://data.sfgov.org
+        # Dataset: "Building Permits" (i98e-djp9)
+        # Verified pattern: data.sfgov.org uses Socrata.
+        # MUST VERIFY dataset_id and field names before production:
+        #   curl "https://data.sfgov.org/api/catalog/v1?q=building+permits&limit=5"
+        #   curl "https://data.sfgov.org/resource/i98e-djp9.json?$limit=1"
+        # Note: address is constructed from street_number + street_name fields.
+        # latitude/longitude are top-level fields on this dataset.
+        "city_name":        "San Francisco",
+        "source_key":       "san_francisco",
+        "domain":           "data.sfgov.org",
+        "dataset_id":       "i98e-djp9",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "street_number",
+        "city_state":       "San Francisco, CA",
+        "where_clause":     None,
+    },
+    {
+        # Baltimore, MD — Building Permits.
+        # Portal: https://data.baltimorecity.gov  (Socrata)
+        # Dataset: "Building Permits" (fesm-tgxf)
+        # MUST VERIFY dataset_id and field names before production:
+        #   curl "https://data.baltimorecity.gov/api/catalog/v1?q=building+permits&limit=5"
+        #   curl "https://data.baltimorecity.gov/resource/fesm-tgxf.json?$limit=1"
+        # Note: Previous runs returned non-JSON errors — may have been a transient
+        # rate-limit or portal issue. Re-verify with --dry-run.
+        "city_name":        "Baltimore",
+        "source_key":       "baltimore",
+        "domain":           "data.baltimorecity.gov",
+        "dataset_id":       "fesm-tgxf",
+        "id_field":         "permitnumber",
+        "type_field":       "permittype",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expirationdate",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "propertyaddress",
+        "city_state":       "Baltimore, MD",
+        "where_clause":     None,
+    },
+    {
+        # Nashville, TN — Building Permits.
+        # Portal: https://data.nashville.gov  (Socrata)
+        # Dataset: "Building Permits" (3h5a-qqft)
+        # MUST VERIFY dataset_id and field names before production:
+        #   curl "https://data.nashville.gov/api/catalog/v1?q=building+permits&limit=5"
+        #   curl "https://data.nashville.gov/resource/3h5a-qqft.json?$limit=1"
+        # Note: Previous runs returned non-JSON errors — may have been a transient
+        # rate-limit or portal issue. Re-verify with --dry-run.
+        "city_name":        "Nashville",
+        "source_key":       "nashville",
+        "domain":           "data.nashville.gov",
+        "dataset_id":       "3h5a-qqft",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type_cat",
+        "desc_field":       "comments",
+        "issue_date_field": "permit_date",
+        "exp_date_field":   None,
+        "lat_field":        "mapped_location.latitude",
+        "lon_field":        "mapped_location.longitude",
+        "loc_field":        "mapped_location",
+        "addr_field":       "permit_address",
+        "city_state":       "Nashville, TN",
+        "where_clause":     None,
+    },
     # -----------------------------------------------------------------
     # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
     #

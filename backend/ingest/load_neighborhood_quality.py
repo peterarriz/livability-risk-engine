@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045
+task: data-040, data-044, data-045, data-047
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -15,6 +15,10 @@ Reads from staging files written by:
   backend/ingest/denver_crime_trends.py        → data/raw/denver_crime_trends.json
   backend/ingest/boston_crime_trends.py        → data/raw/boston_crime_trends.json
   backend/ingest/milwaukee_crime_trends.py     → data/raw/milwaukee_crime_trends.json
+  backend/ingest/sf_crime_trends.py            → data/raw/sf_crime_trends.json
+  backend/ingest/baltimore_crime_trends.py     → data/raw/baltimore_crime_trends.json
+  backend/ingest/nashville_crime_trends.py     → data/raw/nashville_crime_trends.json
+  backend/ingest/portland_crime_trends.py      → data/raw/portland_crime_trends.json
   backend/ingest/census_acs.py                 → data/raw/census_acs.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
 
@@ -32,6 +36,10 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --source crime_denver
   python backend/ingest/load_neighborhood_quality.py --source crime_boston
   python backend/ingest/load_neighborhood_quality.py --source crime_milwaukee
+  python backend/ingest/load_neighborhood_quality.py --source crime_sf
+  python backend/ingest/load_neighborhood_quality.py --source crime_baltimore
+  python backend/ingest/load_neighborhood_quality.py --source crime_nashville
+  python backend/ingest/load_neighborhood_quality.py --source crime_portland
   python backend/ingest/load_neighborhood_quality.py --source census
   python backend/ingest/load_neighborhood_quality.py --source schools
 
@@ -73,6 +81,11 @@ STAGING_FILES = {
     "crime_denver":        Path("data/raw/denver_crime_trends.json"),
     "crime_boston":        Path("data/raw/boston_crime_trends.json"),
     "crime_milwaukee":     Path("data/raw/milwaukee_crime_trends.json"),
+    # data-047: tier-3 city crime trends
+    "crime_sf":            Path("data/raw/sf_crime_trends.json"),
+    "crime_baltimore":     Path("data/raw/baltimore_crime_trends.json"),
+    "crime_nashville":     Path("data/raw/nashville_crime_trends.json"),
+    "crime_portland":      Path("data/raw/portland_crime_trends.json"),
     # data-045: IL school ratings
     "schools":       Path("data/raw/il_school_ratings.json"),
 }
@@ -248,6 +261,7 @@ def parse_args() -> argparse.Namespace:
             "fema", "crime", "census",
             "crime_austin", "crime_seattle", "crime_nyc",
             "crime_kansas_city", "crime_denver", "crime_boston", "crime_milwaukee",
+            "crime_sf", "crime_baltimore", "crime_nashville", "crime_portland",
             "schools", "all",
         ],
         default="all",
