@@ -167,10 +167,11 @@ STEPS = [
         "non_fatal": True,
     },
     {
-        # Fetches Census ACS 5-year demographics for Cook County census tracts.
+        # Fetches Census ACS 5-year demographics for all census tracts in every
+        # county containing an active permit city (29 counties, ~25 cities).
         # Stored in neighborhood_quality table (region_type='census_tract').
         # No API key required. Failures are non-fatal.
-        "name": "Fetch Census ACS demographics (Cook County tracts)",
+        "name": "Fetch Census ACS demographics (all active-permit counties)",
         "cmd": [sys.executable, "backend/ingest/census_acs.py"],
         "skip_key": "skip_census_acs",
         "non_fatal": True,
