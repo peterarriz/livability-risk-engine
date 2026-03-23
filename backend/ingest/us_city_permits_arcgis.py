@@ -367,6 +367,79 @@ CITY_CONFIGS: list[dict] = [
     #   maps.coj.net and gis.coj.net both return 404. No building permit
     #   FeatureServer found on ArcGIS Online either.
     # -----------------------------------------------------------------
+    {
+        # San Jose, CA — Building Permits.
+        # Portal: https://gis.sanjoseca.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover
+        #   Or visit: https://gis.sanjoseca.gov and search "building permits"
+        # data-050: added 2026-03-23
+        "city_name":        "San Jose",
+        "source_key":       "san_jose",
+        "service_url":      (
+            "https://services.arcgis.com/p8Tul9YqBFRRdPqD/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://gis.sanjoseca.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "San Jose, CA",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Fort Worth, TX — Building Permits.
+        # Portal: https://data.fortworthtexas.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover
+        #   Or visit: https://data.fortworthtexas.gov and search "building permits"
+        # data-050: added 2026-03-23
+        "city_name":        "Fort Worth",
+        "source_key":       "fort_worth",
+        "service_url":      (
+            "https://services.arcgis.com/AHCzmZstRKFEQEqv/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.fortworthtexas.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Fort Worth, TX",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Albuquerque, NM — Building Permits.
+        # Portal: https://cabq.gov/abqdata (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover
+        #   Or visit: https://cabq.gov/abqdata and search "building permits"
+        #   Or search: https://abq.maps.arcgis.com
+        # data-050: added 2026-03-23
+        "city_name":        "Albuquerque",
+        "source_key":       "albuquerque",
+        "service_url":      (
+            "https://services.arcgis.com/3HnGBxB8VqLCXhUn/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://cabq.gov/abqdata",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Albuquerque, NM",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
 ]
 
 # Index by source_key for fast lookup.

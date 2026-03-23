@@ -1,6 +1,6 @@
 """
 backend/ingest/us_city_permits.py
-task: data-038, data-043, data-045, data-047, data-048
+task: data-038, data-043, data-045, data-047, data-048, data-050
 lane: data
 
 Generic Socrata-based ingest for building permits across major US cities,
@@ -425,6 +425,30 @@ CITY_CONFIGS: list[dict] = [
     #   GET https://<server>/arcgis/rest/services/<layer>/FeatureServer/0/query
     #       ?where=1%3D1&outFields=*&f=geojson&resultOffset=<N>&resultRecordCount=1000
     # -----------------------------------------------------------------
+    {
+        # Raleigh, NC — Building Permits.
+        # Portal: https://data.raleighnc.gov (Socrata)
+        # Dataset: Building Permits (NIBRS/development permits)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.raleighnc.gov/api/catalog/v1?q=building+permits&limit=5"
+        #   curl "https://data.raleighnc.gov/resource/k4n2-jcgh.json?$limit=1"
+        # data-050: added 2026-03-23
+        "city_name":        "Raleigh",
+        "source_key":       "raleigh",
+        "domain":           "data.raleighnc.gov",
+        "dataset_id":       "k4n2-jcgh",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Raleigh, NC",
+        "where_clause":     None,
+    },
 ]
 
 # Index by source_key for fast lookup.

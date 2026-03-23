@@ -1039,3 +1039,42 @@ tasks:
         CREATE TABLE IF NOT EXISTS score_history (...) -- see db/schema.sql
         CREATE TABLE IF NOT EXISTS watchlist (...) -- see db/schema.sql
         CREATE TABLE IF NOT EXISTS alert_log (...) -- see db/schema.sql
+
+  - id: data-049
+    title: Expand crime data to tier-4 US cities (12 new cities)
+    status: done
+    priority: medium
+    github_issue: 138
+    notes_for_next_agent: >
+      Added crime scripts for 12 cities (DC, OKC, San Antonio, San Diego,
+      Memphis, Louisville, Fresno, Sacramento, Las Vegas, El Paso, Tucson, Houston).
+      All wired into run_pipeline.py and load_neighborhood_quality.py.
+      Next: data-050 — expand to next 15 cities.
+
+  - id: data-050
+    title: Expand permits and crime to next 15 US cities
+    status: done
+    priority: medium
+    github_issue: 139
+    notes_for_next_agent: >
+      Completed 2026-03-23. Implemented for 10 cities (Las Vegas, SF, Denver,
+      Sacramento, Tucson already done; skipped).
+      CRIME SCRIPTS CREATED (all ArcGIS FeatureServer unless noted):
+        charlotte_crime_trends.py   — Socrata (data.charlottenc.gov, cdym-9n4y MUST VERIFY)
+        columbus_crime_trends.py    — ArcGIS (opendata.columbus.gov, org 9yy6msODkIBzkUXU MUST VERIFY)
+        minneapolis_crime_trends.py — Socrata (data.minneapolismn.gov, k65s-ce4x MUST VERIFY)
+        phoenix_crime_trends.py     — ArcGIS (phoenixopendata.com, org ubE5oANDhCRLGBDO MUST VERIFY)
+        san_jose_crime_trends.py    — ArcGIS (gis.sanjoseca.gov, org p8Tul9YqBFRRdPqD MUST VERIFY)
+        jacksonville_crime_trends.py — ArcGIS (coj.net, org Dv0qhb5jJMSEEVJL MUST VERIFY)
+        fort_worth_crime_trends.py  — ArcGIS (data.fortworthtexas.gov, org AHCzmZstRKFEQEqv MUST VERIFY)
+        indianapolis_crime_trends.py — ArcGIS (data.indy.gov, org ghDnFwW5bG9Ljzwi MUST VERIFY)
+        albuquerque_crime_trends.py — ArcGIS (cabq.gov/abqdata, org 3HnGBxB8VqLCXhUn MUST VERIFY)
+        raleigh_crime_trends.py     — Socrata (data.raleighnc.gov, d9dc-ixwq MUST VERIFY)
+      PERMITS ADDED:
+        us_city_permits_arcgis.py: san_jose, fort_worth, albuquerque (MUST VERIFY service URLs)
+        us_city_permits.py: raleigh (dataset k4n2-jcgh MUST VERIFY)
+        Jacksonville: no permit endpoint found (verified 2026-03-22, still removed)
+        Indianapolis: no building permit dataset on data.indy.gov (confirmed data-046)
+      WIRED: run_pipeline.py, load_neighborhood_quality.py, SKILL.md all updated.
+      Next: data-051 — dry-run validation of all data-050 scripts and
+      field name fixes as needed.
