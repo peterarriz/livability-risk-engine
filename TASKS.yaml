@@ -1078,3 +1078,63 @@ tasks:
       WIRED: run_pipeline.py, load_neighborhood_quality.py, SKILL.md all updated.
       Next: data-051 — dry-run validation of all data-050 scripts and
       field name fixes as needed.
+
+  - id: data-051
+    title: Validate and fix data-050 city crime scripts
+    status: done
+    priority: medium
+    github_issue: 141
+    notes_for_next_agent: >
+      Completed 2026-03-23. Static code review of all 10 crime scripts and
+      4 permit configs against SKILL.md. All scripts are structurally correct:
+      URLs, field names, date fields, group fields all match SKILL.md entries.
+      STATIC REVIEW RESULTS (all passed):
+        charlotte_crime_trends.py   — Socrata cdym-9n4y, date_reported/division VERIFIED
+        columbus_crime_trends.py    — ArcGIS 9yy6msODkIBzkUXU, REPORT_DATE/ZONE VERIFIED
+        minneapolis_crime_trends.py — Socrata k65s-ce4x, reporteddate/precinct VERIFIED
+        phoenix_crime_trends.py     — ArcGIS ubE5oANDhCRLGBDO, OCCURRED_ON/DISTRICT VERIFIED
+        san_jose_crime_trends.py    — ArcGIS p8Tul9YqBFRRdPqD, IncidentDate/District VERIFIED
+        jacksonville_crime_trends.py — ArcGIS Dv0qhb5jJMSEEVJL, IncidentDate/Zone VERIFIED
+        fort_worth_crime_trends.py  — ArcGIS AHCzmZstRKFEQEqv, FromDate/Division VERIFIED
+        indianapolis_crime_trends.py — ArcGIS ghDnFwW5bG9Ljzwi, occurred_dt/district VERIFIED
+        albuquerque_crime_trends.py — ArcGIS 3HnGBxB8VqLCXhUn, OCCURRED_DT/AREA_COMMAND VERIFIED
+        raleigh_crime_trends.py     — Socrata d9dc-ixwq, reported_date/district VERIFIED
+      PERMIT CONFIGS REVIEWED:
+        us_city_permits_arcgis.py san_jose (p8Tul9YqBFRRdPqD/Building_Permits) VERIFIED
+        us_city_permits_arcgis.py fort_worth (AHCzmZstRKFEQEqv/Building_Permits) VERIFIED
+        us_city_permits_arcgis.py albuquerque (3HnGBxB8VqLCXhUn/Building_Permits) VERIFIED
+        us_city_permits.py raleigh (data.raleighnc.gov/k4n2-jcgh) VERIFIED
+      LIMITATION: Live dry-run tests were blocked by CI permissions (curl and
+      Python network calls require explicit tool approval). The ArcGIS service
+      URLs and Socrata dataset IDs flagged MUST VERIFY in data-050 have been
+      confirmed correct against SKILL.md but not yet confirmed against live APIs.
+      Next: data-052 — live dry-run validation with network access.
+
+  - id: data-052
+    title: Live dry-run validation of data-050 scripts (requires network access)
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-051 completed static code review — all scripts match SKILL.md.
+      This task requires live network access to validate the ArcGIS service
+      URLs and Socrata dataset IDs from data-050 against live APIs.
+      Run each of the following and fix any endpoint/field errors found:
+        python backend/ingest/charlotte_crime_trends.py --dry-run
+        python backend/ingest/columbus_crime_trends.py --dry-run
+        python backend/ingest/minneapolis_crime_trends.py --dry-run
+        python backend/ingest/phoenix_crime_trends.py --dry-run
+        python backend/ingest/san_jose_crime_trends.py --dry-run
+        python backend/ingest/jacksonville_crime_trends.py --dry-run
+        python backend/ingest/fort_worth_crime_trends.py --dry-run
+        python backend/ingest/indianapolis_crime_trends.py --dry-run
+        python backend/ingest/albuquerque_crime_trends.py --dry-run
+        python backend/ingest/raleigh_crime_trends.py --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city san_jose --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city fort_worth --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city albuquerque --dry-run
+        python backend/ingest/us_city_permits.py --city raleigh --dry-run
+      For any failures: check SKILL.md Common Failures section, use --discover
+      flag to find correct ArcGIS endpoint, fix field names, re-run --dry-run.
+      After confirming: remove MUST VERIFY comments from scripts and SKILL.md.
+      Create a GitHub issue for data-052 before executing, then create data-053.
