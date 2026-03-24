@@ -17,7 +17,7 @@
 tasks:
   - id: data-061
     title: School quality map layer — nearby_schools in /score + map display
-    status: in-progress
+    status: done
     priority: high
     github_issue: 174
     notes_for_next_agent: >
