@@ -1087,3 +1087,42 @@ tasks:
       - Gantt timeline hover tooltip and row label use display_title instead of raw permit title
       - CSV export includes display_title, distance, description, why_it_matters columns
     notes_for_next_agent: "Completed. signal_display table is new; signal_rewrites (data-042) is kept for migration reads. Option A formatter is _format_option_a() in rewrite.py — mirrors heuristics from frontend buildRiskCards. Frontend uses display_title -> rewritten_title -> inferred chain so existing cached data keeps working. No PDF export endpoint exists yet (Pro plan gate in page.tsx); add display fields there when /export/pdf is implemented. Next: data-044 should add permit summary CSS styles for permit-detail-summary-* classes added to score-experience.tsx."
+  - id: data-045
+    lane: data
+    type: feature
+    title: "User accounts — email+password + Google OAuth"
+    owner: data
+    status: done
+    priority: high
+    files:
+      - db/schema.sql
+      - requirements.txt
+      - backend/app/auth.py
+      - backend/app/main.py
+      - frontend/package.json
+      - frontend/src/lib/auth-config.ts
+      - frontend/src/types/next-auth.d.ts
+      - frontend/src/app/api/auth/[...nextauth]/route.ts
+      - frontend/src/app/login/page.tsx
+      - frontend/src/app/providers.tsx
+      - frontend/src/app/layout.tsx
+      - frontend/src/lib/api.ts
+      - frontend/src/app/globals.css
+    dependencies:
+      - data-043
+    acceptance_criteria:
+      - accounts table added to schema.sql with email, password_hash, google_id, display_name, email_verified
+      - account_id FK (nullable) added to watchlist and score_history for ownership tracking
+      - backend/app/auth.py provides hash_password, verify_password, create_token, decode_token, get_current_user
+      - POST /auth/register creates email+password account, returns JWT
+      - POST /auth/login verifies credentials, returns JWT
+      - POST /auth/google upserts account from Google OAuth profile, returns JWT; protected by NEXTAUTH_BACKEND_SECRET
+      - GET /auth/me returns current user from Bearer JWT
+      - next-auth v4 added to frontend dependencies
+      - NextAuth configured with Google + Credentials providers in src/lib/auth-config.ts
+      - NextAuth route handler at src/app/api/auth/[...nextauth]/route.ts
+      - Session type extended in src/types/next-auth.d.ts with backend_token and id
+      - SessionProvider wraps app via src/app/providers.tsx, imported in layout.tsx
+      - Login/register page at /login with Google button, email+password form, mode toggle
+      - getAuthHeaders() exported from api.ts for attaching Bearer tokens to fetch calls
+    notes_for_next_agent: "Accounts table uses bcrypt for passwords. JWT_SECRET must be set in Railway. NEXTAUTH_SECRET and NEXTAUTH_URL must be set in Vercel. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET come from Google Cloud Console (OAuth 2.0 Credentials, Authorized redirect URI = <vercel-url>/api/auth/callback/google). NEXTAUTH_BACKEND_SECRET is optional but recommended to lock /auth/google to server-side NextAuth calls only. Next steps: (1) data-046 — wire account_id into /watch and /save endpoints so alerts are linked to logged-in user; (2) data-047 — add /account/reports endpoint to list saved reports for a user; (3) expose a sign-in button in the page header so users can reach /login."

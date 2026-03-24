@@ -2110,3 +2110,215 @@ def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# /auth/* endpoints  (data-045)
+#
+# Email+password and Google OAuth account management.
+#
+# POST /auth/register   — create a new account (email + password)
+# POST /auth/login      — sign in with email + password, receive JWT
+# POST /auth/google     — upsert account from Google OAuth profile (called
+#                         server-side by NextAuth after the OAuth dance)
+# GET  /auth/me         — return the current user from their Bearer token
+#
+# All password storage uses bcrypt via backend/app/auth.py.
+# Tokens are HS256 JWTs signed with JWT_SECRET (30-day expiry).
+# ---------------------------------------------------------------------------
+
+
+class _RegisterBody(BaseModel):
+    email: str
+    password: str
+    display_name: str | None = None
+
+
+class _LoginBody(BaseModel):
+    email: str
+    password: str
+
+
+class _GoogleBody(BaseModel):
+    google_id: str
+    email: str
+    display_name: str | None = None
+    # Optional server-to-server shared secret so only NextAuth can call this.
+    # Set NEXTAUTH_BACKEND_SECRET on both Railway and Vercel to enable.
+    internal_secret: str | None = None
+
+
+def _get_auth_conn():
+    """Open a DB connection for auth queries. Raises 503 if DB not configured."""
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+    from backend.scoring.query import get_db_connection
+    return get_db_connection()
+
+
+@app.post("/auth/register", status_code=201)
+def auth_register(body: _RegisterBody) -> dict:
+    """
+    Create a new email+password account.
+
+    Returns { account_id, email, display_name, token } on success.
+    Raises HTTP 409 if the email is already registered.
+    Raises HTTP 400 if password is fewer than 8 characters.
+    """
+    from backend.app.auth import create_token, hash_password
+
+    email = body.email.strip().lower()
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    conn = _get_auth_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM accounts WHERE email = %s", (email,))
+            if cur.fetchone():
+                raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+            pw_hash = hash_password(body.password)
+            display_name = (body.display_name or "").strip() or None
+            cur.execute(
+                """
+                INSERT INTO accounts (email, password_hash, display_name, email_verified)
+                VALUES (%s, %s, %s, false)
+                RETURNING id, email, display_name
+                """,
+                (email, pw_hash, display_name),
+            )
+            row = cur.fetchone()
+            conn.commit()
+
+        account_id, acct_email, acct_name = row
+        token = create_token(account_id, acct_email, acct_name)
+        log.info("auth register account_id=%d email=%r", account_id, acct_email)
+        return {"account_id": account_id, "email": acct_email, "display_name": acct_name, "token": token}
+    finally:
+        conn.close()
+
+
+@app.post("/auth/login")
+def auth_login(body: _LoginBody) -> dict:
+    """
+    Sign in with email + password.
+
+    Returns { account_id, email, display_name, token } on success.
+    Raises HTTP 401 for unknown email or wrong password.
+    """
+    from backend.app.auth import create_token, verify_password
+
+    email = body.email.strip().lower()
+    conn = _get_auth_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email, password_hash, display_name FROM accounts WHERE email = %s",
+                (email,),
+            )
+            row = cur.fetchone()
+
+        if not row or not row[2]:
+            # No account or OAuth-only account (no password_hash)
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        account_id, acct_email, pw_hash, acct_name = row
+        if not verify_password(body.password, pw_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        # Update last_login_at
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE accounts SET last_login_at = now() WHERE id = %s",
+                (account_id,),
+            )
+            conn.commit()
+
+        token = create_token(account_id, acct_email, acct_name)
+        log.info("auth login account_id=%d email=%r", account_id, acct_email)
+        return {"account_id": account_id, "email": acct_email, "display_name": acct_name, "token": token}
+    finally:
+        conn.close()
+
+
+@app.post("/auth/google")
+def auth_google(body: _GoogleBody) -> dict:
+    """
+    Upsert an account from a Google OAuth profile.
+
+    Called server-side by NextAuth after completing the Google OAuth flow.
+    The NEXTAUTH_BACKEND_SECRET env var (if set) gates access to this endpoint
+    so only the Next.js server can call it.
+
+    Returns { account_id, email, display_name, token }.
+    """
+    from backend.app.auth import create_token
+
+    # Optional server-to-server secret check
+    backend_secret = os.environ.get("NEXTAUTH_BACKEND_SECRET", "").strip()
+    if backend_secret and body.internal_secret != backend_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    email = body.email.strip().lower()
+    display_name = (body.display_name or "").strip() or None
+    conn = _get_auth_conn()
+    try:
+        with conn.cursor() as cur:
+            # Try to find existing account by google_id first, then by email
+            cur.execute(
+                "SELECT id, email, display_name FROM accounts WHERE google_id = %s",
+                (body.google_id,),
+            )
+            row = cur.fetchone()
+
+            if not row:
+                cur.execute(
+                    "SELECT id, email, display_name FROM accounts WHERE email = %s",
+                    (email,),
+                )
+                row = cur.fetchone()
+                if row:
+                    # Link Google to existing email account
+                    cur.execute(
+                        "UPDATE accounts SET google_id = %s, last_login_at = now() WHERE id = %s",
+                        (body.google_id, row[0]),
+                    )
+                else:
+                    # New Google-only account
+                    cur.execute(
+                        """
+                        INSERT INTO accounts (email, google_id, display_name, email_verified)
+                        VALUES (%s, %s, %s, true)
+                        RETURNING id, email, display_name
+                        """,
+                        (email, body.google_id, display_name),
+                    )
+                    row = cur.fetchone()
+            else:
+                cur.execute(
+                    "UPDATE accounts SET last_login_at = now() WHERE id = %s",
+                    (row[0],),
+                )
+
+            conn.commit()
+
+        account_id, acct_email, acct_name = row[0], row[1], row[2]
+        token = create_token(account_id, acct_email, acct_name)
+        log.info("auth google account_id=%d email=%r", account_id, acct_email)
+        return {"account_id": account_id, "email": acct_email, "display_name": acct_name, "token": token}
+    finally:
+        conn.close()
+
+
+@app.get("/auth/me")
+def auth_me(authorization: str = Header(default=None)) -> dict:
+    """
+    Return the current user's profile from their Bearer JWT.
+
+    Response: { account_id, email, name }
+    Raises HTTP 401 if the token is missing, expired, or invalid.
+    """
+    from backend.app.auth import get_current_user
+    user = get_current_user(authorization)
+    return {"account_id": user["sub"], "email": user["email"], "name": user.get("name")}
