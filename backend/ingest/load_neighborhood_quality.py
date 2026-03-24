@@ -32,6 +32,16 @@ Reads from staging files written by:
   backend/ingest/raleigh_crime_trends.py       → data/raw/raleigh_crime_trends.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
   backend/ingest/national_school_ratings.py   → data/raw/national_school_ratings.json
+  backend/ingest/philadelphia_crime_trends.py → data/raw/philadelphia_crime_trends.json
+  backend/ingest/new_orleans_crime_trends.py  → data/raw/new_orleans_crime_trends.json
+  backend/ingest/atlanta_crime_trends.py      → data/raw/atlanta_crime_trends.json
+  backend/ingest/detroit_crime_trends.py      → data/raw/detroit_crime_trends.json
+  backend/ingest/cleveland_crime_trends.py    → data/raw/cleveland_crime_trends.json
+  backend/ingest/cincinnati_crime_trends.py   → data/raw/cincinnati_crime_trends.json
+  backend/ingest/buffalo_crime_trends.py      → data/raw/buffalo_crime_trends.json
+  backend/ingest/providence_crime_trends.py   → data/raw/providence_crime_trends.json
+  backend/ingest/omaha_crime_trends.py        → data/raw/omaha_crime_trends.json
+  backend/ingest/pittsburgh_crime_trends.py   → data/raw/pittsburgh_crime_trends.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -122,6 +132,35 @@ STAGING_FILES = {
     "crime_indianapolis":  Path("data/raw/indianapolis_crime_trends.json"),
     "crime_albuquerque":   Path("data/raw/albuquerque_crime_trends.json"),
     "crime_raleigh":       Path("data/raw/raleigh_crime_trends.json"),
+    # data-056: tier-6 city crime trends
+    "crime_philadelphia":  Path("data/raw/philadelphia_crime_trends.json"),
+    "crime_new_orleans":   Path("data/raw/new_orleans_crime_trends.json"),
+    "crime_atlanta":       Path("data/raw/atlanta_crime_trends.json"),
+    "crime_detroit":       Path("data/raw/detroit_crime_trends.json"),
+    "crime_cleveland":     Path("data/raw/cleveland_crime_trends.json"),
+    "crime_cincinnati":    Path("data/raw/cincinnati_crime_trends.json"),
+    "crime_buffalo":       Path("data/raw/buffalo_crime_trends.json"),
+    "crime_providence":    Path("data/raw/providence_crime_trends.json"),
+    "crime_omaha":         Path("data/raw/omaha_crime_trends.json"),
+    "crime_pittsburgh":    Path("data/raw/pittsburgh_crime_trends.json"),
+    # data-057: tier-7 city crime trends
+    "crime_tampa":                Path("data/raw/tampa_crime_trends.json"),
+    "crime_miami":                Path("data/raw/miami_crime_trends.json"),
+    "crime_st_louis":             Path("data/raw/st_louis_crime_trends.json"),
+    "crime_baton_rouge":          Path("data/raw/baton_rouge_crime_trends.json"),
+    "crime_lexington":            Path("data/raw/lexington_crime_trends.json"),
+    "crime_orlando":              Path("data/raw/orlando_crime_trends.json"),
+    "crime_richmond":             Path("data/raw/richmond_crime_trends.json"),
+    "crime_des_moines":           Path("data/raw/des_moines_crime_trends.json"),
+    "crime_tulsa":                Path("data/raw/tulsa_crime_trends.json"),
+    "crime_wichita":              Path("data/raw/wichita_crime_trends.json"),
+    "crime_colorado_springs":     Path("data/raw/colorado_springs_crime_trends.json"),
+    "crime_arlington_tx":         Path("data/raw/arlington_tx_crime_trends.json"),
+    "crime_virginia_beach":       Path("data/raw/virginia_beach_crime_trends.json"),
+    "crime_mesa":                 Path("data/raw/mesa_crime_trends.json"),
+    "crime_aurora":               Path("data/raw/aurora_crime_trends.json"),
+    "crime_corpus_christi":       Path("data/raw/corpus_christi_crime_trends.json"),
+    "crime_greensboro":           Path("data/raw/greensboro_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -306,6 +345,16 @@ def parse_args() -> argparse.Namespace:
             "crime_charlotte", "crime_columbus", "crime_minneapolis", "crime_phoenix",
             "crime_san_jose", "crime_jacksonville", "crime_fort_worth",
             "crime_indianapolis", "crime_albuquerque", "crime_raleigh",
+            "crime_philadelphia", "crime_new_orleans", "crime_atlanta",
+            "crime_detroit", "crime_cleveland", "crime_cincinnati",
+            "crime_buffalo", "crime_providence", "crime_omaha",
+            "crime_pittsburgh",
+            # data-057: tier-7 cities
+            "crime_tampa", "crime_miami", "crime_st_louis", "crime_baton_rouge",
+            "crime_lexington", "crime_orlando", "crime_richmond", "crime_des_moines",
+            "crime_tulsa", "crime_wichita", "crime_colorado_springs",
+            "crime_arlington_tx", "crime_virginia_beach", "crime_mesa",
+            "crime_aurora", "crime_corpus_christi", "crime_greensboro",
             "schools", "schools_national", "all",
         ],
         default="all",
