@@ -43,6 +43,9 @@ export type ImpactType =
   | "construction"
   | "road_construction"
   | "light_permit"
+  // Utility signals (data-046)
+  | "utility_outage"
+  | "utility_repair"
   // Crime trend signals (data-054)
   | "crime_trend_increasing"
   | "crime_trend_decreasing"
