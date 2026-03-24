@@ -426,6 +426,75 @@ CITY_CONFIGS: list[dict] = [
     #       ?where=1%3D1&outFields=*&f=geojson&resultOffset=<N>&resultRecordCount=1000
     # -----------------------------------------------------------------
     {
+        # New Orleans — Building Permits.
+        # Portal: https://data.nola.gov (Socrata)
+        # Dataset: "Permits" (rcm3-fn58)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.nola.gov/api/catalog/v1?q=permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "New Orleans",
+        "source_key":       "new_orleans",
+        "domain":           "data.nola.gov",
+        "dataset_id":       "rcm3-fn58",
+        "id_field":         "numstring",
+        "type_field":       "type",
+        "desc_field":       "description",
+        "issue_date_field": "issuedate",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "New Orleans, LA",
+        "where_clause":     None,
+    },
+    {
+        # Cincinnati — Building Permits.
+        # Portal: https://data.cincinnati-oh.gov (Socrata)
+        # Dataset: "Permits" (uhjb-xac9)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.cincinnati-oh.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "Cincinnati",
+        "source_key":       "cincinnati",
+        "domain":           "data.cincinnati-oh.gov",
+        "dataset_id":       "uhjb-xac9",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "originaladdress1",
+        "city_state":       "Cincinnati, OH",
+        "where_clause":     None,
+    },
+    {
+        # Buffalo — Building Permits.
+        # Portal: https://data.buffalony.gov (Socrata)
+        # Dataset: "Building Permits" (9p2d-f3yt)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.buffalony.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "Buffalo",
+        "source_key":       "buffalo",
+        "domain":           "data.buffalony.gov",
+        "dataset_id":       "9p2d-f3yt",
+        "id_field":         "apno",
+        "type_field":       "aptype",
+        "desc_field":       "descofwork",
+        "issue_date_field": "issued",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "stname",
+        "city_state":       "Buffalo, NY",
+        "where_clause":     None,
+    },
+    {
         # Raleigh, NC — Building Permits.
         # Portal: https://data.raleighnc.gov (Socrata)
         # Dataset: Building Permits (NIBRS/development permits)
