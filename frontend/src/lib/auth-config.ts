@@ -87,7 +87,6 @@ export const authOptions: NextAuthOptions = {
           id: String(data.account_id),
           email: data.email,
           name: data.display_name ?? data.email.split("@")[0],
-          // @ts-expect-error — extended field declared in next-auth.d.ts
           backend_token: data.token,
         };
       },
