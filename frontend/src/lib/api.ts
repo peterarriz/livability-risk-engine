@@ -52,6 +52,7 @@ export type NearbySignal = {
   severity_hint: string;
   weight: number;
   // Optional fields for richer popup display and 30-day forecast
+  address?: string | null;
   source?: string;
   start_date?: string | null;
   end_date?: string | null;
