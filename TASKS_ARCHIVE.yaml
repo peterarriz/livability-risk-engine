@@ -1,0 +1,403 @@
+---
+# TASKS_ARCHIVE.yaml
+# Completed tasks — data lane only.
+# Agents: do NOT read this file unless debugging a regression.
+# Active/backlog tasks are in TASKS.yaml.
+
+tasks:
+  - id: data-001
+    title: Define project schema and data model
+    status: done
+    notes: Schema in db/schema.sql. Canonical table is `projects`.
+
+  - id: data-002
+    title: Ingest Chicago building permits from Socrata API
+    status: done
+    notes: backend/ingest/building_permits.py → data/raw/building_permits.json
+
+  - id: data-003
+    title: Data model — Project dataclass and normalization helpers
+    status: done
+    notes: backend/models/project.py — normalize_permit, normalize_closure
+
+  - id: data-004
+    title: Ingest Chicago CDOT street closures from Socrata API
+    status: done
+    notes: backend/ingest/street_closures.py → data/raw/street_closures.json
+
+  - id: data-005
+    title: Canonical projects table schema (PostGIS)
+    status: done
+    notes: db/schema.sql — geom column removed in data-038 (no PostGIS on Railway)
+
+  - id: data-006
+    title: Normalize building permits into canonical projects table
+    status: done
+    notes: normalize_permit() in backend/models/project.py
+
+  - id: data-007
+    title: Normalize street closures into canonical projects table
+    status: done
+    notes: normalize_closure() in backend/models/project.py
+
+  - id: data-008
+    title: Geocoding — address to lat/lon via Chicago geocoder
+    status: done
+    notes: backend/ingest/geocode.py — geocode_address(address) → (lat, lon) | None
+
+  - id: data-009
+    title: Scoring query — ST_DWithin radius query (now haversine)
+    status: done
+    notes: backend/scoring/query.py — get_nearby_projects(), compute_score(). 500m radius.
+
+  - id: data-010
+    title: Ingest freshness check
+    status: done
+    notes: backend/ingest/check_freshness.py — reads ingest_runs table
+
+  - id: data-011
+    title: Geocode fill — backfill missing coordinates in staging files
+    status: done
+    notes: backend/ingest/geocode_fill.py — run before load_projects.py
+
+  - id: data-012
+    title: DB summary / row count reporter
+    status: done
+    notes: backend/ingest/db_summary.py
+
+  - id: data-013
+    title: DB loader — upsert normalized Project records
+    status: done
+    notes: backend/ingest/load_projects.py — idempotent ON CONFLICT upsert
+
+  - id: data-014
+    title: Audit DB hosting requirements and document options
+    status: done
+    notes: Railway chosen. DATABASE_URL in GitHub secrets.
+
+  - id: data-015
+    title: Provision Railway Postgres instance
+    status: done
+    notes: Railway DB live. Schema applied via scripts/apply_schema.sh.
+
+  - id: data-016
+    title: Create pipeline orchestrator and schema apply script
+    status: done
+    notes: run_pipeline.py at root; scripts/apply_schema.sh
+
+  - id: data-017
+    title: Apply schema and run live ingest against Railway database
+    status: done
+    github_issue: 30
+    notes: >
+      DB live on Railway. Demo fallbacks removed from backend/app/main.py
+      and frontend/src/lib/api.ts. /score returns live data.
+
+  - id: data-018
+    title: Deploy FastAPI backend to Railway — code delivery
+    status: done
+    github_issue: 41
+    notes: backend/railway.toml, backend/Procfile, root railway.toml. CORS via FRONTEND_ORIGIN.
+
+  - id: data-019
+    title: Deploy FastAPI backend to Railway — operator validation
+    status: done
+    github_issue: 49
+    notes: >
+      Railway backend live at https://livability-risk-engine-production-2bad.up.railway.app.
+      NEXT_PUBLIC_API_URL set in Vercel. End-to-end live scoring confirmed.
+
+  - id: data-020
+    title: Schedule recurring ingest pipeline via GitHub Actions cron
+    status: done
+    notes: .github/workflows/ingest.yml — daily 06:00 UTC, manual dispatch supported.
+
+  - id: data-021
+    title: Shareable report pages — /save endpoint + /report/[id] page
+    status: done
+    notes: /save stores score; /report/[id] renders read-only report.
+
+  - id: data-022
+    title: Persist address history to localStorage
+    status: done
+    notes: Address search history in localStorage.
+
+  - id: data-023
+    title: Add /compare page for side-by-side address comparison
+    status: done
+    notes: /compare page enables side-by-side scoring of two addresses.
+
+  - id: data-024
+    title: Add structured top_risk_details to ScoreResult and ScoreResponse
+    status: done
+    notes: top_risk_details field in ScoreResult dataclass and /score response.
+
+  - id: data-025
+    title: Score history table + /history endpoint + fetchHistory()
+    status: done
+    notes: score_history table; /history endpoint; fetchHistory() in frontend/src/lib/api.ts.
+
+  - id: data-026
+    title: Add neighborhood heat map pages /neighborhood/[slug]
+    status: done
+    notes: /neighborhood/[slug] renders aggregate risk by neighborhood.
+
+  - id: data-027
+    title: Add API key auth middleware for /score
+    status: done
+    notes: REQUIRE_API_KEY env var gates /score. Currently disabled on Railway.
+
+  - id: data-028
+    title: Developer portal /api-access page with endpoint docs and code examples
+    status: done
+    notes: /api-access page documents all endpoints with curl/Python/JS examples.
+
+  - id: data-029
+    title: CSV and PDF export endpoints
+    status: done
+    notes: /export/csv and /export/pdf added to backend.
+
+  - id: data-030
+    title: Score alert watchlist — watchlist/alert_log tables + /watch endpoints
+    status: done
+    notes: watchlist + alert_log tables in schema.sql. /watch POST/DELETE endpoints.
+
+  - id: data-031
+    title: Add Illinois statewide data sources — IDOT and Cook County
+    status: done
+    notes: backend/ingest/idot_road_projects.py (ArcGIS REST). Cook County permits added.
+
+  - id: data-032
+    title: Illinois city permits geocoding and additional IL data coverage
+    status: done
+    notes: IL city permits geocoded. Date lookback bug fixed.
+
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, IL cities, IDOT verified
+    status: done
+    notes: Verified IDOT dataset IDs. Replaced 7 broken dataset IDs.
+
+  - id: data-036
+    title: Chicago 311, film permits, and special events data sources
+    status: done
+    github_issue: 91
+    notes: >
+      backend/ingest/chicago_311_requests.py, chicago_film_permits.py, chicago_special_events.py.
+      Normalizers + loaders added. run_pipeline.py updated with --skip-311/--skip-film/--skip-events.
+
+  - id: data-037
+    title: Research Illinois Tollway construction data source
+    status: done
+    github_issue: 96
+    notes: Won't-fix. No public REST API. IDOT District 1 sufficient for Chicago neighborhoods.
+
+  - id: data-038
+    title: Remove PostGIS dependency — use haversine lat/lon radius query
+    status: done
+    notes: >
+      Railway standard Postgres has no PostGIS. Switched to haversine bounding-box query.
+      geom column removed from schema. projects_location_idx (lat, lon) added.
+
+  - id: data-039
+    title: Validate live /score endpoint returns real DB data post-ingest
+    status: done
+    notes: End-to-end scoring confirmed. Railway mode="live", db_configured=true.
+
+  - id: data-041
+    title: Set up ingest monitoring and alerting
+    status: done
+    github_issue: 133
+    notes: >
+      run_pipeline.py writes to ingest_runs. /health/db returns last_ingest_at/status/count.
+      Slack alert via SLACK_WEBHOOK_URL secret (falls back to GitHub Actions annotation).
+      Regression check: fails if active project count drops >20% vs prior run.
+
+  - id: data-042
+    title: Validate and calibrate scoring weights against real addresses
+    status: done
+    notes: >
+      Calibration used synthetic fixtures (DB not yet live at time). All 7 scenarios passed.
+      road_construction (weight 20) missing from _derive_severity/_build_top_risks — fixed.
+      scripts/calibrate_scoring.py re-runnable. Results in docs/live_score_validation.md.
+
+  - id: data-042b
+    title: Claude-powered signal card rewriter with DB cache
+    status: done
+    notes: >
+      backend/scoring/rewrite.py rewrites raw permit strings to clean titles/descriptions.
+      Cache: signal_rewrites table. Requires ANTHROPIC_API_KEY on Railway.
+      Graceful degradation if key unset. Cache lazily populated per project_id.
+
+  - id: data-043
+    title: Wire per-key API call metering to api_keys table
+    status: done
+    notes: >
+      api_keys table added to schema.sql. /usage endpoint returns call_count/last_called_at.
+      REQUIRE_API_KEY still disabled on Railway by default.
+
+  - id: data-044
+    title: Post-ingest data quality validation step
+    status: done
+    notes: >
+      scripts/validate_ingest.py — 4 checks (missing coords, stale records, duplicates,
+      unknown impact_type). Added to ingest.yml after smoke check.
+
+  - id: data-045
+    title: Batch scoring endpoint
+    status: done
+    notes: >
+      POST /score/batch (max 200 addresses, ThreadPoolExecutor 10 workers).
+      POST /score/batch/csv (multipart CSV upload → CSV download).
+      Always requires X-API-Key. Documented in docs/04_api_contracts.md.
+
+  - id: data-046b
+    title: Expand US city permit ingest to next 10 cities (tier-2)
+    status: done
+    github_issue: 114
+    notes: >
+      9 Socrata cities added to us_city_permits.py. Denver added to us_city_permits_ckan.py.
+      backend/ingest/us_city_permits_arcgis.py created for Phoenix/Columbus/Minneapolis/
+      Charlotte/Jacksonville.
+
+  - id: data-047
+    title: Expand to SF, Denver, Baltimore, Nashville, Portland permits + crime
+    status: done
+    github_issue: 122
+    notes: >
+      Permits: SF/Baltimore/Nashville (Socrata), Denver/Portland (ArcGIS).
+      Crime scripts: sf_crime_trends.py, baltimore_crime_trends.py, nashville_crime_trends.py,
+      portland_crime_trends.py. All wired into run_pipeline.py + load_neighborhood_quality.py.
+
+  - id: data-048b
+    title: Expand crime data to tier-4 US cities (12 new cities)
+    status: done
+    github_issue: 138
+    notes: >
+      DC, OKC, San Antonio, San Diego, Memphis, Louisville, Fresno, Sacramento,
+      Las Vegas, El Paso, Tucson, Houston crime scripts. All wired.
+
+  - id: data-049
+    title: Expand permits and crime to next 15 US cities (tier-5)
+    status: done
+    github_issue: 139
+    notes: >
+      10 new crime scripts (Charlotte, Columbus, Minneapolis, Phoenix, San Jose,
+      Jacksonville, Fort Worth, Indianapolis, Albuquerque, Raleigh).
+      ArcGIS permits added for San Jose, Fort Worth, Albuquerque; Socrata for Raleigh.
+
+  - id: data-050
+    title: Validate and fix tier-5 city crime scripts (static review)
+    status: done
+    github_issue: 141
+    notes: >
+      Static review passed for all 10 crime scripts. Live dry-run blocked by CI permissions.
+      Dataset IDs confirmed against SKILL.md but not against live APIs yet.
+
+  - id: data-051
+    title: Expand Census ACS demographics to all active permit cities (29 counties)
+    status: done
+    github_issue: 143
+    notes: >
+      backend/ingest/census_acs.py expanded from Cook County to 29 counties.
+      Output: data/raw/census_acs.json (merged).
+
+  - id: data-052
+    title: Expand school ratings nationally using NCES / Urban Institute data
+    status: done
+    github_issue: 148
+    notes: >
+      backend/ingest/national_school_ratings.py covers 34 active cities.
+      school_rating/attainment/growth null — state report card API deferred.
+
+  - id: data-053
+    title: Fix neighborhood page — zero project count and missing map circles
+    status: done
+    notes: >
+      Root cause: column name mismatch (lat/lon vs latitude/longitude) + missing spatial filter.
+      Switched to ST_Within haversine pattern. Status filter expanded to (active, planned).
+
+  - id: data-054
+    title: Wire CTA alerts and crime trend signals into /score nearby_signals
+    status: done
+    github_issue: 154
+    notes: >
+      get_nearby_crime_signals() added to backend/scoring/query.py. Weight=0 (informational).
+      New impact types added to map-view.tsx and api.ts.
+
+  - id: data-055b
+    title: Expand crime trends to 10 new cities (tier-6)
+    status: done
+    notes: >
+      Philadelphia (Carto), New Orleans (Socrata), Atlanta/Detroit/Cleveland/Omaha (ArcGIS),
+      Cincinnati/Buffalo/Providence (Socrata), Pittsburgh (CKAN, stale after Nov 2023).
+
+  - id: data-056
+    title: Expand to next 20 US cities — permits and crime (tier-7)
+    status: done
+    github_issue: 158
+    notes: >
+      17 new city crime scripts (Tampa, Miami-Dade, St. Louis, Baton Rouge, Lexington,
+      Orlando, Richmond, Des Moines, Tulsa, Wichita, Colorado Springs, Arlington TX,
+      Virginia Beach, Mesa AZ, Aurora CO, Corpus Christi, Greensboro NC).
+      5 Socrata + 13 ArcGIS permit configs added. All dataset IDs MUST VERIFY.
+
+  - id: app-009
+    title: Fix 4 small UX bugs (confidence reasons, alert, demo chips, compare link)
+    status: done
+    notes: Committed on branch claude/improve-livability-ux-i8yCL.
+
+  - id: app-010
+    title: Fix icon-btn anchor tag missing text-decoration none
+    status: done
+
+  - id: app-011
+    title: Escape key closes save report modal
+    status: done
+
+  - id: app-012
+    title: Risk card grid empty columns when fewer than 3 risks
+    status: done
+
+  - id: app-013
+    title: Update document.title when address result loads
+    status: done
+
+  - id: app-014
+    title: Add clear button to address input
+    status: done
+
+  - id: app-015
+    title: Accordion behavior for risk detail panels
+    status: done
+
+  - id: app-016
+    title: Show score timestamp in Quick Read card
+    status: done
+
+  - id: app-017
+    title: Keyboard shortcut — slash key focuses address input
+    status: done
+
+  - id: app-018
+    title: Good-news empty state when no risks detected
+    status: done
+
+  - id: app-019
+    title: History dropdown closes on Escape key
+    status: done
+
+  - id: app-020
+    title: Confidence dot color fix
+    status: done
+
+  - id: app-021
+    title: Add aria-live region around score result section
+    status: done
+
+  - id: app-022
+    title: Mobile topnav cleanup in workspace mode
+    status: done
+
+  - id: app-023
+    title: Add skip-to-main-content link for keyboard accessibility
+    status: done
