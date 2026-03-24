@@ -55,11 +55,8 @@ DISRUPTION_SR_TYPES = [
     "Pavement Cave-In",
     "Tree Emergency",
     "Street Light - Pole Down",
-    # data-038: traffic signal outage types — MUST VERIFY exact SR_TYPE strings
-    # via dry-run: python backend/ingest/chicago_311_requests.py --dry-run
-    "Traffic Signal Out - All Signals Out",
-    "Traffic Signal Out - Sporadic/Cycling",
-    "Traffic Light Out - All Signals Out",  # alternate name variant
+    "Traffic Signal Out - All Signals Out",    # data-038: traffic_signal_outage signal
+    "Traffic Signal Out - Sporadic/Cycling",   # data-038: traffic_signal_outage signal
 ]
 
 # Fields to retain from the raw 311 request record.
