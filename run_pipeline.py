@@ -678,6 +678,43 @@ STEPS = [
         "skip_key": "skip_st_louis_crime",
         "non_fatal": True,
     },
+    # -----------------------------------------------------------------
+    # data-059: Tier-9 city crime trends (5 new cities)
+    # ArcGIS: Tacoma, Chattanooga, Grand Rapids, Fayetteville NC
+    # OpenDataSoft: Cary NC
+    # Skipped (no public API): Akron OH, Knoxville TN, Fort Wayne IN,
+    #   Shreveport LA, Tallahassee FL, Huntsville AL, Winston-Salem NC
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Tacoma crime trends",
+        "cmd": [sys.executable, "backend/ingest/tacoma_crime_trends.py"],
+        "skip_key": "skip_tacoma_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Chattanooga crime trends",
+        "cmd": [sys.executable, "backend/ingest/chattanooga_crime_trends.py"],
+        "skip_key": "skip_chattanooga_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Grand Rapids crime trends",
+        "cmd": [sys.executable, "backend/ingest/grand_rapids_crime_trends.py"],
+        "skip_key": "skip_grand_rapids_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Fayetteville NC crime trends",
+        "cmd": [sys.executable, "backend/ingest/fayetteville_nc_crime_trends.py"],
+        "skip_key": "skip_fayetteville_nc_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Cary NC crime trends",
+        "cmd": [sys.executable, "backend/ingest/cary_crime_trends.py"],
+        "skip_key": "skip_cary_crime",
+        "non_fatal": True,
+    },
     {
         # data-053: Fetches public school locations for all active cities using
         # NCES Common Core of Data via the Urban Institute Education Data API.
@@ -1087,6 +1124,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-gilbert-crime", action="store_true", help="Skip the Gilbert crime trends fetch step.")
     parser.add_argument("--skip-glendale-az-crime", action="store_true", help="Skip the Glendale AZ crime trends fetch step.")
     parser.add_argument("--skip-henderson-crime", action="store_true", help="Skip the Henderson crime trends fetch step.")
+    # data-059: tier-9 cities
+    parser.add_argument("--skip-tacoma-crime", action="store_true", help="Skip the Tacoma crime trends fetch step.")
+    parser.add_argument("--skip-chattanooga-crime", action="store_true", help="Skip the Chattanooga crime trends fetch step.")
+    parser.add_argument("--skip-grand-rapids-crime", action="store_true", help="Skip the Grand Rapids crime trends fetch step.")
+    parser.add_argument("--skip-fayetteville-nc-crime", action="store_true", help="Skip the Fayetteville NC crime trends fetch step.")
+    parser.add_argument("--skip-cary-crime", action="store_true", help="Skip the Cary NC crime trends fetch step.")
     parser.add_argument(
         "--skip-school-ratings",
         action="store_true",

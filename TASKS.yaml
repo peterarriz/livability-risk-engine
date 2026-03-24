@@ -107,17 +107,32 @@ tasks:
       Next: data-059 (tier-8 dry-run validation) or data-038 (CDOT signal outage ingest).
 
   - id: data-059
-    title: Dry-run validation for tier-8 city scripts (data-058)
-    status: backlog
+    title: Tier-9 city expansion — crime trends for 5 new cities + Gilbert fix
+    status: in-progress
     priority: high
-    github_issue: ~
+    github_issue: 186
     notes_for_next_agent: >
-      Run --dry-run for all tier-8 cities added in data-058. Fix any wrong
-      dataset IDs or ArcGIS service URLs. Remove MUST VERIFY comments on success.
-      See data-058 notes_for_next_agent for the full list of commands to run.
-      For St. Louis: run --discover first to confirm the SLMPD CSV URL pattern,
-      then update CSV_URL_TEMPLATE, DATE_FIELD, DISTRICT_FIELD if needed.
-      Follow SKILL.md Common Failures for fixing wrong IDs/URLs.
+      Expanded crime trend coverage (tier-9). New scripts created:
+        Crime (ArcGIS): tacoma_crime_trends.py, chattanooga_crime_trends.py,
+          grand_rapids_crime_trends.py, fayetteville_nc_crime_trends.py
+        Crime (OpenDataSoft): cary_crime_trends.py
+      Fixed gilbert_crime_trends.py — was using Durham NC's ArcGIS endpoint
+        (services3.arcgis.com/dty2kHktVXHrqO8i), corrected to Gilbert AZ's
+        own portal (services.arcgis.com/K1VMQDQNLVxLvLqs/GPD_Crime_Incidents).
+        Gilbert endpoint is MUST VERIFY — org ID may be invalid.
+      All wired into run_pipeline.py + load_neighborhood_quality.py.
+      Skipped (no public API, researched 2026-03-24):
+        Akron OH, Knoxville TN, Fort Wayne IN, Shreveport LA,
+        Tallahassee FL, Huntsville AL, Winston-Salem NC.
+      Chattanooga uses incident_type grouping (no geographic field found) —
+        may need updating if a zone/district field exists.
+      Next agent: run --dry-run for all new scripts, fix any errors:
+        python backend/ingest/tacoma_crime_trends.py --dry-run
+        python backend/ingest/chattanooga_crime_trends.py --dry-run
+        python backend/ingest/grand_rapids_crime_trends.py --dry-run
+        python backend/ingest/fayetteville_nc_crime_trends.py --dry-run
+        python backend/ingest/cary_crime_trends.py --dry-run
+        python backend/ingest/gilbert_crime_trends.py --dry-run
 
   - id: data-055
     title: Live dry-run validation of tier-5 city crime scripts + state report card API research
