@@ -727,7 +727,7 @@ export default function HomePage() {
                     <p className="map-kicker">Spatial context</p>
                     <h2>Address and nearby area</h2>
                   </div>
-                  <span className="map-badge">Stadia Dark</span>
+                  <span className="map-badge">CARTO Dark</span>
                 </div>
                 {mapCoords ? (
                   <MapView
@@ -736,7 +736,9 @@ export default function HomePage() {
                     address={result.address}
                     disruptionScore={result.disruption_score}
                     signals={result.nearby_signals ?? []}
+                    schools={result.nearby_schools ?? []}
                     topRiskDetails={result.top_risk_details ?? []}
+                    nearbySchools={result.nearby_schools ?? []}
                     isPro={false}
                   />
                 ) : (

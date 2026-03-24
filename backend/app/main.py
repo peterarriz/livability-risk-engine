@@ -552,6 +552,7 @@ def _score_live(address: str) -> dict:
         get_db_connection,
         get_nearby_crime_signals,
         get_nearby_projects,
+        get_nearby_schools,
         get_neighborhood_context,
     )
     from backend.scoring.rewrite import enrich_top_risk_details
@@ -605,6 +606,17 @@ def _score_live(address: str) -> dict:
                 ) + crime_signals
         except Exception as crime_exc:
             log.debug("crime_signals lookup skipped: %s", crime_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        # Nearby schools for map layer (data-061). Non-fatal if table absent.
+        try:
+            result_dict["nearby_schools"] = get_nearby_schools(lat, lon, conn)
+        except Exception as school_exc:
+            log.debug("nearby_schools lookup skipped: %s", school_exc)
+            result_dict["nearby_schools"] = []
             try:
                 conn.rollback()
             except Exception:

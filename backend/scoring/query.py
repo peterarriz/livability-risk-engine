@@ -291,7 +291,10 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
     )
     noise_pts = sum(
         w for np, w in contributions
-        if np.project.impact_type in (IMPACT_DEMOLITION, IMPACT_CONSTRUCTION)
+        if np.project.impact_type in (
+            IMPACT_DEMOLITION, IMPACT_CONSTRUCTION,
+            IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
+        )
     )
     dust_pts = sum(
         w for np, w in contributions
@@ -754,6 +757,100 @@ def get_nearby_crime_signals(
         "severity_hint": severity_map.get(crime_trend, "MEDIUM"),
         "weight": 0.0,
     }]
+
+
+# ---------------------------------------------------------------------------
+# Nearby schools  (data-061)
+# ---------------------------------------------------------------------------
+
+NEARBY_SCHOOLS_SQL = """
+    SELECT
+        school_name,
+        school_rating,
+        latitude,
+        longitude,
+        6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((latitude - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(latitude)) *
+                power(sin(radians((longitude - %s) / 2.0)), 2)
+            )
+        ) AS distance_m
+    FROM neighborhood_quality
+    WHERE
+        region_type = 'school'
+        AND latitude  IS NOT NULL
+        AND longitude IS NOT NULL
+        AND latitude  BETWEEN %s AND %s
+        AND longitude BETWEEN %s AND %s
+        AND 6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((latitude - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(latitude)) *
+                power(sin(radians((longitude - %s) / 2.0)), 2)
+            )
+        ) <= %s
+    ORDER BY distance_m ASC
+    LIMIT 20;
+"""
+
+_SCHOOL_RADIUS_M = 1000
+
+
+def get_nearby_schools(
+    lat: float,
+    lon: float,
+    db_conn,
+) -> list[dict]:
+    """
+    Return schools within 1 km of (lat, lon) from neighborhood_quality.
+
+    Non-fatal: returns an empty list if the table is absent, columns are
+    missing, or any other error occurs (graceful degradation before
+    data-061 ingest runs).
+
+    Args:
+        lat: Query latitude (WGS84).
+        lon: Query longitude (WGS84).
+        db_conn: An open psycopg2 connection.
+
+    Returns:
+        List of dicts with lat, lon, name, rating, distance_m.
+    """
+    if not HAS_PSYCOPG2:
+        return []
+
+    lat_delta = _SCHOOL_RADIUS_M / 111_000.0
+    lon_delta = _SCHOOL_RADIUS_M / (111_000.0 * math.cos(math.radians(lat)) + 1e-9)
+
+    try:
+        with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                NEARBY_SCHOOLS_SQL,
+                (
+                    # SELECT distance_m expression (lat, lat, lon)
+                    lat, lat, lon,
+                    # WHERE bounding box
+                    lat - lat_delta, lat + lat_delta,
+                    lon - lon_delta, lon + lon_delta,
+                    # WHERE haversine <= radius_m (lat, lat, lon, radius_m)
+                    lat, lat, lon, _SCHOOL_RADIUS_M,
+                ),
+            )
+            rows = cur.fetchall()
+    except Exception:
+        return []
+
+    return [
+        {
+            "lat": row["latitude"],
+            "lon": row["longitude"],
+            "name": row["school_name"],
+            "rating": row["school_rating"],
+            "distance_m": round(float(row["distance_m"])),
+        }
+        for row in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

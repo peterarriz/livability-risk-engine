@@ -11,10 +11,33 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-058 (tier-8 city expansion — 25 cities)
-# Next task to create: data-059
+# Last completed task: data-038 (traffic signal outage signals)
+# Next task to create: data-061
 
 tasks:
+  - id: data-061
+    title: School quality map layer — nearby_schools in /score + map display
+    status: done
+    priority: high
+    github_issue: 174
+    notes_for_next_agent: >
+      Added get_nearby_schools() to backend/scoring/query.py — queries
+      neighborhood_quality WHERE region_type='school' within 1 km, returns
+      lat/lon/name/rating/color/distance_m. Wired into _score_live() in main.py
+      as non-fatal nearby_schools field. Added NearbySchool type to api.ts and
+      nearby_schools to ScoreResponse. Map renders school CircleMarkers (radius 7,
+      colored border+fill, 50% opacity) in a separate schoolGroupRef layer.
+      Colors: green=Level 1+/Excellent, light_green=Level 1/Strong,
+      yellow=Level 2/Average, orange=Level 3/Weak, red=Level 4/Very Weak, gray=unknown.
+      Also fixed map tile badge label ("Stadia Dark" → "CARTO Dark") in page.tsx.
+      Next: verify schools appear for Chicago addresses. If neighborhood_quality
+      has no school rows yet, run:
+        python backend/ingest/il_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools
+        python backend/ingest/national_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools_national
+
+
   - id: data-058
     title: Expand to next 25 US cities — permits and crime (tier-8)
     status: done
@@ -64,6 +87,24 @@ tasks:
         Boise ID, Richmond CA, Fremont CA, Irvine CA, San Bernardino CA,
         Modesto CA, Fontana CA, Moreno Valley CA, Lubbock TX, Garland TX,
         Chesapeake VA — documented in SKILL.md.
+
+  - id: data-060
+    title: Fix map display for utility_outage and utility_repair signal types
+    status: done
+    priority: high
+    github_issue: 169
+    notes_for_next_agent: >
+      data-046 (PR #168) added utility_outage and utility_repair to the backend
+      scoring model and to the ImpactType TS union in api.ts, but map-view.tsx
+      was never updated. This caused water main breaks and gas leak 311 signals
+      to render as gray unlabeled circles on the map.
+      Fix: added utility_outage (#7C3AED deep violet, 170m radius) and
+      utility_repair (#A78BFA light violet, 130m radius) to IMPACT_COLOR,
+      HEAT_RADIUS, IMPACT_LABEL, and ALL_IMPACT_TYPES in map-view.tsx.
+      Verified: 311 signals (potholes/cave-ins/trees), special events, and
+      film permits all render correctly using existing impact types.
+      CTA alerts also confirmed correct (map to standard types).
+      Next: data-059 (tier-8 dry-run validation) or data-038 (CDOT signal outage ingest).
 
   - id: data-059
     title: Dry-run validation for tier-8 city scripts (data-058)
@@ -119,20 +160,31 @@ tasks:
       Peoples Gas non-emergency construction: won't-fix (covered by Gas Leak 311).
 
   - id: data-038
-    title: Add CDOT traffic signal outage data source
-    status: backlog
+    title: Add traffic signal outage signals to scoring model
+    status: done
     priority: medium
-    github_issue: ~
+    github_issue: 171
     notes_for_next_agent: >
-      Add Chicago CDOT Traffic Signal Outages as a disruption signal.
-      Search data.cityofchicago.org for "traffic signal" or "signal outage".
-      Implementation pattern mirrors chicago_311_requests.py:
-        - Fetch active outages from Socrata (filter status='Active')
-        - normalize_signal_outage() in project.py
-        - load_signal_outages() in load_projects.py
-        - --skip-signals flag in run_pipeline.py
-        - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
-      Verify dataset ID and field names via dry-run before wiring into pipeline.
+      Implemented data-038 (PR #171). Traffic signal outage data flows through
+      the existing 311 pipeline (chicago_311_requests.py / v6vf-nfxy) — same
+      pattern as data-046 utility_outage. No new ingest script needed.
+      Changes made:
+        - backend/ingest/chicago_311_requests.py: Added
+          "Traffic Signal Out - All Signals Out" and
+          "Traffic Signal Out - Sporadic/Cycling" to DISRUPTION_SR_TYPES.
+        - backend/models/project.py: Added IMPACT_TRAFFIC_SIGNAL
+          ("traffic_signal_outage", weight 22, severity HIGH). Added
+          _311_TRAFFIC_SIGNAL regex. Updated _classify_311_request() to map
+          traffic signal SR types to traffic_signal_outage (priority 2, before
+          cave-in). Added to BASE_WEIGHTS and IMPACT_SEVERITY dicts.
+        - backend/scoring/query.py: Imported IMPACT_TRAFFIC_SIGNAL. Wired into
+          _derive_severity() (traffic category), _build_top_risks(), and
+          _build_explanation().
+      SR type strings were taken from the issue body (MUST VERIFY via dry-run
+      with live network access — exact strings may differ slightly in prod).
+      Frontend map display (map-view.tsx + api.ts) not done — out of scope for
+      data lane. Frontend agent should add traffic_signal_outage with yellow
+      #EAB308 color following the pattern from data-060 (utility types).
 
   - id: data-048
     title: Dry-run validation for tier-3 city data (data-047 SF/Denver/Baltimore/Nashville/Portland)

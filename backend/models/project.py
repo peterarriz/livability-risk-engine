@@ -82,6 +82,7 @@ BASE_WEIGHTS: dict[str, int] = {
     IMPACT_UTILITY_OUTAGE:    25,
     IMPACT_CONSTRUCTION:      16,
     IMPACT_ROAD_CONSTRUCTION: 20,
+    IMPACT_UTILITY_REPAIR:    15,
     IMPACT_LIGHT_PERMIT:       8,
 }
 
@@ -94,6 +95,7 @@ IMPACT_SEVERITY: dict[str, str] = {
     IMPACT_UTILITY_OUTAGE:    "HIGH",
     IMPACT_CONSTRUCTION:      "MEDIUM",
     IMPACT_ROAD_CONSTRUCTION: "MEDIUM",
+    IMPACT_UTILITY_REPAIR:    "MEDIUM",
     IMPACT_LIGHT_PERMIT:      "LOW",
 }
 
@@ -1005,8 +1007,9 @@ def normalize_divvy_station(record: dict) -> Project:
 # Chicago 311 service request normalization  (data-036)
 # ---------------------------------------------------------------------------
 # Handles infrastructure disruption reports ingested via chicago_311_requests.py.
-# Potholes, water main breaks, cave-ins, and tree emergencies are short-lived
-# but active street hazards that affect traffic and pedestrian safety.
+# Potholes, water main breaks, cave-ins, tree emergencies, and traffic signal
+# outages are short-lived but active street hazards that affect traffic and
+# pedestrian safety.
 
 _311_WATER_MAIN = re.compile(
     r"\b(water.?main|water.?break|water.?leak|water.?service)\b",
@@ -1025,6 +1028,11 @@ _311_CAVE_IN = re.compile(
 
 _311_TREE = re.compile(
     r"\b(tree.?emergency|tree.?down|pole.?down)\b",
+    re.IGNORECASE,
+)
+
+_311_TRAFFIC_SIGNAL = re.compile(
+    r"\btraffic.?signal.?out\b",
     re.IGNORECASE,
 )
 
