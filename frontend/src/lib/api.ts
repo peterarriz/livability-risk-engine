@@ -1080,3 +1080,47 @@ export async function fetchAuthMe(backendToken: string): Promise<AuthUser | null
     return null;
   }
 }
+
+// ── Score trend (data-062) ────────────────────────────────────────────────────
+
+/** One daily bucket returned by GET /score-trend. */
+export type TrendDay = {
+  day: string;           // "YYYY-MM-DD"
+  avg_disruption: number;
+  avg_livability: number;
+  sample_count: number;
+};
+
+export type ScoreTrendResponse = {
+  trend: TrendDay[];
+};
+
+/**
+ * Fetch daily average scores for score_history rows within `radiusM` metres
+ * of (lat, lon) over the last `days` days.
+ *
+ * Always resolves — returns { trend: [] } on any error or when the backend
+ * is not configured.
+ */
+export async function fetchScoreTrend(
+  lat: number,
+  lon: number,
+  radiusM = 1000,
+  days = 30,
+): Promise<ScoreTrendResponse> {
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) return { trend: [] };
+
+  try {
+    const url = buildApiUrl("/score-trend");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    url.searchParams.set("radius_m", String(radiusM));
+    url.searchParams.set("days", String(days));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return { trend: [] };
+    return (await resp.json()) as ScoreTrendResponse;
+  } catch {
+    return { trend: [] };
+  }
+}
