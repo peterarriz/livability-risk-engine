@@ -55,6 +55,8 @@ from backend.models.project import (
     IMPACT_MULTI_LANE,
     IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
+    IMPACT_UTILITY_OUTAGE,
+    IMPACT_UTILITY_REPAIR,
     Project,
 )
 
@@ -285,12 +287,15 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
         w for np, w in contributions
         if np.project.impact_type in (
             IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
-            IMPACT_ROAD_CONSTRUCTION,
+            IMPACT_ROAD_CONSTRUCTION, IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
         )
     )
     noise_pts = sum(
         w for np, w in contributions
-        if np.project.impact_type in (IMPACT_DEMOLITION, IMPACT_CONSTRUCTION)
+        if np.project.impact_type in (
+            IMPACT_DEMOLITION, IMPACT_CONSTRUCTION,
+            IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
+        )
     )
     dust_pts = sum(
         w for np, w in contributions
@@ -365,6 +370,10 @@ def _build_top_risks(
             risk = f"Active road reconstruction or resurfacing near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_CONSTRUCTION:
             risk = f"Active construction permit near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_UTILITY_OUTAGE:
+            risk = f"Utility emergency (water main break or gas leak) near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_UTILITY_REPAIR:
+            risk = f"Utility repair crew active near {p.title} {dist_str}"
         else:
             risk = f"Nearby permit activity: {p.title} {dist_str}"
 
@@ -435,6 +444,12 @@ def _build_explanation(
     elif p.impact_type == IMPACT_CONSTRUCTION:
         lead = f"Nearby construction activity ({p.title}, {dist_str}) is the main driver"
         category = "noise disruption"
+    elif p.impact_type == IMPACT_UTILITY_OUTAGE:
+        lead = f"A utility emergency ({p.title}, {dist_str}) is the main driver"
+        category = "access and traffic disruption from emergency response"
+    elif p.impact_type == IMPACT_UTILITY_REPAIR:
+        lead = f"Nearby utility repair work ({p.title}, {dist_str}) is the main driver"
+        category = "traffic disruption from repair crews"
     else:
         lead = f"Nearby permitted work ({p.title}, {dist_str}) is contributing"
         category = "minor disruption"
