@@ -16,23 +16,23 @@ type MapViewProps = {
 };
 
 // ─── Impact-type colour palette (per design spec) ─────────────────────────────
-// Red   = access/traffic disruption (closures)
-// Amber = construction activity
+// Red    = access/traffic disruption (closures)
+// Amber  = construction activity
+// Orange = road construction (IDOT / city road works)
 // Purple = utility/demolition signals
-// Blue  = minor / noise / event permits
+// Blue   = minor / noise / event permits
 const IMPACT_COLOR: Record<string, string> = {
   closure_full:        "#EF4444", // red
   closure_multi_lane:  "#EF4444", // red
   closure_single_lane: "#EF4444", // red
   demolition:          "#8B5CF6", // purple
   construction:        "#F59E0B", // amber
+  road_construction:   "#F97316", // orange
   light_permit:        "#3B82F6", // blue
 };
 const DEFAULT_COLOR = "#94a3b8";
 
 // ─── CircleMarker pixel radius — weight-proportional, clamped 8–28px ─────────
-// (L.circleMarker uses screen pixels, not geographic meters, so circles stay
-//  visible at all zoom levels regardless of how far away the signal is.)
 function signalPixelRadius(weight: number): number {
   return Math.min(28, Math.max(8, 8 + (weight / 45) * 20));
 }
@@ -44,6 +44,7 @@ const HEAT_RADIUS: Record<string, number> = {
   closure_single_lane: 145,
   demolition:          165,
   construction:        130,
+  road_construction:   155,
   light_permit:        95,
 };
 const DEFAULT_HEAT_RADIUS = 120;
@@ -55,6 +56,7 @@ const IMPACT_LABEL: Record<string, string> = {
   closure_single_lane: "Lane / curb closure",
   demolition:          "Demolition / excavation",
   construction:        "Active construction",
+  road_construction:   "Road construction",
   light_permit:        "Permitted work",
 };
 
@@ -69,6 +71,17 @@ const SOURCE_LABEL: Record<string, string> = {
   chicago_traffic_crashes: "Chicago Traffic Crashes",
   chicago_divvy_stations:  "Divvy Bike Stations",
 };
+
+// Distance rings drawn around the searched address (meters)
+const DISTANCE_RINGS = [
+  { radius: 250, label: "250 m" },
+  { radius: 500, label: "500 m · scoring boundary" },
+];
+
+const ALL_IMPACT_TYPES = [
+  "closure_full", "closure_multi_lane", "closure_single_lane",
+  "demolition", "construction", "road_construction", "light_permit",
+] as const;
 
 function impactLabel(t: string) { return IMPACT_LABEL[t] ?? t; }
 function impactColor(t: string) { return IMPACT_COLOR[t] ?? DEFAULT_COLOR; }
@@ -86,7 +99,7 @@ function formatDateRange(start?: string | null, end?: string | null): string {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     return `${months[Number(m) - 1]} ${Number(d)}, ${y}`;
   };
-  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
+  if (start && end) return `${fmt(start)} \u2013 ${fmt(end)}`;
   if (start) return `From ${fmt(start)}`;
   return `Until ${fmt(end!)}`;
 }
@@ -154,6 +167,8 @@ export function MapView({
   const heatGroupRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ringGroupRef = useRef<any>(null);
 
   // mapVersion increments after the Leaflet async init completes, triggering
   // the layer-update effect which would otherwise see null refs.
@@ -161,6 +176,7 @@ export function MapView({
   const [mapMode, setMapMode] = useState<MapMode>("signals");
   const [forecastActive, setForecastActive] = useState(false);
   const [forecastDay, setForecastDay] = useState(0);
+  const [showRings, setShowRings] = useState(true);
   const forecastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Effect 1: Create / recreate map when coordinates change ──────────────
@@ -173,6 +189,7 @@ export function MapView({
       mapRef.current = null;
       signalGroupRef.current = null;
       heatGroupRef.current = null;
+      ringGroupRef.current = null;
       leafletRef.current = null;
     }
 
@@ -198,6 +215,21 @@ export function MapView({
 
       L.marker([latitude, longitude]).addTo(map).bindPopup(address).openPopup();
 
+      // Distance rings (250 m inner + 500 m scoring boundary)
+      const ringGroup = L.layerGroup();
+      for (const ring of DISTANCE_RINGS) {
+        L.circle([latitude, longitude], {
+          radius: ring.radius,
+          color: "rgba(148,163,184,0.4)",
+          weight: 1,
+          dashArray: "5 6",
+          fillOpacity: 0,
+        }).bindTooltip(ring.label, { sticky: true, direction: "top" })
+          .addTo(ringGroup);
+      }
+      ringGroupRef.current = ringGroup;
+      ringGroup.addTo(map); // visible by default
+
       signalGroupRef.current = L.layerGroup().addTo(map);
       heatGroupRef.current   = L.layerGroup(); // added/removed by layer effect
       leafletRef.current     = L;
@@ -213,6 +245,7 @@ export function MapView({
         mapRef.current = null;
         signalGroupRef.current = null;
         heatGroupRef.current = null;
+        ringGroupRef.current = null;
         leafletRef.current = null;
       }
     };
@@ -357,6 +390,18 @@ export function MapView({
     }
   }, [forecastDay]);
 
+  // ── Effect 5: Show / hide distance rings ─────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    const ringGroup = ringGroupRef.current;
+    if (!map || !ringGroup) return;
+    if (showRings) {
+      if (!map.hasLayer(ringGroup)) ringGroup.addTo(map);
+    } else {
+      if (map.hasLayer(ringGroup)) map.removeLayer(ringGroup);
+    }
+  }, [showRings, mapVersion]);
+
   // ── Derived display values ────────────────────────────────────────────────
   const today = new Date();
   const forecastDateLabel = (() => {
@@ -368,9 +413,15 @@ export function MapView({
   const forecastDone = forecastActive && forecastDay >= TOTAL_FORECAST_DAYS;
   const forecastBtnLabel = forecastActive
     ? forecastDone
-      ? `✓ Done — click to replay`
-      : `◼ Stop  ·  ${forecastDateLabel}`
-    : "▶ 30-day forecast";
+      ? `\u2713 Done \u2014 click to replay`
+      : `\u25fc Stop  \u00b7  ${forecastDateLabel}`
+    : "\u25b6 30-day forecast";
+
+  // ── Signal counts per type (for legend badges) ────────────────────────────
+  const typeCounts: Record<string, number> = {};
+  for (const s of signals) {
+    typeCounts[s.impact_type] = (typeCounts[s.impact_type] ?? 0) + 1;
+  }
 
   return (
     <>
@@ -401,6 +452,28 @@ export function MapView({
             Disruption heatmap
           </ToggleBtn>
         </div>
+
+        {/* Distance rings toggle */}
+        <button
+          type="button"
+          onClick={() => setShowRings((v) => !v)}
+          aria-pressed={showRings}
+          title="Toggle 250 m / 500 m distance rings"
+          style={{
+            padding: "5px 13px",
+            fontSize: "0.74rem",
+            fontWeight: 600,
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "7px",
+            cursor: "pointer",
+            background: showRings ? "rgba(148,163,184,0.15)" : "rgba(255,255,255,0.04)",
+            color: showRings ? "#cbd5e1" : "var(--text-muted, #94a3b8)",
+            transition: "background 0.14s, color 0.14s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          &#8857; Rings
+        </button>
 
         {/* Forecast button */}
         <button
@@ -455,7 +528,7 @@ export function MapView({
               textDecoration: "none", fontWeight: 500,
             }}
           >
-            Upgrade →
+            Upgrade &rarr;
           </a>
         )}
 
@@ -469,6 +542,40 @@ export function MapView({
           </span>
         )}
       </div>
+
+      {/* ── Forecast scrubber — Pro only, shown when forecast is active ───── */}
+      {isPro && forecastActive && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "10px",
+          marginBottom: "8px", padding: "6px 10px",
+          background: "rgba(124,58,237,0.12)",
+          borderRadius: "6px",
+          border: "1px solid rgba(124,58,237,0.25)",
+        }}>
+          <span style={{ fontSize: "0.72rem", color: "#a78bfa", fontWeight: 600, whiteSpace: "nowrap" }}>
+            Day {forecastDay}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={TOTAL_FORECAST_DAYS}
+            value={forecastDay}
+            onChange={(e) => {
+              // Pause auto-play when user scrubs manually
+              if (forecastTimerRef.current) {
+                clearInterval(forecastTimerRef.current);
+                forecastTimerRef.current = null;
+              }
+              setForecastDay(Number(e.target.value));
+            }}
+            style={{ flex: 1, accentColor: "#7c3aed", cursor: "pointer" }}
+            aria-label="Forecast day scrubber"
+          />
+          <span style={{ fontSize: "0.72rem", color: "#a78bfa", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {forecastDateLabel}
+          </span>
+        </div>
+      )}
 
       {/* ── Map container ────────────────────────────────────────────────── */}
       <div style={{ position: "relative" }}>
@@ -488,24 +595,50 @@ export function MapView({
             pointerEvents: "none", backdropFilter: "blur(4px)",
           }}>
             {forecastDone
-              ? `Day ${TOTAL_FORECAST_DAYS} · Complete`
-              : `${forecastDateLabel} · Day ${forecastDay}`}
+              ? `Day ${TOTAL_FORECAST_DAYS} \u00b7 Complete`
+              : `${forecastDateLabel} \u00b7 Day ${forecastDay}`}
+          </div>
+        )}
+
+        {/* Distance ring key — shown in bottom-left when rings are on */}
+        {showRings && (
+          <div style={{
+            position: "absolute", bottom: "10px", left: "10px", zIndex: 1000,
+            background: "rgba(15,23,42,0.82)", color: "#94a3b8",
+            padding: "5px 9px", borderRadius: "5px",
+            fontSize: "0.64rem", fontWeight: 500,
+            pointerEvents: "none", backdropFilter: "blur(3px)",
+            display: "flex", flexDirection: "column", gap: "2px",
+            lineHeight: 1.5,
+          }}>
+            <span>&#8729; 250 m</span>
+            <span>&#8729; 500 m &nbsp;<span style={{ color: "#64748b" }}>scoring boundary</span></span>
           </div>
         )}
       </div>
 
-      {/* ── Legend ───────────────────────────────────────────────────────── */}
+      {/* ── Legend with signal counts ─────────────────────────────────────── */}
       {signals.length > 0 && (
         <div className="map-legend" aria-label="Map legend">
-          {(
-            ["closure_full","closure_multi_lane","closure_single_lane",
-             "demolition","construction","light_permit"] as const
-          )
+          {ALL_IMPACT_TYPES
             .filter((t) => signals.some((s) => s.impact_type === t))
             .map((t) => (
               <span key={t} className="map-legend-item">
                 <span className="map-legend-dot" style={{ background: impactColor(t) }} />
                 {impactLabel(t)}
+                {typeCounts[t] != null && (
+                  <span style={{
+                    marginLeft: "4px",
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    background: "rgba(255,255,255,0.09)",
+                    borderRadius: "9px",
+                    padding: "0 5px",
+                    color: "#94a3b8",
+                  }}>
+                    {typeCounts[t]}
+                  </span>
+                )}
               </span>
             ))}
         </div>
