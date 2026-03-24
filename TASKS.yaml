@@ -11,10 +11,33 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-038 (traffic signal outage signals)
-# Next task to create: data-061
+# Last completed task: data-062 (historical disruption trend)
+# Next task to create: data-063
 
 tasks:
+  - id: data-062
+    title: Historical disruption trend — /score-trend aggregation endpoint + area sparkline
+    status: in-progress
+    priority: high
+    github_issue: 179
+    notes_for_next_agent: >
+      Added lat/lon columns to score_history (schema.sql ALTER TABLE + spatial index).
+      Updated _write_score_history() and _write_batch_history() in main.py to persist
+      latitude/longitude from the result dict. New GET /score-trend endpoint uses
+      haversine bounding-box + exact distance filter to aggregate nearby score_history
+      rows by day (Chicago timezone); returns avg_disruption, avg_livability,
+      sample_count per day bucket.
+      Frontend: TrendDay + ScoreTrendResponse types + fetchScoreTrend() in api.ts.
+      page.tsx fetches trend on result?.latitude/longitude change and passes scoreTrend
+      to NeighborhoodContextCard. New AreaTrendSparkline component in score-experience.tsx
+      renders an SVG line chart of daily avg disruption — blue line, colored delta label
+      (green=improving, red=worsening, gray=stable). Shown in NeighborhoodContextCard
+      when >=2 trend days available, below the per-address sparkline.
+      Note: existing score_history rows will have NULL lat/lon; trend data only accumulates
+      for new searches after this deploy. The sparkline hides itself when trend is empty.
+      Next: #6 Flood risk layer (flood_risk is already in neighborhood_quality,
+      just needs map overlay), or #7 Amenity richness (new data source).
+
   - id: data-061
     title: School quality map layer — nearby_schools in /score + map display
     status: done

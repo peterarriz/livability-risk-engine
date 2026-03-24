@@ -730,6 +730,50 @@ export type ScoreHistoryEntry = {
   created_at: string | null;
 };
 
+// Area-level score trend (data-062).
+export type TrendDay = {
+  day: string;            // ISO date "YYYY-MM-DD"
+  avg_disruption: number;
+  avg_livability: number;
+  sample_count: number;
+};
+
+export type ScoreTrendResponse = {
+  lat: number;
+  lon: number;
+  radius_m: number;
+  days: number;
+  trend: TrendDay[];
+};
+
+/**
+ * Fetch daily avg disruption/livability for all addresses within radiusM
+ * metres of (lat, lon) over the past `days` days.
+ * Returns null when the backend is unreachable; empty trend[] in demo mode.
+ */
+export async function fetchScoreTrend(
+  lat: number,
+  lon: number,
+  radiusM = 1000,
+  days = 30,
+): Promise<ScoreTrendResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/score-trend");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    url.searchParams.set("radius_m", String(radiusM));
+    url.searchParams.set("days", String(days));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as ScoreTrendResponse;
+  } catch {
+    return null;
+  }
+}
+
 // Neighborhood page types (data-026).
 export type NeighborhoodProject = {
   project_id: string;

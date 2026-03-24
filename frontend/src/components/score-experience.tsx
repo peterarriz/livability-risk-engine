@@ -12,6 +12,7 @@ import type {
   ScoreResponse,
   SeverityLevel,
   TopRiskDetail,
+  TrendDay,
   WatchResponse,
 } from "@/lib/api";
 
@@ -1122,14 +1123,70 @@ function ScoreBarRow({ label, score, color, rangeMin, rangeMax, dimLabel }: Scor
   );
 }
 
+// ─── Area trend sparkline (data-062) ──────────────────────────────────────────
+// Renders a simple SVG line chart of daily avg disruption over 30 days.
+// Visually mirrors ScoreSparkline but uses TrendDay[] from /score-trend.
+
+function AreaTrendSparkline({ trend }: { trend: TrendDay[] }) {
+  if (trend.length < 2) return null;
+
+  const W = 200; const H = 44; const PX = 6; const PY = 5;
+  const innerW = W - PX * 2;
+  const innerH = H - PY * 2;
+
+  const scores = trend.map((d) => d.avg_disruption);
+  const minVal = Math.max(0,   Math.min(...scores) - 6);
+  const maxVal = Math.min(100, Math.max(...scores) + 6);
+  const range  = maxVal - minVal || 1;
+
+  const toX = (i: number) => PX + (i / (scores.length - 1)) * innerW;
+  const toY = (v: number) => PY + (1 - (v - minVal) / range) * innerH;
+
+  const linePath = scores
+    .map((v, i) => `${i === 0 ? "M" : "L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`)
+    .join(" ");
+  const areaPath = linePath
+    + ` L${toX(scores.length - 1).toFixed(1)},${H} L${PX},${H} Z`;
+
+  const first = scores[0];
+  const last  = scores[scores.length - 1];
+  const delta = last - first;
+  // Improving = falling disruption = green; worsening = rising = red
+  const trendColor = delta <= -3 ? "#4ade80" : delta >= 3 ? "#f87171" : "#94a3b8";
+  const trendLabel = delta <= -3 ? `▼ ${Math.abs(delta)} pts` : delta >= 3 ? `▲ ${delta} pts` : "Stable";
+
+  const gradId = `area-trend-fill-${Math.random().toString(36).slice(2, 7)}`;
+
+  return (
+    <div className="sparkline-wrapper">
+      <div className="sparkline-header">
+        <span className="sparkline-label">{trend.length} days · {trend[trend.length - 1].sample_count} searches</span>
+        <span className="sparkline-trend" style={{ color: trendColor }}>{trendLabel}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="sparkline-svg" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gradId})`} />
+        <path d={linePath} fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={toX(scores.length - 1)} cy={toY(last)} r="2.5" fill="#60a5fa" />
+      </svg>
+    </div>
+  );
+}
+
 type NeighborhoodContextCardProps = {
   result: ScoreResponse;
   scoreHistory: ScoreHistoryEntry[];
+  scoreTrend?: TrendDay[];
   lat?: number | null;
   lon?: number | null;
 };
 
-export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: NeighborhoodContextCardProps) {
+export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [], lat, lon }: NeighborhoodContextCardProps) {
   const [hood, setHood] = useState<NeighborhoodResponse | null>(null);
   const [hoodLoading, setHoodLoading] = useState(false);
 
@@ -1147,10 +1204,11 @@ export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: Neig
     });
   }, [slugInfo?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasHistory = scoreHistory.length >= 2;
+  const hasHistory  = scoreHistory.length >= 2;
+  const hasTrend    = scoreTrend.length >= 2;
 
   // Don't render when we have nothing to show.
-  if (!hasHistory && !lat && !lon) return null;
+  if (!hasHistory && !hasTrend && !lat && !lon) return null;
 
   const score          = result.disruption_score;
   const medianScore    = hood?.median_score ?? null;
@@ -1213,7 +1271,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: Neig
         />
       </div>
 
-      {/* ── Sparkline ────────────────────────────────────────────────── */}
+      {/* ── Per-address sparkline ────────────────────────────────────── */}
       {hasHistory && (
         <div style={{
           marginBottom: "16px", paddingTop: "14px",
@@ -1226,6 +1284,25 @@ export function NeighborhoodContextCard({ result, scoreHistory, lat, lon }: Neig
             Score trend
           </p>
           <ScoreSparkline history={scoreHistory} currentScore={score} />
+        </div>
+      )}
+
+      {/* ── Area trend sparkline (data-062) ──────────────────────────── */}
+      {hasTrend && (
+        <div style={{
+          marginBottom: "16px", paddingTop: "14px",
+          borderTop: "1px solid rgba(255,255,255,0.055)",
+        }}>
+          <p style={{
+            fontSize: "0.67rem", fontWeight: 700, letterSpacing: "0.1em",
+            textTransform: "uppercase", color: "var(--text-muted, #64748b)", marginBottom: "2px",
+          }}>
+            Area · 30-day trend
+          </p>
+          <p style={{ fontSize: "0.68rem", color: "var(--text-muted, #64748b)", margin: "0 0 8px" }}>
+            Avg disruption score within 1 km
+          </p>
+          <AreaTrendSparkline trend={scoreTrend} />
         </div>
       )}
 

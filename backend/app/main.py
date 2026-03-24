@@ -21,6 +21,7 @@ API contract: docs/04_api_contracts.md
 import csv
 import hashlib
 import io
+import math
 import logging
 import os
 import re
@@ -654,9 +655,10 @@ def _write_score_history(address: str, result: dict) -> None:
                 cur.execute(
                     """
                     INSERT INTO score_history (
-                        address, disruption_score, livability_score, livability_breakdown, confidence, mode
+                        address, disruption_score, livability_score, livability_breakdown,
+                        confidence, mode, latitude, longitude
                     )
-                    VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+                    VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s)
                     """,
                     (
                         address,
@@ -665,6 +667,8 @@ def _write_score_history(address: str, result: dict) -> None:
                         json.dumps(result.get("livability_breakdown") or {}),
                         result["confidence"],
                         result.get("mode", "live"),
+                        result.get("latitude"),
+                        result.get("longitude"),
                     ),
                 )
             conn.commit()
@@ -783,9 +787,10 @@ def _write_batch_history(results: list[dict], batch_id: str) -> None:
                     cur.execute(
                         """
                         INSERT INTO score_history (
-                            address, disruption_score, livability_score, livability_breakdown, confidence, mode, batch_id
+                            address, disruption_score, livability_score, livability_breakdown,
+                            confidence, mode, batch_id, latitude, longitude
                         )
-                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
                         """,
                         (
                             r["address"],
@@ -795,6 +800,8 @@ def _write_batch_history(results: list[dict], batch_id: str) -> None:
                             r["confidence"],
                             r["mode"],
                             batch_id,
+                            r.get("latitude"),
+                            r.get("longitude"),
                         ),
                     )
             conn.commit()
@@ -1187,6 +1194,107 @@ def get_history(
         raise HTTPException(
             status_code=503,
             detail="History service temporarily unavailable.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# /score-trend endpoint  (data-062)
+# Aggregates score_history by day for all addresses within radius_m of a
+# lat/lon point — used by the frontend to render an area-level disruption
+# trend sparkline independent of whether the exact address has been searched
+# before.
+# ---------------------------------------------------------------------------
+
+@app.get("/score-trend")
+def get_score_trend(
+    lat: float = Query(..., description="Latitude of the point of interest"),
+    lon: float = Query(..., description="Longitude of the point of interest"),
+    radius_m: int = Query(1000, ge=100, le=5000, description="Search radius in metres"),
+    days: int = Query(30, ge=7, le=90, description="Number of days to look back"),
+) -> dict:
+    """
+    Return a daily aggregated disruption/livability trend for all scored
+    addresses within radius_m metres of (lat, lon) over the past `days` days.
+
+    Uses haversine distance math (no PostGIS required) to filter rows.
+
+    Response shape:
+      {
+        "lat": 41.89, "lon": -87.65, "radius_m": 1000, "days": 30,
+        "trend": [
+          { "day": "2026-02-22", "avg_disruption": 45, "avg_livability": 52, "sample_count": 3 },
+          ...
+        ]
+      }
+
+    Returns an empty trend list when the DB is not configured or no nearby
+    history exists.
+    """
+    if not _is_db_configured():
+        return {"lat": lat, "lon": lon, "radius_m": radius_m, "days": days, "trend": []}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            # Bounding box pre-filter (cheap) then haversine for accuracy.
+            lat_delta = radius_m / 111_320.0
+            lon_delta = radius_m / (111_320.0 * abs(math.cos(math.radians(lat))) + 1e-9)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        date_trunc('day', scored_at AT TIME ZONE 'America/Chicago')::date AS day,
+                        round(avg(disruption_score))::int   AS avg_disruption,
+                        round(avg(livability_score))::int   AS avg_livability,
+                        count(*)::int                       AS sample_count
+                    FROM score_history
+                    WHERE
+                        latitude  IS NOT NULL
+                        AND longitude IS NOT NULL
+                        AND latitude  BETWEEN %s AND %s
+                        AND longitude BETWEEN %s AND %s
+                        AND scored_at >= now() - (%s || ' days')::interval
+                        AND 6371000.0 * 2.0 * asin(
+                            sqrt(
+                                power(sin(radians((latitude  - %s) / 2.0)), 2) +
+                                cos(radians(%s)) * cos(radians(latitude)) *
+                                power(sin(radians((longitude - %s) / 2.0)), 2)
+                            )
+                        ) <= %s
+                    GROUP BY day
+                    ORDER BY day ASC
+                    """,
+                    (
+                        lat - lat_delta, lat + lat_delta,
+                        lon - lon_delta, lon + lon_delta,
+                        days,
+                        lat, lat, lon,
+                        radius_m,
+                    ),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        trend = [
+            {
+                "day": str(row[0]),
+                "avg_disruption": row[1],
+                "avg_livability": row[2],
+                "sample_count": row[3],
+            }
+            for row in rows
+        ]
+        log.info("score_trend lat=%.4f lon=%.4f radius=%dm days=%d returned=%d buckets",
+                 lat, lon, radius_m, days, len(trend))
+        return {"lat": lat, "lon": lon, "radius_m": radius_m, "days": days, "trend": trend}
+
+    except Exception as exc:
+        log.error("score_trend error lat=%.4f lon=%.4f: %s", lat, lon, exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Score trend service temporarily unavailable.",
         ) from exc
 
 
