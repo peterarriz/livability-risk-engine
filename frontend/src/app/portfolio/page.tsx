@@ -1,0 +1,764 @@
+"use client";
+
+/**
+ * /portfolio — Multi-address workspace
+ * task: data-014 (app lane exception — connects to /score API)
+ *
+ * Free tier  : up to 10 addresses, persisted in localStorage.
+ * Pro tier   : unlimited addresses (DB persistence — stubbed until auth is live).
+ *
+ * Table columns : Address · Score · Band · Top Risk · Updated · Actions
+ * Features       : add, remove, per-row refresh, refresh-all, sort, CSV export.
+ */
+
+import React, {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Card, Container, Header } from "@/components/shell";
+import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
+
+// ── Constants ───────────────────────────────────────────────────────────────
+
+const FREE_LIMIT = 10;
+const STORAGE_KEY = "lre_portfolio_v1";
+
+// ── Types ───────────────────────────────────────────────────────────────────
+
+type ScoreBand = "Minimal" | "Low" | "Moderate" | "High" | "Severe";
+type SortCol = "address" | "score" | "band" | "updated";
+type SortDir = "asc" | "desc";
+
+type PortfolioItem = {
+  id: string;
+  address: string;
+  disruption_score: number | null;
+  score_band: ScoreBand | null;
+  top_risk: string;
+  confidence: string;
+  mode: string;
+  last_updated: string | null;
+  is_loading: boolean;
+  error: string | null;
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+const BAND_ORDER: Record<ScoreBand, number> = {
+  Minimal: 0, Low: 1, Moderate: 2, High: 3, Severe: 4,
+};
+
+function scoreBand(score: number): ScoreBand {
+  if (score <= 20) return "Minimal";
+  if (score <= 40) return "Low";
+  if (score <= 60) return "Moderate";
+  if (score <= 80) return "High";
+  return "Severe";
+}
+
+function bandColor(band: ScoreBand | null): string {
+  switch (band) {
+    case "Minimal":  return "#10b981";
+    case "Low":      return "#3ce5b3";
+    case "Moderate": return "#f59e0b";
+    case "High":     return "#ef4444";
+    case "Severe":   return "#7c3aed";
+    default:         return "var(--text-muted, #64748b)";
+  }
+}
+
+function scoreColor(score: number | null): string {
+  if (score === null) return "var(--text-muted, #64748b)";
+  if (score >= 81) return "#7c3aed";
+  if (score >= 61) return "#ef4444";
+  if (score >= 41) return "#f59e0b";
+  if (score >= 21) return "#3ce5b3";
+  return "#10b981";
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function makeItem(address: string): PortfolioItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    address,
+    disruption_score: null,
+    score_band: null,
+    top_risk: "",
+    confidence: "",
+    mode: "",
+    last_updated: null,
+    is_loading: true,
+    error: null,
+  };
+}
+
+function applyScore(item: PortfolioItem, score: ScoreResponse): PortfolioItem {
+  return {
+    ...item,
+    disruption_score: score.disruption_score,
+    score_band: scoreBand(score.disruption_score),
+    top_risk: score.top_risks[0] ?? "",
+    confidence: score.confidence,
+    mode: score.mode ?? "live",
+    last_updated: new Date().toISOString(),
+    is_loading: false,
+    error: null,
+  };
+}
+
+// ── localStorage ─────────────────────────────────────────────────────────────
+
+function loadStorage(): PortfolioItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as PortfolioItem[];
+    // Reset any stale loading state from a previous session
+    return parsed.map((item) => ({ ...item, is_loading: false }));
+  } catch {
+    return [];
+  }
+}
+
+function saveStorage(items: PortfolioItem[]) {
+  try {
+    // Don't persist transient loading state
+    const toStore = items.map((item) => ({ ...item, is_loading: false }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+  } catch {
+    // quota exceeded — ignore
+  }
+}
+
+// ── CSV export ───────────────────────────────────────────────────────────────
+
+function portfolioToCSV(items: PortfolioItem[]): string {
+  const header = [
+    "address", "disruption_score", "score_band",
+    "top_risk", "confidence", "mode", "last_updated",
+  ];
+  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const lines = [header.join(",")];
+  for (const item of items) {
+    lines.push([
+      esc(item.address),
+      item.disruption_score ?? "",
+      item.score_band ?? "",
+      esc(item.top_risk ?? ""),
+      item.confidence ?? "",
+      item.mode ?? "",
+      item.last_updated ?? "",
+    ].join(","));
+  }
+  return lines.join("\n");
+}
+
+function downloadCSV(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
+export default function PortfolioPage() {
+  const [items, setItems] = useState<PortfolioItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Add-address input state
+  const [inputAddr, setInputAddr] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggIdx, setActiveSuggIdx] = useState(-1);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const [sortCol, setSortCol] = useState<SortCol>("score");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipSuggestRef = useRef(false);
+  const hasUserTyped = useRef(false);
+  const abortRefreshRef = useRef(false);
+
+  // ── Hydrate from localStorage ─────────────────────────────────────────────
+
+  useEffect(() => {
+    setItems(loadStorage());
+    setHydrated(true);
+  }, []);
+
+  // ── Persist to localStorage whenever items change ─────────────────────────
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveStorage(items);
+  }, [items, hydrated]);
+
+  // ── Autocomplete ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!hasUserTyped.current) return;
+    if (skipSuggestRef.current) { skipSuggestRef.current = false; return; }
+    if (inputAddr.trim().length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveSuggIdx(-1);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const results = await fetchSuggestions(inputAddr);
+      if (isFocused) {
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+        setActiveSuggIdx(-1);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputAddr]);
+
+  // ── Score a single item by id ─────────────────────────────────────────────
+
+  const scoreItem = useCallback(async (id: string, address: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, is_loading: true, error: null } : item,
+      ),
+    );
+    try {
+      const result = await fetchScore(address);
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id ? applyScore(item, result.score) : item,
+        ),
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Lookup failed.";
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, is_loading: false, error: msg }
+            : item,
+        ),
+      );
+    }
+  }, []);
+
+  // ── Add address ───────────────────────────────────────────────────────────
+
+  const addAddress = useCallback(
+    async (addr: string) => {
+      const trimmed = addr.trim();
+      if (!trimmed) return;
+
+      // Duplicate check
+      if (items.some((item) => item.address.toLowerCase() === trimmed.toLowerCase())) {
+        setAddError("This address is already in your portfolio.");
+        return;
+      }
+
+      // Free-tier limit
+      if (items.length >= FREE_LIMIT) {
+        setAddError(`Free plan is limited to ${FREE_LIMIT} addresses. Upgrade to Pro for unlimited.`);
+        return;
+      }
+
+      setAddError(null);
+      const newItem = makeItem(trimmed);
+      setItems((prev) => [newItem, ...prev]);
+
+      // Clear input
+      skipSuggestRef.current = true;
+      hasUserTyped.current = false;
+      setInputAddr("");
+      setSuggestions([]);
+      setShowSuggestions(false);
+
+      // Score immediately
+      await scoreItem(newItem.id, trimmed);
+    },
+    [items, scoreItem],
+  );
+
+  // ── Remove address ────────────────────────────────────────────────────────
+
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  // ── Refresh all ───────────────────────────────────────────────────────────
+
+  const refreshAll = useCallback(async () => {
+    if (isRefreshingAll || items.length === 0) return;
+    abortRefreshRef.current = false;
+    setIsRefreshingAll(true);
+    const snapshot = [...items];
+    for (const item of snapshot) {
+      if (abortRefreshRef.current) break;
+      await scoreItem(item.id, item.address);
+    }
+    setIsRefreshingAll(false);
+  }, [isRefreshingAll, items, scoreItem]);
+
+  // ── Sorting ───────────────────────────────────────────────────────────────
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("desc"); }
+  }
+
+  function sortArrow(col: SortCol) {
+    if (sortCol !== col) return " ↕";
+    return sortDir === "asc" ? " ↑" : " ↓";
+  }
+
+  const sortedItems = useMemo(() => {
+    const copy = [...items];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      switch (sortCol) {
+        case "address":
+          cmp = a.address.localeCompare(b.address); break;
+        case "score":
+          cmp = (a.disruption_score ?? -1) - (b.disruption_score ?? -1); break;
+        case "band":
+          cmp = (BAND_ORDER[a.score_band ?? "Minimal"] ?? -1) -
+                (BAND_ORDER[b.score_band ?? "Minimal"] ?? -1); break;
+        case "updated":
+          cmp = (a.last_updated ?? "").localeCompare(b.last_updated ?? ""); break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [items, sortCol, sortDir]);
+
+  // ── Keyboard handler for add-address input ────────────────────────────────
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const hasSugg = showSuggestions && suggestions.length > 0;
+    if (e.key === "Escape") { setShowSuggestions(false); setActiveSuggIdx(-1); return; }
+    if (!hasSugg) {
+      if (e.key === "ArrowDown" && suggestions.length > 0) {
+        setShowSuggestions(true); setActiveSuggIdx(0); e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveSuggIdx((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveSuggIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Enter" && activeSuggIdx >= 0) {
+      e.preventDefault();
+      selectSuggestion(suggestions[activeSuggIdx]);
+    }
+  }
+
+  function selectSuggestion(addr: string) {
+    skipSuggestRef.current = true;
+    hasUserTyped.current = false;
+    setInputAddr(addr);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSuggIdx(-1);
+    inputRef.current?.focus();
+  }
+
+  // ── Derived stats ─────────────────────────────────────────────────────────
+
+  const scored = items.filter((i) => i.disruption_score !== null);
+  const avgScore = scored.length
+    ? Math.round(scored.reduce((s, i) => s + (i.disruption_score ?? 0), 0) / scored.length)
+    : null;
+  const highestRisk = scored.length
+    ? scored.reduce((a, b) => (b.disruption_score ?? 0) > (a.disruption_score ?? 0) ? b : a)
+    : null;
+  const atLimit = items.length >= FREE_LIMIT;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <main className="portfolio-page">
+      <Container>
+        {/* ── Top bar ────────────────────────────────────────────── */}
+        <Header className="topbar">
+          <div className="brand-lockup">
+            <div className="brand-mark" aria-hidden="true">LR</div>
+            <div>
+              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-subtitle">Illinois disruption intelligence</p>
+            </div>
+          </div>
+          <nav className="topnav" aria-label="Primary">
+            <a href="/" className="topnav-aux-link">← Scorer</a>
+          </nav>
+        </Header>
+
+        {/* ── Page header ────────────────────────────────────────── */}
+        <div className="portfolio-page-header">
+          <div className="portfolio-title-row">
+            <h1 className="portfolio-title">My Portfolio</h1>
+            <span className="portfolio-plan-badge">Free</span>
+          </div>
+          <p className="portfolio-subtitle">
+            Track disruption scores across multiple addresses. Scores update on demand.
+            {" "}<span className="portfolio-plan-note">Free plan: {items.length}/{FREE_LIMIT} addresses.</span>
+          </p>
+        </div>
+
+        {/* ── Add address form ────────────────────────────────────── */}
+        <Card className="portfolio-add-card">
+          <form
+            className="portfolio-add-form"
+            onSubmit={(e: FormEvent<HTMLFormElement>) => {
+              e.preventDefault();
+              addAddress(inputAddr);
+            }}
+          >
+            <label htmlFor="portfolio-addr-input" className="portfolio-add-label">
+              Add address
+            </label>
+            <div className="portfolio-add-input-shell">
+              <div className="search-input-stack portfolio-input-stack">
+                <input
+                  ref={inputRef}
+                  id="portfolio-addr-input"
+                  type="text"
+                  className="portfolio-add-input"
+                  placeholder="Enter an Illinois address…"
+                  value={inputAddr}
+                  onChange={(e) => {
+                    hasUserTyped.current = true;
+                    setInputAddr(e.target.value);
+                    setAddError(null);
+                  }}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => {
+                    setIsFocused(false);
+                    setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                  onKeyDown={handleInputKeyDown}
+                  autoComplete="off"
+                  role="combobox"
+                  aria-expanded={showSuggestions && suggestions.length > 0}
+                  aria-controls="portfolio-suggestions"
+                  aria-autocomplete="list"
+                  aria-activedescendant={
+                    activeSuggIdx >= 0 ? `portfolio-sugg-${activeSuggIdx}` : undefined
+                  }
+                  disabled={atLimit}
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul
+                    id="portfolio-suggestions"
+                    className="suggestion-list"
+                    role="listbox"
+                    aria-label="Address suggestions"
+                  >
+                    {suggestions.map((s, idx) => (
+                      <li
+                        key={s}
+                        id={`portfolio-sugg-${idx}`}
+                        role="option"
+                        aria-selected={idx === activeSuggIdx}
+                        className={`suggestion-item${idx === activeSuggIdx ? " suggestion-item--active" : ""}`}
+                        onMouseDown={() => selectSuggestion(s)}
+                        onMouseEnter={() => setActiveSuggIdx(idx)}
+                      >
+                        <span className="suggestion-item-label">{s}</span>
+                        <span className="suggestion-item-meta">Illinois address</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="portfolio-add-btn"
+                disabled={!inputAddr.trim() || atLimit}
+              >
+                Add address
+              </button>
+            </div>
+            {addError && (
+              <p className="portfolio-add-error" role="alert">{addError}</p>
+            )}
+            {atLimit && (
+              <div className="portfolio-limit-banner">
+                <span>Free plan limit reached ({FREE_LIMIT} addresses).</span>
+                <a href="#pricing-section" className="portfolio-upgrade-link">
+                  Upgrade to Pro for unlimited →
+                </a>
+              </div>
+            )}
+          </form>
+        </Card>
+
+        {/* ── Stats bar ───────────────────────────────────────────── */}
+        {scored.length > 0 && (
+          <div className="portfolio-stats-bar">
+            <div className="portfolio-stat">
+              <span className="portfolio-stat-label">Addresses</span>
+              <span className="portfolio-stat-value">{items.length}</span>
+            </div>
+            {avgScore !== null && (
+              <div className="portfolio-stat">
+                <span className="portfolio-stat-label">Avg score</span>
+                <span
+                  className="portfolio-stat-value"
+                  style={{ color: scoreColor(avgScore) }}
+                >
+                  {avgScore}
+                </span>
+              </div>
+            )}
+            {highestRisk && (
+              <div className="portfolio-stat portfolio-stat--wide">
+                <span className="portfolio-stat-label">Highest risk</span>
+                <span
+                  className="portfolio-stat-value portfolio-stat-value--addr"
+                  style={{ color: scoreColor(highestRisk.disruption_score) }}
+                >
+                  {highestRisk.address}
+                  <span className="portfolio-stat-score">
+                    {" "}({highestRisk.disruption_score})
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Table ───────────────────────────────────────────────── */}
+        {hydrated && items.length === 0 ? (
+          <div className="portfolio-empty">
+            <p className="portfolio-empty-kicker">No addresses yet</p>
+            <p>Add up to {FREE_LIMIT} addresses above to start tracking disruption risk.</p>
+            <p className="portfolio-empty-hint">
+              Scores are fetched live from Chicago permit and street closure data.
+            </p>
+          </div>
+        ) : (
+          <Card className="portfolio-table-card">
+            {/* Table toolbar */}
+            <div className="portfolio-table-toolbar">
+              <span className="portfolio-table-title">
+                {items.length} address{items.length !== 1 ? "es" : ""}
+                {scored.length < items.length && ` · ${items.length - scored.length} scoring…`}
+              </span>
+              <div className="portfolio-toolbar-actions">
+                <button
+                  type="button"
+                  className="portfolio-action-btn"
+                  onClick={refreshAll}
+                  disabled={isRefreshingAll || items.length === 0}
+                  title="Re-score all addresses"
+                >
+                  {isRefreshingAll ? "Refreshing…" : "↻ Refresh all"}
+                </button>
+                {isRefreshingAll && (
+                  <button
+                    type="button"
+                    className="portfolio-action-btn portfolio-action-btn--stop"
+                    onClick={() => { abortRefreshRef.current = true; setIsRefreshingAll(false); }}
+                  >
+                    Stop
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="portfolio-action-btn portfolio-action-btn--export"
+                  onClick={() =>
+                    downloadCSV(
+                      portfolioToCSV(sortedItems),
+                      `portfolio_${new Date().toISOString().slice(0, 10)}.csv`,
+                    )
+                  }
+                  disabled={scored.length === 0}
+                >
+                  ↓ Export CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="portfolio-table-scroll">
+              <table className="portfolio-table">
+                <thead>
+                  <tr>
+                    <th
+                      className="portfolio-th portfolio-th--sortable portfolio-th--addr"
+                      onClick={() => toggleSort("address")}
+                    >
+                      Address{sortArrow("address")}
+                    </th>
+                    <th
+                      className="portfolio-th portfolio-th--sortable portfolio-th--num"
+                      onClick={() => toggleSort("score")}
+                    >
+                      Score{sortArrow("score")}
+                    </th>
+                    <th
+                      className="portfolio-th portfolio-th--sortable"
+                      onClick={() => toggleSort("band")}
+                    >
+                      Band{sortArrow("band")}
+                    </th>
+                    <th className="portfolio-th portfolio-th--wide">Top Risk</th>
+                    <th
+                      className="portfolio-th portfolio-th--sortable"
+                      onClick={() => toggleSort("updated")}
+                    >
+                      Updated{sortArrow("updated")}
+                    </th>
+                    <th className="portfolio-th portfolio-th--actions" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedItems.map((item) => (
+                    <tr key={item.id} className={`portfolio-tr${item.is_loading ? " portfolio-tr--loading" : ""}`}>
+                      {/* Address */}
+                      <td className="portfolio-td portfolio-td--addr">
+                        <a
+                          href={`/?address=${encodeURIComponent(item.address)}`}
+                          className="portfolio-addr-link"
+                          title="Open in scorer"
+                        >
+                          {item.address}
+                        </a>
+                      </td>
+
+                      {/* Score */}
+                      <td className="portfolio-td portfolio-td--num">
+                        {item.is_loading ? (
+                          <span className="portfolio-loading-dot" aria-label="Scoring…" />
+                        ) : item.error ? (
+                          <span className="portfolio-err-badge" title={item.error}>ERR</span>
+                        ) : item.disruption_score !== null ? (
+                          <strong
+                            className="portfolio-score"
+                            style={{ color: scoreColor(item.disruption_score) }}
+                          >
+                            {item.disruption_score}
+                          </strong>
+                        ) : (
+                          <span className="portfolio-muted">—</span>
+                        )}
+                      </td>
+
+                      {/* Band */}
+                      <td className="portfolio-td">
+                        {item.score_band && !item.is_loading ? (
+                          <span
+                            className="portfolio-band-pill"
+                            style={{
+                              background: `${bandColor(item.score_band)}22`,
+                              color: bandColor(item.score_band),
+                              border: `1px solid ${bandColor(item.score_band)}44`,
+                            }}
+                          >
+                            {item.score_band}
+                          </span>
+                        ) : (
+                          <span className="portfolio-muted">—</span>
+                        )}
+                      </td>
+
+                      {/* Top Risk */}
+                      <td className="portfolio-td portfolio-td--risk">
+                        {item.error ? (
+                          <span className="portfolio-err-text">{item.error}</span>
+                        ) : (
+                          <span className="portfolio-top-risk">
+                            {item.top_risk || (item.is_loading ? "" : "—")}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Updated */}
+                      <td className="portfolio-td portfolio-td--updated">
+                        <span className="portfolio-muted">
+                          {item.is_loading ? "Scoring…" : relativeTime(item.last_updated)}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="portfolio-td portfolio-td--actions">
+                        <div className="portfolio-row-actions">
+                          <button
+                            type="button"
+                            className="portfolio-refresh-btn"
+                            onClick={() => scoreItem(item.id, item.address)}
+                            disabled={item.is_loading}
+                            title="Refresh score"
+                            aria-label={`Refresh score for ${item.address}`}
+                          >
+                            ↻
+                          </button>
+                          <button
+                            type="button"
+                            className="portfolio-remove-btn"
+                            onClick={() => removeItem(item.id)}
+                            disabled={item.is_loading}
+                            title="Remove from portfolio"
+                            aria-label={`Remove ${item.address} from portfolio`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pro upsell — below table when not at limit */}
+            {!atLimit && items.length >= 6 && (
+              <div className="portfolio-pro-hint">
+                <span className="portfolio-pro-badge">Pro</span>
+                <span>
+                  Unlimited addresses, database sync, and webhook alerts.{" "}
+                  <a href="/#pricing-section" className="portfolio-upgrade-link">
+                    See Pro plan →
+                  </a>
+                </span>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* ── Footer note ─────────────────────────────────────────── */}
+        <p className="portfolio-footer-note">
+          Portfolio stored locally in your browser. Scores reflect live Chicago permit and
+          street closure data at the time of each refresh. Pro plan adds cloud sync and
+          scheduled refresh.
+        </p>
+      </Container>
+    </main>
+  );
+}

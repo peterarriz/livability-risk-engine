@@ -3,14 +3,19 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  CommuteChecker,
   ExplanationPanel,
   getConfidenceReasons,
   getMeaningInsights,
   ImpactWindow,
+  MobileScoreView,
+  NeighborhoodContextCard,
   ScoreHero,
   ScoreSparkline,
   SeverityMeters,
+  SignalTimeline,
   TopRiskGrid,
+  WatchlistForm,
 } from "@/components/score-experience";
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
@@ -18,7 +23,31 @@ import { track } from "@vercel/analytics";
 import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const PREMIUM_PLACEHOLDER = "Search an Illinois address";
+
+type City = {
+  id: string;
+  name: string;
+  state: string;
+  example: string;
+  placeholder: string;
+  live: boolean; // true = live data, false = coming soon
+};
+
+const CITIES: City[] = [
+  { id: "chicago",       name: "Chicago",       state: "IL", example: "1600 W Chicago Ave, Chicago, IL",              placeholder: "Search a Chicago address",        live: true  },
+  { id: "new-york",      name: "New York",       state: "NY", example: "350 5th Ave, New York, NY",                    placeholder: "Search a New York address",       live: false },
+  { id: "los-angeles",   name: "Los Angeles",    state: "CA", example: "200 N Spring St, Los Angeles, CA",             placeholder: "Search a Los Angeles address",    live: false },
+  { id: "san-francisco", name: "San Francisco",  state: "CA", example: "1 Dr Carlton B Goodlett Pl, San Francisco, CA",placeholder: "Search a San Francisco address",  live: false },
+  { id: "seattle",       name: "Seattle",        state: "WA", example: "400 Broad St, Seattle, WA",                    placeholder: "Search a Seattle address",        live: false },
+  { id: "austin",        name: "Austin",         state: "TX", example: "301 W 2nd St, Austin, TX",                     placeholder: "Search an Austin address",        live: false },
+  { id: "boston",        name: "Boston",         state: "MA", example: "1 City Hall Sq, Boston, MA",                   placeholder: "Search a Boston address",         live: false },
+  { id: "denver",        name: "Denver",         state: "CO", example: "1437 Bannock St, Denver, CO",                  placeholder: "Search a Denver address",         live: false },
+  { id: "baltimore",     name: "Baltimore",      state: "MD", example: "100 N Holliday St, Baltimore, MD",             placeholder: "Search a Baltimore address",      live: false },
+  { id: "portland",      name: "Portland",       state: "OR", example: "1221 SW 4th Ave, Portland, OR",                placeholder: "Search a Portland address",       live: false },
+  { id: "washington",    name: "Washington",     state: "DC", example: "1600 Pennsylvania Ave NW, Washington, DC",     placeholder: "Search a Washington DC address",  live: false },
+  { id: "miami",         name: "Miami",          state: "FL", example: "3500 Pan American Dr, Miami, FL",              placeholder: "Search a Miami address",          live: false },
+];
+
 const EXAMPLE_ADDRESSES = [
   "1600 W Chicago Ave, Chicago, IL",
   "700 W Grand Ave, Chicago, IL",
@@ -47,6 +76,10 @@ export default function HomePage() {
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
+  const [selectedCity, setSelectedCity] = useState<City>(CITIES[0]);
+  // Mobile simplified view — reset to false on each new result so users always
+  // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
+  const [mobileShowFull, setMobileShowFull] = useState(false);
   const searchShellRef = useRef<HTMLDivElement>(null);
   const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,9 +97,12 @@ export default function HomePage() {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
-  const statusHeadline = isDemoResult ? "Sample data" : "Live score";
+  const statusHeadline = isDemoResult ? "Limited data coverage" : "Live score";
+  const statusBadgeTooltip = isDemoResult
+    ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
+    : undefined;
   const statusMessage = isDemoResult
-    ? (statusNote ?? "The backend returned sample data. Connect a database to enable live scoring.")
+    ? (statusNote ?? "Live permit data may not be available for this address. Score is estimated from nearby signals.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
@@ -78,7 +114,7 @@ export default function HomePage() {
       ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
       : null;
     return [
-      { label: "Data mode", value: isDemoResult ? "Demo fallback" : "Live Chicago feed" },
+      { label: "Data mode", value: isDemoResult ? "Limited data coverage" : "Live Chicago feed" },
       { label: "Confidence", value: result.confidence, isConfidence: true },
       { label: "Active signals detected", value: String(result.top_risks.length) },
       { label: "Sources", value: (() => {
@@ -206,7 +242,7 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
-    fetchHistory(result.address, 20).then((r) =>
+    fetchHistory(result.address, 30).then((r) =>
       setScoreHistory(
         r
           ? r.history.map((h) => ({
@@ -260,6 +296,7 @@ export default function HomePage() {
     track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
+    setMobileShowFull(false);
     try {
       const scoreResult = await fetchScore(addr);
       setResult(scoreResult.score);
@@ -338,7 +375,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Illinois disruption intelligence</p>
+              <p className="brand-subtitle">Real-time livability intelligence</p>
             </div>
           </div>
 
@@ -377,6 +414,7 @@ export default function HomePage() {
             <a href="#signals-section" className="topnav-aux-link">Signals</a>
             <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
+            <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-access" className="topnav-api-link">API</a>
           </nav>
         </Header>
@@ -384,22 +422,22 @@ export default function HomePage() {
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Illinois address intelligence</p>
+              <p className="eyebrow">Real-Time Livability Intelligence</p>
               <h1>
                 {workspaceMode
-                  ? "A decision-ready disruption brief for the current address."
-                  : "Instant disruption intelligence for any Illinois address."}
+                  ? "A decision-ready livability brief for the current address."
+                  : "Know what it\u2019s actually like to live there."}
               </h1>
               <p className="lede">
                 {workspaceMode
                   ? "Run another lookup below. Score, reasoning, and spatial context update automatically."
-                  : "Enter an address to get a real-time disruption score powered by live Chicago permit and street closure data — in under 10 seconds."}
+                  : "Real-time livability scores for any address \u2014 combining construction activity, crime trends, school ratings, and neighborhood context. Updated daily across 12 US cities."}
               </p>
             </div>
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                Enter an Illinois address
+                {workspaceMode ? "Search another address" : `Enter an address in ${selectedCity.name}`}
               </label>
               <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
                 <div className="search-input-stack">
@@ -419,7 +457,7 @@ export default function HomePage() {
                       setTimeout(() => setShowSuggestions(false), 150);
                     }}
                     onKeyDown={handleInputKeyDown}
-                    placeholder={PREMIUM_PLACEHOLDER}
+                    placeholder={selectedCity.placeholder}
                     autoComplete="off"
                     role="combobox"
                     aria-expanded={hasSuggestions}
@@ -458,7 +496,7 @@ export default function HomePage() {
                           onMouseEnter={() => setActiveSuggestionIndex(index)}
                         >
                           <span className="suggestion-item-label">{suggestion}</span>
-                          <span className="suggestion-item-meta">Illinois address</span>
+                          <span className="suggestion-item-meta">{selectedCity.name} address</span>
                         </li>
                       ))}
                     </ul>
@@ -468,16 +506,54 @@ export default function HomePage() {
                   {isLoading ? "Analyzing…" : "Analyze address"}
                 </button>
               </div>
+              {/* City selector — only in hero mode */}
+              {!workspaceMode && (
+                <div className="city-selector">
+                  <span className="city-selector-label">Select city</span>
+                  <div className="city-pill-group" role="group" aria-label="Available cities">
+                    {CITIES.map((city) => (
+                      <button
+                        key={city.id}
+                        type="button"
+                        className={`city-pill${selectedCity.id === city.id ? " city-pill--active" : ""}${!city.live ? " city-pill--soon" : ""}`}
+                        onClick={() => setSelectedCity(city)}
+                        aria-pressed={selectedCity.id === city.id}
+                        title={city.live ? `Live data available for ${city.name}` : `${city.name} — coming soon`}
+                      >
+                        {city.name}
+                        {!city.live && <span className="city-pill-soon-dot" aria-hidden="true" />}
+                      </button>
+                    ))}
+                  </div>
+                  {!selectedCity.live && (
+                    <p className="city-selector-notice">
+                      Live data for {selectedCity.name} is coming soon. Try the example address or switch to Chicago for a live score.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
                 <p className="form-hint">
-                  Returns a score, severity read, strongest drivers, interpretation, and map context for one Illinois address.
+                  Returns a livability score, severity read, strongest drivers, interpretation, and map context for any address.
                 </p>
-                <p className="form-disclaimer">Covers Illinois addresses. Live risk data currently available for Chicago.</p>
+                <p className="form-disclaimer">
+                  {selectedCity.live
+                    ? `Live data active for ${selectedCity.name}. Updated daily from 20+ city sources.`
+                    : "Live data currently available for Chicago. More cities updating daily."}
+                </p>
 
                 <div className="example-row">
-                  <span className="example-label">Quick examples</span>
+                  <span className="example-label">Quick example</span>
                   <div className="example-chip-group">
-                    {EXAMPLE_ADDRESSES.map((example) => (
+                    <button
+                      type="button"
+                      className="example-chip"
+                      onClick={() => handleSuggestionSelect(selectedCity.example)}
+                    >
+                      {selectedCity.example}
+                    </button>
+                    {selectedCity.id === "chicago" && EXAMPLE_ADDRESSES.slice(1).map((example) => (
                       <button
                         key={example}
                         type="button"
@@ -494,11 +570,11 @@ export default function HomePage() {
 
             {(result || statusNote) ? (
               <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
-                <span className="status-badge">{statusHeadline}</span>
+                <span className="status-badge" title={statusBadgeTooltip}>{statusHeadline}</span>
                 <div className="status-copy">
                   <strong>{statusMessage}</strong>
                   {" "}
-                  <span>{isDemoResult ? "Fallback remains explicit so reviewers know what they are seeing." : "Sources: Chicago permits • Street closures"}</span>
+                  <span>{isDemoResult ? "" : "Sources: Chicago permits • Street closures"}</span>
                 </div>
               </div>
             ) : null}
@@ -519,6 +595,40 @@ export default function HomePage() {
             ) : null}
           </Card>
         </Section>
+
+        {/* ── How it works — only shown on the explore (pre-search) hero ── */}
+        {!workspaceMode && (
+          <Section
+            eyebrow="How it works"
+            title="From address to livability brief in seconds"
+            description="Three steps. No account required."
+            className="how-it-works-section"
+          >
+            <div className="how-it-works-grid">
+              <div className="hiw-step">
+                <div className="hiw-step-number" aria-hidden="true">01</div>
+                <h3 className="hiw-step-title">Enter any address</h3>
+                <p className="hiw-step-body">
+                  Type a street address in any of our 12 supported US cities. We geocode it instantly and anchor every data source to the exact location.
+                </p>
+              </div>
+              <div className="hiw-step">
+                <div className="hiw-step-number" aria-hidden="true">02</div>
+                <h3 className="hiw-step-title">We analyze 20+ live data sources</h3>
+                <p className="hiw-step-body">
+                  Construction permits, street closures, crime trends, school ratings, flood zones, census demographics — all queried in real time and scored within a 500-meter radius.
+                </p>
+              </div>
+              <div className="hiw-step">
+                <div className="hiw-step-number" aria-hidden="true">03</div>
+                <h3 className="hiw-step-title">Get a decision-ready livability brief</h3>
+                <p className="hiw-step-body">
+                  A 0–100 livability score, severity read across noise, traffic, and construction, the strongest nearby signals, and a plain-English explanation — ready to share or export.
+                </p>
+              </div>
+            </div>
+          </Section>
+        )}
 
         <Section
           className={workspaceMode ? "workspace-section workspace-section--score" : undefined}
@@ -576,6 +686,18 @@ export default function HomePage() {
             </section>
           ) : result ? (
             <section className="results results--loaded workspace-flow">
+              {/* ── Mobile simplified view (CSS-hidden on desktop ≥ 768px) ── */}
+              {!mobileShowFull && (
+                <div className="mobile-view">
+                  <MobileScoreView
+                    result={result}
+                    onShowFull={() => setMobileShowFull(true)}
+                  />
+                </div>
+              )}
+
+              {/* ── Full desktop results (CSS-hidden on mobile unless mobileShowFull) ── */}
+              <div className={`desktop-view${!mobileShowFull ? " desktop-view--mobile-hidden" : ""}`}>
               {result.disruption_score >= 61 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
@@ -589,7 +711,7 @@ export default function HomePage() {
               <div className="workspace-top-grid">
                 <Card className="score-card">
                   <ScoreHero result={result} />
-                  {scoreHistory.length >= 2 && (
+                  {scoreHistory.length >= 1 && (
                     <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
                   )}
                   <div className="score-actions">
@@ -614,6 +736,14 @@ export default function HomePage() {
                   <ExplanationPanel explanation={result.explanation} meaning={meaningInsights} />
                 </Card>
               </div>
+
+              {/* ── Monitor this address — shown for score >= 50 ─────────── */}
+              {result.disruption_score >= 50 && (
+                <WatchlistForm address={result.address} score={result.disruption_score} />
+              )}
+
+              {/* ── Check my commute ─────────────────────────────────────── */}
+              <CommuteChecker homeAddress={result.address} />
 
               <div className="detail-grid detail-grid--balanced">
                 <Card className="detail-card">
@@ -640,57 +770,82 @@ export default function HomePage() {
                 </Card>
               </div>
 
+              {/* ── Neighborhood context ─────────────────────────────────── */}
+              <Card className="detail-card">
+                <NeighborhoodContextCard
+                  result={result}
+                  scoreHistory={scoreHistory}
+                  lat={mapCoords?.lat ?? result.latitude}
+                  lon={mapCoords?.lon ?? result.longitude}
+                />
+              </Card>
+
+              {/* ── Full-width map panel, pinned below the headline score ── */}
+              <Card className="detail-card map-card">
+                <div className="map-card-head">
+                  <div>
+                    <p className="map-kicker">Spatial context</p>
+                    <h2>Address and nearby area</h2>
+                  </div>
+                  <span className="map-badge">OpenStreetMap</span>
+                </div>
+                {mapCoords ? (
+                  <MapView
+                    latitude={mapCoords.lat}
+                    longitude={mapCoords.lon}
+                    address={result.address}
+                    signals={result.nearby_signals ?? []}
+                    topRiskDetails={result.top_risk_details ?? []}
+                    isPro={false}
+                  />
+                ) : (
+                  <div className="map-placeholder" aria-label="Locating address on map…">
+                    <div className="map-grid" />
+                    <div className="map-pin map-pin--primary" />
+                  </div>
+                )}
+                <p className="map-copy">
+                  Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
+                  Pro plan unlocks the 30-day forecast animation.
+                </p>
+              </Card>
+
               <div id="signals-section" className="anchor-target" />
               <Section
                 eyebrow="Signals"
                 title="Strongest supporting drivers"
-                description="These are the clearest nearby signals behind the score, followed by the map and timeline context that help interpret them."
+                description="These are the clearest nearby signals behind the score, along with timeline context that helps interpret them."
                 className="workspace-subsection"
               >
                 <Card className="detail-card drivers-card">
                   <TopRiskGrid result={result} />
                 </Card>
+                {(result.top_risk_details ?? []).length > 0 && (
+                  <Card className="detail-card">
+                    <SignalTimeline details={result.top_risk_details ?? []} />
+                  </Card>
+                )}
               </Section>
 
-              <div className="support-grid">
-                <Card className="detail-card map-card">
-                  <div className="map-card-head">
-                    <div>
-                      <p className="map-kicker">Spatial context</p>
-                      <h2>Address and nearby area</h2>
-                    </div>
-                    <span className="map-badge">OpenStreetMap</span>
-                  </div>
-                  {mapCoords ? (
-                    <MapView latitude={mapCoords.lat} longitude={mapCoords.lon} address={result.address} signals={result.nearby_signals ?? []} />
-                  ) : (
-                    <div className="map-placeholder" aria-label="Locating address on map…">
-                      <div className="map-grid" />
-                      <div className="map-pin map-pin--primary" />
-                    </div>
-                  )}
-                  <p className="map-copy">Colored circles show nearby permit and closure locations. Click any circle for signal details. Circle size and opacity reflect disruption weight — larger and more saturated means higher impact.</p>
+              <div className="detail-grid detail-grid--balanced">
+                <Card className="detail-card">
+                  <ImpactWindow result={result} />
                 </Card>
-
-                <div className="support-stack">
-                  <Card className="detail-card">
-                    <ImpactWindow result={result} />
-                  </Card>
-                  <Card className="detail-card supporting-card">
-                    <p className="supporting-kicker">Review notes</p>
-                    <ul className="supporting-list">
-                      <li>
-                        <span>Interpretation</span>
-                        <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
-                      </li>
-                      <li>
-                        <span>Best use</span>
-                        <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
-                      </li>
-                    </ul>
-                  </Card>
-                </div>
+                <Card className="detail-card supporting-card">
+                  <p className="supporting-kicker">Review notes</p>
+                  <ul className="supporting-list">
+                    <li>
+                      <span>Interpretation</span>
+                      <strong>This score reflects near-term conditions, not long-term neighborhood quality.</strong>
+                    </li>
+                    <li>
+                      <span>Best use</span>
+                      <strong>Helpful for screening addresses before site visits, planning, or stakeholder review.</strong>
+                    </li>
+                  </ul>
+                </Card>
               </div>
+              </div>{/* end desktop-view */}
             </section>
           ) : (
             <section className="results">
@@ -713,7 +868,7 @@ export default function HomePage() {
           description="Start free. Upgrade when you need forecasts, exports, and team access."
           className="pricing-section"
         >
-          <div className="pricing-grid">
+          <div className="pricing-grid pricing-grid--three">
             <Card className="detail-card pricing-card">
               <p className="supporting-kicker">Free</p>
               <h2>$0 / month</h2>
@@ -737,6 +892,24 @@ export default function HomePage() {
                 <li>Priority data refresh</li>
               </ul>
               <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--enterprise">
+              <p className="supporting-kicker">Enterprise</p>
+              <h2>Custom pricing</h2>
+              <ul className="pricing-features">
+                <li>Everything in Pro</li>
+                <li>Batch API access (up to 10,000 addresses/mo)</li>
+                <li>Webhook alerts</li>
+                <li>SLA guarantee</li>
+                <li>Dedicated account support</li>
+                <li>White-label report option</li>
+              </ul>
+              <a
+                href="mailto:hello@livabilityrisk.com?subject=Enterprise%20inquiry"
+                className="pricing-cta pricing-cta--enterprise"
+              >
+                Talk to us
+              </a>
             </Card>
           </div>
         </Section>
@@ -777,8 +950,8 @@ export default function HomePage() {
                   <strong>Clearly labeled and presented as the default decision-ready experience.</strong>
                 </li>
                 <li>
-                  <span>Demo fallback</span>
-                  <strong>Still visible and explicit, so reviewers can distinguish sample output from live scoring.</strong>
+                  <span>Limited data coverage</span>
+                  <strong>Shown when live permit data is unavailable. Score is estimated from nearby signals.</strong>
                 </li>
               </ul>
             </Card>

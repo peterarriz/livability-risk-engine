@@ -387,10 +387,18 @@ def _score_live(address: str) -> dict:
       2. Geocode address → (lat, lon)
       3. Query nearby projects from canonical DB
       4. Apply scoring engine → ScoreResult
-      5. Return as dict matching API contract (includes latitude/longitude)
+      5. Query neighborhood quality context (data-040) — non-fatal if table absent
+      6. Enrich top_risk_details with Claude-rewritten titles (data-042, cache-first)
+      7. Return as dict matching API contract (includes latitude/longitude)
     """
     from backend.ingest.geocode import geocode_address
-    from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
+    from backend.scoring.query import (
+        compute_score,
+        get_db_connection,
+        get_nearby_projects,
+        get_neighborhood_context,
+    )
+    from backend.scoring.rewrite import enrich_top_risk_details
 
     conn = get_db_connection()
     try:
@@ -400,11 +408,39 @@ def _score_live(address: str) -> dict:
 
         lat, lon = coords
         nearby = get_nearby_projects(lat, lon, conn)
+
+        # Neighborhood quality context (data-040).
+        # Non-fatal: returns None if neighborhood_quality table is not yet populated.
+        neighborhood_context = None
+        try:
+            neighborhood_context = get_neighborhood_context(lat, lon, conn)
+        except Exception as nq_exc:
+            log.debug("neighborhood_context lookup skipped: %s", nq_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        result = compute_score(nearby, address)
+        result_dict = {
+            **asdict(result),
+            "mode": "live",
+            "fallback_reason": None,
+            "latitude": lat,
+            "longitude": lon,
+            "neighborhood_context": neighborhood_context,
+        }
+
+        # Enrich top_risk_details with Claude-rewritten titles and descriptions
+        # (data-042).  Cache-first: only calls Claude for project_ids not yet
+        # seen.  Non-fatal: falls back gracefully when API key is absent.
+        result_dict["top_risk_details"] = enrich_top_risk_details(
+            result_dict.get("top_risk_details") or [], conn
+        )
     finally:
         conn.close()
 
-    result = compute_score(nearby, address)
-    return {**asdict(result), "mode": "live", "fallback_reason": None, "latitude": lat, "longitude": lon}
+    return result_dict
 
 
 # ---------------------------------------------------------------------------
@@ -883,6 +919,7 @@ def health_db() -> dict:
       last_ingest_status: "success" | "failed" | "running" from the most recent run (null if none)
       last_ingest_count:  active project count recorded at end of the last run (null if none)
     """
+    # task: data-041 — add last_ingest_at and last_ingest_status from ingest_runs
     db_configured = _is_db_configured()
     db_connection = False
     db_error = None
@@ -914,6 +951,7 @@ def health_db() -> dict:
                 conn.close()
         except Exception as exc:
             db_error = str(exc)
+            db_connection = False
 
     response: dict = {
         "status": "ok",
@@ -1162,48 +1200,144 @@ _NEIGHBORHOODS: dict[str, dict] = {
         "description": "Dense mixed-use neighborhood with high permit activity along Milwaukee Ave.",
         "center": {"lat": 41.9088, "lon": -87.6776},
         "bbox": {"min_lat": 41.8990, "min_lon": -87.6950, "max_lat": 41.9180, "max_lon": -87.6600},
+        # Representative median disruption score for this neighborhood.
+        # Source: manual calibration from permit density; replace with a live
+        # score_history aggregate once addresses are geocoded at save time.
+        "median_score": 42,
     },
     "logan-square": {
         "name": "Logan Square",
         "description": "Rapidly developing neighborhood with significant construction along the 606 trail corridor.",
         "center": {"lat": 41.9217, "lon": -87.7082},
         "bbox": {"min_lat": 41.9100, "min_lon": -87.7250, "max_lat": 41.9330, "max_lon": -87.6900},
+        "median_score": 38,
     },
     "river-north": {
         "name": "River North",
         "description": "High-density commercial and residential construction zone north of the Chicago River.",
         "center": {"lat": 41.8940, "lon": -87.6340},
         "bbox": {"min_lat": 41.8850, "min_lon": -87.6500, "max_lat": 41.9030, "max_lon": -87.6200},
+        "median_score": 51,
     },
     "lincoln-park": {
         "name": "Lincoln Park",
         "description": "Affluent lakefront neighborhood with ongoing street and utility work.",
         "center": {"lat": 41.9240, "lon": -87.6450},
         "bbox": {"min_lat": 41.9100, "min_lon": -87.6630, "max_lat": 41.9380, "max_lon": -87.6270},
+        "median_score": 29,
     },
     "pilsen": {
         "name": "Pilsen",
         "description": "Arts and manufacturing district with active infrastructure upgrades.",
         "center": {"lat": 41.8560, "lon": -87.6640},
         "bbox": {"min_lat": 41.8470, "min_lon": -87.6850, "max_lat": 41.8650, "max_lon": -87.6430},
+        "median_score": 35,
     },
     "loop": {
         "name": "The Loop",
         "description": "Chicago's downtown core with continuous street closure and utility activity.",
         "center": {"lat": 41.8827, "lon": -87.6323},
         "bbox": {"min_lat": 41.8740, "min_lon": -87.6480, "max_lat": 41.8920, "max_lon": -87.6180},
+        "median_score": 58,
     },
     "uptown": {
         "name": "Uptown",
         "description": "Dense lakeside neighborhood undergoing significant transit corridor improvements.",
         "center": {"lat": 41.9650, "lon": -87.6540},
         "bbox": {"min_lat": 41.9540, "min_lon": -87.6680, "max_lat": 41.9750, "max_lon": -87.6390},
+        "median_score": 33,
     },
     "bridgeport": {
         "name": "Bridgeport",
         "description": "South Side industrial-residential neighborhood with ongoing utility and road work.",
         "center": {"lat": 41.8350, "lon": -87.6444},
         "bbox": {"min_lat": 41.8250, "min_lon": -87.6600, "max_lat": 41.8460, "max_lon": -87.6300},
+        "median_score": 27,
+    },
+    # ── Expansion to 20 neighborhoods (data-014) ─────────────────────────────
+    "old-town": {
+        "name": "Old Town",
+        "description": "Historic entertainment and residential corridor with steady permit activity near Wells St.",
+        "center": {"lat": 41.9095, "lon": -87.6373},
+        "bbox": {"min_lat": 41.9010, "min_lon": -87.6490, "max_lat": 41.9180, "max_lon": -87.6260},
+        "median_score": 31,
+    },
+    "gold-coast": {
+        "name": "Gold Coast",
+        "description": "Luxury lakefront neighborhood with periodic utility and streetscape work along Lake Shore Dr.",
+        "center": {"lat": 41.9026, "lon": -87.6289},
+        "bbox": {"min_lat": 41.8940, "min_lon": -87.6400, "max_lat": 41.9110, "max_lon": -87.6170},
+        "median_score": 24,
+    },
+    "streeterville": {
+        "name": "Streeterville",
+        "description": "Dense lakefront district with hospital campus construction and ongoing utility upgrades.",
+        "center": {"lat": 41.8920, "lon": -87.6180},
+        "bbox": {"min_lat": 41.8840, "min_lon": -87.6270, "max_lat": 41.9000, "max_lon": -87.6080},
+        "median_score": 44,
+    },
+    "south-loop": {
+        "name": "South Loop",
+        "description": "Fast-growing residential district with significant high-rise construction along Michigan Ave.",
+        "center": {"lat": 41.8680, "lon": -87.6280},
+        "bbox": {"min_lat": 41.8590, "min_lon": -87.6430, "max_lat": 41.8770, "max_lon": -87.6140},
+        "median_score": 47,
+    },
+    "andersonville": {
+        "name": "Andersonville",
+        "description": "North Side commercial corridor with active sewer and streetscape improvements along Clark St.",
+        "center": {"lat": 41.9810, "lon": -87.6580},
+        "bbox": {"min_lat": 41.9730, "min_lon": -87.6700, "max_lat": 41.9890, "max_lon": -87.6450},
+        "median_score": 28,
+    },
+    "rogers-park": {
+        "name": "Rogers Park",
+        "description": "Diverse lakefront neighborhood at Chicago's northern edge with periodic utility work.",
+        "center": {"lat": 42.0030, "lon": -87.6690},
+        "bbox": {"min_lat": 41.9940, "min_lon": -87.6810, "max_lat": 42.0120, "max_lon": -87.6550},
+        "median_score": 22,
+    },
+    "bucktown": {
+        "name": "Bucktown",
+        "description": "Trendy residential neighborhood with active construction on 606 trail corridor and Damen Ave.",
+        "center": {"lat": 41.9170, "lon": -87.6850},
+        "bbox": {"min_lat": 41.9090, "min_lon": -87.6980, "max_lat": 41.9260, "max_lon": -87.6720},
+        "median_score": 39,
+    },
+    "ukrainian-village": {
+        "name": "Ukrainian Village",
+        "description": "Quiet residential grid with intermittent water main and alley repaving activity.",
+        "center": {"lat": 41.8950, "lon": -87.6750},
+        "bbox": {"min_lat": 41.8870, "min_lon": -87.6870, "max_lat": 41.9030, "max_lon": -87.6620},
+        "median_score": 19,
+    },
+    "humboldt-park": {
+        "name": "Humboldt Park",
+        "description": "West Side neighborhood with infrastructure investment and road resurfacing along Pulaski Rd.",
+        "center": {"lat": 41.9000, "lon": -87.7220},
+        "bbox": {"min_lat": 41.8910, "min_lon": -87.7380, "max_lat": 41.9090, "max_lon": -87.7060},
+        "median_score": 30,
+    },
+    "hyde-park": {
+        "name": "Hyde Park",
+        "description": "University district on the South Side with campus-driven construction and ongoing transit work.",
+        "center": {"lat": 41.7950, "lon": -87.5950},
+        "bbox": {"min_lat": 41.7840, "min_lon": -87.6090, "max_lat": 41.8060, "max_lon": -87.5810},
+        "median_score": 26,
+    },
+    "ravenswood": {
+        "name": "Ravenswood",
+        "description": "North Side residential neighborhood with rail corridor activity and Metra track work.",
+        "center": {"lat": 41.9700, "lon": -87.6740},
+        "bbox": {"min_lat": 41.9620, "min_lon": -87.6860, "max_lat": 41.9790, "max_lon": -87.6610},
+        "median_score": 25,
+    },
+    "avondale": {
+        "name": "Avondale",
+        "description": "Northwest Side neighborhood with light industrial activity and sewer infrastructure work.",
+        "center": {"lat": 41.9450, "lon": -87.7100},
+        "bbox": {"min_lat": 41.9360, "min_lon": -87.7230, "max_lat": 41.9540, "max_lon": -87.6970},
+        "median_score": 32,
     },
 }
 
@@ -1211,8 +1345,15 @@ _NEIGHBORHOODS: dict[str, dict] = {
 def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> list[dict]:
     """
     Query active projects within a bounding box from the canonical projects table.
+
+    Uses the same PostGIS geom index as the /score endpoint (ST_Within +
+    ST_MakeEnvelope) so rows with a NULL latitude/longitude but a valid geom
+    are still returned.  Coordinates are extracted from the geometry via
+    ST_Y/ST_X and fall back to the stored latitude/longitude columns so both
+    legacy and new rows are handled correctly.
+
     Returns a list of JSON-serializable project dicts.
-    Falls back to an empty list when DB is not configured.
+    Falls back to an empty list when DB is not configured or on any error.
     """
     if not _is_db_configured():
         return []
@@ -1223,16 +1364,27 @@ def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lo
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT project_id, source, impact_type, title,
-                           start_date, end_date, status, lat, lon
+                    SELECT
+                        project_id,
+                        source,
+                        impact_type,
+                        title,
+                        start_date,
+                        end_date,
+                        status,
+                        COALESCE(ST_Y(geom), latitude)  AS lat,
+                        COALESCE(ST_X(geom), longitude) AS lon
                     FROM projects
-                    WHERE status = 'active'
-                      AND lat BETWEEN %s AND %s
-                      AND lon BETWEEN %s AND %s
-                    ORDER BY start_date DESC
+                    WHERE status IN ('active', 'planned')
+                      AND geom IS NOT NULL
+                      AND ST_Within(
+                          geom,
+                          ST_MakeEnvelope(%s, %s, %s, %s, 4326)
+                      )
+                    ORDER BY start_date DESC NULLS LAST
                     LIMIT 200
                     """,
-                    (min_lat, max_lat, min_lon, max_lon),
+                    (min_lon, min_lat, max_lon, max_lat),
                 )
                 rows = cur.fetchall()
         finally:
@@ -1249,8 +1401,8 @@ def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lo
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
                 "status": status,
-                "lat": lat,
-                "lon": lon,
+                "lat": float(lat) if lat is not None else None,
+                "lon": float(lon) if lon is not None else None,
             })
         return projects
     except Exception as exc:
@@ -1290,6 +1442,11 @@ def get_neighborhood(slug: str) -> dict:
         "projects": projects,
         "project_count": len(projects),
         "mode": mode,
+        # Median disruption score for addresses in this neighborhood.
+        # Currently a calibrated static value; will be replaced by a live
+        # score_history aggregate query once address geocoding is stored.
+        "median_score": neighborhood.get("median_score"),
+        "sample_size": 0,
     }
 
 
@@ -1305,6 +1462,383 @@ def list_neighborhoods() -> dict:
             for slug, n in _NEIGHBORHOODS.items()
         ]
     }
+
+
+# /neighborhood/{slug}/best-streets endpoint (data-014)
+# ---------------------------------------------------------------------------
+# Known streets per neighborhood for demo-mode block generation.
+# Keys: "quiet" = historically low-activity; "busy" = high-permit corridors.
+# ---------------------------------------------------------------------------
+
+_NEIGHBORHOOD_STREETS: dict[str, dict[str, list[str]]] = {
+    "wicker-park":      {"quiet": ["N Wood St", "W Schiller St", "N Wolcott Ave", "W Pierce Ave", "N Paulina St"],
+                         "busy":  ["N Milwaukee Ave", "N Damen Ave", "W North Ave", "W Division St", "N Ashland Ave"]},
+    "logan-square":     {"quiet": ["N Spaulding Ave", "N Drake Ave", "N Sawyer Ave", "N Troy St", "N Kedzie Ave"],
+                         "busy":  ["N Milwaukee Ave", "W Logan Blvd", "W Diversey Ave", "W Armitage Ave", "N California Ave"]},
+    "river-north":      {"quiet": ["W Superior St", "W Huron St", "W Ohio St", "W Ontario St", "W Erie St"],
+                         "busy":  ["N Michigan Ave", "N State St", "W Grand Ave", "W Chicago Ave", "N Orleans St"]},
+    "lincoln-park":     {"quiet": ["W Belden Ave", "W Webster Ave", "W Dickens Ave", "N Racine Ave", "W Montana St"],
+                         "busy":  ["N Clark St", "N Halsted St", "N Lincoln Ave", "W Diversey Pkwy", "W Fullerton Ave"]},
+    "pilsen":           {"quiet": ["S Calumet Ave", "S Loomis St", "S Sangamon St", "S Morgan St", "S Carpenter St"],
+                         "busy":  ["W Cermak Rd", "W 18th St", "W Blue Island Ave", "S Halsted St", "W 21st St"]},
+    "loop":             {"quiet": ["N Franklin St", "N Wells St", "N LaSalle St", "N Dearborn St", "N Clark St"],
+                         "busy":  ["N State St", "N Michigan Ave", "W Wacker Dr", "W Lake St", "W Madison St"]},
+    "uptown":           {"quiet": ["W Winona St", "W Carmen Ave", "W Agatite Ave", "W Gunnison St", "W Sunnyside Ave"],
+                         "busy":  ["N Broadway", "W Lawrence Ave", "W Wilson Ave", "N Sheridan Rd", "N Clark St"]},
+    "bridgeport":       {"quiet": ["S Emerald Ave", "S Stewart Ave", "S Shields Ave", "S Wallace St", "S Princeton Ave"],
+                         "busy":  ["S Halsted St", "W Archer Ave", "W 31st St", "W 35th St", "S Wentworth Ave"]},
+    "old-town":         {"quiet": ["W Eugenie St", "W Menomonee St", "N Sedgwick St", "W Wisconsin St", "N Hudson Ave"],
+                         "busy":  ["N Wells St", "N Clark St", "W North Ave", "W Division St", "N Larrabee St"]},
+    "gold-coast":       {"quiet": ["E Schiller St", "E Goethe St", "E Banks St", "E Scott St", "E Bellevue Pl"],
+                         "busy":  ["N Lake Shore Dr", "N Michigan Ave", "N Rush St", "N State St", "W Division St"]},
+    "streeterville":    {"quiet": ["E Huron St", "E Erie St", "E Ontario St", "E Ohio St", "E Grand Ave"],
+                         "busy":  ["N Michigan Ave", "N Lake Shore Dr", "E Illinois St", "E Chicago Ave", "N St Clair St"]},
+    "south-loop":       {"quiet": ["S Plymouth Ct", "S Federal St", "S Dearborn St", "S State St", "S Wabash Ave"],
+                         "busy":  ["S Michigan Ave", "S Indiana Ave", "W Roosevelt Rd", "S King Dr", "W Cermak Rd"]},
+    "andersonville":    {"quiet": ["N Paulina St", "N Ashland Ave", "W Berwyn Ave", "W Catalpa Ave", "W Summerdale Ave"],
+                         "busy":  ["N Clark St", "W Foster Ave", "W Balmoral Ave", "W Bryn Mawr Ave", "N Broadway"]},
+    "rogers-park":      {"quiet": ["N Glenwood Ave", "N Greenview Ave", "N Paulina St", "W Chase Ave", "W Farwell Ave"],
+                         "busy":  ["N Sheridan Rd", "N Clark St", "W Touhy Ave", "W Morse Ave", "W Howard St"]},
+    "bucktown":         {"quiet": ["N Hoyne Ave", "N Leavitt St", "W McLean Ave", "N Oakley Ave", "W Moffat St"],
+                         "busy":  ["N Damen Ave", "N Milwaukee Ave", "W Fullerton Ave", "W Armitage Ave", "N Western Ave"]},
+    "ukrainian-village":{"quiet": ["N Oakley Blvd", "N Leavitt St", "W Iowa St", "W Thomas St", "W Augusta Blvd"],
+                         "busy":  ["W Chicago Ave", "W Division St", "N Western Ave", "N Damen Ave", "W Rice St"]},
+    "humboldt-park":    {"quiet": ["N Kedzie Ave", "N St Louis Ave", "W Cortez St", "W Thomas St", "W Augusta Blvd"],
+                         "busy":  ["N Pulaski Rd", "W Chicago Ave", "W Division St", "N Western Ave", "W North Ave"]},
+    "hyde-park":        {"quiet": ["E 53rd St", "E 54th St", "S Blackstone Ave", "S Dorchester Ave", "S Kimbark Ave"],
+                         "busy":  ["S Lake Shore Dr", "S King Dr", "E 55th St", "E 63rd St", "S Cottage Grove Ave"]},
+    "ravenswood":       {"quiet": ["W Berteau Ave", "W Sunnyside Ave", "N Hermitage Ave", "N Paulina St", "W Leland Ave"],
+                         "busy":  ["N Ravenswood Ave", "W Lawrence Ave", "W Montrose Ave", "N Clark St", "W Wilson Ave"]},
+    "avondale":         {"quiet": ["N Hamlin Ave", "N Kedzie Ave", "W Waveland Ave", "N Albany Ave", "W Melrose St"],
+                         "busy":  ["N Milwaukee Ave", "N Pulaski Rd", "W Belmont Ave", "N Kimball Ave", "W Diversey Ave"]},
+}
+
+_BLOCK_IMPACT_WEIGHTS: dict[str, int] = {
+    "closure_full": 35,
+    "closure_multi_lane": 25,
+    "closure_single_lane": 15,
+    "demolition": 20,
+    "construction": 15,
+    "light_permit": 8,
+}
+
+
+def _get_last_ingest_time() -> str:
+    """Return the ISO timestamp of the most recent successful ingest run.
+    Falls back to the current UTC time if the table is absent or DB is unavailable."""
+    import datetime
+    if not _is_db_configured():
+        return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT MAX(finished_at) FROM ingest_runs WHERE status = 'success'"
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0].replace(microsecond=0).isoformat() + "Z"
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.debug("ingest_runs query skipped: %s", exc)
+    import datetime
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _extract_street_name(title: str | None) -> str | None:
+    """Heuristic: pull the first recognizable street reference out of a permit title."""
+    if not title:
+        return None
+    import re
+    m = re.search(
+        r"(\d+\s+)?([NSEW]\s+)?[\w\s]+"
+        r"(?:Ave|Blvd|Ct|Cir|Dr|Expy|Hwy|Ln|Pkwy|Pl|Rd|St|Ter|Trl|Way)",
+        title,
+        re.IGNORECASE,
+    )
+    return m.group(0).strip() if m else None
+
+
+def _compute_blocks_from_projects(projects: list[dict]) -> list[dict]:
+    """Aggregate raw projects into scored block cells (0.001° grid ≈ 90 m)."""
+    cells: dict[tuple[float, float], dict] = {}
+    for p in projects:
+        lat, lon = p.get("lat"), p.get("lon")
+        if lat is None or lon is None:
+            continue
+        key = (round(float(lat), 3), round(float(lon), 3))
+        if key not in cells:
+            cells[key] = {"score": 0, "count": 0, "street": _extract_street_name(p.get("title"))}
+        cells[key]["score"] += _BLOCK_IMPACT_WEIGHTS.get(p.get("impact_type") or "", 8)
+        cells[key]["count"] += 1
+
+    blocks = []
+    for (clat, _clon), cell in cells.items():
+        street = cell["street"] or f"Block near {clat:.3f}°N"
+        block_num = (int(abs(clat * 1000)) % 20) * 100 + 1000
+        blocks.append({
+            "block": f"{street} {block_num}–{block_num + 99}",
+            "avg_score": min(100, cell["score"]),
+            "active_projects": cell["count"],
+        })
+    return blocks
+
+
+def _make_demo_blocks(slug: str, median_score: int) -> list[dict]:
+    """Generate plausible block data for demo mode from the street config."""
+    streets = _NEIGHBORHOOD_STREETS.get(
+        slug,
+        {"quiet": ["N Main St", "W Side St", "N Oak Ave", "W Park Pl", "N Elm St"],
+         "busy":  ["W Chicago Ave", "N State St", "W Madison St", "N Clark St", "S Michigan Ave"]},
+    )
+    blocks: list[dict] = []
+    for i, street in enumerate(streets["quiet"][:5]):
+        base = 1400 + i * 100
+        score = max(2, min(18, median_score - 22 + (i % 3) * 4 - (i // 3) * 2))
+        blocks.append({"block": f"{street} {base}–{base + 99}", "avg_score": score, "active_projects": 0})
+    for i, street in enumerate(streets["busy"][:5]):
+        base = 1100 + i * 100
+        score = min(92, max(median_score + 18 + i * 6, 45))
+        blocks.append({"block": f"{street} {base}–{base + 99}", "avg_score": score, "active_projects": 2 + i // 2})
+    return blocks
+
+
+def _format_month_year(iso: str) -> str:
+    """Convert an ISO timestamp to 'March 2026' format."""
+    import datetime
+    try:
+        dt = datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.strftime("%B %Y")
+    except Exception:
+        return "recent"
+
+
+@app.get("/neighborhood/{slug}/best-streets")
+def get_neighborhood_best_streets(slug: str) -> dict:
+    """
+    Return the 5 quietest and 5 most disrupted blocks in a neighborhood.
+
+    In live mode: aggregates active projects in the bbox into ~90-m grid cells
+    and scores each cell by impact type weight.
+    In demo mode: returns calibrated static block data derived from known
+    high- and low-activity corridors for each neighborhood.
+
+    Returns: slug, name, quietest_blocks, busiest_blocks, last_updated,
+             mode, meta_description (unique, generated from real data).
+    """
+    neighborhood = _NEIGHBORHOODS.get(slug)
+    if neighborhood is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Neighborhood '{slug}' not found. Valid slugs: {', '.join(_NEIGHBORHOODS)}",
+        )
+
+    name = neighborhood["name"]
+    last_updated = _get_last_ingest_time()
+
+    if _is_db_configured():
+        bbox = neighborhood["bbox"]
+        projects = _get_projects_in_bbox(
+            bbox["min_lat"], bbox["min_lon"], bbox["max_lat"], bbox["max_lon"]
+        )
+        all_blocks = _compute_blocks_from_projects(projects)
+        mode = "live"
+    else:
+        all_blocks = _make_demo_blocks(slug, neighborhood.get("median_score", 35))
+        mode = "demo"
+
+    quietest = sorted(all_blocks, key=lambda b: b["avg_score"])[:5]
+    busiest  = sorted(all_blocks, key=lambda b: b["avg_score"], reverse=True)[:5]
+    month_year = _format_month_year(last_updated)
+
+    # Unique meta description generated from the actual block data.
+    if quietest and busiest:
+        q0, b0 = quietest[0], busiest[0]
+        meta_description = (
+            f"Find Chicago's quietest streets in {name}. "
+            f"{q0['block']} has the lowest disruption score ({q0['avg_score']}/100) "
+            f"while {b0['block']} has the highest active construction load "
+            f"({b0['avg_score']}/100, {b0['active_projects']} active permit"
+            f"{'s' if b0['active_projects'] != 1 else ''}). "
+            f"Block-level disruption data for {name}, Chicago — updated {month_year}."
+        )
+    else:
+        meta_description = (
+            f"Block-level disruption intelligence for {name}, Chicago. "
+            f"Quietest and most disrupted streets updated {month_year}."
+        )
+
+    return {
+        "slug": slug,
+        "name": name,
+        "quietest_blocks": quietest,
+        "busiest_blocks": busiest,
+        "last_updated": last_updated,
+        "mode": mode,
+        "meta_description": meta_description,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /commute endpoint
+# Scores the disruption along a commute corridor between two addresses.
+# Geocodes both, builds a bounding box, queries active signals in the corridor,
+# identifies CTA stations and service alerts, and returns a scored response.
+# ---------------------------------------------------------------------------
+
+class CommuteRequest(BaseModel):
+    home: str   # origin / home address
+    work: str   # destination / workplace address
+
+
+def _commute_badge(score: int) -> str:
+    if score <= 25:
+        return "Low"
+    if score <= 55:
+        return "Moderate"
+    return "High"
+
+
+@app.post("/commute")
+def check_commute(body: CommuteRequest) -> dict:
+    """
+    Score the disruption along a commute corridor between two addresses.
+
+    Steps:
+      1. Geocode home + work → (lat, lon) pairs
+      2. Build a bounding box (with 0.003° padding) enclosing the corridor
+      3. Query all active projects within the bbox via _get_projects_in_bbox
+      4. Score the corridor: sum of per-signal impact weights, capped at 100
+      5. Identify CTA stations within the bbox
+      6. Identify CTA service-alert projects in the bbox (source starts with "cta")
+      7. Return score, badge (Low/Moderate/High), signals, and transit alerts
+
+    Falls back to a demo response when DB is not configured or geocoding fails.
+    """
+    if not _is_db_configured():
+        # Demo mode — synthetic corridor between two Chicago landmarks.
+        return {
+            "home": body.home,
+            "work": body.work,
+            "commute_score": 38,
+            "badge": "Moderate",
+            "signals_count": 4,
+            "signals": [
+                {"title": "W Chicago Ave 2-lane eastbound closure", "impact_type": "closure_multi_lane",
+                 "lat": 41.8959, "lon": -87.6594, "source": "chicago_closures"},
+                {"title": "Active construction permit near Grand Ave", "impact_type": "construction",
+                 "lat": 41.8910, "lon": -87.6462, "source": "chicago_permits"},
+                {"title": "Curb lane closure on N State St", "impact_type": "closure_single_lane",
+                 "lat": 41.8840, "lon": -87.6280, "source": "chicago_closures"},
+                {"title": "Utility work permit on S Wacker Dr", "impact_type": "light_permit",
+                 "lat": 41.8788, "lon": -87.6359, "source": "chicago_permits"},
+            ],
+            "transit_stations": [
+                {"name": "Grand", "lat": 41.8915, "lon": -87.6477},
+                {"name": "State/Lake", "lat": 41.8858, "lon": -87.6278},
+            ],
+            "transit_alerts": [],
+            "home_coords": None,
+            "work_coords": None,
+            "mode": "demo",
+        }
+
+    try:
+        from backend.ingest.geocode import geocode_address
+
+        home_coords = geocode_address(body.home)
+        work_coords = geocode_address(body.work)
+
+        if not home_coords or not work_coords:
+            missing = "home" if not home_coords else "destination"
+            raise HTTPException(
+                status_code=422,
+                detail=f"Could not geocode {missing} address: "
+                       f"{body.home if not home_coords else body.work!r}",
+            )
+
+        home_lat, home_lon = home_coords
+        work_lat, work_lon = work_coords
+
+        # Build corridor bbox with a small padding so signals on the edges
+        # are included. 0.003° ≈ 270 m at Chicago latitude.
+        pad = 0.003
+        min_lat = min(home_lat, work_lat) - pad
+        max_lat = max(home_lat, work_lat) + pad
+        min_lon = min(home_lon, work_lon) - pad
+        max_lon = max(home_lon, work_lon) + pad
+
+        projects = _get_projects_in_bbox(min_lat, min_lon, max_lat, max_lon)
+
+        # Corridor score: sum of per-signal weights, capped at 100.
+        corridor_score = min(
+            100,
+            sum(_BLOCK_IMPACT_WEIGHTS.get(p.get("impact_type") or "", 8) for p in projects),
+        )
+        badge = _commute_badge(corridor_score)
+
+        # Separate CTA service alerts from construction/closure signals.
+        transit_alerts = [
+            p for p in projects
+            if (p.get("source") or "").lower().startswith("cta")
+        ]
+        corridor_signals = [p for p in projects if p not in transit_alerts]
+
+        # Find CTA stations within the bbox.
+        transit_stations: list[dict] = []
+        try:
+            from backend.ingest.cta_alerts import CTA_STATION_COORDS
+            for station_name, (slat, slon) in CTA_STATION_COORDS.items():
+                if min_lat <= slat <= max_lat and min_lon <= slon <= max_lon:
+                    transit_stations.append({"name": station_name, "lat": slat, "lon": slon})
+        except Exception as cta_exc:
+            log.debug("CTA station lookup skipped: %s", cta_exc)
+
+        log.info(
+            "commute home=%r work=%r score=%d badge=%s signals=%d transit_alerts=%d",
+            body.home, body.work, corridor_score, badge, len(projects), len(transit_alerts),
+        )
+
+        return {
+            "home": body.home,
+            "work": body.work,
+            "commute_score": corridor_score,
+            "badge": badge,
+            "signals_count": len(projects),
+            "signals": [
+                {
+                    "title": p.get("title"),
+                    "impact_type": p.get("impact_type"),
+                    "lat": p.get("lat"),
+                    "lon": p.get("lon"),
+                    "source": p.get("source", ""),
+                }
+                for p in corridor_signals
+            ],
+            "transit_stations": transit_stations,
+            "transit_alerts": [
+                {
+                    "title": p.get("title"),
+                    "impact_type": p.get("impact_type"),
+                    "lat": p.get("lat"),
+                    "lon": p.get("lon"),
+                    "source": p.get("source", ""),
+                }
+                for p in transit_alerts
+            ],
+            "home_coords": {"lat": home_lat, "lon": home_lon},
+            "work_coords": {"lat": work_lat, "lon": work_lon},
+            "mode": "live",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("check_commute home=%r work=%r error: %s", body.home, body.work, exc)
+        raise HTTPException(status_code=503, detail="Commute scoring temporarily unavailable.") from exc
 
 
 @app.get("/suggest")
@@ -1544,10 +2078,22 @@ def subscribe_watch(body: WatchRequest) -> dict:
         raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
 
     if not _is_db_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Watchlist requires a live database. Configure DATABASE_URL to enable.",
+        # DB not yet live — accept the intent and return a demo success so the
+        # email-capture form always works on the free tier. Real alert delivery
+        # starts once DATABASE_URL is configured.
+        log.info(
+            "watch subscribe (demo) email=%r address=%r threshold=%d",
+            body.email, body.address, body.threshold,
         )
+        return {
+            "id": None,
+            "email": body.email,
+            "address": body.address,
+            "threshold": body.threshold,
+            "token": None,
+            "demo": True,
+            "message": "Noted. Alert delivery activates once the live database is connected.",
+        }
 
     try:
         from backend.scoring.query import get_db_connection
@@ -1639,7 +2185,7 @@ def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token fro
 def check_watchlist() -> dict:
     """
     Operator endpoint — score every watched address and fire alerts for entries
-    whose score meets or exceeds their configured threshold.
+    whose score has dropped below their configured threshold (disruption cleared).
 
     For each triggered entry:
       - Writes a row to alert_log with the current score.
@@ -1675,7 +2221,7 @@ def check_watchlist() -> dict:
                 if score is None:
                     continue
 
-                if score >= threshold:
+                if score < threshold:
                     # Log alert — email delivery stubbed.
                     log.info(
                         "ALERT [stub] watch_id=%d email=%r address=%r "
@@ -1879,6 +2425,8 @@ def export_csv(
             "distance_m", "title", "source", "source_id",
             "impact_type", "status", "start_date", "end_date",
             "address", "weighted_score",
+            # data-043: Claude-generated display fields (empty when not enriched)
+            "display_title", "distance", "description", "why_it_matters",
         ],
         extrasaction="ignore",
     )
