@@ -434,6 +434,18 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # data-053: Fetches public school locations for all active cities using
+        # NCES Common Core of Data via the Urban Institute Education Data API.
+        # Free, no API key required. Covers 34 cities (Chicago excluded — CPS
+        # data with richer ratings is handled by il_school_ratings.py).
+        # school_rating/attainment/growth are null; state report card
+        # integration is tracked in data-054.
+        "name": "Fetch national school ratings (NCES CCD)",
+        "cmd": [sys.executable, "backend/ingest/national_school_ratings.py"],
+        "skip_key": "skip_national_school_ratings",
+        "non_fatal": True,
+    },
+    {
         "name": "Fill missing geocoordinates",
         "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
         "skip_key": "skip_geocode",
@@ -795,6 +807,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-school-ratings",
         action="store_true",
         help="Skip the IL school ratings fetch step (CPS).",
+    )
+    parser.add_argument(
+        "--skip-national-school-ratings",
+        action="store_true",
+        help="Skip the national school ratings fetch step (NCES CCD via Urban Institute API).",
     )
     parser.add_argument(
         "--skip-neighborhood-quality",

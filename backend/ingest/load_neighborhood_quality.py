@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050
+task: data-040, data-044, data-045, data-047, data-050, data-053
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -31,6 +31,7 @@ Reads from staging files written by:
   backend/ingest/albuquerque_crime_trends.py   → data/raw/albuquerque_crime_trends.json
   backend/ingest/raleigh_crime_trends.py       → data/raw/raleigh_crime_trends.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
+  backend/ingest/national_school_ratings.py   → data/raw/national_school_ratings.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -52,6 +53,7 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --source crime_portland
   python backend/ingest/load_neighborhood_quality.py --source census
   python backend/ingest/load_neighborhood_quality.py --source schools
+  python backend/ingest/load_neighborhood_quality.py --source schools_national
 
 Prerequisites:
   - DATABASE_URL or POSTGRES_* env vars must be set
@@ -120,8 +122,10 @@ STAGING_FILES = {
     "crime_indianapolis":  Path("data/raw/indianapolis_crime_trends.json"),
     "crime_albuquerque":   Path("data/raw/albuquerque_crime_trends.json"),
     "crime_raleigh":       Path("data/raw/raleigh_crime_trends.json"),
-    # data-045: IL school ratings
-    "schools":       Path("data/raw/il_school_ratings.json"),
+    # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
+    "schools":           Path("data/raw/il_school_ratings.json"),
+    # data-053: National school locations via NCES CCD (all active cities)
+    "schools_national":  Path("data/raw/national_school_ratings.json"),
 }
 
 CURRENT_YEAR = _dt.datetime.now().year
@@ -302,7 +306,7 @@ def parse_args() -> argparse.Namespace:
             "crime_charlotte", "crime_columbus", "crime_minneapolis", "crime_phoenix",
             "crime_san_jose", "crime_jacksonville", "crime_fort_worth",
             "crime_indianapolis", "crime_albuquerque", "crime_raleigh",
-            "schools", "all",
+            "schools", "schools_national", "all",
         ],
         default="all",
         help="Which staging source to load (default: all).",
