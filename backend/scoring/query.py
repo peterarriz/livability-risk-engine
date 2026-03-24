@@ -55,9 +55,7 @@ from backend.models.project import (
     IMPACT_MULTI_LANE,
     IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
-    IMPACT_TRAFFIC_SIGNAL,
     IMPACT_UTILITY_OUTAGE,
-    IMPACT_UTILITY_REPAIR,
     Project,
 )
 
@@ -288,8 +286,7 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
         w for np, w in contributions
         if np.project.impact_type in (
             IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
-            IMPACT_ROAD_CONSTRUCTION, IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
-            IMPACT_TRAFFIC_SIGNAL,
+            IMPACT_ROAD_CONSTRUCTION, IMPACT_UTILITY_OUTAGE,
         )
     )
     noise_pts = sum(
@@ -373,13 +370,7 @@ def _build_top_risks(
         elif p.impact_type == IMPACT_CONSTRUCTION:
             risk = f"Active construction permit near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_UTILITY_OUTAGE:
-            risk = f"Utility emergency (water main break or gas leak) near {p.title} {dist_str}"
-        elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
-            risk = f"Traffic signal outage near {p.title} {dist_str}"
-        elif p.impact_type == IMPACT_UTILITY_REPAIR:
-            risk = f"Utility repair crew active near {p.title} {dist_str}"
-        elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
-            risk = f"Traffic signal outage at intersection near {p.title} {dist_str}"
+            risk = f"Active utility emergency near {p.title} {dist_str}"
         else:
             risk = f"Nearby permit activity: {p.title} {dist_str}"
 
@@ -451,17 +442,8 @@ def _build_explanation(
         lead = f"Nearby construction activity ({p.title}, {dist_str}) is the main driver"
         category = "noise disruption"
     elif p.impact_type == IMPACT_UTILITY_OUTAGE:
-        lead = f"A utility emergency ({p.title}, {dist_str}) is the main driver"
-        category = "access and traffic disruption from emergency response"
-    elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
-        lead = f"A traffic signal outage ({p.title}, {dist_str}) is the main driver"
-        category = "traffic disruption from non-functional signals"
-    elif p.impact_type == IMPACT_UTILITY_REPAIR:
-        lead = f"Nearby utility repair work ({p.title}, {dist_str}) is the main driver"
-        category = "traffic disruption from repair crews"
-    elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
-        lead = f"A traffic signal outage ({p.title}, {dist_str}) is the main driver"
-        category = "intersection traffic disruption"
+        lead = f"An active utility emergency ({p.title}, {dist_str}) is the main driver"
+        category = "traffic and service disruption"
     else:
         lead = f"Nearby permitted work ({p.title}, {dist_str}) is contributing"
         category = "minor disruption"

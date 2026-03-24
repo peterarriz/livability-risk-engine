@@ -71,9 +71,7 @@ IMPACT_DEMOLITION       = "demolition"
 IMPACT_CONSTRUCTION     = "construction"
 IMPACT_ROAD_CONSTRUCTION = "road_construction"
 IMPACT_LIGHT_PERMIT     = "light_permit"
-IMPACT_UTILITY_OUTAGE   = "utility_outage"       # data-046: water main break, gas leak
-IMPACT_UTILITY_REPAIR   = "utility_repair"       # data-046: utility repair crew work
-IMPACT_TRAFFIC_SIGNAL   = "traffic_signal_outage"  # data-038: traffic signal out (all/sporadic)
+IMPACT_UTILITY_OUTAGE   = "utility_outage"   # data-046: active infrastructure emergency
 
 # Base weights per docs/03_scoring_model.md
 BASE_WEIGHTS: dict[str, int] = {
@@ -82,7 +80,6 @@ BASE_WEIGHTS: dict[str, int] = {
     IMPACT_SINGLE_LANE:   28,
     IMPACT_DEMOLITION:    24,
     IMPACT_UTILITY_OUTAGE:    25,
-    IMPACT_TRAFFIC_SIGNAL:    22,
     IMPACT_CONSTRUCTION:      16,
     IMPACT_ROAD_CONSTRUCTION: 20,
     IMPACT_UTILITY_REPAIR:    15,
@@ -96,7 +93,6 @@ IMPACT_SEVERITY: dict[str, str] = {
     IMPACT_SINGLE_LANE:   "MEDIUM",
     IMPACT_DEMOLITION:    "HIGH",
     IMPACT_UTILITY_OUTAGE:    "HIGH",
-    IMPACT_TRAFFIC_SIGNAL:    "HIGH",
     IMPACT_CONSTRUCTION:      "MEDIUM",
     IMPACT_ROAD_CONSTRUCTION: "MEDIUM",
     IMPACT_UTILITY_REPAIR:    "MEDIUM",
@@ -1021,7 +1017,7 @@ _311_WATER_MAIN = re.compile(
 )
 
 _311_GAS_LEAK = re.compile(
-    r"\b(gas.?leak|gas.?main|peoples.?gas)\b",
+    r"\b(gas.?leak|gas.?emergency|natural.?gas)\b",
     re.IGNORECASE,
 )
 
@@ -1046,19 +1042,18 @@ def _classify_311_request(sr_type: str) -> str:
     Assign an impact_type to a 311 service request.
 
     Priority order:
-    1. Water main break / gas leak → utility_outage (emergency, weight 25)
-    2. Traffic signal out → traffic_signal_outage (weight 22)
-    3. Cave-in → multi_lane (road collapse, weight 38)
-    4. Tree emergency / pole down → single lane (temporary obstruction)
-    5. Pothole and others → light_permit (road degradation hazard)
+    1. Water main break / gas leak → utility_outage (active infrastructure emergency)
+    2. Cave-in → multi_lane (active lane blockage)
+    3. Tree emergency / pole down → single lane (temporary obstruction)
+    4. Pothole and others → light_permit (road degradation hazard)
     """
     sr = (sr_type or "").strip()
 
-    if _311_WATER_MAIN.search(sr) or _311_GAS_LEAK.search(sr):
+    if _311_WATER_MAIN.search(sr):
         return IMPACT_UTILITY_OUTAGE
 
-    if _311_TRAFFIC_SIGNAL.search(sr):
-        return IMPACT_TRAFFIC_SIGNAL
+    if _311_GAS_LEAK.search(sr):
+        return IMPACT_UTILITY_OUTAGE
 
     if _311_CAVE_IN.search(sr):
         return IMPACT_MULTI_LANE

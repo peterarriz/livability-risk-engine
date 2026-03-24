@@ -55,8 +55,7 @@ DISRUPTION_SR_TYPES = [
     "Pavement Cave-In",
     "Tree Emergency",
     "Street Light - Pole Down",
-    "Traffic Signal Out - All Signals Out",    # data-038: traffic_signal_outage signal
-    "Traffic Signal Out - Sporadic/Cycling",   # data-038: traffic_signal_outage signal
+    "Gas Leak",                   # data-046: Peoples Gas emergency events
 ]
 
 # Fields to retain from the raw 311 request record.
