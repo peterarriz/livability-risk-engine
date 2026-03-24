@@ -240,9 +240,17 @@ ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS livability_score INT NOT NULL DEFAULT 0;
 ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS livability_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb;
+-- data-062: lat/lon for geographic aggregation in /score-trend
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
     ON score_history (address, scored_at DESC);
+CREATE INDEX IF NOT EXISTS score_history_latlon_idx
+    ON score_history (latitude, longitude)
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 COMMENT ON TABLE score_history IS
     'Saved score snapshots per address (data-025). Each row is a /score response '

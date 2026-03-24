@@ -20,7 +20,7 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
-import { fetchHistory, fetchScore, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { fetchHistory, fetchScore, fetchScoreTrend, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, ScoreHistoryEntry, ScoreResponse, ScoreSource, TrendDay } from "@/lib/api";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 
@@ -51,6 +51,7 @@ export default function HomePage() {
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
+  const [scoreTrend, setScoreTrend] = useState<TrendDay[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Mobile simplified view — reset to false on each new result so users always
@@ -231,6 +232,14 @@ export default function HomePage() {
       ),
     );
   }, [result]);
+
+  // data-062: fetch area trend whenever coordinates are available.
+  useEffect(() => {
+    const lat = result?.latitude ?? null;
+    const lon = result?.longitude ?? null;
+    if (lat == null || lon == null) { setScoreTrend([]); return; }
+    fetchScoreTrend(lat, lon).then((r) => setScoreTrend(r?.trend ?? []));
+  }, [result?.latitude, result?.longitude]);
 
   function handleSuggestionSelect(suggestion: string) {
     track("suggestion_selected", { address: suggestion });
@@ -715,6 +724,7 @@ export default function HomePage() {
                 <NeighborhoodContextCard
                   result={result}
                   scoreHistory={scoreHistory}
+                  scoreTrend={scoreTrend}
                   lat={mapCoords?.lat ?? result.latitude}
                   lon={mapCoords?.lon ?? result.longitude}
                 />
