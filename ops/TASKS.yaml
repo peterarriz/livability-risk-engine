@@ -1060,6 +1060,83 @@ tasks:
       - Live state reads as production-ready while demo fallback remains explicit but subordinate
       - Frontend production build passes
     notes_for_next_agent: "Completed production-hardening pass across the score workflow. Search suggestions now use a premium dark dropdown with keyboard navigation. Results flow is reorganized into score → interpretation → confidence/severity → drivers → map/timeline/supporting context. Demo language was reduced in the primary flow while fallback labeling remains explicit. Verified with 'cd frontend && npm run build'."
+  - id: app-026
+    lane: app
+    type: feature
+    title: Add CTA transit layer toggle to map controls
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/map-view.tsx
+    dependencies:
+      - app-025
+    acceptance_criteria:
+      - Map controls include a transit toggle for CTA service-alert signals.
+      - Turning transit off hides CTA-backed map circles/heat blobs without affecting non-transit signals.
+      - Legend counts and map accessibility label reflect the currently displayed signal set.
+    notes_for_next_agent: Completed. Added a CTA transit toggle button to MapView controls; CTA alerts are filtered from both signal-circle and heatmap render paths when off. Legend badges and map aria-label now derive from displayedSignals so counts stay accurate after toggling.
+  - id: app-027
+    lane: app
+    type: feature
+    title: Add Claude-powered map narrator panel with interaction updates
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/map-view.tsx
+      - frontend/src/lib/api.ts
+      - backend/app/main.py
+      - backend/scoring/rewrite.py
+    dependencies:
+      - app-026
+    acceptance_criteria:
+      - Narrator panel appears below map toggles with 2–3 sentence plain-English summary.
+      - Narrator refreshes on default map load, signal-click, and map pan interactions.
+      - Narrator requests are debounced by 800ms and fail silently (panel hidden when unavailable).
+      - Narrator output is cached in signal_display keyed by address + signal-set hash to avoid repeated Claude calls.
+      - Pan narration compares new-area score to the original searched-address score when DB scoring is available.
+    notes_for_next_agent: Completed. Added POST /map/narrate plus frontend fetchMapNarration integration in MapView. Narration is debounced at 800ms and shown only when backend returns text. Claude output is cache-backed in signal_display using a map_narrator::<address>::<signal_hash> key; on any API/cache failure, narration returns null and the panel stays hidden.
+  - id: app-028
+    lane: app
+    type: feature
+    title: Add weighted composite Livability Score to API and headline UI
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - db/schema.sql
+      - frontend/src/lib/api.ts
+      - frontend/src/components/score-experience.tsx
+    dependencies:
+      - app-027
+    acceptance_criteria:
+      - /score returns livability_score (0–100) and livability_breakdown with weighted component contributions.
+      - Composite weights are configurable and default to 35/25/20/10/10 across disruption, crime, school, demographics, and flood.
+      - score_history persists livability_score and livability_breakdown alongside disruption_score.
+      - Results headline uses Livability Score while preserving disruption score as supporting detail.
+    notes_for_next_agent: Completed. Added configurable composite scoring in backend/main.py and returned livability_score + livability_breakdown on both live and demo responses. Added score_history columns and write paths for livability fields. Frontend now types these fields and renders Livability Score as the headline metric with disruption score shown in supporting metadata.
+  - id: app-029
+    lane: app
+    type: feature
+    title: Link watchlist/report persistence to account_id and add dashboard route
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/main.py
+      - frontend/src/lib/api.ts
+      - frontend/src/app/dashboard/page.tsx
+    dependencies:
+      - app-028
+    acceptance_criteria:
+      - Authenticated POST /watchlist stores account_id on watchlist rows.
+      - GET /watchlist returns active watchlist entries for the authenticated account.
+      - Authenticated report saves also write a score_history row with account_id.
+      - /dashboard endpoint + frontend /dashboard page show saved reports, watchlist scores, and score-diff badges.
+      - Anonymous users keep localStorage fallback behavior.
+    notes_for_next_agent: Completed. Added authenticated /watchlist and /dashboard backend paths, attached account_id in watchlist + score_history writes during save flow, and introduced a new /dashboard page with localStorage fallback when no logged-in backend token is available.
   - id: data-043
     lane: data
     type: feature

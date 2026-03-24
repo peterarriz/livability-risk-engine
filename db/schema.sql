@@ -229,10 +229,17 @@ CREATE TABLE IF NOT EXISTS score_history (
     id               BIGSERIAL   PRIMARY KEY,
     address          TEXT        NOT NULL,
     disruption_score INT         NOT NULL,
+    livability_score INT         NOT NULL DEFAULT 0,
+    livability_breakdown JSONB   NOT NULL DEFAULT '{}'::jsonb,
     confidence       TEXT        NOT NULL,
     mode             TEXT        NOT NULL DEFAULT 'live',
     scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS livability_score INT NOT NULL DEFAULT 0;
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS livability_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
     ON score_history (address, scored_at DESC);

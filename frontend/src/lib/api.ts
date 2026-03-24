@@ -63,9 +63,20 @@ export type NearbySignal = {
   end_date?: string | null;
 };
 
+export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
+
+export type MapNarrationResponse = {
+  narration: string | null;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
+  livability_score?: number;
+  livability_breakdown?: {
+    weights: Record<string, number>;
+    components: Record<string, { raw_score: number; weighted_contribution: number }>;
+  };
   confidence: ConfidenceLevel;
   severity: {
     noise: SeverityLevel;
@@ -150,6 +161,23 @@ function buildDemoScore(address: string): ScoreResponse {
   return {
     address,
     disruption_score: 62,
+    livability_score: 48,
+    livability_breakdown: {
+      weights: {
+        disruption_risk: 0.35,
+        crime_trend: 0.25,
+        school_rating: 0.2,
+        demographics_stability: 0.1,
+        flood_environmental: 0.1,
+      },
+      components: {
+        disruption_risk: { raw_score: 38, weighted_contribution: 13.3 },
+        crime_trend: { raw_score: 55, weighted_contribution: 13.8 },
+        school_rating: { raw_score: 60, weighted_contribution: 12.0 },
+        demographics_stability: { raw_score: 52, weighted_contribution: 5.2 },
+        flood_environmental: { raw_score: 40, weighted_contribution: 4.0 },
+      },
+    },
     confidence: "MEDIUM",
     severity: {
       noise: "LOW",
@@ -259,22 +287,40 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   return null;
 }
 
-// US state name → 2-letter abbreviation for formatting nationwide suggestions.
-const _US_STATE_ABBREVS: Record<string, string> = {
-  "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
-  "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
-  "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
-  "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
-  "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
-  "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
-  "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
-  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
-  "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
-  "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
-  "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
-  "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
-  "wisconsin": "WI", "wyoming": "WY", "district of columbia": "DC",
-};
+export async function fetchMapNarration(payload: {
+  address: string;
+  interaction_type: MapNarrationInteraction;
+  signals: NearbySignal[];
+  top_signal_title?: string;
+  clicked_signal?: NearbySignal;
+  original_score?: number;
+  current_lat?: number;
+  current_lon?: number;
+}): Promise<MapNarrationResponse> {
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) return { narration: null };
+
+  try {
+    const response = await fetch(new URL("/map/narrate", apiBase), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) return { narration: null };
+    const data = await response.json();
+    return { narration: typeof data?.narration === "string" ? data.narration : null };
+  } catch {
+    return { narration: null };
+  }
+}
+
+// Illinois bounding box constants shared by both geocoder calls below.
+// Nominatim viewbox: left,top,right,bottom = minLon,maxLat,maxLon,minLat
+const _NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700";
+// Photon bbox: minLon,minLat,maxLon,maxLat
+const _PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100";
+const _IL_LAT: [number, number] = [36.9700, 42.5100];
+const _IL_LON: [number, number] = [-91.5100, -87.0200];
 
 function _stateAbbrev(raw: string): string {
   if (!raw) return "";
@@ -469,7 +515,10 @@ export type WatchResponse = {
  * returned — the form always completes so email capture works on the free tier.
  * Actual alert email delivery is gated behind the Pro plan.
  */
-export async function subscribeWatch(req: WatchRequest): Promise<WatchResponse> {
+export async function subscribeWatch(
+  req: WatchRequest,
+  backendToken?: string | null,
+): Promise<WatchResponse> {
   const apiBaseUrl = getApiBaseUrl();
 
   if (!apiBaseUrl) {
@@ -485,10 +534,11 @@ export async function subscribeWatch(req: WatchRequest): Promise<WatchResponse> 
     };
   }
 
-  const url = buildApiUrl("/watch");
+  const url = buildApiUrl("/watchlist");
+  const authHeaders = backendToken ? getAuthHeaders(backendToken) : await getSessionAuthHeaders();
   const resp = await fetch(url.toString(), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify(req),
     cache: "no-store",
   });
@@ -514,21 +564,94 @@ export type FetchReportResponse = ScoreResponse & {
  * Save a score result to the backend and return a shareable report_id.
  * Throws ApiError if the backend is unreachable or DB is not configured.
  */
-export async function saveReport(score: ScoreResponse): Promise<SaveReportResponse> {
+export async function saveReport(
+  score: ScoreResponse,
+  backendToken?: string | null,
+): Promise<SaveReportResponse> {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {
     throw new ApiError("Backend not configured. Cannot save report.");
   }
-  const url = buildApiUrl("/save-report");
+  const url = buildApiUrl("/save");
+  const authHeaders = backendToken ? getAuthHeaders(backendToken) : await getSessionAuthHeaders();
   const resp = await fetch(url.toString(), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify(score),
   });
   if (!resp.ok) {
     throw new ApiError(`Save failed: ${resp.status}`);
   }
-  return (await resp.json()) as SaveReportResponse;
+  const saved = (await resp.json()) as SaveReportResponse;
+  try {
+    const existingRaw = window.localStorage.getItem("lre_saved_reports");
+    const existing = existingRaw ? JSON.parse(existingRaw) : [];
+    const next = [
+      {
+        report_id: saved.report_id,
+        address: score.address,
+        saved_livability_score: score.livability_score ?? null,
+        saved_disruption_score: score.disruption_score,
+        created_at: new Date().toISOString(),
+      },
+      ...existing,
+    ].slice(0, 10);
+    window.localStorage.setItem("lre_saved_reports", JSON.stringify(next));
+  } catch {
+    // localStorage is best-effort only.
+  }
+  return saved;
+}
+
+export type WatchlistEntry = {
+  id: number;
+  email: string;
+  address: string;
+  threshold: number;
+  created_at: string;
+  is_active: boolean;
+};
+
+export async function fetchWatchlist(backendToken: string): Promise<WatchlistEntry[]> {
+  const resp = await fetch(buildApiUrl("/watchlist").toString(), {
+    headers: getAuthHeaders(backendToken),
+    cache: "no-store",
+  });
+  if (!resp.ok) return [];
+  const data = await resp.json() as { entries?: WatchlistEntry[] };
+  return data.entries ?? [];
+}
+
+export type DashboardResponse = {
+  saved_reports: Array<{
+    report_id: string;
+    address: string;
+    saved_disruption_score: number | null;
+    saved_livability_score: number | null;
+    created_at: string;
+  }>;
+  watchlist: Array<{
+    id: number;
+    address: string;
+    threshold: number;
+    current_livability_score: number | null;
+    score_diff_since_saved: number | null;
+    score_changed: boolean;
+    created_at: string;
+  }>;
+};
+
+export async function fetchDashboard(backendToken: string): Promise<DashboardResponse | null> {
+  try {
+    const resp = await fetch(buildApiUrl("/dashboard").toString(), {
+      headers: getAuthHeaders(backendToken),
+      cache: "no-store",
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as DashboardResponse;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -899,6 +1022,16 @@ export async function fetchCommute(
 export function getAuthHeaders(backendToken?: string | null): Record<string, string> {
   if (!backendToken) return {};
   return { Authorization: `Bearer ${backendToken}` };
+}
+
+async function getSessionAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const { getSession } = await import("next-auth/react");
+    const session = await getSession();
+    return getAuthHeaders(session?.user?.backend_token ?? null);
+  } catch {
+    return {};
+  }
 }
 
 // Shape returned by /auth/register, /auth/login, /auth/google

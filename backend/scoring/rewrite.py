@@ -38,6 +38,7 @@ import json
 import logging
 import os
 import re
+import hashlib
 from typing import Optional
 
 log = logging.getLogger(__name__)
@@ -446,3 +447,148 @@ def enrich_top_risk_details(details: list[dict], conn) -> list[dict]:
         )
 
     return enriched
+
+
+_MAP_OVERRUN_HINTS: dict[str, str] = {
+    "closure_full": "historically often extend by ~1–3 days",
+    "closure_multi_lane": "historically often extend by ~1–2 days",
+    "closure_single_lane": "historically can run ~0–1 day over plan",
+    "construction": "historically can slip by ~3–7 days",
+    "road_construction": "historically can slip by ~4–10 days",
+}
+
+
+def _map_signal_hash(signals: list[dict], interaction_type: str) -> str:
+    """
+    Stable hash for map-narration caching.
+    Key requirement is (address, signal_ids_hash); we derive an ID from the
+    rendered signal payload because nearby_signals currently has no explicit id.
+    """
+    tokens: list[str] = []
+    for s in signals:
+        tokens.append(
+            "|".join(
+                [
+                    str(s.get("impact_type") or ""),
+                    f"{float(s.get('lat', 0.0)):.5f}",
+                    f"{float(s.get('lon', 0.0)):.5f}",
+                    str(s.get("title") or ""),
+                    str(s.get("source") or ""),
+                ]
+            )
+        )
+    payload = interaction_type + "||" + "||".join(sorted(tokens))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
+
+
+def _call_claude_map_narrator(prompt: str) -> Optional[str]:
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return None
+    import anthropic  # lazy import
+
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model=os.environ.get("CLAUDE_REWRITE_MODEL", _MODEL),
+        max_tokens=180,
+        temperature=0.2,
+        system=(
+            "You write concise municipal-risk map narration for Chicago. "
+            "Return plain text only, 2-3 sentences, no markdown."
+        ),
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = " ".join(
+        block.text for block in response.content if getattr(block, "type", "") == "text"
+    ).strip()
+    return text or None
+
+
+def get_map_narration(
+    *,
+    address: str,
+    signals: list[dict],
+    interaction_type: str,
+    top_signal_title: str,
+    calmer_direction: str,
+    clicked_signal: Optional[dict],
+    original_score: Optional[int],
+    current_score: Optional[int],
+    conn,
+) -> Optional[str]:
+    """
+    Claude-powered map narrator with DB caching in signal_display.
+    Cache key is derived from (address, signal_ids_hash).
+    Returns None on any failure (caller should fail silently).
+    """
+    if not signals:
+        return None
+
+    signal_hash = _map_signal_hash(signals, interaction_type)
+    cache_key = f"map_narrator::{address.strip().lower()}::{signal_hash}"
+
+    try:
+        if conn:
+            cached = _load_display_cache(cache_key, conn)
+            if cached and cached.get("description"):
+                return cached["description"]
+    except Exception:
+        pass
+
+    signal_count = len(signals)
+    click_payload = ""
+    if clicked_signal:
+        impact = clicked_signal.get("impact_type", "signal")
+        overrun_hint = _MAP_OVERRUN_HINTS.get(impact)
+        overrun_line = (
+            f"Include this overrun context if appropriate: {overrun_hint}."
+            if overrun_hint else
+            "No overrun data is available for this signal type; do not invent one."
+        )
+        click_payload = (
+            f"\nClicked signal title: {clicked_signal.get('title')}\n"
+            f"Clicked signal type: {impact}\n"
+            f"Clicked signal dates: {clicked_signal.get('start_date')} to {clicked_signal.get('end_date')}\n"
+            f"{overrun_line}\n"
+        )
+
+    pan_payload = ""
+    if interaction_type == "map_pan" and original_score is not None and current_score is not None:
+        delta = current_score - original_score
+        pan_payload = (
+            f"\nOriginal score: {original_score}. New area score: {current_score}. "
+            f"Difference: {delta:+d}. Explicitly compare them in plain English.\n"
+        )
+
+    prompt = (
+        f"Address: {address}\n"
+        f"Interaction type: {interaction_type}\n"
+        f"Active signals within 500m: {signal_count}\n"
+        f"Top signal plain title: {top_signal_title}\n"
+        f"Calmer direction from searched address: {calmer_direction}\n"
+        f"{click_payload}"
+        f"{pan_payload}"
+        "Write 2-3 concise sentences. For default interaction, use this framing: "
+        "'This block has [N] active disruptions within 500m. The most significant is "
+        "[top signal plain title]. The area to the [direction] is notably calmer if "
+        "you have flexibility.' Keep it natural and non-alarmist."
+    )
+
+    try:
+        narration = _call_claude_map_narrator(prompt)
+        if not narration:
+            return None
+        if conn:
+            _store_display_cache(
+                cache_key,
+                {
+                    "title": "Map narrator",
+                    "distance": "",
+                    "description": narration,
+                    "why_it_matters": "map_narrator_cache",
+                },
+                conn,
+            )
+        return narration
+    except Exception:
+        return None

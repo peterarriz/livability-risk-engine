@@ -734,6 +734,7 @@ export default function HomePage() {
                     latitude={mapCoords.lat}
                     longitude={mapCoords.lon}
                     address={result.address}
+                    disruptionScore={result.disruption_score}
                     signals={result.nearby_signals ?? []}
                     topRiskDetails={result.top_risk_details ?? []}
                     isPro={false}
