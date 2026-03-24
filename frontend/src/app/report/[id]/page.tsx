@@ -220,6 +220,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
                 address={report.address}
                 disruptionScore={report.disruption_score}
                 signals={report.nearby_signals ?? []}
+                nearbySchools={report.nearby_schools ?? []}
               />
               <p className="map-copy">Use the map to anchor the score geographically.</p>
             </Card>

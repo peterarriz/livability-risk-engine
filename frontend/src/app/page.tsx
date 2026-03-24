@@ -738,6 +738,7 @@ export default function HomePage() {
                     signals={result.nearby_signals ?? []}
                     schools={result.nearby_schools ?? []}
                     topRiskDetails={result.top_risk_details ?? []}
+                    nearbySchools={result.nearby_schools ?? []}
                     isPro={false}
                   />
                 ) : (
