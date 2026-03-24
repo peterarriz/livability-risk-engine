@@ -15,29 +15,29 @@ type MapViewProps = {
   isPro?: boolean;
 };
 
-// ─── Impact-type colour palette ───────────────────────────────────────────────
+// ─── Impact-type colour palette (per design spec) ─────────────────────────────
+// Red   = access/traffic disruption (closures)
+// Amber = construction activity
+// Purple = utility/demolition signals
+// Blue  = minor / noise / event permits
 const IMPACT_COLOR: Record<string, string> = {
-  closure_full:        "#ff3b30",
-  closure_multi_lane:  "#ff6b35",
-  closure_single_lane: "#ff9f0a",
-  demolition:          "#bf5af2",
-  construction:        "#ffd60a",
-  light_permit:        "#30d158",
+  closure_full:        "#EF4444", // red
+  closure_multi_lane:  "#EF4444", // red
+  closure_single_lane: "#EF4444", // red
+  demolition:          "#8B5CF6", // purple
+  construction:        "#F59E0B", // amber
+  light_permit:        "#3B82F6", // blue
 };
-const DEFAULT_COLOR = "#8da5ff";
+const DEFAULT_COLOR = "#94a3b8";
 
-// ─── Signal-circle radius (meters) ───────────────────────────────────────────
-const SIGNAL_RADIUS: Record<string, number> = {
-  closure_full:        90,
-  closure_multi_lane:  75,
-  closure_single_lane: 55,
-  demolition:          65,
-  construction:        50,
-  light_permit:        38,
-};
-const DEFAULT_SIGNAL_RADIUS = 45;
+// ─── CircleMarker pixel radius — weight-proportional, clamped 8–28px ─────────
+// (L.circleMarker uses screen pixels, not geographic meters, so circles stay
+//  visible at all zoom levels regardless of how far away the signal is.)
+function signalPixelRadius(weight: number): number {
+  return Math.min(28, Math.max(8, 8 + (weight / 45) * 20));
+}
 
-// ─── Heatmap outer blob radius (meters) ──────────────────────────────────────
+// ─── Heatmap blob radius (meters — geographic, intentionally large) ───────────
 const HEAT_RADIUS: Record<string, number> = {
   closure_full:        200,
   closure_multi_lane:  175,
@@ -72,13 +72,8 @@ const SOURCE_LABEL: Record<string, string> = {
 
 function impactLabel(t: string) { return IMPACT_LABEL[t] ?? t; }
 function impactColor(t: string) { return IMPACT_COLOR[t] ?? DEFAULT_COLOR; }
-function signalRadius(t: string) { return SIGNAL_RADIUS[t] ?? DEFAULT_SIGNAL_RADIUS; }
 function heatRadius(t: string) { return HEAT_RADIUS[t] ?? DEFAULT_HEAT_RADIUS; }
 function sourceLabel(s: string) { return SOURCE_LABEL[s] ?? s; }
-
-function signalOpacity(weight: number): number {
-  return Math.min(0.72, Math.max(0.2, (weight / 45) * 0.72));
-}
 
 function metersToFeet(m: number): number {
   return Math.round(m * 3.28084);
@@ -248,40 +243,57 @@ export function MapView({
       ? signals.filter((s) => !isSignalActiveOnDay(s, forecastDate))
       : [];
 
+    // ── Debug: log signals to console so devtools can confirm data is present ──
+    console.debug(
+      "[MapView] rendering signals mode=%s active=%d faded=%d total=%d",
+      mapMode, active.length, faded.length, signals.length,
+      active.slice(0, 3).map((s) => ({ lat: s.lat, lon: s.lon, type: s.impact_type, weight: s.weight })),
+    );
+
     if (mapMode === "signals") {
-      // ── Signal-circles mode ───────────────────────────────────────────────
+      // ── Signal-circles mode — L.circleMarker (fixed pixel radius) ────────
       for (const s of active) {
         const color  = impactColor(s.impact_type);
-        const radius = signalRadius(s.impact_type);
-        const fill   = signalOpacity(s.weight);
+        const radius = signalPixelRadius(s.weight);
         const distFt = metersToFeet(s.distance_m);
         const src    = s.source ? sourceLabel(s.source) : "City of Chicago";
         const dates  = formatDateRange(s.start_date, s.end_date);
 
+        // Clean title: strip raw permit IDs (anything starting with "permit_"
+        // or ending with a long hex/numeric suffix) so popups read naturally.
+        const cleanTitle = s.title.replace(/\s*\(permit_\S+\)/gi, "").trim();
+
         const popup = `
-          <div style="font-family:system-ui,sans-serif;min-width:210px;max-width:250px">
-            <div style="font-size:0.67rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:${color};margin-bottom:4px">${impactLabel(s.impact_type)}</div>
-            <div style="font-size:0.87rem;font-weight:600;line-height:1.4;margin-bottom:8px">${s.title}</div>
-            <div style="font-size:0.72rem;color:#888;line-height:1.7">
-              <div><strong style="color:#aaa">Dates:</strong> ${dates}</div>
-              <div><strong style="color:#aaa">Source:</strong> ${src}</div>
-              <div><strong style="color:#aaa">Distance:</strong> ~${distFt} ft · ${s.severity_hint} severity</div>
-            </div>
+          <div style="font-family:system-ui,sans-serif;min-width:200px;max-width:240px;padding:2px 0">
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">${impactLabel(s.impact_type)}</div>
+            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${cleanTitle}</div>
+            <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
+              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
+              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Active</td><td>${dates}</td></tr>
+              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Source</td><td>${src}</td></tr>
+            </table>
           </div>`;
 
-        L.circle([s.lat, s.lon], {
-          radius, color, fillColor: color, fillOpacity: fill,
-          weight: 1.5, opacity: 0.75,
-        }).bindPopup(popup).addTo(signalGroup);
+        L.circleMarker([s.lat, s.lon], {
+          radius,
+          color: "#ffffff",
+          weight: 1,
+          fillColor: color,
+          fillOpacity: 0.7,
+          opacity: 0.9,
+        }).bindPopup(popup, { maxWidth: 260 }).addTo(signalGroup);
       }
 
-      // Faded (out-of-window) signals shown dimly.
+      // Faded (out-of-window) signals shown as ghost outlines.
       for (const s of faded) {
-        const color  = impactColor(s.impact_type);
-        const radius = signalRadius(s.impact_type);
-        L.circle([s.lat, s.lon], {
-          radius, color, fillColor: color,
-          fillOpacity: 0.07, weight: 1, opacity: 0.18,
+        const color = impactColor(s.impact_type);
+        L.circleMarker([s.lat, s.lon], {
+          radius: signalPixelRadius(s.weight),
+          color,
+          weight: 1,
+          fillColor: color,
+          fillOpacity: 0.12,
+          opacity: 0.25,
         }).addTo(signalGroup);
       }
 

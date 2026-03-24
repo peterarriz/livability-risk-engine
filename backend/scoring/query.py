@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
@@ -83,6 +83,9 @@ class ScoreResult:
     top_risks: list[str]        # up to 3 plain-English strings
     explanation: str            # 1 short paragraph
     top_risk_details: list      # list[dict] — structured metadata per top risk (data-024)
+    # All scored nearby signals with lat/lon, for the map heat layer (fixed in bug-fix commit).
+    # Previously built locally in compute_score() but never attached to the return value.
+    nearby_signals: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -552,6 +555,7 @@ def compute_score(
         top_risks=top_risks,
         explanation=explanation,
         top_risk_details=top_risk_details,
+        nearby_signals=nearby_signals,
     )
 
 
