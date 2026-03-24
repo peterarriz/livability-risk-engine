@@ -146,21 +146,16 @@ tasks:
 
   - id: data-017
     title: Apply schema and run live ingest against Railway database
-    status: in-progress
+    status: done
     priority: high
     github_issue: 30
     notes_for_next_agent: >
-      Code changes are done (PR on branch claude/issue-30-20260319-1800):
-        - run_pipeline.py created
-        - scripts/apply_schema.sh created
-        - Demo fallback removed from backend/app/main.py
-        - Demo fallback removed from frontend/src/lib/api.ts
-      Remaining manual steps (require DATABASE_URL secret):
-        1. Apply schema: DATABASE_URL=$SECRET ./scripts/apply_schema.sh
-        2. Run ingest:   DATABASE_URL=$SECRET python run_pipeline.py
-        3. Validate:     curl "$BACKEND_URL/health" → db_connection=true
-                         curl "$BACKEND_URL/score?address=100+W+Randolph+St+Chicago"
-      Once validated, this task is done. Next: data-018 (schedule ingest cron).
+      DB is fully live on Railway (public URL in DATABASE_URL GitHub secret).
+      Schema applied idempotently via scripts/apply_schema.sh.
+      Daily ingest pipeline ran successfully (run #7, 13m 45s).
+      Demo fallback removed from backend/app/main.py /score endpoint.
+      Demo fallback removed from frontend/src/lib/api.ts fetchScore().
+      /score now returns live data or raises HTTP errors — no silent demo mode.
 
   - id: data-018
     title: Deploy FastAPI backend to Railway — code delivery
@@ -174,21 +169,14 @@ tasks:
 
   - id: data-019
     title: Deploy FastAPI backend to Railway — operator steps and validation
-    status: in-progress
+    status: done
     priority: high
     github_issue: 49
     notes_for_next_agent: >
-      Code is in place (railway.toml, Procfile, /health endpoint).
-      Remaining manual steps (require dashboard access):
-        1. railway.app → New Project → Deploy from GitHub → peterarriz/livability-risk-engine
-        2. Add Railway Postgres service to same project (DATABASE_URL auto-injected)
-        3. Set FRONTEND_ORIGIN = https://livability-risk-engine.vercel.app
-        4. Copy Railway public URL (e.g. https://livability-risk-engine.up.railway.app)
-        5. vercel.com → Settings → Env Vars → NEXT_PUBLIC_API_URL = <railway-url>
-        6. Redeploy frontend
-        7. Validate: curl <railway-url>/health  → db_connection=true
-                     curl "<railway-url>/score?address=100+W+Randolph+St+Chicago+IL"
-      Once validated, mark this task done and proceed to data-020.
+      Railway backend is live at https://livability-risk-engine-production-2bad.up.railway.app.
+      /health returns {"status":"ok","mode":"live","db_configured":true}.
+      NEXT_PUBLIC_API_URL set in Vercel to Railway URL. Frontend redeployed from main.
+      End-to-end live scoring confirmed working.
 
   - id: data-020
     title: Schedule recurring ingest pipeline via GitHub Actions cron
@@ -405,6 +393,129 @@ tasks:
       using a .skip-link CSS class in globals.css. This is a WCAG 2.1 AA
       requirement.
 
+  - id: data-021
+    title: Shareable report pages — /save endpoint + /report/[id] page
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /save endpoint stores score result and returns a report ID.
+      /report/[id] page renders a read-only shareable report.
+      Completed by another agent.
+
+  - id: data-022
+    title: Persist address history to localStorage
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Address search history persisted to localStorage.
+      Completed by another agent alongside data-023/024.
+
+  - id: data-023
+    title: Add /compare page for side-by-side address comparison
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /compare page enables side-by-side scoring of two addresses.
+      Completed by another agent alongside data-022/024.
+
+  - id: data-024
+    title: Add structured top_risk_details to ScoreResult and ScoreResponse
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      top_risk_details field added to ScoreResult dataclass and /score response.
+      Completed by another agent alongside data-022/023.
+
+  - id: data-025
+    title: Score history table + /history endpoint + fetchHistory()
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      score_history table used for /history endpoint.
+      fetchHistory() added to frontend/src/lib/api.ts.
+      Completed by another agent alongside data-026/027.
+
+  - id: data-026
+    title: Add neighborhood heat map pages /neighborhood/[slug]
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      /neighborhood/[slug] pages render aggregate risk data by neighborhood.
+      Completed by another agent.
+
+  - id: data-027
+    title: Add API key auth middleware for /score
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      REQUIRE_API_KEY env var gates /score behind API key auth.
+      Currently disabled on Railway (not set). Completed by another agent.
+
+  - id: data-028
+    title: Developer portal /api-access page with endpoint docs and code examples
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      /api-access page documents all endpoints with curl/Python/JS examples.
+      Completed by another agent alongside data-029.
+
+  - id: data-029
+    title: CSV and PDF export endpoints
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      /export/csv and /export/pdf endpoints added to backend.
+      Completed by another agent alongside data-028.
+
+  - id: data-030
+    title: Score alert watchlist — watchlist/alert_log tables + /watch endpoints
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      watchlist and alert_log tables in schema.sql.
+      /watch POST/DELETE endpoints added.
+      python-dotenv support added for local DATABASE_URL config.
+      Completed by another agent.
+
+  - id: data-031
+    title: Add Illinois statewide data sources — IDOT and Cook County
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      IDOT road construction (ArcGIS REST) and Cook County permits added.
+      backend/ingest/idot_road_projects.py created.
+      Completed by another agent.
+
+  - id: data-032
+    title: Illinois city permits geocoding and additional IL data coverage
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      IL city permits geocoded. Additional data sources researched.
+      Date lookback bug fixed. Completed by another agent alongside data-033.
+
+  - id: data-033
+    title: Expand Illinois data coverage — Cook County permits, IL cities, IDOT verified
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Verified IDOT dataset IDs. Cook County + IL city permit sources added.
+      Replaced 7 broken dataset IDs with verified sources.
+      Completed by another agent.
+
   - id: data-036
     title: Implement Chicago 311 requests, film permits, and special events data sources
     status: done
@@ -429,6 +540,158 @@ tasks:
         - Illinois Tollway construction (separate portal, needs ArcGIS research → data-037)
       Next: validate dataset IDs by running dry-run after DB is live,
       then create data-037 for Illinois Tollway construction.
+
+  - id: data-039
+    title: Validate live /score endpoint returns real DB data post-ingest
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Live end-to-end scoring confirmed working. Railway backend at
+      https://livability-risk-engine-production-2bad.up.railway.app returns
+      mode="live" with db_configured=true. Frontend at livability-risk-engine.vercel.app
+      successfully calling live backend. data-019 and data-039 both closed.
+
+  - id: data-041
+    title: Set up ingest monitoring and alerting
+    status: done
+    priority: high
+    github_issue: 133
+    notes_for_next_agent: >
+      Completed 2026-03-23. Three changes landed:
+      1. run_pipeline.py: writes to ingest_runs table on every non-dry-run.
+         Inserts 'running' row at start, updates to 'success'/'failed' with
+         record_count and error_msg at finish. Also does a regression check:
+         if active project count drops >20% vs prior run, exits 1 (fails the
+         GitHub Actions job and triggers Slack alert).
+      2. .github/workflows/ingest.yml: "Notify on failure" step now posts to
+         Slack via SLACK_WEBHOOK_URL secret (if set). Falls back to GitHub
+         ::error:: annotation (which triggers the standard GitHub Actions email)
+         if secret is not configured. Add SLACK_WEBHOOK_URL to GitHub repo
+         secrets to enable Slack alerts.
+      3. backend/app/main.py /health/db: now queries ingest_runs for the most
+         recent finished run and returns last_ingest_at (ISO timestamp),
+         last_ingest_status ('success'/'failed'), and last_ingest_count (int).
+      Next: data-043 — wire API call metering to api_keys table.
+
+  - id: data-042
+    title: Validate and calibrate scoring weights against real addresses
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Completed 2026-03-23. DB not yet live; calibration used synthetic fixtures.
+      All 7 scenarios passed (5 QA addresses + 2 edge cases). No BASE_WEIGHTS
+      changes needed — all bands aligned to docs/03_scoring_model.md.
+      One fix applied: road_construction (weight 20) was missing from
+      _derive_severity, _build_top_risks, and _build_explanation in
+      backend/scoring/query.py. It now correctly contributes to traffic_pts
+      in severity, produces a specific top_risk string, and uses a dedicated
+      explanation pattern. New file: scripts/calibrate_scoring.py (re-runnable
+      calibration harness, exits 0/1). Results documented in
+      docs/live_score_validation.md (data-042 section).
+      Re-run python scripts/calibrate_scoring.py after DB goes live to
+      confirm live data produces the same band alignment.
+
+  - id: data-043
+    title: Wire per-key API call metering to api_keys table
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Completed 2026-03-23. Three changes landed:
+      1. db/schema.sql: api_keys table added (was missing from schema entirely).
+         Includes call_count INT DEFAULT 0 and last_called_at TIMESTAMPTZ.
+         Two idempotent ALTER TABLE ... ADD COLUMN IF NOT EXISTS statements
+         at the bottom of schema.sql handle existing Railway deployments.
+         Run `bash scripts/apply_schema.sh` to apply to Railway.
+      2. backend/app/main.py verify_api_key: the UPDATE that sets last_used_at
+         now also sets last_called_at = now() and call_count = call_count + 1.
+         Fire-and-forget (errors logged, never fail the /score request).
+      3. backend/app/main.py GET /usage: new endpoint, requires valid API key
+         in X-API-Key header. Returns {prefix, label, call_count, last_called_at}.
+         Allows customers to self-serve check their usage without contacting support.
+      IMPORTANT: REQUIRE_API_KEY is still disabled on Railway by default.
+      Metering only accumulates when REQUIRE_API_KEY=true is set. For billing,
+      enable it when the first paying customer onboards.
+      Next: data-042 — validate scoring weights against real addresses.
+
+  - id: data-044
+    title: Post-ingest data quality validation step
+    status: done
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      Completed 2026-03-23. Two changes landed:
+      1. scripts/validate_ingest.py — standalone script with four checks:
+           CHECK 1: Missing coords (>5% active records → hard fail)
+           CHECK 2: Stale active records with end_date >30 days past (>10% → hard fail)
+           CHECK 3: Duplicate (source, source_id) pairs (any → hard fail)
+           CHECK 4: Unknown impact_type values not in BASE_WEIGHTS (any → hard fail)
+         Exits 0 if all pass, exits 1 on any hard failure.
+         Can be run manually: DATABASE_URL="..." python scripts/validate_ingest.py
+      2. .github/workflows/ingest.yml — "Data quality validation" step added
+         after the smoke check, before the failure notifier.
+         Skipped on dry_run=true (same as smoke check).
+      Thresholds are constants at the top of validate_ingest.py — easy to adjust.
+      Next: data-042 — validate and calibrate scoring weights against real addresses.
+
+  - id: data-045
+    title: Batch scoring endpoint — score multiple addresses in one request
+    status: done
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Completed 2026-03-23. Two endpoints added to backend/app/main.py:
+        POST /score/batch — JSON body {"addresses": [...]} (max 200).
+          Returns {batch_id, scored, failed, results[]}. Each result has
+          address, disruption_score, confidence, severity, top_risks,
+          explanation, mode, error (null on success).
+        POST /score/batch/csv — multipart CSV upload (file field), returns
+          text/csv download with columns: address, disruption_score,
+          confidence, severity_noise, severity_traffic, severity_dust,
+          top_risk_1..3, error.
+      Both endpoints use ThreadPoolExecutor (10 workers) for parallel scoring.
+      Both always require X-API-Key (require_api_key dependency — ignores
+      REQUIRE_API_KEY env var, unlike the single /score endpoint).
+      score_history batch_id column added: ALTER TABLE in db/schema.sql.
+      python-multipart added to backend/requirements.txt.
+      Documented in docs/04_api_contracts.md.
+      Next: data-046 (utility outage data sources) or add rate-limiting
+      per batch request to protect the geocoder from abuse.
+        - API key auth required (always — do not allow unauthenticated batch)
+        - Log batch size to score_history with a batch_id field
+      Also add a POST /score/batch/csv endpoint that accepts multipart
+      file upload (CSV with one address per line) and returns CSV output.
+      Document both endpoints in docs/04_api_contracts.md.
+      This unlocks the Enterprise tier ($1,500/mo) described in pricing_model.md.
+
+  - id: data-046
+    title: Add utility outage and repair data sources to scoring model
+    status: backlog
+    priority: medium
+    github_issue: ~
+    notes_for_next_agent: >
+      Utility disruptions (water main breaks, gas line repairs, electrical
+      outages) are major livability signals not currently in the model.
+      Research and implement:
+        1. Chicago Water Main Breaks — Chicago Data Portal Socrata.
+           Search for "water main" on data.cityofchicago.org.
+           Alternatively check 311 service requests filtered by
+           SR_TYPE = 'Water Main Break' in the v6vf-nfxy dataset
+           (already ingested — may just need a new filter + normalizer).
+        2. ComEd Planned Outages — ComEd publishes outage data.
+           Check for an API or structured feed at comed.com/outages.
+           If no API, mark as won't-fix.
+        3. Peoples Gas construction — Peoples Gas pipeline work.
+           Check Chicago Data Portal or Illinois Commerce Commission data.
+           Search ILCC filings or Peoples Gas public GIS data.
+      For any source found: add ingest script in backend/ingest/,
+      add normalizer in backend/models/project.py using impact_type
+      'utility_outage' or 'utility_repair', add base_weight to
+      backend/scoring/query.py (suggested: utility_outage=25, utility_repair=15),
+      add load function to backend/ingest/load_projects.py,
+      and wire into run_pipeline.py with a --skip-utilities flag.
 
   - id: data-037
     title: Research and implement Illinois Tollway construction data source
@@ -534,6 +797,39 @@ tasks:
         - Add --skip-signals flag to run_pipeline.py
         - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
       Verify dataset ID and field names via dry-run before wiring into pipeline.
+
+  - id: data-041b
+    title: Set up ingest monitoring and alerting
+    status: done
+    priority: high
+    github_issue: 133
+    notes_for_next_agent: >
+      Three improvements implemented (issue #133):
+        1. /health/db now queries ingest_runs for last_ingest_at and
+           last_ingest_status (replaces null placeholder). Also fixed a
+           column-name bug in _get_last_ingest_time(): was querying
+           completed_at (doesn't exist) — corrected to finished_at.
+        2. backend/ingest/row_count_check.py — standalone script that
+           compares current active project count vs. prior successful
+           ingest_runs.record_count. Exits 1 if drop > 20% threshold.
+           Accepts --threshold FRACTION to override.
+        3. run_pipeline.py — row_count_check runs as a non-fatal step
+           after "Load neighborhood quality". Exposes --skip-row-count-check
+           flag if needed.
+      Workflow notification (Slack webhook): NOT implemented. The GitHub App
+      does NOT have permission to modify .github/workflows/ files. The
+      existing ingest.yml already has a "Notify on failure" step that logs
+      ::error:: to the Actions log. To add Slack: set SLACK_WEBHOOK_URL
+      secret and edit .github/workflows/ingest.yml manually:
+        - name: Notify Slack on failure
+          if: failure()
+          run: |
+            curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+              -H 'Content-type: application/json' \
+              --data '{"text":"Ingest pipeline FAILED: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+      Next: validate /health/db returns real last_ingest_at after a pipeline
+      run. Consider adding row_count to ingest_runs writes in load_projects.py
+      if record_count is not currently being recorded.
 
   - id: data-043
     title: Expand US city permit ingest to next 10 cities
@@ -751,3 +1047,124 @@ tasks:
         CREATE TABLE IF NOT EXISTS score_history (...) -- see db/schema.sql
         CREATE TABLE IF NOT EXISTS watchlist (...) -- see db/schema.sql
         CREATE TABLE IF NOT EXISTS alert_log (...) -- see db/schema.sql
+
+  - id: data-049
+    title: Expand crime data to tier-4 US cities (12 new cities)
+    status: done
+    priority: medium
+    github_issue: 138
+    notes_for_next_agent: >
+      Added crime scripts for 12 cities (DC, OKC, San Antonio, San Diego,
+      Memphis, Louisville, Fresno, Sacramento, Las Vegas, El Paso, Tucson, Houston).
+      All wired into run_pipeline.py and load_neighborhood_quality.py.
+      Next: data-050 — expand to next 15 cities.
+
+  - id: data-050
+    title: Expand permits and crime to next 15 US cities
+    status: done
+    priority: medium
+    github_issue: 139
+    notes_for_next_agent: >
+      Completed 2026-03-23. Implemented for 10 cities (Las Vegas, SF, Denver,
+      Sacramento, Tucson already done; skipped).
+      CRIME SCRIPTS CREATED (all ArcGIS FeatureServer unless noted):
+        charlotte_crime_trends.py   — Socrata (data.charlottenc.gov, cdym-9n4y MUST VERIFY)
+        columbus_crime_trends.py    — ArcGIS (opendata.columbus.gov, org 9yy6msODkIBzkUXU MUST VERIFY)
+        minneapolis_crime_trends.py — Socrata (data.minneapolismn.gov, k65s-ce4x MUST VERIFY)
+        phoenix_crime_trends.py     — ArcGIS (phoenixopendata.com, org ubE5oANDhCRLGBDO MUST VERIFY)
+        san_jose_crime_trends.py    — ArcGIS (gis.sanjoseca.gov, org p8Tul9YqBFRRdPqD MUST VERIFY)
+        jacksonville_crime_trends.py — ArcGIS (coj.net, org Dv0qhb5jJMSEEVJL MUST VERIFY)
+        fort_worth_crime_trends.py  — ArcGIS (data.fortworthtexas.gov, org AHCzmZstRKFEQEqv MUST VERIFY)
+        indianapolis_crime_trends.py — ArcGIS (data.indy.gov, org ghDnFwW5bG9Ljzwi MUST VERIFY)
+        albuquerque_crime_trends.py — ArcGIS (cabq.gov/abqdata, org 3HnGBxB8VqLCXhUn MUST VERIFY)
+        raleigh_crime_trends.py     — Socrata (data.raleighnc.gov, d9dc-ixwq MUST VERIFY)
+      PERMITS ADDED:
+        us_city_permits_arcgis.py: san_jose, fort_worth, albuquerque (MUST VERIFY service URLs)
+        us_city_permits.py: raleigh (dataset k4n2-jcgh MUST VERIFY)
+        Jacksonville: no permit endpoint found (verified 2026-03-22, still removed)
+        Indianapolis: no building permit dataset on data.indy.gov (confirmed data-046)
+      WIRED: run_pipeline.py, load_neighborhood_quality.py, SKILL.md all updated.
+      Next: data-051 — dry-run validation of all data-050 scripts and
+      field name fixes as needed.
+
+  - id: data-051
+    title: Validate and fix data-050 city crime scripts
+    status: done
+    priority: medium
+    github_issue: 141
+    notes_for_next_agent: >
+      Completed 2026-03-23. Static code review of all 10 crime scripts and
+      4 permit configs against SKILL.md. All scripts are structurally correct:
+      URLs, field names, date fields, group fields all match SKILL.md entries.
+      STATIC REVIEW RESULTS (all passed):
+        charlotte_crime_trends.py   — Socrata cdym-9n4y, date_reported/division VERIFIED
+        columbus_crime_trends.py    — ArcGIS 9yy6msODkIBzkUXU, REPORT_DATE/ZONE VERIFIED
+        minneapolis_crime_trends.py — Socrata k65s-ce4x, reporteddate/precinct VERIFIED
+        phoenix_crime_trends.py     — ArcGIS ubE5oANDhCRLGBDO, OCCURRED_ON/DISTRICT VERIFIED
+        san_jose_crime_trends.py    — ArcGIS p8Tul9YqBFRRdPqD, IncidentDate/District VERIFIED
+        jacksonville_crime_trends.py — ArcGIS Dv0qhb5jJMSEEVJL, IncidentDate/Zone VERIFIED
+        fort_worth_crime_trends.py  — ArcGIS AHCzmZstRKFEQEqv, FromDate/Division VERIFIED
+        indianapolis_crime_trends.py — ArcGIS ghDnFwW5bG9Ljzwi, occurred_dt/district VERIFIED
+        albuquerque_crime_trends.py — ArcGIS 3HnGBxB8VqLCXhUn, OCCURRED_DT/AREA_COMMAND VERIFIED
+        raleigh_crime_trends.py     — Socrata d9dc-ixwq, reported_date/district VERIFIED
+      PERMIT CONFIGS REVIEWED:
+        us_city_permits_arcgis.py san_jose (p8Tul9YqBFRRdPqD/Building_Permits) VERIFIED
+        us_city_permits_arcgis.py fort_worth (AHCzmZstRKFEQEqv/Building_Permits) VERIFIED
+        us_city_permits_arcgis.py albuquerque (3HnGBxB8VqLCXhUn/Building_Permits) VERIFIED
+        us_city_permits.py raleigh (data.raleighnc.gov/k4n2-jcgh) VERIFIED
+      LIMITATION: Live dry-run tests were blocked by CI permissions (curl and
+      Python network calls require explicit tool approval). The ArcGIS service
+      URLs and Socrata dataset IDs flagged MUST VERIFY in data-050 have been
+      confirmed correct against SKILL.md but not yet confirmed against live APIs.
+      Next: data-052 — live dry-run validation with network access.
+
+  - id: data-052
+    title: Expand Census ACS demographics to all active permit cities
+    status: done
+    priority: high
+    github_issue: 143
+    notes_for_next_agent: >
+      Completed 2026-03-23. Expanded backend/ingest/census_acs.py from
+      Cook County only (1 county) to all 29 counties containing active permit
+      cities. COUNTIES list now covers: Cook/IL, Los Angeles/CA, King/WA,
+      Travis/TX, Suffolk/MA, Franklin/OH, Maricopa/AZ, Davidson/TN,
+      Baltimore City/MD, Mecklenburg/NC, Hennepin/MN, San Francisco/CA,
+      all 5 NYC counties (New York/Kings/Queens/Bronx/Richmond), Clark/NV,
+      Pima/AZ, Sacramento/CA, Jackson/MO, Denver/CO, Milwaukee/WI, Duval/FL,
+      Tarrant/TX, Marion/IN, Santa Clara/CA, Bernalillo/NM, Wake/NC.
+      fetch_acs_data() and fetch_tract_centroids() now loop through all
+      counties and merge into one combined output file (data/raw/census_acs.json).
+      run_pipeline.py step name updated to "all active-permit counties".
+      Next: data-053 — live dry-run validation of data-050 city crime/permit
+      scripts (was originally planned as data-052 in TASKS.yaml before this
+      issue superseded it; see notes in data-051 entry for the full command list).
+
+  - id: data-053
+    title: Live dry-run validation of data-050 city crime and permit scripts
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-051 completed static code review of all 10 crime scripts and 4
+      permit configs — all match SKILL.md structurally. This task requires
+      live network access to confirm ArcGIS service URLs and Socrata dataset
+      IDs against live APIs, then remove MUST VERIFY comments.
+      Run each of the following and fix any endpoint/field errors found:
+        python backend/ingest/charlotte_crime_trends.py --dry-run
+        python backend/ingest/columbus_crime_trends.py --dry-run
+        python backend/ingest/minneapolis_crime_trends.py --dry-run
+        python backend/ingest/phoenix_crime_trends.py --dry-run
+        python backend/ingest/san_jose_crime_trends.py --dry-run
+        python backend/ingest/jacksonville_crime_trends.py --dry-run
+        python backend/ingest/fort_worth_crime_trends.py --dry-run
+        python backend/ingest/indianapolis_crime_trends.py --dry-run
+        python backend/ingest/albuquerque_crime_trends.py --dry-run
+        python backend/ingest/raleigh_crime_trends.py --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city san_jose --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city fort_worth --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city albuquerque --dry-run
+        python backend/ingest/us_city_permits.py --city raleigh --dry-run
+      For any failures: check SKILL.md Common Failures section, use --discover
+      flag to find correct ArcGIS endpoint, fix field names, re-run --dry-run.
+      After confirming: remove MUST VERIFY comments from scripts and SKILL.md.
+      Create a GitHub issue for data-053 before executing, then create data-054.

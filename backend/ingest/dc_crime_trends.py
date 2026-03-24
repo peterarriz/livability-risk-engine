@@ -1,48 +1,24 @@
 """
-backend/ingest/portland_crime_trends.py
-task: data-047
+backend/ingest/dc_crime_trends.py
+task: data-049
 lane: data
 
-Ingests Portland Police Bureau crime data and calculates 12-month crime trends
-by offense category.
+Ingests Washington DC Metropolitan Police crime data and calculates 12-month
+crime trends by district.
 
 Source:
-  Portland Maps Open Data — Public Crime MapServer
-  https://www.portlandmaps.com/arcgis/rest/services/Public/Crime/MapServer
+  DC GIS MapServer — MPD Crime Feeds
+  https://maps2.dcgis.dc.gov/dcgis/rest/services/FEEDS/MPD/MapServer
 
-  Verified 2026-03-23 via direct query.
-
-  Three "All Locations" layers cover all crime types:
-    Layer 1  — All Property Crime Locations
-    Layer 40 — All Person Crime Locations
-    Layer 59 — All Society Crime Locations
-
-  Key fields (shared across all three layers):
-    OBJECTID              — row ID
-    REPORTED_DATETIME     — epoch milliseconds
-    CrimeType             — specific offense (e.g. "Theft From Motor Vehicle")
-    OffenseGroupDescription — offense group (e.g. "Larceny Offenses")
-    CategoryName          — top-level category (Property / Person / Society)
-
-  Note: These layers have NO precinct, neighborhood, or ZIP field. Coordinates
-  are embedded in point geometry (Web Mercator). We group by
-  OffenseGroupDescription across all three layers.
-
-  The MapServer requires POST for outStatistics queries and uses
-  date '...' SQL literals (not TIMESTAMP '...').
-
-Method:
-  1. Query crime counts by OffenseGroupDescription for the last 12 months
-     across all three layers.
-  2. Query crime counts by OffenseGroupDescription for the prior 12 months.
-  3. Calculate percent change → crime_trend: INCREASING / DECREASING / STABLE.
+  Yearly layers: Layer 6=2024, Layer 7=2025, Layer 41=2026, Layer 39=Last30Days
+  Key fields: REPORT_DAT, DISTRICT, PSA, OFFENSE, LATITUDE, LONGITUDE
 
 Output:
-  data/raw/portland_crime_trends.json — offense-group crime trend records
+  data/raw/dc_crime_trends.json — district crime trend records
 
 Usage:
-  python backend/ingest/portland_crime_trends.py
-  python backend/ingest/portland_crime_trends.py --dry-run
+  python backend/ingest/dc_crime_trends.py
+  python backend/ingest/dc_crime_trends.py --dry-run
 """
 
 from __future__ import annotations
@@ -60,22 +36,20 @@ import requests
 # ---------------------------------------------------------------------------
 
 MAPSERVER_BASE = (
-    "https://www.portlandmaps.com/arcgis/rest/services/Public/Crime/MapServer"
+    "https://maps2.dcgis.dc.gov/dcgis/rest/services/FEEDS/MPD/MapServer"
 )
 
-# All-locations layers covering Property, Person, and Society crimes.
-CRIME_LAYER_IDS = [1, 40, 59]
+# Yearly crime layers — map year to layer ID.
+# Layer IDs: 0=2008, 1=2009, ..., 6=2024, 7=2025, 41=2026
+YEAR_TO_LAYER = {
+    2024: 6, 2025: 7, 2026: 41,
+}
 
-DEFAULT_OUTPUT_PATH = Path("data/raw/portland_crime_trends.json")
+DEFAULT_OUTPUT_PATH = Path("data/raw/dc_crime_trends.json")
 
-DATE_FIELD = "REPORTED_DATETIME"          # epoch milliseconds
-GROUP_FIELD = "OffenseGroupDescription"   # offense group
+DATE_FIELD = "REPORT_DAT"
+GROUP_FIELD = "DISTRICT"
 
-# Portland city center (used as fallback — no per-group coordinates available).
-PORTLAND_LAT = 45.5152
-PORTLAND_LON = -122.6784
-
-# Changes within ±5% are classified as STABLE.
 STABLE_THRESHOLD_PCT = 5.0
 
 
@@ -84,8 +58,19 @@ STABLE_THRESHOLD_PCT = 5.0
 # ---------------------------------------------------------------------------
 
 def _date_str(dt: datetime) -> str:
-    """Format datetime as ArcGIS SQL date literal: date 'YYYY-MM-DD'."""
+    """Format datetime as ArcGIS SQL date literal."""
     return f"date '{dt.strftime('%Y-%m-%d')}'"
+
+
+def _layers_for_range(start_date: datetime, end_date: datetime) -> list[int]:
+    """Get layer IDs covering a date range."""
+    years = set()
+    d = start_date
+    while d <= end_date:
+        years.add(d.year)
+        d += timedelta(days=365)
+    years.add(end_date.year)
+    return [YEAR_TO_LAYER[y] for y in sorted(years) if y in YEAR_TO_LAYER]
 
 
 def _fetch_layer_counts(
@@ -93,10 +78,6 @@ def _fetch_layer_counts(
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    """
-    Fetch crime counts grouped by OffenseGroupDescription for one layer
-    within a date range.  Returns dict: group_name → count.
-    """
     url = f"{MAPSERVER_BASE}/{layer_id}/query"
 
     where_clause = (
@@ -128,10 +109,12 @@ def _fetch_layer_counts(
     results: dict[str, int] = {}
     for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        group = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not group:
+        district = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not district:
             continue
-        results[group] = results.get(group, 0) + int(attrs.get("crime_count", 0))
+        # MapServer uppercases the outStatisticFieldName
+        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
+        results[district] = results.get(district, 0) + count
     return results
 
 
@@ -139,15 +122,18 @@ def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    """
-    Fetch total crime counts by offense group across all crime layers.
-    Returns dict: group_name → count.
-    """
+    layers = _layers_for_range(start_date, end_date)
+    if not layers:
+        print(f"  WARN: no layers available for {start_date.year}–{end_date.year}")
+        return {}
+
     combined: dict[str, int] = {}
-    for layer_id in CRIME_LAYER_IDS:
+    for layer_id in layers:
+        print(f"    Querying layer {layer_id}...", end=" ", flush=True)
         layer_counts = _fetch_layer_counts(layer_id, start_date, end_date)
-        for group, count in layer_counts.items():
-            combined[group] = combined.get(group, 0) + count
+        print(f"{sum(layer_counts.values()):,} crimes")
+        for district, count in layer_counts.items():
+            combined[district] = combined.get(district, 0) + count
     return combined
 
 
@@ -160,7 +146,6 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
         if current > 0:
             return "INCREASING", 100.0
         return "STABLE", 0.0
-
     pct = (current - prior) / prior * 100.0
     if pct >= STABLE_THRESHOLD_PCT:
         return "INCREASING", round(pct, 1)
@@ -173,32 +158,31 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 # Build records
 # ---------------------------------------------------------------------------
 
+DC_LAT = 38.9072
+DC_LON = -77.0369
+
+
 def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    """
-    Merge current and prior crime counts to produce trend records.
-    All offense groups appearing in either window get a record.
-    """
-    all_groups = set(current_data.keys()) | set(prior_data.keys())
+    all_districts = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for group in sorted(all_groups):
-        current_count = current_data.get(group, 0)
-        prior_count = prior_data.get(group, 0)
+    for district in sorted(all_districts):
+        current_count = current_data.get(district, 0)
+        prior_count = prior_data.get(district, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = group.lower().replace(" ", "_").replace("/", "_")
         records.append({
-            "region_type": "city",
-            "region_id": f"portland_offense_{slug}",
-            "district_id": group,
-            "district_name": f"Portland — {group}",
+            "region_type": "district",
+            "region_id": f"dc_district_{district}",
+            "district_id": district,
+            "district_name": f"DC District {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": PORTLAND_LAT,
-            "longitude": PORTLAND_LON,
+            "latitude": DC_LAT,
+            "longitude": DC_LON,
         })
     return records
 
@@ -210,7 +194,7 @@ def build_trend_records(
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
-        "source": "portland_crime_trends",
+        "source": "dc_crime_trends",
         "source_url": MAPSERVER_BASE,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
@@ -227,19 +211,10 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Portland PPB crime trends by offense group from ArcGIS MapServer."
+        description="Ingest DC MPD crime trends by district from ArcGIS MapServer."
     )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT_PATH,
-        help=f"Output JSON path (default: {DEFAULT_OUTPUT_PATH})",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Fetch data but do not write output file.",
-    )
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -251,35 +226,31 @@ def main() -> None:
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Portland crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
-    print(f"  Querying layers {CRIME_LAYER_IDS} ...")
+    print(f"Fetching current 12-month DC crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
     try:
         current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    total_current = sum(current_data.values())
-    print(f"  {len(current_data)} offense groups, {total_current:,} total crimes.")
+    print(f"  {len(current_data)} districts with current crime data.")
 
-    print(f"\nFetching prior 12-month Portland crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    print(f"  Querying layers {CRIME_LAYER_IDS} ...")
+    print(f"\nFetching prior 12-month DC crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
         prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    total_prior = sum(prior_data.values())
-    print(f"  {len(prior_data)} offense groups, {total_prior:,} total crimes.")
+    print(f"  {len(prior_data)} districts with prior crime data.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} offense-group trend records.")
+    print(f"\nBuilt {len(records)} district trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} groups")
+        print(f"  {trend}: {count} districts")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047
+task: data-040, data-044, data-045, data-047, data-050
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -20,6 +20,16 @@ Reads from staging files written by:
   backend/ingest/nashville_crime_trends.py     → data/raw/nashville_crime_trends.json
   backend/ingest/portland_crime_trends.py      → data/raw/portland_crime_trends.json
   backend/ingest/census_acs.py                 → data/raw/census_acs.json
+  backend/ingest/charlotte_crime_trends.py     → data/raw/charlotte_crime_trends.json
+  backend/ingest/columbus_crime_trends.py      → data/raw/columbus_crime_trends.json
+  backend/ingest/minneapolis_crime_trends.py   → data/raw/minneapolis_crime_trends.json
+  backend/ingest/phoenix_crime_trends.py       → data/raw/phoenix_crime_trends.json
+  backend/ingest/san_jose_crime_trends.py      → data/raw/san_jose_crime_trends.json
+  backend/ingest/jacksonville_crime_trends.py  → data/raw/jacksonville_crime_trends.json
+  backend/ingest/fort_worth_crime_trends.py    → data/raw/fort_worth_crime_trends.json
+  backend/ingest/indianapolis_crime_trends.py  → data/raw/indianapolis_crime_trends.json
+  backend/ingest/albuquerque_crime_trends.py   → data/raw/albuquerque_crime_trends.json
+  backend/ingest/raleigh_crime_trends.py       → data/raw/raleigh_crime_trends.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
@@ -86,6 +96,30 @@ STAGING_FILES = {
     "crime_baltimore":     Path("data/raw/baltimore_crime_trends.json"),
     "crime_nashville":     Path("data/raw/nashville_crime_trends.json"),
     "crime_portland":      Path("data/raw/portland_crime_trends.json"),
+    # data-049: tier-4 city crime trends
+    "crime_dc":            Path("data/raw/dc_crime_trends.json"),
+    "crime_okc":           Path("data/raw/oklahoma_city_crime_trends.json"),
+    "crime_san_antonio":   Path("data/raw/san_antonio_crime_trends.json"),
+    "crime_san_diego":     Path("data/raw/san_diego_crime_trends.json"),
+    "crime_memphis":       Path("data/raw/memphis_crime_trends.json"),
+    "crime_louisville":    Path("data/raw/louisville_crime_trends.json"),
+    "crime_fresno":        Path("data/raw/fresno_crime_trends.json"),
+    "crime_sacramento":    Path("data/raw/sacramento_crime_trends.json"),
+    "crime_las_vegas":     Path("data/raw/las_vegas_crime_trends.json"),
+    "crime_el_paso":       Path("data/raw/el_paso_crime_trends.json"),
+    "crime_tucson":        Path("data/raw/tucson_crime_trends.json"),
+    "crime_houston":       Path("data/raw/houston_crime_trends.json"),
+    # data-050: tier-5 city crime trends
+    "crime_charlotte":     Path("data/raw/charlotte_crime_trends.json"),
+    "crime_columbus":      Path("data/raw/columbus_crime_trends.json"),
+    "crime_minneapolis":   Path("data/raw/minneapolis_crime_trends.json"),
+    "crime_phoenix":       Path("data/raw/phoenix_crime_trends.json"),
+    "crime_san_jose":      Path("data/raw/san_jose_crime_trends.json"),
+    "crime_jacksonville":  Path("data/raw/jacksonville_crime_trends.json"),
+    "crime_fort_worth":    Path("data/raw/fort_worth_crime_trends.json"),
+    "crime_indianapolis":  Path("data/raw/indianapolis_crime_trends.json"),
+    "crime_albuquerque":   Path("data/raw/albuquerque_crime_trends.json"),
+    "crime_raleigh":       Path("data/raw/raleigh_crime_trends.json"),
     # data-045: IL school ratings
     "schools":       Path("data/raw/il_school_ratings.json"),
 }
@@ -262,6 +296,12 @@ def parse_args() -> argparse.Namespace:
             "crime_austin", "crime_seattle", "crime_nyc",
             "crime_kansas_city", "crime_denver", "crime_boston", "crime_milwaukee",
             "crime_sf", "crime_baltimore", "crime_nashville", "crime_portland",
+            "crime_dc", "crime_okc", "crime_san_antonio", "crime_san_diego",
+            "crime_memphis", "crime_louisville", "crime_fresno", "crime_sacramento",
+            "crime_las_vegas", "crime_el_paso", "crime_tucson", "crime_houston",
+            "crime_charlotte", "crime_columbus", "crime_minneapolis", "crime_phoenix",
+            "crime_san_jose", "crime_jacksonville", "crime_fort_worth",
+            "crime_indianapolis", "crime_albuquerque", "crime_raleigh",
             "schools", "all",
         ],
         default="all",

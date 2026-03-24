@@ -49,6 +49,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Ensure the project root is on PYTHONPATH so subprocesses can resolve
 # package imports like ``from backend.ingest.geocode import ...``.
@@ -166,10 +167,11 @@ STEPS = [
         "non_fatal": True,
     },
     {
-        # Fetches Census ACS 5-year demographics for Cook County census tracts.
+        # Fetches Census ACS 5-year demographics for all census tracts in every
+        # county containing an active permit city (29 counties, ~25 cities).
         # Stored in neighborhood_quality table (region_type='census_tract').
         # No API key required. Failures are non-fatal.
-        "name": "Fetch Census ACS demographics (Cook County tracts)",
+        "name": "Fetch Census ACS demographics (all active-permit counties)",
         "cmd": [sys.executable, "backend/ingest/census_acs.py"],
         "skip_key": "skip_census_acs",
         "non_fatal": True,
@@ -283,6 +285,144 @@ STEPS = [
         "skip_key": "skip_portland_crime",
         "non_fatal": True,
     },
+    # -----------------------------------------------------------------
+    # data-049: Tier-4 city crime trends (12 new cities)
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Washington DC crime trends",
+        "cmd": [sys.executable, "backend/ingest/dc_crime_trends.py"],
+        "skip_key": "skip_dc_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Oklahoma City crime trends",
+        "cmd": [sys.executable, "backend/ingest/oklahoma_city_crime_trends.py"],
+        "skip_key": "skip_okc_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch San Antonio crime trends",
+        "cmd": [sys.executable, "backend/ingest/san_antonio_crime_trends.py"],
+        "skip_key": "skip_san_antonio_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch San Diego crime trends",
+        "cmd": [sys.executable, "backend/ingest/san_diego_crime_trends.py"],
+        "skip_key": "skip_san_diego_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Memphis crime trends",
+        "cmd": [sys.executable, "backend/ingest/memphis_crime_trends.py"],
+        "skip_key": "skip_memphis_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Louisville crime trends",
+        "cmd": [sys.executable, "backend/ingest/louisville_crime_trends.py"],
+        "skip_key": "skip_louisville_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Fresno crime trends",
+        "cmd": [sys.executable, "backend/ingest/fresno_crime_trends.py"],
+        "skip_key": "skip_fresno_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Sacramento crime trends",
+        "cmd": [sys.executable, "backend/ingest/sacramento_crime_trends.py"],
+        "skip_key": "skip_sacramento_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Las Vegas crime trends",
+        "cmd": [sys.executable, "backend/ingest/las_vegas_crime_trends.py"],
+        "skip_key": "skip_las_vegas_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch El Paso crime trends",
+        "cmd": [sys.executable, "backend/ingest/el_paso_crime_trends.py"],
+        "skip_key": "skip_el_paso_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Tucson crime trends",
+        "cmd": [sys.executable, "backend/ingest/tucson_crime_trends.py"],
+        "skip_key": "skip_tucson_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Houston crime trends",
+        "cmd": [sys.executable, "backend/ingest/houston_crime_trends.py"],
+        "skip_key": "skip_houston_crime",
+        "non_fatal": True,
+    },
+    # -----------------------------------------------------------------
+    # data-050: Tier-5 city crime trends (10 new cities)
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Charlotte crime trends",
+        "cmd": [sys.executable, "backend/ingest/charlotte_crime_trends.py"],
+        "skip_key": "skip_charlotte_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Columbus crime trends",
+        "cmd": [sys.executable, "backend/ingest/columbus_crime_trends.py"],
+        "skip_key": "skip_columbus_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Minneapolis crime trends",
+        "cmd": [sys.executable, "backend/ingest/minneapolis_crime_trends.py"],
+        "skip_key": "skip_minneapolis_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Phoenix crime trends",
+        "cmd": [sys.executable, "backend/ingest/phoenix_crime_trends.py"],
+        "skip_key": "skip_phoenix_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch San Jose crime trends",
+        "cmd": [sys.executable, "backend/ingest/san_jose_crime_trends.py"],
+        "skip_key": "skip_san_jose_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Jacksonville crime trends",
+        "cmd": [sys.executable, "backend/ingest/jacksonville_crime_trends.py"],
+        "skip_key": "skip_jacksonville_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Fort Worth crime trends",
+        "cmd": [sys.executable, "backend/ingest/fort_worth_crime_trends.py"],
+        "skip_key": "skip_fort_worth_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Indianapolis crime trends",
+        "cmd": [sys.executable, "backend/ingest/indianapolis_crime_trends.py"],
+        "skip_key": "skip_indianapolis_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Albuquerque crime trends",
+        "cmd": [sys.executable, "backend/ingest/albuquerque_crime_trends.py"],
+        "skip_key": "skip_albuquerque_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Raleigh crime trends",
+        "cmd": [sys.executable, "backend/ingest/raleigh_crime_trends.py"],
+        "skip_key": "skip_raleigh_crime",
+        "non_fatal": True,
+    },
     {
         # Fetches CPS school performance ratings (SY2425 progress reports)
         # joined with school coordinates from the SY2324 profile dataset.
@@ -313,7 +453,142 @@ STEPS = [
         "non_fatal": True,
         "dry_run_passthrough": True,
     },
+    {
+        # data-041: Row-count regression check.
+        # Alerts if active project count drops >20% vs prior successful run.
+        # Non-fatal so the pipeline still exits 0 on transient anomalies;
+        # the check prints a clear REGRESSION DETECTED message to stderr
+        # which surfaces in GitHub Actions logs.
+        "name": "Row-count regression check",
+        "cmd": [sys.executable, "backend/ingest/row_count_check.py"],
+        "skip_key": "skip_row_count_check",
+        "non_fatal": True,
+    },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Ingest run tracking  (data-041)
+# Writes to the ingest_runs table so /health/db can report freshness and
+# so the regression check can compare current vs prior record counts.
+# All DB calls are best-effort — failures are logged but never abort the pipeline.
+# ---------------------------------------------------------------------------
+
+def _get_db_url() -> Optional[str]:
+    return os.environ.get("DATABASE_URL") or None
+
+
+def _record_run_start(db_url: str) -> Optional[int]:
+    """Insert a 'running' row into ingest_runs. Returns the new row ID."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url, connect_timeout=5)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ingest_runs (source, status) VALUES (%s, %s) RETURNING id",
+                ("pipeline", "running"),
+            )
+            row_id = cur.fetchone()[0]
+        conn.close()
+        return row_id
+    except Exception as exc:
+        print(f"WARN: could not record ingest run start: {exc}", file=sys.stderr)
+        return None
+
+
+def _check_regression_and_finish(
+    db_url: str, run_id: Optional[int], failed_step: Optional[str]
+) -> None:
+    """
+    Query active project count, compare against the previous successful run,
+    then write the final status to ingest_runs.
+
+    Exits with code 1 if:
+      - a pipeline step already failed (failed_step is set), OR
+      - active project count dropped >20% compared to the prior run.
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(db_url, connect_timeout=5)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM projects WHERE status = 'active'")
+            current_count: int = cur.fetchone()[0]
+
+            # Last *finished* successful run (the current run is still 'running')
+            cur.execute(
+                """SELECT record_count FROM ingest_runs
+                   WHERE status = 'success' AND record_count IS NOT NULL
+                   ORDER BY finished_at DESC LIMIT 1"""
+            )
+            prior_row = cur.fetchone()
+
+        regression_error: Optional[str] = None
+        if prior_row is not None:
+            prior_count: int = prior_row[0]
+            if prior_count > 0:
+                drop_pct = (prior_count - current_count) / prior_count * 100
+                if drop_pct > 20:
+                    regression_error = (
+                        f"Active project count dropped {drop_pct:.1f}% "
+                        f"(was {prior_count}, now {current_count}). "
+                        f">20% regression threshold exceeded."
+                    )
+                    print(f"ERROR: {regression_error}", file=sys.stderr)
+                elif drop_pct > 0:
+                    print(
+                        f"Row count: {current_count} active projects "
+                        f"(down {drop_pct:.1f}% from {prior_count} — within 20% threshold)."
+                    )
+                else:
+                    print(
+                        f"Row count: {current_count} active projects "
+                        f"(up from {prior_count})."
+                    )
+            else:
+                print(f"Row count: {current_count} active projects.")
+        else:
+            print(f"Row count: {current_count} active projects (no prior run to compare).")
+
+        # Determine final status
+        if failed_step:
+            final_status = "failed"
+            error_msg = f"Pipeline aborted at step: {failed_step}"
+        elif regression_error:
+            final_status = "failed"
+            error_msg = regression_error
+        else:
+            final_status = "success"
+            error_msg = None
+
+        # Write final row
+        with conn.cursor() as cur:
+            if run_id is not None:
+                cur.execute(
+                    """UPDATE ingest_runs
+                       SET finished_at = now(), status = %s, record_count = %s, error_msg = %s
+                       WHERE id = %s""",
+                    (final_status, current_count, error_msg, run_id),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO ingest_runs (source, finished_at, status, record_count, error_msg)
+                       VALUES (%s, now(), %s, %s, %s)""",
+                    ("pipeline", final_status, current_count, error_msg),
+                )
+        conn.close()
+
+        if final_status == "failed":
+            sys.exit(1)
+
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"WARN: could not record ingest run finish: {exc}", file=sys.stderr)
+        # Still exit 1 if a step failed
+        if failed_step:
+            sys.exit(1)
 
 
 def run_step(step: dict, args: argparse.Namespace) -> bool:
@@ -492,6 +767,30 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip the Portland crime trends fetch step.",
     )
+    # data-049: Tier-4 city crime trends skip flags
+    parser.add_argument("--skip-dc-crime", action="store_true", help="Skip the DC crime trends fetch step.")
+    parser.add_argument("--skip-okc-crime", action="store_true", help="Skip the Oklahoma City crime trends fetch step.")
+    parser.add_argument("--skip-san-antonio-crime", action="store_true", help="Skip the San Antonio crime trends fetch step.")
+    parser.add_argument("--skip-san-diego-crime", action="store_true", help="Skip the San Diego crime trends fetch step.")
+    parser.add_argument("--skip-memphis-crime", action="store_true", help="Skip the Memphis crime trends fetch step.")
+    parser.add_argument("--skip-louisville-crime", action="store_true", help="Skip the Louisville crime trends fetch step.")
+    parser.add_argument("--skip-fresno-crime", action="store_true", help="Skip the Fresno crime trends fetch step.")
+    parser.add_argument("--skip-sacramento-crime", action="store_true", help="Skip the Sacramento crime trends fetch step.")
+    parser.add_argument("--skip-las-vegas-crime", action="store_true", help="Skip the Las Vegas crime trends fetch step.")
+    parser.add_argument("--skip-el-paso-crime", action="store_true", help="Skip the El Paso crime trends fetch step.")
+    parser.add_argument("--skip-tucson-crime", action="store_true", help="Skip the Tucson crime trends fetch step.")
+    parser.add_argument("--skip-houston-crime", action="store_true", help="Skip the Houston crime trends fetch step.")
+    # data-050: Tier-5 city crime trends skip flags
+    parser.add_argument("--skip-charlotte-crime", action="store_true", help="Skip the Charlotte crime trends fetch step.")
+    parser.add_argument("--skip-columbus-crime", action="store_true", help="Skip the Columbus crime trends fetch step.")
+    parser.add_argument("--skip-minneapolis-crime", action="store_true", help="Skip the Minneapolis crime trends fetch step.")
+    parser.add_argument("--skip-phoenix-crime", action="store_true", help="Skip the Phoenix crime trends fetch step.")
+    parser.add_argument("--skip-san-jose-crime", action="store_true", help="Skip the San Jose crime trends fetch step.")
+    parser.add_argument("--skip-jacksonville-crime", action="store_true", help="Skip the Jacksonville crime trends fetch step.")
+    parser.add_argument("--skip-fort-worth-crime", action="store_true", help="Skip the Fort Worth crime trends fetch step.")
+    parser.add_argument("--skip-indianapolis-crime", action="store_true", help="Skip the Indianapolis crime trends fetch step.")
+    parser.add_argument("--skip-albuquerque-crime", action="store_true", help="Skip the Albuquerque crime trends fetch step.")
+    parser.add_argument("--skip-raleigh-crime", action="store_true", help="Skip the Raleigh crime trends fetch step.")
     parser.add_argument(
         "--skip-school-ratings",
         action="store_true",
@@ -501,6 +800,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-neighborhood-quality",
         action="store_true",
         help="Skip the neighborhood quality DB load step.",
+    )
+    parser.add_argument(
+        "--skip-row-count-check",
+        action="store_true",
+        help="Skip the post-ingest row-count regression check.",
     )
     parser.add_argument(
         "--dry-run",
@@ -525,6 +829,12 @@ def main() -> None:
 
     print("══ LRE INGEST PIPELINE ═══════════════════════════════════════")
 
+    # Record pipeline start in ingest_runs (best-effort; skipped on dry-run)
+    db_url = _get_db_url()
+    run_id: Optional[int] = None
+    if db_url and not args.dry_run:
+        run_id = _record_run_start(db_url)
+
     failed: list[str] = []
     for step in STEPS:
         ok = run_step(step, args)
@@ -539,7 +849,15 @@ def main() -> None:
         print("All steps completed successfully.")
         print("\nNext: verify live scoring at http://localhost:8000/score?address=<address>")
         print("      or check /health to confirm db_connection=true")
-    else:
+
+    # Record final status + regression check (best-effort; skipped on dry-run)
+    if db_url and not args.dry_run:
+        _check_regression_and_finish(
+            db_url,
+            run_id,
+            failed_step=failed[0] if failed else None,
+        )
+    elif failed:
         print(f"Pipeline FAILED at: {failed[0]}", file=sys.stderr)
         sys.exit(1)
 

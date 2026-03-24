@@ -25,13 +25,16 @@ import logging
 import os
 import re
 import secrets
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
+from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 import requests as _requests
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -220,10 +223,14 @@ async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
                 )
                 row = cur.fetchone()
                 if row and row[1]:
-                    # Update last_used_at asynchronously — best-effort, non-blocking
+                    # Update usage counters — best-effort, non-blocking
                     try:
                         cur.execute(
-                            "UPDATE api_keys SET last_used_at = now() WHERE prefix = %s",
+                            """UPDATE api_keys
+                               SET last_used_at = now(),
+                                   last_called_at = now(),
+                                   call_count = call_count + 1
+                               WHERE prefix = %s""",
                             (prefix,),
                         )
                         conn.commit()
@@ -295,6 +302,55 @@ def create_api_key(
         "prefix": prefix,
         "label": label.strip(),
         "note": "Store this key securely — it cannot be retrieved again.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /usage endpoint  (data-043)
+# Returns call count and last-called timestamp for the authenticated key.
+# Requires a valid API key in X-API-Key header (same as /score).
+# ---------------------------------------------------------------------------
+
+@app.get("/usage", dependencies=[Depends(verify_api_key)])
+def get_usage(x_api_key: str | None = Header(None)) -> dict:
+    """
+    Return usage metrics for the authenticated API key.
+
+    Fields:
+      prefix:         first 8 chars of your key (safe to share)
+      label:          human-readable label set when the key was created
+      call_count:     total number of authenticated /score calls made with this key
+      last_called_at: ISO timestamp of the most recent /score call (null if never called)
+    """
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = x_api_key[4:][:8]
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT prefix, label, call_count, last_called_at FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("get_usage DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Usage service temporarily unavailable") from exc
+
+    if not row:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    return {
+        "prefix": row[0],
+        "label": row[1],
+        "call_count": row[2],
+        "last_called_at": row[3].isoformat() if row[3] else None,
     }
 
 
@@ -425,6 +481,292 @@ def _write_score_history(address: str, result: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Batch scoring helpers  (data-045)
+# ---------------------------------------------------------------------------
+
+# Maximum addresses allowed in a single batch request.
+_BATCH_MAX = 200
+
+# Parallelism limit for geocoding + scoring worker threads.
+_BATCH_WORKERS = 10
+
+
+async def require_api_key(x_api_key: str | None = Header(None)) -> None:
+    """
+    Strict API key enforcement — always required, regardless of REQUIRE_API_KEY env var.
+    Used for batch endpoints where unauthenticated access is never permitted.
+    """
+    if not x_api_key or not x_api_key.startswith("lre_"):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    random_portion = x_api_key[4:]
+    if len(random_portion) < 8:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+    prefix = random_portion[:8]
+    submitted_hash = _hash_key(x_api_key)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
+
+    row = None
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
+                    (prefix,),
+                )
+                row = cur.fetchone()
+                if row and row[1]:
+                    try:
+                        cur.execute(
+                            """UPDATE api_keys
+                               SET last_used_at = now(),
+                                   last_called_at = now(),
+                                   call_count = call_count + 1
+                               WHERE prefix = %s""",
+                            (prefix,),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("require_api_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
+
+    if not row or not row[1] or row[0] != submitted_hash:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+
+class BatchScoreRequest(BaseModel):
+    addresses: list[str]
+
+
+def _score_one(address: str) -> dict:
+    """
+    Score a single address. Returns a result dict with an 'error' key on failure.
+    Designed to run inside a ThreadPoolExecutor worker.
+    """
+    try:
+        result = _score_live(address)
+        result.pop("nearby_signals", None)  # not included in batch output
+        return result
+    except Exception as exc:
+        return {
+            "address": address,
+            "disruption_score": None,
+            "confidence": None,
+            "severity": None,
+            "top_risks": None,
+            "explanation": None,
+            "mode": None,
+            "error": str(exc),
+        }
+
+
+def _write_batch_history(results: list[dict], batch_id: str) -> None:
+    """
+    Persist live-mode results from a batch request to score_history.
+    Writes all successful results in a single connection; failures are skipped.
+    """
+    live_results = [r for r in results if r.get("mode") == "live" and r.get("disruption_score") is not None]
+    if not live_results:
+        return
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                for r in live_results:
+                    cur.execute(
+                        """
+                        INSERT INTO score_history (address, disruption_score, confidence, mode, batch_id)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (r["address"], r["disruption_score"], r["confidence"], r["mode"], batch_id),
+                    )
+            conn.commit()
+        finally:
+            conn.close()
+        log.info("batch_history written batch_id=%s count=%d", batch_id, len(live_results))
+    except Exception as exc:
+        log.warning("batch_history write failed batch_id=%s error=%s", batch_id, exc)
+
+
+@app.post("/score/batch", dependencies=[Depends(require_api_key)])
+def post_score_batch(
+    body: BatchScoreRequest,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """
+    Score multiple Chicago addresses in a single request.
+
+    Request body:
+      {"addresses": ["addr1", "addr2", ...]}   (max 200 addresses)
+
+    Response:
+      {
+        "batch_id": "<uuid>",
+        "scored":   N,
+        "failed":   N,
+        "results":  [{address, disruption_score, confidence, severity,
+                      top_risks, explanation, mode, error?}, ...]
+      }
+
+    - Addresses are geocoded and scored in parallel (up to 10 concurrent workers).
+    - Per-address failures (geocode failure, scoring error) are returned inline
+      with an "error" key rather than failing the whole request.
+    - API key is always required regardless of REQUIRE_API_KEY env var.
+    - Results are written to score_history with a shared batch_id.
+    """
+    addresses = body.addresses
+    if len(addresses) > _BATCH_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Batch limit is {_BATCH_MAX} addresses; {len(addresses)} submitted.",
+        )
+    if not addresses:
+        raise HTTPException(status_code=422, detail="At least one address is required.")
+
+    batch_id = str(uuid.uuid4())
+    results: list[dict] = [{}] * len(addresses)
+
+    with ThreadPoolExecutor(max_workers=min(_BATCH_WORKERS, len(addresses))) as pool:
+        futures = {pool.submit(_score_one, addr): i for i, addr in enumerate(addresses)}
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+
+    scored = sum(1 for r in results if r.get("error") is None)
+    failed = len(results) - scored
+
+    log.info("score_batch batch_id=%s total=%d scored=%d failed=%d", batch_id, len(addresses), scored, failed)
+    background_tasks.add_task(_write_batch_history, results, batch_id)
+
+    return {
+        "batch_id": batch_id,
+        "scored": scored,
+        "failed": failed,
+        "results": results,
+    }
+
+
+# CSV column order for /score/batch/csv output.
+_CSV_FIELDNAMES = [
+    "address",
+    "disruption_score",
+    "confidence",
+    "severity_noise",
+    "severity_traffic",
+    "severity_dust",
+    "top_risk_1",
+    "top_risk_2",
+    "top_risk_3",
+    "error",
+]
+
+
+def _result_to_csv_row(r: dict) -> dict:
+    """Flatten a single score result into a CSV-ready dict."""
+    sev = r.get("severity") or {}
+    risks = r.get("top_risks") or []
+    return {
+        "address":          r.get("address", ""),
+        "disruption_score": "" if r.get("disruption_score") is None else r["disruption_score"],
+        "confidence":       r.get("confidence", ""),
+        "severity_noise":   sev.get("noise", ""),
+        "severity_traffic": sev.get("traffic", ""),
+        "severity_dust":    sev.get("dust", ""),
+        "top_risk_1":       risks[0] if len(risks) > 0 else "",
+        "top_risk_2":       risks[1] if len(risks) > 1 else "",
+        "top_risk_3":       risks[2] if len(risks) > 2 else "",
+        "error":            r.get("error", ""),
+    }
+
+
+@app.post("/score/batch/csv", dependencies=[Depends(require_api_key)])
+async def post_score_batch_csv(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(..., description="CSV file with one address per row"),
+) -> StreamingResponse:
+    """
+    Score addresses from a CSV upload and return results as a CSV download.
+
+    Input CSV format (UTF-8):
+      - One address per row.
+      - Optional header row: if the first row contains "address" (case-insensitive),
+        it is treated as a header and skipped.
+      - Maximum 200 addresses (rows beyond 200 are ignored with a warning logged).
+
+    Output CSV columns:
+      address, disruption_score, confidence,
+      severity_noise, severity_traffic, severity_dust,
+      top_risk_1, top_risk_2, top_risk_3, error
+
+    - API key is always required.
+    - Per-address failures appear as rows with an "error" value and empty score fields.
+    - Results are written to score_history with a shared batch_id.
+    """
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")  # handle BOM from Excel exports
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+
+    reader = csv.reader(io.StringIO(text))
+    addresses: list[str] = []
+    for row in reader:
+        if not row:
+            continue
+        cell = row[0].strip()
+        if not cell:
+            continue
+        # Skip header row.
+        if not addresses and cell.lower() in ("address", "addresses"):
+            continue
+        addresses.append(cell)
+        if len(addresses) >= _BATCH_MAX:
+            log.warning("score_batch_csv: input truncated to %d addresses", _BATCH_MAX)
+            break
+
+    if not addresses:
+        raise HTTPException(status_code=422, detail="No addresses found in uploaded CSV.")
+
+    batch_id = str(uuid.uuid4())
+    results: list[dict] = [{}] * len(addresses)
+
+    with ThreadPoolExecutor(max_workers=min(_BATCH_WORKERS, len(addresses))) as pool:
+        futures = {pool.submit(_score_one, addr): i for i, addr in enumerate(addresses)}
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+
+    scored = sum(1 for r in results if r.get("error") is None)
+    log.info("score_batch_csv batch_id=%s total=%d scored=%d", batch_id, len(addresses), scored)
+    background_tasks.add_task(_write_batch_history, results, batch_id)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=_CSV_FIELDNAMES, lineterminator="\n")
+    writer.writeheader()
+    for r in results:
+        writer.writerow(_result_to_csv_row(r))
+
+    csv_bytes = output.getvalue().encode("utf-8")
+    filename = f"livability_scores_{batch_id[:8]}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
 # /suggest endpoint (data-016)
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
 # Used by the frontend search bar autocomplete.
@@ -442,33 +784,10 @@ def get_score(
     """
     Return a near-term construction disruption risk score for a Chicago address.
 
-    When a live DB is configured: geocodes, queries projects, and scores live.
-    When DB is not configured: returns the approved demo scenario so the frontend
-    always receives a structured response (never a raw 503).
-    Response includes mode, fallback_reason, and latitude/longitude for map display.
+    Geocodes the address, queries nearby projects from Railway Postgres, and
+    returns a live score. Raises 422 if the address cannot be geocoded, 503
+    on unexpected scoring errors.
     """
-    # When no DB is configured, return a demo response.
-    # Include pre-resolved coords for known addresses so the frontend map pin works
-    # without a second geocode round-trip.
-    _KNOWN_COORDS: dict[str, tuple[float, float]] = {
-        "1600 W Chicago Ave, Chicago, IL": (41.8956, -87.6606),
-        "700 W Grand Ave, Chicago, IL": (41.8910, -87.6462),
-        "233 S Wacker Dr, Chicago, IL": (41.8788, -87.6359),
-    }
-    if not _is_db_configured():
-        known = _KNOWN_COORDS.get(address)
-        lat, lon = (known[0], known[1]) if known else (None, None)
-        if lat is None:
-            try:
-                from backend.ingest.geocode import geocode_address
-                coords = geocode_address(address)
-                if coords:
-                    lat, lon = coords
-            except Exception:
-                pass
-        log.info("score address=%r mode=demo fallback_reason=db_not_configured", address)
-        return _build_demo_response(address, "db_not_configured", lat, lon)
-
     try:
         result = _score_live(address)
         log.info("score address=%r mode=live fallback_reason=None", address)
@@ -596,26 +915,51 @@ def health_db() -> dict:
       db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
       db_connection:      true if a live DB ping succeeded
       db_error:           error string if db_connection is false (omitted on success)
-      last_ingest_status: reserved for future ingest tracking; null for MVP
+      last_ingest_at:     ISO timestamp of the most recent finished ingest run (null if none)
+      last_ingest_status: "success" | "failed" | "running" from the most recent run (null if none)
+      last_ingest_count:  active project count recorded at end of the last run (null if none)
     """
+    # task: data-041 — add last_ingest_at and last_ingest_status from ingest_runs
     db_configured = _is_db_configured()
     db_connection = False
     db_error = None
+    last_ingest_at = None
+    last_ingest_status = None
+    last_ingest_count = None
 
     if db_configured:
         try:
             from backend.scoring.query import get_db_connection
             conn = get_db_connection()
-            conn.close()
             db_connection = True
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT finished_at, status, record_count
+                           FROM ingest_runs
+                           WHERE finished_at IS NOT NULL
+                           ORDER BY finished_at DESC LIMIT 1"""
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        last_ingest_at = row[0].isoformat() if row[0] else None
+                        last_ingest_status = row[1]
+                        last_ingest_count = row[2]
+            except Exception:
+                pass  # ingest_runs table may not exist on first deploy
+            finally:
+                conn.close()
         except Exception as exc:
             db_error = str(exc)
+            db_connection = False
 
     response: dict = {
         "status": "ok",
         "db_configured": db_configured,
         "db_connection": db_connection,
-        "last_ingest_status": None,
+        "last_ingest_at": last_ingest_at,
+        "last_ingest_status": last_ingest_status,
+        "last_ingest_count": last_ingest_count,
     }
     if db_error is not None:
         response["db_error"] = db_error
@@ -1191,7 +1535,7 @@ def _get_last_ingest_time() -> str:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT MAX(completed_at) FROM ingest_runs WHERE status = 'success'"
+                    "SELECT MAX(finished_at) FROM ingest_runs WHERE status = 'success'"
                 )
                 row = cur.fetchone()
                 if row and row[0]:
