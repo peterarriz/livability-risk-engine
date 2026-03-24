@@ -46,6 +46,8 @@ export type ImpactType =
   // Utility signals (data-046)
   | "utility_outage"
   | "utility_repair"
+  // Traffic signal outage (data-038)
+  | "traffic_signal_outage"
   // Crime trend signals (data-054)
   | "crime_trend_increasing"
   | "crime_trend_decreasing"

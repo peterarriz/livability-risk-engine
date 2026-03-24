@@ -50,11 +50,16 @@ SOCRATA_URL = "https://data.cityofchicago.org/resource/v6vf-nfxy.json"
 DISRUPTION_SR_TYPES = [
     "Pothole in Street",
     "Water Main Break in Street",
-    "Gas Leak",                    # data-046: utility_outage signal
+    "Gas Leak",                         # data-046: utility_outage signal
     "Cave-In",
     "Pavement Cave-In",
     "Tree Emergency",
     "Street Light - Pole Down",
+    # data-038: traffic signal outage types — MUST VERIFY exact SR_TYPE strings
+    # via dry-run: python backend/ingest/chicago_311_requests.py --dry-run
+    "Traffic Signal Out - All Signals Out",
+    "Traffic Signal Out - Sporadic/Cycling",
+    "Traffic Light Out - All Signals Out",  # alternate name variant
 ]
 
 # Fields to retain from the raw 311 request record.

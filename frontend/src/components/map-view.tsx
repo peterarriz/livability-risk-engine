@@ -32,8 +32,10 @@ const IMPACT_COLOR: Record<string, string> = {
   road_construction:   "#F97316", // orange
   light_permit:        "#3B82F6", // blue
   // Utility disruption signals (data-060 / data-046)
-  utility_outage: "#7C3AED", // deep violet — high severity (weight 25)
-  utility_repair: "#A78BFA", // light violet — medium severity (weight 15)
+  utility_outage:        "#7C3AED", // deep violet — high severity (weight 25)
+  utility_repair:        "#A78BFA", // light violet — medium severity (weight 15)
+  // Traffic signal outage (data-038) — yellow: universal "signal" colour
+  traffic_signal_outage: "#EAB308", // yellow (weight 22)
   // Crime trend signals (data-054)
   crime_trend_increasing: "#DC2626", // dark red — elevated risk
   crime_trend_stable:     "#6B7280", // slate gray — neutral
@@ -56,8 +58,10 @@ const HEAT_RADIUS: Record<string, number> = {
   road_construction:   155,
   light_permit:        95,
   // Utility disruption signals (data-060 / data-046)
-  utility_outage: 170,
-  utility_repair: 130,
+  utility_outage:        170,
+  utility_repair:        130,
+  // Traffic signal outage (data-038)
+  traffic_signal_outage: 160,
   // Crime trend signals (data-054) — large radius to convey neighborhood-level scope
   crime_trend_increasing: 500,
   crime_trend_stable:     450,
@@ -75,8 +79,10 @@ const IMPACT_LABEL: Record<string, string> = {
   road_construction:   "Road construction",
   light_permit:        "Permitted work",
   // Utility disruption signals (data-060 / data-046)
-  utility_outage: "Utility outage",
-  utility_repair: "Utility repair",
+  utility_outage:        "Utility outage",
+  utility_repair:        "Utility repair",
+  // Traffic signal outage (data-038)
+  traffic_signal_outage: "Traffic signal outage",
   // Crime trend signals (data-054)
   crime_trend_increasing: "Crime trend: increasing",
   crime_trend_stable:     "Crime trend: stable",
@@ -105,7 +111,7 @@ const DISTANCE_RINGS = [
 const ALL_IMPACT_TYPES = [
   "closure_full", "closure_multi_lane", "closure_single_lane",
   "demolition", "construction", "road_construction", "light_permit",
-  "utility_outage", "utility_repair",
+  "utility_outage", "utility_repair", "traffic_signal_outage",
   "crime_trend_increasing", "crime_trend_stable", "crime_trend_decreasing",
 ] as const;
 
