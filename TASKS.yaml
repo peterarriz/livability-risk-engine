@@ -1160,6 +1160,31 @@ tasks:
       in the original backlog) plus state report card API research.
 
   - id: data-054
+    title: Wire CTA alerts and crime trend signals into /score nearby_signals for map display
+    status: done
+    priority: high
+    github_issue: 154
+    notes_for_next_agent: >
+      Two wiring tasks completed:
+      1. CTA alert source/date fields: source, start_date, end_date were already
+         present in the nearby_signals dict from compute_score() in a prior PR.
+         The map popup at map-view.tsx:292 uses sourceLabel(s.source) so CTA
+         alerts correctly show "CTA Service Alerts" with date ranges.
+      2. Crime trend signals: get_nearby_crime_signals() added to
+         backend/scoring/query.py. Queries neighborhood_quality for the nearest
+         community_area record using PostGIS KNN + haversine distance math.
+         Returns a synthetic signal with impact_type crime_trend_increasing /
+         crime_trend_decreasing / crime_trend_stable and weight=0.0 (informational
+         only, does not affect disruption_score). Wired into _score_live() in
+         backend/app/main.py (non-fatal, graceful degradation if table absent).
+         New impact types added to map-view.tsx IMPACT_COLOR/LABEL/HEAT_RADIUS
+         and ALL_IMPACT_TYPES. SOURCE_LABEL["chicago_crime_trends"] added.
+         ImpactType union in frontend/src/lib/api.ts updated with road_construction
+         (was missing) and the three crime_trend_* types.
+      Next: data-055 — live dry-run validation of tier-5 city crime scripts and
+      state report card API research.
+
+  - id: data-055
     title: Live dry-run validation of tier-5 city crime scripts and state report card API research
     status: backlog
     priority: high
@@ -1167,7 +1192,7 @@ tasks:
     notes_for_next_agent: >
       Two parallel workstreams:
       1. Validate tier-5 city crime/permit scripts with live network access
-         (was originally planned as data-053):
+         (was originally planned as data-053/054):
            python backend/ingest/charlotte_crime_trends.py --dry-run
            python backend/ingest/columbus_crime_trends.py --dry-run
            python backend/ingest/minneapolis_crime_trends.py --dry-run

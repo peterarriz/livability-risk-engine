@@ -395,6 +395,7 @@ def _score_live(address: str) -> dict:
     from backend.scoring.query import (
         compute_score,
         get_db_connection,
+        get_nearby_crime_signals,
         get_nearby_projects,
         get_neighborhood_context,
     )
@@ -430,6 +431,20 @@ def _score_live(address: str) -> dict:
             "longitude": lon,
             "neighborhood_context": neighborhood_context,
         }
+
+        # Crime trend map signal (data-054). Non-fatal if table absent.
+        try:
+            crime_signals = get_nearby_crime_signals(lat, lon, conn)
+            if crime_signals:
+                result_dict["nearby_signals"] = (
+                    result_dict.get("nearby_signals") or []
+                ) + crime_signals
+        except Exception as crime_exc:
+            log.debug("crime_signals lookup skipped: %s", crime_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         # Enrich top_risk_details with Claude-rewritten titles and descriptions
         # (data-042).  Cache-first: only calls Claude for project_ids not yet

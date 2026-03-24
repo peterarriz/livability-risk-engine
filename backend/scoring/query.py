@@ -644,6 +644,108 @@ def get_neighborhood_context(
 
 
 # ---------------------------------------------------------------------------
+# Crime trend map signals  (data-054)
+# ---------------------------------------------------------------------------
+
+# SQL fetches the nearest community_area record from neighborhood_quality,
+# extracts centroid lat/lon from the stored POINT geometry, and computes
+# haversine distance from the query coordinate.
+CRIME_SIGNALS_SQL = """
+    SELECT
+        region_id,
+        crime_12mo,
+        crime_prior_12mo,
+        crime_trend,
+        crime_trend_pct,
+        ST_Y(geom) AS centroid_lat,
+        ST_X(geom) AS centroid_lon,
+        6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((ST_Y(geom) - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(ST_Y(geom))) *
+                power(sin(radians((ST_X(geom) - %s) / 2.0)), 2)
+            )
+        ) AS distance_m
+    FROM neighborhood_quality
+    WHERE region_type = 'community_area' AND geom IS NOT NULL
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+    LIMIT 1;
+"""
+
+# Maps crime_trend string from the DB → synthetic impact_type for the map.
+_CRIME_TREND_IMPACT = {
+    "INCREASING": "crime_trend_increasing",
+    "DECREASING": "crime_trend_decreasing",
+    "STABLE":     "crime_trend_stable",
+}
+
+
+def get_nearby_crime_signals(
+    lat: float,
+    lon: float,
+    db_conn,
+) -> list[dict]:
+    """
+    Return a synthetic nearby_signals entry for the nearest crime community area.
+
+    Queries neighborhood_quality for the nearest community_area record using
+    PostGIS KNN ordering and haversine distance math. Maps crime_trend to a
+    synthetic impact_type (crime_trend_increasing / _decreasing / _stable)
+    and returns a signal dict in the same shape as nearby_signals from
+    compute_score() so the map renderer can display it without changes.
+
+    Args:
+        lat: Query latitude (WGS84).
+        lon: Query longitude (WGS84).
+        db_conn: An open psycopg2 connection.
+
+    Returns:
+        A list with 0 or 1 signal dict. Empty list if the table is absent,
+        empty, or an error occurs (graceful degradation).
+    """
+    if not HAS_PSYCOPG2:
+        return []
+
+    try:
+        with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(CRIME_SIGNALS_SQL, (lat, lat, lon, lon, lat))
+            row = cur.fetchone()
+    except Exception:
+        return []
+
+    if not row:
+        return []
+
+    crime_trend = (row["crime_trend"] or "").upper()
+    impact_type = _CRIME_TREND_IMPACT.get(crime_trend, "crime_trend_stable")
+
+    crime_12mo = row["crime_12mo"] or 0
+    crime_trend_pct = (
+        float(row["crime_trend_pct"]) if row["crime_trend_pct"] is not None else None
+    )
+
+    trend_word = crime_trend.capitalize() if crime_trend else "Stable"
+    pct_str = f" ({crime_trend_pct:+.0f}%)" if crime_trend_pct is not None else ""
+    title = f"Crime trend: {trend_word}{pct_str} · {crime_12mo:,} incidents (12 mo)"
+
+    severity_map = {"INCREASING": "HIGH", "STABLE": "MEDIUM", "DECREASING": "LOW"}
+
+    return [{
+        "lat": row["centroid_lat"],
+        "lon": row["centroid_lon"],
+        "impact_type": impact_type,
+        "title": title,
+        "address": None,
+        "source": "chicago_crime_trends",
+        "start_date": None,
+        "end_date": None,
+        "distance_m": round(float(row["distance_m"])),
+        "severity_hint": severity_map.get(crime_trend, "MEDIUM"),
+        "weight": 0.0,
+    }]
+
+
+# ---------------------------------------------------------------------------
 # DB connection helper
 # ---------------------------------------------------------------------------
 
