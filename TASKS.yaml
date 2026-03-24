@@ -11,24 +11,71 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-057 (tier-7 city expansion)
-# Next task to create: data-058
+# Last completed task: data-058 (tier-8 city expansion — 25 cities)
+# Next task to create: data-059
 
 tasks:
   - id: data-058
-    title: Dry-run validation and field fixes for tier-7 city data (data-057)
+    title: Expand to next 25 US cities — permits and crime (tier-8)
+    status: done
+    priority: high
+    github_issue: 165
+    notes_for_next_agent: >
+      Implemented tier-8 city expansion (data-058). New scripts created:
+        Crime (Socrata): anchorage_crime_trends.py, madison_crime_trends.py,
+          spokane_crime_trends.py
+        Crime (ArcGIS): durham_crime_trends.py, chandler_crime_trends.py,
+          scottsdale_crime_trends.py, gilbert_crime_trends.py,
+          glendale_az_crime_trends.py, henderson_crime_trends.py
+        Crime (CSV rewrite): st_louis_crime_trends.py (was stub, now uses
+          SLMPD annual CSVs at slmpd.org/Crime/{year}Annual.csv)
+      Tampa already existed from data-057 — no changes needed.
+      Permits added to us_city_permits.py (Socrata): anchorage, madison, spokane.
+      Permits added to us_city_permits_arcgis.py (ArcGIS): durham, chandler,
+        scottsdale, gilbert, glendale_az, henderson.
+      All wired into run_pipeline.py + load_neighborhood_quality.py.
+      All ArcGIS service URLs and Socrata dataset IDs are MUST VERIFY estimates.
+      Next agent MUST run --dry-run for all new scripts and fix any 400/404 errors.
+        python backend/ingest/anchorage_crime_trends.py --discover
+        python backend/ingest/anchorage_crime_trends.py --dry-run
+        python backend/ingest/madison_crime_trends.py --discover
+        python backend/ingest/madison_crime_trends.py --dry-run
+        python backend/ingest/spokane_crime_trends.py --discover
+        python backend/ingest/spokane_crime_trends.py --dry-run
+        python backend/ingest/st_louis_crime_trends.py --discover
+        python backend/ingest/st_louis_crime_trends.py --dry-run
+        python backend/ingest/durham_crime_trends.py --dry-run
+        python backend/ingest/chandler_crime_trends.py --dry-run
+        python backend/ingest/scottsdale_crime_trends.py --dry-run
+        python backend/ingest/gilbert_crime_trends.py --dry-run
+        python backend/ingest/glendale_az_crime_trends.py --dry-run
+        python backend/ingest/henderson_crime_trends.py --dry-run
+        python backend/ingest/us_city_permits.py --city anchorage --dry-run
+        python backend/ingest/us_city_permits.py --city madison --dry-run
+        python backend/ingest/us_city_permits.py --city spokane --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city durham --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city chandler --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city scottsdale --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city gilbert --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city glendale_az --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city henderson --dry-run
+      Follow SKILL.md Common Failures for fixing wrong IDs/URLs.
+      Skipped (no public API): Hialeah FL, Laredo TX, North Las Vegas NV,
+        Boise ID, Richmond CA, Fremont CA, Irvine CA, San Bernardino CA,
+        Modesto CA, Fontana CA, Moreno Valley CA, Lubbock TX, Garland TX,
+        Chesapeake VA — documented in SKILL.md.
+
+  - id: data-059
+    title: Dry-run validation for tier-8 city scripts (data-058)
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      Run --dry-run for all new tier-7 cities added in data-057. Fix any wrong
+      Run --dry-run for all tier-8 cities added in data-058. Fix any wrong
       dataset IDs or ArcGIS service URLs. Remove MUST VERIFY comments on success.
-      Cities to verify:
-        Tampa, Miami-Dade, St. Louis, Baton Rouge, Lexington (Socrata crime)
-        Orlando, Richmond, Des Moines, Tulsa, Wichita, Colorado Springs,
-        Arlington TX, Virginia Beach, Mesa AZ, Aurora CO, Corpus Christi,
-        Greensboro NC (ArcGIS crime)
-        Same cities for permits (us_city_permits.py + us_city_permits_arcgis.py)
+      See data-058 notes_for_next_agent for the full list of commands to run.
+      For St. Louis: run --discover first to confirm the SLMPD CSV URL pattern,
+      then update CSV_URL_TEMPLATE, DATE_FIELD, DISTRICT_FIELD if needed.
       Follow SKILL.md Common Failures for fixing wrong IDs/URLs.
 
   - id: data-055
