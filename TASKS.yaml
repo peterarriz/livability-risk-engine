@@ -11,10 +11,33 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-038 (traffic signal outage signals)
-# Next task to create: data-061
+# Last completed task: data-061 (school quality map layer)
+# Next task to create: data-062
 
 tasks:
+  - id: data-061
+    title: School quality map layer — nearby_schools in /score + map display
+    status: in-progress
+    priority: high
+    github_issue: 174
+    notes_for_next_agent: >
+      Added get_nearby_schools() to backend/scoring/query.py — queries
+      neighborhood_quality WHERE region_type='school' within 1 km, returns
+      lat/lon/name/rating/color/distance_m. Wired into _score_live() in main.py
+      as non-fatal nearby_schools field. Added NearbySchool type to api.ts and
+      nearby_schools to ScoreResponse. Map renders school CircleMarkers (radius 7,
+      colored border+fill, 50% opacity) in a separate schoolGroupRef layer.
+      Colors: green=Level 1+/Excellent, light_green=Level 1/Strong,
+      yellow=Level 2/Average, orange=Level 3/Weak, red=Level 4/Very Weak, gray=unknown.
+      Also fixed map tile badge label ("Stadia Dark" → "CARTO Dark") in page.tsx.
+      Next: verify schools appear for Chicago addresses. If neighborhood_quality
+      has no school rows yet, run:
+        python backend/ingest/il_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools
+        python backend/ingest/national_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools_national
+
+
   - id: data-058
     title: Expand to next 25 US cities — permits and crime (tier-8)
     status: done
