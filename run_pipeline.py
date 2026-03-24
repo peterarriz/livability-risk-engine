@@ -433,6 +433,69 @@ STEPS = [
         "skip_key": "skip_school_ratings",
         "non_fatal": True,
     },
+    # -----------------------------------------------------------------
+    # data-056: Tier-6 city crime trends (10 new cities)
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Philadelphia crime trends",
+        "cmd": [sys.executable, "backend/ingest/philadelphia_crime_trends.py"],
+        "skip_key": "skip_philadelphia_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch New Orleans crime trends",
+        "cmd": [sys.executable, "backend/ingest/new_orleans_crime_trends.py"],
+        "skip_key": "skip_new_orleans_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Atlanta crime trends",
+        "cmd": [sys.executable, "backend/ingest/atlanta_crime_trends.py"],
+        "skip_key": "skip_atlanta_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Detroit crime trends",
+        "cmd": [sys.executable, "backend/ingest/detroit_crime_trends.py"],
+        "skip_key": "skip_detroit_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Cleveland crime trends",
+        "cmd": [sys.executable, "backend/ingest/cleveland_crime_trends.py"],
+        "skip_key": "skip_cleveland_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Cincinnati crime trends",
+        "cmd": [sys.executable, "backend/ingest/cincinnati_crime_trends.py"],
+        "skip_key": "skip_cincinnati_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Buffalo crime trends",
+        "cmd": [sys.executable, "backend/ingest/buffalo_crime_trends.py"],
+        "skip_key": "skip_buffalo_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Providence crime trends",
+        "cmd": [sys.executable, "backend/ingest/providence_crime_trends.py"],
+        "skip_key": "skip_providence_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Omaha crime trends",
+        "cmd": [sys.executable, "backend/ingest/omaha_crime_trends.py"],
+        "skip_key": "skip_omaha_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Pittsburgh crime trends",
+        "cmd": [sys.executable, "backend/ingest/pittsburgh_crime_trends.py"],
+        "skip_key": "skip_pittsburgh_crime",
+        "non_fatal": True,
+    },
     {
         # data-053: Fetches public school locations for all active cities using
         # NCES Common Core of Data via the Urban Institute Education Data API.
@@ -803,6 +866,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-indianapolis-crime", action="store_true", help="Skip the Indianapolis crime trends fetch step.")
     parser.add_argument("--skip-albuquerque-crime", action="store_true", help="Skip the Albuquerque crime trends fetch step.")
     parser.add_argument("--skip-raleigh-crime", action="store_true", help="Skip the Raleigh crime trends fetch step.")
+    # data-056: Tier-6 city crime trends skip flags
+    parser.add_argument("--skip-philadelphia-crime", action="store_true", help="Skip the Philadelphia crime trends fetch step.")
+    parser.add_argument("--skip-new-orleans-crime", action="store_true", help="Skip the New Orleans crime trends fetch step.")
+    parser.add_argument("--skip-atlanta-crime", action="store_true", help="Skip the Atlanta crime trends fetch step.")
+    parser.add_argument("--skip-detroit-crime", action="store_true", help="Skip the Detroit crime trends fetch step.")
+    parser.add_argument("--skip-cleveland-crime", action="store_true", help="Skip the Cleveland crime trends fetch step.")
+    parser.add_argument("--skip-cincinnati-crime", action="store_true", help="Skip the Cincinnati crime trends fetch step.")
+    parser.add_argument("--skip-buffalo-crime", action="store_true", help="Skip the Buffalo crime trends fetch step.")
+    parser.add_argument("--skip-providence-crime", action="store_true", help="Skip the Providence crime trends fetch step.")
+    parser.add_argument("--skip-omaha-crime", action="store_true", help="Skip the Omaha crime trends fetch step.")
+    parser.add_argument("--skip-pittsburgh-crime", action="store_true", help="Skip the Pittsburgh crime trends fetch step.")
     parser.add_argument(
         "--skip-school-ratings",
         action="store_true",

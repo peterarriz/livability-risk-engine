@@ -32,6 +32,16 @@ Reads from staging files written by:
   backend/ingest/raleigh_crime_trends.py       → data/raw/raleigh_crime_trends.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
   backend/ingest/national_school_ratings.py   → data/raw/national_school_ratings.json
+  backend/ingest/philadelphia_crime_trends.py → data/raw/philadelphia_crime_trends.json
+  backend/ingest/new_orleans_crime_trends.py  → data/raw/new_orleans_crime_trends.json
+  backend/ingest/atlanta_crime_trends.py      → data/raw/atlanta_crime_trends.json
+  backend/ingest/detroit_crime_trends.py      → data/raw/detroit_crime_trends.json
+  backend/ingest/cleveland_crime_trends.py    → data/raw/cleveland_crime_trends.json
+  backend/ingest/cincinnati_crime_trends.py   → data/raw/cincinnati_crime_trends.json
+  backend/ingest/buffalo_crime_trends.py      → data/raw/buffalo_crime_trends.json
+  backend/ingest/providence_crime_trends.py   → data/raw/providence_crime_trends.json
+  backend/ingest/omaha_crime_trends.py        → data/raw/omaha_crime_trends.json
+  backend/ingest/pittsburgh_crime_trends.py   → data/raw/pittsburgh_crime_trends.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -122,6 +132,17 @@ STAGING_FILES = {
     "crime_indianapolis":  Path("data/raw/indianapolis_crime_trends.json"),
     "crime_albuquerque":   Path("data/raw/albuquerque_crime_trends.json"),
     "crime_raleigh":       Path("data/raw/raleigh_crime_trends.json"),
+    # data-056: tier-6 city crime trends
+    "crime_philadelphia":  Path("data/raw/philadelphia_crime_trends.json"),
+    "crime_new_orleans":   Path("data/raw/new_orleans_crime_trends.json"),
+    "crime_atlanta":       Path("data/raw/atlanta_crime_trends.json"),
+    "crime_detroit":       Path("data/raw/detroit_crime_trends.json"),
+    "crime_cleveland":     Path("data/raw/cleveland_crime_trends.json"),
+    "crime_cincinnati":    Path("data/raw/cincinnati_crime_trends.json"),
+    "crime_buffalo":       Path("data/raw/buffalo_crime_trends.json"),
+    "crime_providence":    Path("data/raw/providence_crime_trends.json"),
+    "crime_omaha":         Path("data/raw/omaha_crime_trends.json"),
+    "crime_pittsburgh":    Path("data/raw/pittsburgh_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -306,6 +327,10 @@ def parse_args() -> argparse.Namespace:
             "crime_charlotte", "crime_columbus", "crime_minneapolis", "crime_phoenix",
             "crime_san_jose", "crime_jacksonville", "crime_fort_worth",
             "crime_indianapolis", "crime_albuquerque", "crime_raleigh",
+            "crime_philadelphia", "crime_new_orleans", "crime_atlanta",
+            "crime_detroit", "crime_cleveland", "crime_cincinnati",
+            "crime_buffalo", "crime_providence", "crime_omaha",
+            "crime_pittsburgh",
             "schools", "schools_national", "all",
         ],
         default="all",
