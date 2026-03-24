@@ -748,7 +748,8 @@ export default function HomePage() {
                     signals={result.nearby_signals ?? []}
                     schools={result.nearby_schools ?? []}
                     topRiskDetails={result.top_risk_details ?? []}
-                    nearbySchools={result.nearby_schools ?? []}
+                    floodRisk={result.neighborhood_context?.flood_risk ?? null}
+                    femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
                     isPro={false}
                   />
                 ) : (

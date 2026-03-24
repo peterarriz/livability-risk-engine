@@ -11,10 +11,40 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-062 (historical disruption trend)
-# Next task to create: data-063
+# Last completed task: data-063 (flood risk map layer)
+# Next task to create: data-064
 
 tasks:
+  - id: data-063
+    title: Flood risk map layer — surface fema_flood_zone + flood_risk on map
+    status: in-progress
+    priority: high
+    github_issue: 183
+    notes_for_next_agent: >
+      No backend changes needed — neighborhood_context (flood_risk, fema_flood_zone)
+      is already returned by /score via get_neighborhood_context() in query.py.
+      Changes made:
+        frontend/src/lib/api.ts: New NeighborhoodContext type (flood_risk,
+          fema_flood_zone, crime_trend, crime_trend_pct, crime_12mo). Added
+          neighborhood_context?: NeighborhoodContext | null to ScoreResponse.
+        frontend/src/components/map-view.tsx:
+          - Removed duplicate nearbySchools prop/Effect 6 (leftover from two
+            agents implementing data-061 simultaneously — was conflicting with
+            the schools prop/Effect 3).
+          - Added floodRisk, femaZone props.
+          - Added floodGroupRef layer (always visible).
+          - Effect 6: renders L.circle(radius=400m) around address pin —
+            HIGH=red #DC2626 (18% opacity), MODERATE=orange #F97316 (13%),
+            MINIMAL/null=nothing. Dashed border. Popup shows risk + FEMA zone.
+          - FLOOD_COLOR and FLOOD_FILL_OPACITY constants added.
+        frontend/src/app/page.tsx:
+          - Removed duplicate nearbySchools={...} prop (cleanup).
+          - Added floodRisk and femaZone props to MapView.
+      Next: data-064 Amenity richness (#7) — entirely new data source.
+      Best source: OpenStreetMap Overpass API (parks, grocery, transit, restaurants).
+      Define the metric, ingest script, scoring weight, and map layer.
+
+
   - id: data-062
     title: Historical disruption trend — /score-trend aggregation endpoint + area sparkline
     status: in-progress
