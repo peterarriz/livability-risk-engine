@@ -1140,31 +1140,50 @@ tasks:
       issue superseded it; see notes in data-051 entry for the full command list).
 
   - id: data-053
-    title: Live dry-run validation of data-050 city crime and permit scripts
+    title: Expand school ratings nationally using NCES data
+    status: done
+    priority: high
+    github_issue: 148
+    notes_for_next_agent: >
+      Script: backend/ingest/national_school_ratings.py
+      Output: data/raw/national_school_ratings.json
+      Source: Urban Institute Education Data API (free, no key required)
+        https://educationdata.urban.org/api/v1/schools/ccd/directory/2022/
+      Covers 34 active cities (Chicago excluded — CPS data in il_school_ratings.py).
+      NYC handled via multiple borough city_location queries (New York, Brooklyn,
+      Bronx, Queens, Staten Island), deduplicated by ncessch.
+      school_rating / school_attainment / school_growth are null — state report
+      card API integration deferred to data-054.
+      Wired into run_pipeline.py as non-fatal step (skip_key: skip_national_school_ratings).
+      Wired into load_neighborhood_quality.py as source "schools_national".
+      Next: data-054 — live dry-run validation of tier-5 crime scripts (was data-053
+      in the original backlog) plus state report card API research.
+
+  - id: data-054
+    title: Live dry-run validation of tier-5 city crime scripts and state report card API research
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      data-051 completed static code review of all 10 crime scripts and 4
-      permit configs — all match SKILL.md structurally. This task requires
-      live network access to confirm ArcGIS service URLs and Socrata dataset
-      IDs against live APIs, then remove MUST VERIFY comments.
-      Run each of the following and fix any endpoint/field errors found:
-        python backend/ingest/charlotte_crime_trends.py --dry-run
-        python backend/ingest/columbus_crime_trends.py --dry-run
-        python backend/ingest/minneapolis_crime_trends.py --dry-run
-        python backend/ingest/phoenix_crime_trends.py --dry-run
-        python backend/ingest/san_jose_crime_trends.py --dry-run
-        python backend/ingest/jacksonville_crime_trends.py --dry-run
-        python backend/ingest/fort_worth_crime_trends.py --dry-run
-        python backend/ingest/indianapolis_crime_trends.py --dry-run
-        python backend/ingest/albuquerque_crime_trends.py --dry-run
-        python backend/ingest/raleigh_crime_trends.py --dry-run
-        python backend/ingest/us_city_permits_arcgis.py --city san_jose --dry-run
-        python backend/ingest/us_city_permits_arcgis.py --city fort_worth --dry-run
-        python backend/ingest/us_city_permits_arcgis.py --city albuquerque --dry-run
-        python backend/ingest/us_city_permits.py --city raleigh --dry-run
-      For any failures: check SKILL.md Common Failures section, use --discover
-      flag to find correct ArcGIS endpoint, fix field names, re-run --dry-run.
-      After confirming: remove MUST VERIFY comments from scripts and SKILL.md.
-      Create a GitHub issue for data-053 before executing, then create data-054.
+      Two parallel workstreams:
+      1. Validate tier-5 city crime/permit scripts with live network access
+         (was originally planned as data-053):
+           python backend/ingest/charlotte_crime_trends.py --dry-run
+           python backend/ingest/columbus_crime_trends.py --dry-run
+           python backend/ingest/minneapolis_crime_trends.py --dry-run
+           python backend/ingest/phoenix_crime_trends.py --dry-run
+           python backend/ingest/san_jose_crime_trends.py --dry-run
+           python backend/ingest/jacksonville_crime_trends.py --dry-run
+           python backend/ingest/fort_worth_crime_trends.py --dry-run
+           python backend/ingest/indianapolis_crime_trends.py --dry-run
+           python backend/ingest/albuquerque_crime_trends.py --dry-run
+           python backend/ingest/raleigh_crime_trends.py --dry-run
+           python backend/ingest/us_city_permits_arcgis.py --city san_jose --dry-run
+           python backend/ingest/us_city_permits_arcgis.py --city fort_worth --dry-run
+           python backend/ingest/us_city_permits_arcgis.py --city albuquerque --dry-run
+           python backend/ingest/us_city_permits.py --city raleigh --dry-run
+         Fix any failures per SKILL.md Common Failures. Remove MUST VERIFY comments.
+      2. Research state report card APIs to add performance ratings to
+         national_school_ratings.py (school_rating, school_attainment, school_growth).
+         Priority states: CA, TX, WA, MA, OH, AZ, TN, MD, NC, MN, NY.
+         See issue #148 for API links per state.
