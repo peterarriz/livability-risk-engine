@@ -378,6 +378,8 @@ def _build_top_risks(
             risk = f"Traffic signal outage near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_UTILITY_REPAIR:
             risk = f"Utility repair crew active near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
+            risk = f"Traffic signal outage at intersection near {p.title} {dist_str}"
         else:
             risk = f"Nearby permit activity: {p.title} {dist_str}"
 
@@ -457,6 +459,9 @@ def _build_explanation(
     elif p.impact_type == IMPACT_UTILITY_REPAIR:
         lead = f"Nearby utility repair work ({p.title}, {dist_str}) is the main driver"
         category = "traffic disruption from repair crews"
+    elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
+        lead = f"A traffic signal outage ({p.title}, {dist_str}) is the main driver"
+        category = "intersection traffic disruption"
     else:
         lead = f"Nearby permitted work ({p.title}, {dist_str}) is contributing"
         category = "minor disruption"
@@ -770,6 +775,84 @@ def get_nearby_crime_signals(
         "severity_hint": severity_map.get(crime_trend, "MEDIUM"),
         "weight": 0.0,
     }]
+
+
+# ---------------------------------------------------------------------------
+# Nearby schools query  (data-061)
+# ---------------------------------------------------------------------------
+
+_NEARBY_SCHOOLS_SQL = """
+    SELECT
+        school_name,
+        school_rating,
+        ST_Y(geom) AS lat,
+        ST_X(geom) AS lon,
+        6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((ST_Y(geom) - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(ST_Y(geom))) *
+                power(sin(radians((ST_X(geom) - %s) / 2.0)), 2)
+            )
+        ) AS distance_m
+    FROM neighborhood_quality
+    WHERE region_type = 'school' AND geom IS NOT NULL
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+    LIMIT 10;
+"""
+
+_SCHOOL_RATING_COLOR = {
+    "EXCELLENT": "green",
+    "LEVEL 1+":  "green",
+    "STRONG":    "light_green",
+    "LEVEL 1":   "light_green",
+    "AVERAGE":   "yellow",
+    "LEVEL 2":   "yellow",
+    "WEAK":      "orange",
+    "LEVEL 3":   "orange",
+    "VERY WEAK": "red",
+    "LEVEL 4":   "red",
+}
+
+# 1 km search radius for school markers
+_SCHOOL_RADIUS_M = 1000
+
+
+def get_nearby_schools(
+    lat: float,
+    lon: float,
+    db_conn,
+) -> list[dict]:
+    """
+    Return nearby public schools within 1 km from neighborhood_quality.
+
+    Each result has: lat, lon, name, rating, color, distance_m.
+    Returns empty list if table is absent, empty, or any error occurs.
+    """
+    if not HAS_PSYCOPG2:
+        return []
+
+    try:
+        with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(_NEARBY_SCHOOLS_SQL, (lat, lat, lon, lon, lat))
+            rows = cur.fetchall()
+    except Exception:
+        return []
+
+    results = []
+    for row in rows:
+        dist = float(row["distance_m"])
+        if dist > _SCHOOL_RADIUS_M:
+            continue
+        rating = (row["school_rating"] or "").strip().upper()
+        results.append({
+            "lat": float(row["lat"]),
+            "lon": float(row["lon"]),
+            "name": row["school_name"] or "School",
+            "rating": row["school_rating"] or None,
+            "color": _SCHOOL_RATING_COLOR.get(rating, "gray"),
+            "distance_m": round(dist),
+        })
+    return results
 
 
 # ---------------------------------------------------------------------------

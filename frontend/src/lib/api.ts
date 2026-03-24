@@ -46,6 +46,8 @@ export type ImpactType =
   // Utility signals (data-046)
   | "utility_outage"
   | "utility_repair"
+  // Traffic signal outage (data-038)
+  | "traffic_signal_outage"
   // Crime trend signals (data-054)
   | "crime_trend_increasing"
   | "crime_trend_decreasing"
@@ -64,6 +66,16 @@ export type NearbySignal = {
   source?: string;
   start_date?: string | null;
   end_date?: string | null;
+};
+
+// Nearby school for map layer (data-061).
+export type NearbySchool = {
+  lat: number;
+  lon: number;
+  name: string;
+  rating: string | null;
+  color: "green" | "light_green" | "yellow" | "orange" | "red" | "gray";
+  distance_m: number;
 };
 
 export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -99,6 +111,8 @@ export type ScoreResponse = {
   longitude?: number | null;
   // Nearby permit/closure signals for the map heat layer.
   nearby_signals?: NearbySignal[];
+  // Nearby schools for map layer (data-061).
+  nearby_schools?: NearbySchool[];
 };
 
 export type ScoreSource = ScoreMode;
