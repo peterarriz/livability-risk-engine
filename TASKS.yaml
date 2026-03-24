@@ -1263,3 +1263,32 @@ tasks:
         - Pittsburgh data stale (archive ends Nov 2023)
         - New Orleans uses per-year dataset IDs; 2026 dataset TBD
         - Cincinnati current data may be sparse (only 3 records in current window)
+
+  - id: data-057
+    title: Expand to next 20 US cities — permits and crime (tier-7)
+    status: done
+    priority: high
+    github_issue: 158
+    notes_for_next_agent: >
+      Added 17 new city crime trend scripts (3 skipped — no public API).
+      Socrata crime: Tampa (opendata.tampa.gov), Miami-Dade (opendata.miamidade.gov),
+      St. Louis (data.stlouis-mo.gov), Baton Rouge (data.brla.gov),
+      Lexington (data.lexingtonky.gov).
+      ArcGIS crime: Orlando, Richmond, Des Moines, Tulsa, Wichita,
+      Colorado Springs, Arlington TX, Virginia Beach, Mesa AZ, Aurora CO,
+      Corpus Christi, Greensboro NC.
+      Skipped (no public API): Bakersfield CA, Anaheim CA, Santa Ana CA —
+      all use Accela internally and CrimeMapping.com (no open API).
+      Added 5 Socrata permit configs to us_city_permits.py:
+      Tampa, Miami-Dade, St. Louis, Baton Rouge, Lexington.
+      Added 13 ArcGIS permit configs to us_city_permits_arcgis.py:
+      Orlando, Richmond, Des Moines, Tulsa, Wichita, Colorado Springs,
+      Arlington TX, Virginia Beach, Mesa, Aurora, Corpus Christi, Greensboro.
+      All wired into run_pipeline.py and load_neighborhood_quality.py.
+      Known issues: ALL dataset IDs and ArcGIS service URLs are research
+      estimates marked MUST VERIFY. Run --dry-run for each city to verify
+      connectivity and fix wrong IDs/URLs. Lexington permit portal type
+      uncertain (Socrata vs ArcGIS Hub). Des Moines and Colorado Springs
+      may have limited crime data coverage.
+      Next task (data-058): verification pass — run --dry-run for each new
+      city, fix wrong dataset IDs/URLs, remove MUST VERIFY comments.
