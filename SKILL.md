@@ -59,6 +59,18 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Fort Worth | `fort_worth_crime_trends.py` | `services.arcgis.com/AHCzmZstRKFEQEqv/.../FWPD_Crime/FeatureServer/0` | `FromDate` | `Division` | `fort_worth_crime_trends.json` |
 | Indianapolis | `indianapolis_crime_trends.py` | `services.arcgis.com/ghDnFwW5bG9Ljzwi/.../IMPD_Crime_Statistics/FeatureServer/0` | `occurred_dt` | `district` | `indianapolis_crime_trends.json` |
 | Albuquerque | `albuquerque_crime_trends.py` | `services.arcgis.com/3HnGBxB8VqLCXhUn/.../APD_Crime/FeatureServer/0` | `OCCURRED_DT` | `AREA_COMMAND` | `albuquerque_crime_trends.json` |
+| Orlando | `orlando_crime_trends.py` | `services1.arcgis.com/ySBMu4XsNZMHPCce/.../OPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `INCIDENTDate` | `ZONE` | `orlando_crime_trends.json` |
+| Richmond VA | `richmond_crime_trends.py` | `services1.arcgis.com/k3vhq11XkBNeeOfM/.../RPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `Occurred_Date` | `Precinct` | `richmond_crime_trends.json` |
+| Des Moines | `des_moines_crime_trends.py` | `services.arcgis.com/eSi6C3K7GxWJJFTG/.../DMPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `CrimeDate` | `Zone` | `des_moines_crime_trends.json` |
+| Tulsa | `tulsa_crime_trends.py` | `services.arcgis.com/vL1HzBwQf4fxjZTy/.../TPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Division` | `tulsa_crime_trends.json` |
+| Wichita | `wichita_crime_trends.py` | `services.arcgis.com/sJ7GWBy3GCkiIsY7/.../WPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `ReportDate` | `District` | `wichita_crime_trends.json` |
+| Colorado Springs | `colorado_springs_crime_trends.py` | `services3.arcgis.com/oR4yfmG5eJFhSqy7/.../CSPD_Incidents/FeatureServer/0` (MUST VERIFY) | `REPORT_DATE` | `Division` | `colorado_springs_crime_trends.json` |
+| Arlington TX | `arlington_tx_crime_trends.py` | `services.arcgis.com/v400IkDOw1ad7Yad/.../APD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `arlington_tx_crime_trends.json` |
+| Virginia Beach | `virginia_beach_crime_trends.py` | `services1.arcgis.com/DqA6wR9XSVCoCbVN/.../VBPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `CrimeDate` | `Precinct` | `virginia_beach_crime_trends.json` |
+| Mesa AZ | `mesa_crime_trends.py` | `services2.arcgis.com/T3Rrfm3Dqq8Eepqn/.../Mesa_PD_Crime/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `mesa_crime_trends.json` |
+| Aurora CO | `aurora_crime_trends.py` | `services1.arcgis.com/IJdEUGKefCEk4KsP/.../APD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `aurora_crime_trends.json` |
+| Corpus Christi | `corpus_christi_crime_trends.py` | `services.arcgis.com/5eqOE8IxIoFkEeGd/.../CCPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `corpus_christi_crime_trends.json` |
+| Greensboro NC | `greensboro_crime_trends.py` | `services.arcgis.com/CZ8GsPy9zJAnUBMD/.../GPD_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `greensboro_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -77,6 +89,11 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Charlotte | `charlotte_crime_trends.py` | data.charlottenc.gov | `cdym-9n4y` (MUST VERIFY) | `date_reported` | `division` | `charlotte_crime_trends.json` |
 | Minneapolis | `minneapolis_crime_trends.py` | data.minneapolismn.gov | `k65s-ce4x` (MUST VERIFY) | `reporteddate` | `precinct` | `minneapolis_crime_trends.json` |
 | Raleigh | `raleigh_crime_trends.py` | data.raleighnc.gov | `d9dc-ixwq` (MUST VERIFY) | `reported_date` | `district` | `raleigh_crime_trends.json` |
+| Tampa | `tampa_crime_trends.py` | opendata.tampa.gov | `jcxs-sxan` (MUST VERIFY) | `report_date` | `zone` | `tampa_crime_trends.json` |
+| Miami-Dade | `miami_crime_trends.py` | opendata.miamidade.gov | `kp8e-sznm` (MUST VERIFY) | `occurred_date` | `district` | `miami_crime_trends.json` |
+| St. Louis | `st_louis_crime_trends.py` | data.stlouis-mo.gov | `9hzd-5uqu` (MUST VERIFY) | `date_occur` | `district` | `st_louis_crime_trends.json` |
+| Baton Rouge | `baton_rouge_crime_trends.py` | data.brla.gov | `fabb-cnnu` (MUST VERIFY) | `create_dt` | `district` | `baton_rouge_crime_trends.json` |
+| Lexington KY | `lexington_crime_trends.py` | data.lexingtonky.gov | `e5v3-4r22` (MUST VERIFY) | `date_reported` | `division` | `lexington_crime_trends.json` |
 
 ### CSV-Based
 
@@ -106,6 +123,11 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Fresno | `fresno` | data.fresno.gov | `sxvh-bkgt` | `permit_number` | `issue_date` |
 | Sacramento | `sacramento` | data.cityofsacramento.org | `rent-6pka` | `permit_number` | `issued_date` |
 | Raleigh | `raleigh` | data.raleighnc.gov | `k4n2-jcgh` (MUST VERIFY) | `permit_number` | `issued_date` |
+| Tampa | `tampa` | opendata.tampa.gov | `fd3u-fy3v` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Miami-Dade | `miami_dade` | opendata.miamidade.gov | `r6qv-7pvx` (MUST VERIFY) | `permit_number` | `issue_date` |
+| St. Louis | `st_louis` | data.stlouis-mo.gov | `44bp-4y2y` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Baton Rouge | `baton_rouge` | data.brla.gov | `a6aw-dngx` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Lexington KY | `lexington` | data.lexingtonky.gov | `3gzb-avhn` (MUST VERIFY) | `permit_number` | `issued_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -125,6 +147,18 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | San Jose | `san_jose` | services.arcgis.com/p8Tul9YqBFRRdPqD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Fort Worth | `fort_worth` | services.arcgis.com/AHCzmZstRKFEQEqv/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Albuquerque | `albuquerque` | services.arcgis.com/3HnGBxB8VqLCXhUn/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Orlando | `orlando` | services1.arcgis.com/ySBMu4XsNZMHPCce/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Richmond VA | `richmond` | services1.arcgis.com/k3vhq11XkBNeeOfM/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Des Moines | `des_moines` | services.arcgis.com/eSi6C3K7GxWJJFTG/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Tulsa | `tulsa` | services.arcgis.com/vL1HzBwQf4fxjZTy/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Wichita | `wichita` | services.arcgis.com/sJ7GWBy3GCkiIsY7/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Colorado Springs | `colorado_springs` | services3.arcgis.com/oR4yfmG5eJFhSqy7/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Arlington TX | `arlington_tx` | services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Virginia Beach | `virginia_beach` | services1.arcgis.com/DqA6wR9XSVCoCbVN/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Mesa AZ | `mesa` | services2.arcgis.com/T3Rrfm3Dqq8Eepqn/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Aurora CO | `aurora` | services1.arcgis.com/IJdEUGKefCEk4KsP/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Corpus Christi | `corpus_christi` | services.arcgis.com/5eqOE8IxIoFkEeGd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Greensboro NC | `greensboro` | services.arcgis.com/CZ8GsPy9zJAnUBMD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -175,6 +209,9 @@ non-fatal pipeline step.
 Some cities do not publish crime data via any public API.
 
 **Affected cities:** El Paso (only boundary polygons on ArcGIS; no incident data).
+Bakersfield CA, Anaheim CA, Santa Ana CA — all use Accela (internal permit
+system) and CrimeMapping.com for public crime data; neither provides a
+queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 
 **Symptom:** ArcGIS returns `{"error": {"code": 400, "message": "Invalid URL"}}`.
 

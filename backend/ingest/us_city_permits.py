@@ -426,6 +426,75 @@ CITY_CONFIGS: list[dict] = [
     #       ?where=1%3D1&outFields=*&f=geojson&resultOffset=<N>&resultRecordCount=1000
     # -----------------------------------------------------------------
     {
+        # New Orleans — Building Permits.
+        # Portal: https://data.nola.gov (Socrata)
+        # Dataset: "Permits" (rcm3-fn58)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.nola.gov/api/catalog/v1?q=permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "New Orleans",
+        "source_key":       "new_orleans",
+        "domain":           "data.nola.gov",
+        "dataset_id":       "rcm3-fn58",
+        "id_field":         "numstring",
+        "type_field":       "type",
+        "desc_field":       "description",
+        "issue_date_field": "issuedate",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "New Orleans, LA",
+        "where_clause":     None,
+    },
+    {
+        # Cincinnati — Building Permits.
+        # Portal: https://data.cincinnati-oh.gov (Socrata)
+        # Dataset: "Permits" (uhjb-xac9)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.cincinnati-oh.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "Cincinnati",
+        "source_key":       "cincinnati",
+        "domain":           "data.cincinnati-oh.gov",
+        "dataset_id":       "uhjb-xac9",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "originaladdress1",
+        "city_state":       "Cincinnati, OH",
+        "where_clause":     None,
+    },
+    {
+        # Buffalo — Building Permits.
+        # Portal: https://data.buffalony.gov (Socrata)
+        # Dataset: "Building Permits" (9p2d-f3yt)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.buffalony.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-056: added 2026-03-24
+        "city_name":        "Buffalo",
+        "source_key":       "buffalo",
+        "domain":           "data.buffalony.gov",
+        "dataset_id":       "9p2d-f3yt",
+        "id_field":         "apno",
+        "type_field":       "aptype",
+        "desc_field":       "descofwork",
+        "issue_date_field": "issued",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "stname",
+        "city_state":       "Buffalo, NY",
+        "where_clause":     None,
+    },
+    {
         # Raleigh, NC — Building Permits.
         # Portal: https://data.raleighnc.gov (Socrata)
         # Dataset: Building Permits (NIBRS/development permits)
@@ -447,6 +516,117 @@ CITY_CONFIGS: list[dict] = [
         "loc_field":        None,
         "addr_field":       "address",
         "city_state":       "Raleigh, NC",
+        "where_clause":     None,
+    },
+    {
+        # Tampa, FL — Building Permits.
+        # Portal: https://opendata.tampa.gov (Socrata)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://opendata.tampa.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-057: added 2026-03-24
+        "city_name":        "Tampa",
+        "source_key":       "tampa",
+        "domain":           "opendata.tampa.gov",
+        "dataset_id":       "fd3u-fy3v",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "site_address",
+        "city_state":       "Tampa, FL",
+        "where_clause":     None,
+    },
+    {
+        # Miami-Dade, FL — Building Permits.
+        # Portal: https://opendata.miamidade.gov (Socrata)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://opendata.miamidade.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-057: added 2026-03-24
+        "city_name":        "Miami-Dade",
+        "source_key":       "miami_dade",
+        "domain":           "opendata.miamidade.gov",
+        "dataset_id":       "r6qv-7pvx",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Miami, FL",
+        "where_clause":     None,
+    },
+    {
+        # St. Louis, MO — Building Permits.
+        # Portal: https://data.stlouis-mo.gov (Socrata)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.stlouis-mo.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-057: added 2026-03-24
+        "city_name":        "St. Louis",
+        "source_key":       "st_louis",
+        "domain":           "data.stlouis-mo.gov",
+        "dataset_id":       "44bp-4y2y",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "St. Louis, MO",
+        "where_clause":     None,
+    },
+    {
+        # Baton Rouge, LA — Building and Trade Permits.
+        # Portal: https://data.brla.gov (Socrata — CONFIRMED)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.brla.gov/api/catalog/v1?q=building+permits&limit=5"
+        # data-057: added 2026-03-24
+        "city_name":        "Baton Rouge",
+        "source_key":       "baton_rouge",
+        "domain":           "data.brla.gov",
+        "dataset_id":       "a6aw-dngx",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Baton Rouge, LA",
+        "where_clause":     None,
+    },
+    {
+        # Lexington, KY — Building Permits.
+        # Portal: https://data.lexingtonky.gov (Socrata — MUST VERIFY)
+        # MUST VERIFY portal type and dataset_id:
+        #   curl "https://data.lexingtonky.gov/api/catalog/v1?q=building+permits&limit=5"
+        #   If that returns 404/HTML, the portal may be ArcGIS Hub not Socrata.
+        # data-057: added 2026-03-24
+        "city_name":        "Lexington",
+        "source_key":       "lexington",
+        "domain":           "data.lexingtonky.gov",
+        "dataset_id":       "3gzb-avhn",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Lexington, KY",
         "where_clause":     None,
     },
 ]

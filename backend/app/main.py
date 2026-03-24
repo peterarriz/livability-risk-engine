@@ -1079,15 +1079,16 @@ def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) ->
 
 @app.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
-    address: str = Query(..., description="Chicago address to score"),
+    address: str = Query(..., description="US address to score"),
     background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
-    Return a near-term construction disruption risk score for a Chicago address.
+    Return a near-term construction disruption risk score for a US address.
 
     Geocodes the address, queries nearby projects from Railway Postgres, and
-    returns a live score. Raises 422 if the address cannot be geocoded, 503
-    on unexpected scoring errors.
+    returns a live score. When the address is in a city we haven't ingested data
+    for yet, returns score=0 with fallback_reason="city_not_covered".
+    Raises 422 if the address cannot be geocoded, 503 on unexpected scoring errors.
     """
     try:
         result = _score_live(address)
@@ -1379,17 +1380,32 @@ def debug_score(
 # Fallback: Photon by Komoot (also OSM-backed, more permissive from servers).
 # ---------------------------------------------------------------------------
 
-# Nominatim: viewbox = left,top,right,bottom = minLon,maxLat,maxLon,minLat
-_NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700"
-# Photon: bbox = minLon,minLat,maxLon,maxLat
-_PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100"
-# Illinois lat/lon bounds for bbox-based filtering
-_IL_LAT = (36.9700, 42.5100)
-_IL_LON = (-91.5100, -87.0200)
+# US state name → 2-letter abbreviation (for formatting nationwide suggestions)
+_US_STATE_ABBREVS: dict[str, str] = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+    "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+    "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+    "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+    "wisconsin": "WI", "wyoming": "WY", "district of columbia": "DC",
+}
 
 
-def _in_illinois(lat: float, lon: float) -> bool:
-    return _IL_LAT[0] <= lat <= _IL_LAT[1] and _IL_LON[0] <= lon <= _IL_LON[1]
+def _state_abbrev(raw: str) -> str:
+    """Return 2-letter state abbreviation from a full name or ISO code like 'US-IL'."""
+    if not raw:
+        return ""
+    # ISO 3166-2 format: "US-IL" → "IL"
+    if "-" in raw:
+        return raw.split("-")[-1].upper()
+    return _US_STATE_ABBREVS.get(raw.lower().strip(), raw[:2].upper())
 
 
 # Directional prefixes to strip when extracting the bare street-name fragment.
@@ -1411,9 +1427,10 @@ def _street_prefix(query: str) -> str | None:
     """
     q = query.strip()
     # Drop trailing city/state suffixes the caller may have appended.
-    q = re.sub(r",?\s*illinois.*$", "", q, flags=re.IGNORECASE)
-    q = re.sub(r",?\s*[a-z ]+,\s*il\b.*$", "", q, flags=re.IGNORECASE)
-    q = re.sub(r",?\s*il\b.*$", "", q, flags=re.IGNORECASE)
+    # e.g. "1600 W Chicago Ave, Chicago, IL" → "1600 W Chicago Ave"
+    # Strip ", City, ST" or ", ST" patterns (any 2-letter state code).
+    q = re.sub(r",\s*[a-z][a-z\s]+,\s*[a-z]{2}\b.*$", "", q, flags=re.IGNORECASE)
+    q = re.sub(r",\s*[a-z]{2}\b.*$", "", q, flags=re.IGNORECASE)
     # Drop leading house number.
     q = re.sub(r"^\d+\s*", "", q)
     # Drop directional prefix (North, S, W., etc.).
@@ -1423,7 +1440,7 @@ def _street_prefix(query: str) -> str | None:
 
 
 def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]:
-    """Format Nominatim results as 'number road, City, IL' strings.
+    """Format Nominatim results as 'number road, City, ST' strings (any US state).
 
     If *street_frag* is given, only keep results whose road name starts with
     that fragment (case-insensitive). This prevents Nominatim from returning
@@ -1432,11 +1449,6 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
     suggestions: list[str] = []
     seen: set[str] = set()
     for r in results:
-        try:
-            if not _in_illinois(float(r["lat"]), float(r["lon"])):
-                continue
-        except (KeyError, ValueError):
-            continue
         addr = r.get("address", {})
         house = addr.get("house_number", "")
         road = addr.get("road") or addr.get("pedestrian") or addr.get("highway") or ""
@@ -1445,7 +1457,10 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
         if street_frag and not road.lower().startswith(street_frag):
             continue
         city = addr.get("city") or addr.get("town") or addr.get("village") or ""
-        loc = f"{city}, IL" if city else "IL"
+        # Nominatim returns ISO3166-2-lvl4 like "US-IL"; fall back to full state name.
+        state_raw = addr.get("ISO3166-2-lvl4") or addr.get("state", "")
+        state = _state_abbrev(state_raw)
+        loc = f"{city}, {state}" if city and state else (city or state or "US")
         formatted = f"{house} {road}, {loc}" if house else f"{road}, {loc}"
         if formatted not in seen:
             seen.add(formatted)
@@ -1454,7 +1469,7 @@ def _parse_nominatim(results: list, street_frag: str | None = None) -> list[str]
 
 
 def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
-    """Format Photon GeoJSON features as 'number road, City, IL' strings.
+    """Format Photon GeoJSON features as 'number road, City, ST' strings (any US state).
 
     If *street_frag* is given, only keep results whose street name starts with
     that fragment (case-insensitive).
@@ -1465,13 +1480,6 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
         props = f.get("properties", {})
         if props.get("countrycode", "").upper() != "US":
             continue
-        coords = f.get("geometry", {}).get("coordinates", [])
-        try:
-            lon, lat = float(coords[0]), float(coords[1])
-            if not _in_illinois(lat, lon):
-                continue
-        except (IndexError, ValueError, TypeError):
-            continue
         street = props.get("street", "")
         if not street:
             continue
@@ -1479,7 +1487,9 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
             continue
         house = props.get("housenumber", "")
         city = props.get("city", "")
-        loc = f"{city}, IL" if city else "IL"
+        state_raw = props.get("state", "")
+        state = _state_abbrev(state_raw)
+        loc = f"{city}, {state}" if city and state else (city or state or "US")
         formatted = f"{house} {street}, {loc}" if house else f"{street}, {loc}"
         if formatted not in seen:
             seen.add(formatted)
@@ -2145,32 +2155,27 @@ def check_commute(body: CommuteRequest) -> dict:
 
 @app.get("/suggest")
 def suggest_addresses(
-    q: str = Query(..., min_length=2, description="Partial Chicago address query"),
+    q: str = Query(..., min_length=2, description="Partial US address query"),
 ) -> dict:
     """
-    Return up to 5 Chicago address suggestions for a partial address query.
-    Used by the frontend autocomplete input.
+    Return up to 5 US address suggestions for a partial address query.
+    Used by the frontend autocomplete input. Searches nationwide — no city/state
+    pre-selection required.
 
     Tries Nominatim first; falls back to Photon (komoot) if Nominatim is
-    unreachable or returns no results within the Illinois bbox.
+    unreachable or returns no results.
     """
     query = q.strip()
-    # Bias both geocoders toward Illinois without altering queries that already
-    # specify a city/state.
-    nominatim_q = query if ", il" in query.lower() else f"{query}, IL"
-    photon_q = query if ", il" in query.lower() else f"{query}, IL"
 
     # Extract the partial street-name fragment so results can be post-filtered.
     # e.g. "679 North Peo" → "peo", preventing Milwaukee/Michigan/etc. showing up.
     street_frag = _street_prefix(query)
 
-    _nom_headers = {"User-Agent": "LivabilityRiskEngine/1.0 (chicago-mvp)"}
+    _nom_headers = {"User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)"}
     _nom_common = {
         "format": "json",
         "limit": 10,
         "countrycodes": "us",
-        "bounded": "1",
-        "viewbox": _NOMINATIM_VIEWBOX,
         "addressdetails": "1",
     }
 
@@ -2178,7 +2183,7 @@ def suggest_addresses(
     try:
         resp = _requests.get(
             "https://nominatim.openstreetmap.org/search",
-            params={"q": nominatim_q, **_nom_common},
+            params={"q": query, **_nom_common},
             headers=_nom_headers,
             timeout=4,
         )
@@ -2200,7 +2205,6 @@ def suggest_addresses(
             "https://nominatim.openstreetmap.org/search",
             params={
                 "street": structured_street,
-                "state": "IL",
                 "country": "US",
                 **_nom_common,
             },
@@ -2220,9 +2224,8 @@ def suggest_addresses(
         resp = _requests.get(
             "https://photon.komoot.io/api/",
             params={
-                "q": photon_q,
+                "q": query,
                 "limit": 10,
-                "bbox": _PHOTON_BBOX,
                 "lang": "en",
             },
             timeout=4,

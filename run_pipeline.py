@@ -433,6 +433,179 @@ STEPS = [
         "skip_key": "skip_school_ratings",
         "non_fatal": True,
     },
+    # -----------------------------------------------------------------
+    # data-056: Tier-6 city crime trends (10 new cities)
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Philadelphia crime trends",
+        "cmd": [sys.executable, "backend/ingest/philadelphia_crime_trends.py"],
+        "skip_key": "skip_philadelphia_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch New Orleans crime trends",
+        "cmd": [sys.executable, "backend/ingest/new_orleans_crime_trends.py"],
+        "skip_key": "skip_new_orleans_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Atlanta crime trends",
+        "cmd": [sys.executable, "backend/ingest/atlanta_crime_trends.py"],
+        "skip_key": "skip_atlanta_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Detroit crime trends",
+        "cmd": [sys.executable, "backend/ingest/detroit_crime_trends.py"],
+        "skip_key": "skip_detroit_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Cleveland crime trends",
+        "cmd": [sys.executable, "backend/ingest/cleveland_crime_trends.py"],
+        "skip_key": "skip_cleveland_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Cincinnati crime trends",
+        "cmd": [sys.executable, "backend/ingest/cincinnati_crime_trends.py"],
+        "skip_key": "skip_cincinnati_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Buffalo crime trends",
+        "cmd": [sys.executable, "backend/ingest/buffalo_crime_trends.py"],
+        "skip_key": "skip_buffalo_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Providence crime trends",
+        "cmd": [sys.executable, "backend/ingest/providence_crime_trends.py"],
+        "skip_key": "skip_providence_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Omaha crime trends",
+        "cmd": [sys.executable, "backend/ingest/omaha_crime_trends.py"],
+        "skip_key": "skip_omaha_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Pittsburgh crime trends",
+        "cmd": [sys.executable, "backend/ingest/pittsburgh_crime_trends.py"],
+        "skip_key": "skip_pittsburgh_crime",
+        "non_fatal": True,
+    },
+    # -----------------------------------------------------------------
+    # data-057: Tier-7 city crime trends (17 new cities)
+    # Socrata-based: Tampa, Miami-Dade, St. Louis, Baton Rouge, Lexington
+    # ArcGIS-based: Orlando, Richmond, Des Moines, Tulsa, Wichita,
+    #   Colorado Springs, Arlington TX, Virginia Beach, Mesa, Aurora,
+    #   Corpus Christi, Greensboro
+    # Skipped (no public API): Bakersfield, Anaheim, Santa Ana
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Tampa crime trends",
+        "cmd": [sys.executable, "backend/ingest/tampa_crime_trends.py"],
+        "skip_key": "skip_tampa_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Miami-Dade crime trends",
+        "cmd": [sys.executable, "backend/ingest/miami_crime_trends.py"],
+        "skip_key": "skip_miami_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch St. Louis crime trends",
+        "cmd": [sys.executable, "backend/ingest/st_louis_crime_trends.py"],
+        "skip_key": "skip_st_louis_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Baton Rouge crime trends",
+        "cmd": [sys.executable, "backend/ingest/baton_rouge_crime_trends.py"],
+        "skip_key": "skip_baton_rouge_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Lexington crime trends",
+        "cmd": [sys.executable, "backend/ingest/lexington_crime_trends.py"],
+        "skip_key": "skip_lexington_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Orlando crime trends",
+        "cmd": [sys.executable, "backend/ingest/orlando_crime_trends.py"],
+        "skip_key": "skip_orlando_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Richmond crime trends",
+        "cmd": [sys.executable, "backend/ingest/richmond_crime_trends.py"],
+        "skip_key": "skip_richmond_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Des Moines crime trends",
+        "cmd": [sys.executable, "backend/ingest/des_moines_crime_trends.py"],
+        "skip_key": "skip_des_moines_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Tulsa crime trends",
+        "cmd": [sys.executable, "backend/ingest/tulsa_crime_trends.py"],
+        "skip_key": "skip_tulsa_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Wichita crime trends",
+        "cmd": [sys.executable, "backend/ingest/wichita_crime_trends.py"],
+        "skip_key": "skip_wichita_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Colorado Springs crime trends",
+        "cmd": [sys.executable, "backend/ingest/colorado_springs_crime_trends.py"],
+        "skip_key": "skip_colorado_springs_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Arlington TX crime trends",
+        "cmd": [sys.executable, "backend/ingest/arlington_tx_crime_trends.py"],
+        "skip_key": "skip_arlington_tx_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Virginia Beach crime trends",
+        "cmd": [sys.executable, "backend/ingest/virginia_beach_crime_trends.py"],
+        "skip_key": "skip_virginia_beach_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Mesa crime trends",
+        "cmd": [sys.executable, "backend/ingest/mesa_crime_trends.py"],
+        "skip_key": "skip_mesa_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Aurora crime trends",
+        "cmd": [sys.executable, "backend/ingest/aurora_crime_trends.py"],
+        "skip_key": "skip_aurora_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Corpus Christi crime trends",
+        "cmd": [sys.executable, "backend/ingest/corpus_christi_crime_trends.py"],
+        "skip_key": "skip_corpus_christi_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Greensboro crime trends",
+        "cmd": [sys.executable, "backend/ingest/greensboro_crime_trends.py"],
+        "skip_key": "skip_greensboro_crime",
+        "non_fatal": True,
+    },
     {
         # data-053: Fetches public school locations for all active cities using
         # NCES Common Core of Data via the Urban Institute Education Data API.
@@ -803,6 +976,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-indianapolis-crime", action="store_true", help="Skip the Indianapolis crime trends fetch step.")
     parser.add_argument("--skip-albuquerque-crime", action="store_true", help="Skip the Albuquerque crime trends fetch step.")
     parser.add_argument("--skip-raleigh-crime", action="store_true", help="Skip the Raleigh crime trends fetch step.")
+    # data-056: Tier-6 city crime trends skip flags
+    parser.add_argument("--skip-philadelphia-crime", action="store_true", help="Skip the Philadelphia crime trends fetch step.")
+    parser.add_argument("--skip-new-orleans-crime", action="store_true", help="Skip the New Orleans crime trends fetch step.")
+    parser.add_argument("--skip-atlanta-crime", action="store_true", help="Skip the Atlanta crime trends fetch step.")
+    parser.add_argument("--skip-detroit-crime", action="store_true", help="Skip the Detroit crime trends fetch step.")
+    parser.add_argument("--skip-cleveland-crime", action="store_true", help="Skip the Cleveland crime trends fetch step.")
+    parser.add_argument("--skip-cincinnati-crime", action="store_true", help="Skip the Cincinnati crime trends fetch step.")
+    parser.add_argument("--skip-buffalo-crime", action="store_true", help="Skip the Buffalo crime trends fetch step.")
+    parser.add_argument("--skip-providence-crime", action="store_true", help="Skip the Providence crime trends fetch step.")
+    parser.add_argument("--skip-omaha-crime", action="store_true", help="Skip the Omaha crime trends fetch step.")
+    parser.add_argument("--skip-pittsburgh-crime", action="store_true", help="Skip the Pittsburgh crime trends fetch step.")
+    # data-057: Tier-7 city crime trends skip flags
+    parser.add_argument("--skip-tampa-crime", action="store_true", help="Skip the Tampa crime trends fetch step.")
+    parser.add_argument("--skip-miami-crime", action="store_true", help="Skip the Miami-Dade crime trends fetch step.")
+    parser.add_argument("--skip-st-louis-crime", action="store_true", help="Skip the St. Louis crime trends fetch step.")
+    parser.add_argument("--skip-baton-rouge-crime", action="store_true", help="Skip the Baton Rouge crime trends fetch step.")
+    parser.add_argument("--skip-lexington-crime", action="store_true", help="Skip the Lexington crime trends fetch step.")
+    parser.add_argument("--skip-orlando-crime", action="store_true", help="Skip the Orlando crime trends fetch step.")
+    parser.add_argument("--skip-richmond-crime", action="store_true", help="Skip the Richmond crime trends fetch step.")
+    parser.add_argument("--skip-des-moines-crime", action="store_true", help="Skip the Des Moines crime trends fetch step.")
+    parser.add_argument("--skip-tulsa-crime", action="store_true", help="Skip the Tulsa crime trends fetch step.")
+    parser.add_argument("--skip-wichita-crime", action="store_true", help="Skip the Wichita crime trends fetch step.")
+    parser.add_argument("--skip-colorado-springs-crime", action="store_true", help="Skip the Colorado Springs crime trends fetch step.")
+    parser.add_argument("--skip-arlington-tx-crime", action="store_true", help="Skip the Arlington TX crime trends fetch step.")
+    parser.add_argument("--skip-virginia-beach-crime", action="store_true", help="Skip the Virginia Beach crime trends fetch step.")
+    parser.add_argument("--skip-mesa-crime", action="store_true", help="Skip the Mesa crime trends fetch step.")
+    parser.add_argument("--skip-aurora-crime", action="store_true", help="Skip the Aurora crime trends fetch step.")
+    parser.add_argument("--skip-corpus-christi-crime", action="store_true", help="Skip the Corpus Christi crime trends fetch step.")
+    parser.add_argument("--skip-greensboro-crime", action="store_true", help="Skip the Greensboro crime trends fetch step.")
     parser.add_argument(
         "--skip-school-ratings",
         action="store_true",
