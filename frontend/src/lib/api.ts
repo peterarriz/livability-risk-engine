@@ -336,12 +336,65 @@ const _NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700";
 const _PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100";
 const _IL_LAT: [number, number] = [36.9700, 42.5100];
 const _IL_LON: [number, number] = [-91.5100, -87.0200];
+const US_STATE_ABBREVS: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+  "district of columbia": "DC",
+};
 
 function _stateAbbrev(raw: string): string {
   if (!raw) return "";
   // ISO 3166-2 format from Nominatim: "US-IL" → "IL"
   if (raw.includes("-")) return raw.split("-").pop()!.toUpperCase();
-  return _US_STATE_ABBREVS[raw.toLowerCase().trim()] ?? raw.slice(0, 2).toUpperCase();
+  return US_STATE_ABBREVS[raw.toLowerCase().trim()] ?? raw.slice(0, 2).toUpperCase();
 }
 
 type NominatimItem = {
