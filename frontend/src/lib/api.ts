@@ -227,29 +227,23 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
     url.searchParams.set("countrycodes", "us");
-    url.searchParams.set("bounded", "1");
-    url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (illinois-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
       cache: "no-store",
     });
     if (resp.ok) {
       const data = (await resp.json()) as Array<{ lat: string; lon: string }>;
       if (data.length) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        if (_inIllinois(lat, lon)) return { lat, lon };
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
       }
     }
   } catch { /* fall through */ }
 
   // 2. Photon fallback.
   try {
-    const photonQ = address.toLowerCase().includes(", il") ? address : `${address}, IL`;
     const url = new URL("https://photon.komoot.io/api/");
-    url.searchParams.set("q", photonQ);
+    url.searchParams.set("q", address);
     url.searchParams.set("limit", "1");
-    url.searchParams.set("bbox", _PHOTON_BBOX);
     url.searchParams.set("lang", "en");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (resp.ok) {
@@ -257,7 +251,7 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
       const f = data.features?.[0];
       if (f) {
         const [lon, lat] = f.geometry.coordinates;
-        if (_inIllinois(lat, lon)) return { lat, lon };
+        return { lat, lon };
       }
     }
   } catch { /* */ }
@@ -265,16 +259,28 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
   return null;
 }
 
-// Illinois bounding box constants shared by both geocoder calls below.
-// Nominatim viewbox: left,top,right,bottom = minLon,maxLat,maxLon,minLat
-const _NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700";
-// Photon bbox: minLon,minLat,maxLon,maxLat
-const _PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100";
-const _IL_LAT: [number, number] = [36.9700, 42.5100];
-const _IL_LON: [number, number] = [-91.5100, -87.0200];
+// US state name → 2-letter abbreviation for formatting nationwide suggestions.
+const _US_STATE_ABBREVS: Record<string, string> = {
+  "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+  "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+  "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+  "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+  "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+  "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+  "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+  "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+  "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+  "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+  "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+  "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+  "wisconsin": "WI", "wyoming": "WY", "district of columbia": "DC",
+};
 
-function _inIllinois(lat: number, lon: number): boolean {
-  return lat >= _IL_LAT[0] && lat <= _IL_LAT[1] && lon >= _IL_LON[0] && lon <= _IL_LON[1];
+function _stateAbbrev(raw: string): string {
+  if (!raw) return "";
+  // ISO 3166-2 format from Nominatim: "US-IL" → "IL"
+  if (raw.includes("-")) return raw.split("-").pop()!.toUpperCase();
+  return _US_STATE_ABBREVS[raw.toLowerCase().trim()] ?? raw.slice(0, 2).toUpperCase();
 }
 
 type NominatimItem = {
@@ -289,12 +295,13 @@ type NominatimItem = {
     town?: string;
     village?: string;
     state?: string;
+    "ISO3166-2-lvl4"?: string;
   };
 };
 
 type PhotonFeature = {
   geometry: { coordinates: [number, number] };
-  properties: { countrycode?: string; housenumber?: string; street?: string; city?: string };
+  properties: { countrycode?: string; housenumber?: string; street?: string; city?: string; state?: string };
 };
 
 /**
@@ -304,8 +311,9 @@ type PhotonFeature = {
  */
 function _streetPrefix(query: string): string | null {
   let q = query.trim();
-  q = q.replace(/,?\s*illinois.*$/i, "").replace(/,?\s*il\b.*$/i, "");
-  q = q.replace(/,?\s*[a-z ]+,\s*il\b.*$/i, ""); // strip "City, IL" suffix
+  // Strip ", City, ST" or ", ST" patterns (any 2-letter state code).
+  q = q.replace(/,\s*[a-z][a-z\s]+,\s*[a-z]{2}\b.*$/i, "");
+  q = q.replace(/,\s*[a-z]{2}\b.*$/i, "");
   q = q.replace(/^\d+\s*/, "");
   q = q.replace(/^(?:north|south|east|west|n\.?|s\.?|e\.?|w\.?)\s+/i, "").trim();
   return q.length >= 2 ? q.toLowerCase() : null;
@@ -315,16 +323,16 @@ function _parseNominatim(items: NominatimItem[], streetFrag?: string | null): st
   const seen = new Set<string>();
   const out: string[] = [];
   for (const r of items) {
-    const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
-    if (!_inIllinois(lat, lon)) continue;
     const a = r.address;
     const road = a.road ?? a.pedestrian ?? a.highway ?? "";
     if (!road) continue;
     if (streetFrag && !road.toLowerCase().startsWith(streetFrag)) continue;
     const house = a.house_number ?? "";
-    const city = a.city ?? a.town ?? a.village ?? "IL";
-    const suffix = city === "IL" ? "IL" : `${city}, IL`;
-    const s = house ? `${house} ${road}, ${suffix}` : `${road}, ${suffix}`;
+    const city = a.city ?? a.town ?? a.village ?? "";
+    const stateRaw = a["ISO3166-2-lvl4"] ?? a.state ?? "";
+    const state = _stateAbbrev(stateRaw);
+    const loc = city && state ? `${city}, ${state}` : (city || state || "US");
+    const s = house ? `${house} ${road}, ${loc}` : `${road}, ${loc}`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
   }
   return out.slice(0, 5);
@@ -335,15 +343,14 @@ function _parsePhoton(features: PhotonFeature[], streetFrag?: string | null): st
   const out: string[] = [];
   for (const f of features) {
     if (f.properties.countrycode?.toUpperCase() !== "US") continue;
-    const [lon, lat] = f.geometry.coordinates;
-    if (!_inIllinois(lat, lon)) continue;
     const street = f.properties.street ?? "";
     if (!street) continue;
     if (streetFrag && !street.toLowerCase().startsWith(streetFrag)) continue;
     const house = f.properties.housenumber ?? "";
     const city = f.properties.city ?? "";
-    const suffix = city ? `${city}, IL` : "IL";
-    const s = house ? `${house} ${street}, ${suffix}` : `${street}, ${suffix}`;
+    const state = _stateAbbrev(f.properties.state ?? "");
+    const loc = city && state ? `${city}, ${state}` : (city || state || "US");
+    const s = house ? `${house} ${street}, ${loc}` : `${street}, ${loc}`;
     if (!seen.has(s)) { seen.add(s); out.push(s); }
   }
   return out.slice(0, 5);
@@ -391,20 +398,16 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
     }
   }
 
-  const biasedQ = q.toLowerCase().includes(", il") ? q : `${q}, IL`;
-
   // 2. Browser-side Nominatim (with street-fragment post-filter).
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
-    url.searchParams.set("q", biasedQ);
+    url.searchParams.set("q", q);
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "10");
     url.searchParams.set("countrycodes", "us");
-    url.searchParams.set("bounded", "1");
-    url.searchParams.set("viewbox", _NOMINATIM_VIEWBOX);
     url.searchParams.set("addressdetails", "1");
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (illinois-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
       cache: "no-store",
     });
     if (resp.ok) {
@@ -415,11 +418,9 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
 
   // 3. Browser-side Photon fallback (with street-fragment post-filter).
   try {
-    const photonQ = q.toLowerCase().includes(", il") ? q : `${q}, IL`;
     const url = new URL("https://photon.komoot.io/api/");
-    url.searchParams.set("q", photonQ);
+    url.searchParams.set("q", q);
     url.searchParams.set("limit", "10");
-    url.searchParams.set("bbox", _PHOTON_BBOX);
     url.searchParams.set("lang", "en");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (resp.ok) {
