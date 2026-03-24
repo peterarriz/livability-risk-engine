@@ -212,7 +212,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
                   <p className="map-kicker">Spatial context</p>
                   <h2>Address and nearby area</h2>
                 </div>
-                <span className="map-badge">OpenStreetMap</span>
+                <span className="map-badge">Stadia Dark</span>
               </div>
               <MapView
                 latitude={mapCoords.lat}
