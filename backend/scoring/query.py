@@ -529,6 +529,11 @@ def compute_score(
             "distance_m": round(np.distance_m),
             "severity_hint": p.severity_hint,
             "weight": round(weight, 1),
+            # Include source + dates so map popups show the correct
+            # data provider (e.g. "CTA Service Alerts") and date range.
+            "source": p.source,
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
         })
 
     return ScoreResult(
@@ -641,6 +646,116 @@ def get_neighborhood_context(
         return None
 
     return context if context else None
+
+
+# ---------------------------------------------------------------------------
+# Nearby crime trend signals  (data-054)
+# ---------------------------------------------------------------------------
+# Returns 0-1 informational signal for the nearest community area crime trend.
+# Uses haversine lat/lon math (no PostGIS) consistent with the projects query.
+# The signal is appended to nearby_signals in _score_live() but does NOT
+# contribute to the disruption_score — it is map context only.
+
+_CRIME_SEARCH_RADIUS_M = 3000   # community-area centroids can be ~1–2 mi away
+
+NEARBY_CRIME_SIGNALS_SQL = """
+    SELECT
+        community_name,
+        crime_trend,
+        crime_12mo,
+        crime_trend_pct,
+        latitude,
+        longitude,
+        6371000.0 * 2.0 * asin(
+            sqrt(
+                power(sin(radians((latitude - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(latitude)) *
+                power(sin(radians((longitude - %s) / 2.0)), 2)
+            )
+        ) AS distance_m
+    FROM neighborhood_quality
+    WHERE
+        region_type = 'community_area'
+        AND latitude  IS NOT NULL
+        AND longitude IS NOT NULL
+        AND latitude  BETWEEN %s AND %s
+        AND longitude BETWEEN %s AND %s
+    ORDER BY distance_m ASC
+    LIMIT 1;
+"""
+
+
+def get_nearby_crime_signals(
+    lat: float,
+    lon: float,
+    db_conn,
+) -> list[dict]:
+    """
+    Return 0-1 informational map signals for the nearest community area
+    crime trend from the neighborhood_quality table.
+
+    These are displayed on the map but do NOT affect disruption_score.
+    Returns [] if neighborhood_quality is empty or not yet populated.
+
+    Args:
+        lat: Query latitude (WGS84).
+        lon: Query longitude (WGS84).
+        db_conn: An open psycopg2 connection.
+    """
+    if not HAS_PSYCOPG2:
+        return []
+
+    lat_delta = _CRIME_SEARCH_RADIUS_M / 111_000.0
+    lon_delta = _CRIME_SEARCH_RADIUS_M / (111_000.0 * math.cos(math.radians(lat)) + 1e-9)
+
+    try:
+        with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                NEARBY_CRIME_SIGNALS_SQL,
+                (
+                    lat, lat, lon,
+                    lat - lat_delta, lat + lat_delta,
+                    lon - lon_delta, lon + lon_delta,
+                ),
+            )
+            row = cur.fetchone()
+    except Exception:
+        # neighborhood_quality table may not exist yet (pre data-040).
+        return []
+
+    if not row:
+        return []
+
+    trend = (row["crime_trend"] or "STABLE").upper()
+    # impact_type drives the map colour: crime_trend_increasing / decreasing / stable
+    impact_type = f"crime_trend_{trend.lower()}"
+
+    pct = row["crime_trend_pct"]
+    pct_str = f" ({float(pct):+.0f}%)" if pct is not None else ""
+    count = row["crime_12mo"] or 0
+    title = (
+        f"{row['community_name']}: crime {trend.lower()}{pct_str}"
+        f" \u2014 {int(count):,} incidents/yr"
+    )
+
+    severity_hint = (
+        "HIGH" if trend == "INCREASING"
+        else "LOW" if trend == "DECREASING"
+        else "MEDIUM"
+    )
+
+    return [{
+        "lat": float(row["latitude"]),
+        "lon": float(row["longitude"]),
+        "impact_type": impact_type,
+        "title": title,
+        "distance_m": round(float(row["distance_m"])),
+        "severity_hint": severity_hint,
+        "weight": 0,        # informational only — excluded from disruption_score
+        "source": "chicago_crime_trends",
+        "start_date": None,
+        "end_date": None,
+    }]
 
 
 # ---------------------------------------------------------------------------

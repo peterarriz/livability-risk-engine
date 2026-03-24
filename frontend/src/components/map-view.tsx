@@ -29,6 +29,10 @@ const IMPACT_COLOR: Record<string, string> = {
   construction:        "#F59E0B", // amber
   road_construction:   "#F97316", // orange
   light_permit:        "#3B82F6", // blue
+  // Crime trend signals — neighbourhood context layer (data-055)
+  crime_trend_increasing: "#DC2626", // deep red
+  crime_trend_decreasing: "#10B981", // emerald green
+  crime_trend_stable:     "#64748b", // slate gray
 };
 const DEFAULT_COLOR = "#94a3b8";
 
@@ -46,6 +50,9 @@ const HEAT_RADIUS: Record<string, number> = {
   construction:        130,
   road_construction:   155,
   light_permit:        95,
+  crime_trend_increasing: 400,
+  crime_trend_decreasing: 400,
+  crime_trend_stable:     400,
 };
 const DEFAULT_HEAT_RADIUS = 120;
 
@@ -58,6 +65,9 @@ const IMPACT_LABEL: Record<string, string> = {
   construction:        "Active construction",
   road_construction:   "Road construction",
   light_permit:        "Permitted work",
+  crime_trend_increasing: "Crime trend: rising",
+  crime_trend_decreasing: "Crime trend: falling",
+  crime_trend_stable:     "Crime trend: stable",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -70,6 +80,7 @@ const SOURCE_LABEL: Record<string, string> = {
   cta_alerts:              "CTA Service Alerts",
   chicago_traffic_crashes: "Chicago Traffic Crashes",
   chicago_divvy_stations:  "Divvy Bike Stations",
+  chicago_crime_trends:    "Chicago Crime Trends",
 };
 
 // Distance rings drawn around the searched address (meters)
@@ -81,6 +92,8 @@ const DISTANCE_RINGS = [
 const ALL_IMPACT_TYPES = [
   "closure_full", "closure_multi_lane", "closure_single_lane",
   "demolition", "construction", "road_construction", "light_permit",
+  // Crime trend context signals (data-055)
+  "crime_trend_increasing", "crime_trend_decreasing", "crime_trend_stable",
 ] as const;
 
 function impactLabel(t: string) { return IMPACT_LABEL[t] ?? t; }
@@ -287,7 +300,10 @@ export function MapView({
       // ── Signal-circles mode — L.circleMarker (fixed pixel radius) ────────
       for (const s of active) {
         const color  = impactColor(s.impact_type);
-        const radius = signalPixelRadius(s.weight);
+        // Crime trend signals have weight=0 (context-only); give them a fixed
+        // dashed outline so they're clearly distinct from disruption circles.
+        const isCrimeTrend = s.impact_type.startsWith("crime_trend_");
+        const radius = isCrimeTrend ? 18 : signalPixelRadius(s.weight);
         const distFt = metersToFeet(s.distance_m);
         const src    = s.source ? sourceLabel(s.source) : "City of Chicago";
         const dates  = formatDateRange(s.start_date, s.end_date);
@@ -309,11 +325,12 @@ export function MapView({
 
         L.circleMarker([s.lat, s.lon], {
           radius,
-          color: "#ffffff",
-          weight: 1,
+          color: isCrimeTrend ? color : "#ffffff",
+          weight: isCrimeTrend ? 2 : 1,
+          dashArray: isCrimeTrend ? "4 3" : undefined,
           fillColor: color,
-          fillOpacity: 0.7,
-          opacity: 0.9,
+          fillOpacity: isCrimeTrend ? 0.12 : 0.7,
+          opacity: isCrimeTrend ? 0.8 : 0.9,
         }).bindPopup(popup, { maxWidth: 260 }).addTo(signalGroup);
       }
 
