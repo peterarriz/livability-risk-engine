@@ -161,6 +161,19 @@ STAGING_FILES = {
     "crime_aurora":               Path("data/raw/aurora_crime_trends.json"),
     "crime_corpus_christi":       Path("data/raw/corpus_christi_crime_trends.json"),
     "crime_greensboro":           Path("data/raw/greensboro_crime_trends.json"),
+    # data-058: tier-8 city crime trends
+    # Socrata: Anchorage, Madison, Spokane
+    # ArcGIS:  Durham, Chandler, Scottsdale, Gilbert, Glendale AZ, Henderson NV
+    # CSV:     St. Louis (rewritten)
+    "crime_anchorage":            Path("data/raw/anchorage_crime_trends.json"),
+    "crime_madison":              Path("data/raw/madison_crime_trends.json"),
+    "crime_spokane":              Path("data/raw/spokane_crime_trends.json"),
+    "crime_durham":               Path("data/raw/durham_crime_trends.json"),
+    "crime_chandler":             Path("data/raw/chandler_crime_trends.json"),
+    "crime_scottsdale":           Path("data/raw/scottsdale_crime_trends.json"),
+    "crime_gilbert":              Path("data/raw/gilbert_crime_trends.json"),
+    "crime_glendale_az":          Path("data/raw/glendale_az_crime_trends.json"),
+    "crime_henderson":            Path("data/raw/henderson_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -355,6 +368,10 @@ def parse_args() -> argparse.Namespace:
             "crime_tulsa", "crime_wichita", "crime_colorado_springs",
             "crime_arlington_tx", "crime_virginia_beach", "crime_mesa",
             "crime_aurora", "crime_corpus_christi", "crime_greensboro",
+            # data-058: tier-8 cities
+            "crime_anchorage", "crime_madison", "crime_spokane",
+            "crime_durham", "crime_chandler", "crime_scottsdale",
+            "crime_gilbert", "crime_glendale_az", "crime_henderson",
             "schools", "schools_national", "all",
         ],
         default="all",

@@ -24,6 +24,9 @@ failure mode, and agent rule in the LRE data pipeline.
 | NYC | `nyc_crime_trends.py` | data.cityofnewyork.us | `qgea-i56i` (historic) / `5uac-w243` (YTD) | `cmplnt_fr_dt` | `addr_pct_cd` | `nyc_crime_trends.json` |
 | San Francisco | `sf_crime_trends.py` | data.sfgov.org | `wg3w-h783` | `incident_datetime` | `police_district` | `sf_crime_trends.json` |
 | Oklahoma City | `oklahoma_city_crime_trends.py` | data.okc.gov | `f972-d93c` | `date_reported` | `beat` | `oklahoma_city_crime_trends.json` |
+| Anchorage | `anchorage_crime_trends.py` | data.muni.org | `cizs-bvns` (MUST VERIFY) | `date_reported` | `reporting_area` | `anchorage_crime_trends.json` |
+| Madison | `madison_crime_trends.py` | data.cityofmadison.com | `68yf-zu8t` (MUST VERIFY) | `incident_date` | `sector` | `madison_crime_trends.json` |
+| Spokane | `spokane_crime_trends.py` | data.spokanecity.org | `4gj6-ujfi` (MUST VERIFY) | `reported_date` | `precinct` | `spokane_crime_trends.json` |
 
 **Kansas City** uses per-year datasets on `data.kcmo.org`:
 
@@ -71,6 +74,12 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Aurora CO | `aurora_crime_trends.py` | `services1.arcgis.com/IJdEUGKefCEk4KsP/.../APD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `aurora_crime_trends.json` |
 | Corpus Christi | `corpus_christi_crime_trends.py` | `services.arcgis.com/5eqOE8IxIoFkEeGd/.../CCPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `corpus_christi_crime_trends.json` |
 | Greensboro NC | `greensboro_crime_trends.py` | `services.arcgis.com/CZ8GsPy9zJAnUBMD/.../GPD_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `greensboro_crime_trends.json` |
+| Durham NC | `durham_crime_trends.py` | `services.arcgis.com/QLwOtBvdB5bFqPNF/.../DPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `DateOccur` | `District` | `durham_crime_trends.json` |
+| Chandler AZ | `chandler_crime_trends.py` | `services.arcgis.com/SVsGn6WnqbDYPUgf/.../CPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `chandler_crime_trends.json` |
+| Scottsdale AZ | `scottsdale_crime_trends.py` | `services.arcgis.com/4sF4h3aBrdOGHDuF/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `scottsdale_crime_trends.json` |
+| Gilbert AZ | `gilbert_crime_trends.py` | `services.arcgis.com/K1VMQDQNLVxLvLqs/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `gilbert_crime_trends.json` |
+| Glendale AZ | `glendale_az_crime_trends.py` | `services.arcgis.com/s0YYoMkpLLkb2IPC/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `glendale_az_crime_trends.json` |
+| Henderson NV | `henderson_crime_trends.py` | `services.arcgis.com/pGfbNXXgj2WN9j5V/.../HPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Area` | `henderson_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -101,6 +110,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 |------|--------|-------------|------------|-------------|--------|
 | San Diego | `san_diego_crime_trends.py` | `seshat.datasd.org/police_calls_for_service/pd_calls_for_service_{year}_datasd.csv` | `DATE_TIME` | `BEAT` | `san_diego_crime_trends.json` |
 | Houston | `houston_crime_trends.py` | `www.houstontx.gov/police/cs/xls/NIBRSPublicView{year}.csv` | `Occurrence Date` (MM/DD/YYYY) | `Beat` | `houston_crime_trends.json` |
+| St. Louis | `st_louis_crime_trends.py` | `www.slmpd.org/Crime/{year}Annual.csv` (MUST VERIFY via --discover) | `DateOccur` (MUST VERIFY) | `NeighborhoodDesc` (MUST VERIFY) | `st_louis_crime_trends.json` |
 
 ---
 
@@ -128,6 +138,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | St. Louis | `st_louis` | data.stlouis-mo.gov | `44bp-4y2y` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Baton Rouge | `baton_rouge` | data.brla.gov | `a6aw-dngx` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Lexington KY | `lexington` | data.lexingtonky.gov | `3gzb-avhn` (MUST VERIFY) | `permit_number` | `issued_date` |
+| Anchorage | `anchorage` | data.muni.org | `73xi-i4bq` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Madison | `madison` | data.cityofmadison.com | `ekdx-6fbt` (MUST VERIFY) | `permit_id` | `issued_date` |
+| Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -159,6 +172,12 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Aurora CO | `aurora` | services1.arcgis.com/IJdEUGKefCEk4KsP/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Corpus Christi | `corpus_christi` | services.arcgis.com/5eqOE8IxIoFkEeGd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Greensboro NC | `greensboro` | services.arcgis.com/CZ8GsPy9zJAnUBMD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Durham NC | `durham` | services.arcgis.com/QLwOtBvdB5bFqPNF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Chandler AZ | `chandler` | services.arcgis.com/SVsGn6WnqbDYPUgf/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Scottsdale AZ | `scottsdale` | services.arcgis.com/4sF4h3aBrdOGHDuF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Gilbert AZ | `gilbert` | services.arcgis.com/K1VMQDQNLVxLvLqs/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Glendale AZ | `glendale_az` | services.arcgis.com/s0YYoMkpLLkb2IPC/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Henderson NV | `henderson` | services.arcgis.com/pGfbNXXgj2WN9j5V/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -212,6 +231,22 @@ Some cities do not publish crime data via any public API.
 Bakersfield CA, Anaheim CA, Santa Ana CA — all use Accela (internal permit
 system) and CrimeMapping.com for public crime data; neither provides a
 queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
+
+**data-058 skipped cities (no public API, 2026-03-24):**
+- Hialeah, FL — no separate city portal; Miami-Dade County already covered by `miami_crime_trends.py`.
+- Laredo, TX — LPD publishes annual PDF reports only; no queryable incident API.
+- North Las Vegas, NV — NLVPD separate from LVMPD; no public incident-level API found.
+- Boise, ID — limited open data presence; no permit or crime API found.
+- Richmond, CA (Contra Costa County) — RPCA no public API; small city, limited open data.
+- Fremont, CA — FPD no public crime API; no Socrata/ArcGIS portal found.
+- Irvine, CA — IPD no public crime API; uses OCSD coverage, no city-level incident API.
+- San Bernardino, CA — SBPD no public crime API; no open data portal.
+- Modesto, CA — MPD no public crime API; limited open data portal.
+- Fontana, CA — San Bernardino Sheriff covers area; no city open data portal.
+- Moreno Valley, CA — Riverside County Sheriff covers area; no city open data portal.
+- Lubbock, TX — LPD publishes quarterly PDF stats only; no API.
+- Garland, TX — GPD no public incident-level API found.
+- Chesapeake, VA — CPD no public incident-level API found.
 
 **Symptom:** ArcGIS returns `{"error": {"code": 400, "message": "Invalid URL"}}`.
 

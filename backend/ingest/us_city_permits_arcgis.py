@@ -718,6 +718,167 @@ CITY_CONFIGS: list[dict] = [
     #   Santa Ana, CA — no open data portal found.
     #     Same Orange County limitation; no independent city API.
     # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # data-058: tier-8 city permits (ArcGIS Hub)
+    # -----------------------------------------------------------------
+    {
+        # Durham, NC — Building Permits.
+        # Portal: https://data-durhamnc.opendata.arcgis.com (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city durham --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Durham",
+        "source_key":       "durham",
+        "service_url":      (
+            "https://services.arcgis.com/QLwOtBvdB5bFqPNF/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data-durhamnc.opendata.arcgis.com",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Durham, NC",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Chandler, AZ — Building Permits.
+        # Portal: https://data.chandleraz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city chandler --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Chandler",
+        "source_key":       "chandler",
+        "service_url":      (
+            "https://services.arcgis.com/SVsGn6WnqbDYPUgf/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.chandleraz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Chandler, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Scottsdale, AZ — Building Permits.
+        # Portal: https://data.scottsdaleaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city scottsdale --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Scottsdale",
+        "source_key":       "scottsdale",
+        "service_url":      (
+            "https://services.arcgis.com/4sF4h3aBrdOGHDuF/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.scottsdaleaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Scottsdale, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Gilbert, AZ — Building Permits.
+        # Portal: https://data.gilbertaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city gilbert --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Gilbert",
+        "source_key":       "gilbert",
+        "service_url":      (
+            "https://services.arcgis.com/K1VMQDQNLVxLvLqs/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.gilbertaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Gilbert, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Glendale, AZ — Building Permits.
+        # NOTE: This is Glendale, AZ (Maricopa County), not Glendale, CA.
+        # Portal: https://data.glendaleaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city glendale_az --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Glendale AZ",
+        "source_key":       "glendale_az",
+        "service_url":      (
+            "https://services.arcgis.com/s0YYoMkpLLkb2IPC/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.glendaleaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Glendale, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Henderson, NV — Building Permits.
+        # Henderson has its own city portal (separate from Las Vegas).
+        # Portal: https://hendersonnv.gov/opendata (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city henderson --discover
+        # data-058: added 2026-03-24
+        "city_name":        "Henderson",
+        "source_key":       "henderson",
+        "service_url":      (
+            "https://services.arcgis.com/pGfbNXXgj2WN9j5V/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://hendersonnv.gov/opendata",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Henderson, NV",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
+    # SKIPPED — No public open data portal found (data-058):
+    #   Hialeah, FL — no separate city portal; Miami-Dade County coverage
+    #     (miami_crime_trends.py) already includes Hialeah area.
+    #   Laredo, TX — LPD publishes PDF reports only; no queryable API.
+    #   North Las Vegas, NV — NLVPD has no public incident-level API.
+    #   Boise, ID — limited open data; no permit or crime API found.
+    #   Richmond, CA — RPCA no public API; small city, limited open data.
+    #   Fremont, CA — FPD no public crime API; no Socrata/ArcGIS portal.
+    #   Irvine, CA — IPD no public crime API; uses OCSD, no city API.
+    #   San Bernardino, CA — SBPD no public crime API.
+    #   Modesto, CA — MPD no public crime API.
+    #   Fontana, CA — SBSO covers area; no city open data portal.
+    #   Moreno Valley, CA — RCSO covers area; no city open data portal.
+    #   Lubbock, TX — LPD publishes quarterly PDF reports only; no API.
+    #   Garland, TX — GPD no public incident-level API found.
+    #   Chesapeake, VA — CPD no public incident-level API found.
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.

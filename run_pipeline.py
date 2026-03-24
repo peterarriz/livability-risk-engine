@@ -606,6 +606,78 @@ STEPS = [
         "skip_key": "skip_greensboro_crime",
         "non_fatal": True,
     },
+    # -----------------------------------------------------------------
+    # data-058: Tier-8 city crime trends
+    # Socrata: Anchorage, Madison, Spokane
+    # ArcGIS:  Durham, Chandler, Scottsdale, Gilbert, Glendale AZ, Henderson NV
+    # CSV:     St. Louis (rewrite — SLMPD CSV at slmpd.org/stats/)
+    # Skipped (no public API): Hialeah FL, Laredo TX, North Las Vegas NV,
+    #   Boise ID, Richmond CA, Fremont CA, Irvine CA, San Bernardino CA,
+    #   Modesto CA, Fontana CA, Moreno Valley CA, Lubbock TX, Garland TX,
+    #   Chesapeake VA
+    # -----------------------------------------------------------------
+    {
+        "name": "Fetch Anchorage crime trends",
+        "cmd": [sys.executable, "backend/ingest/anchorage_crime_trends.py"],
+        "skip_key": "skip_anchorage_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Madison crime trends",
+        "cmd": [sys.executable, "backend/ingest/madison_crime_trends.py"],
+        "skip_key": "skip_madison_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Spokane crime trends",
+        "cmd": [sys.executable, "backend/ingest/spokane_crime_trends.py"],
+        "skip_key": "skip_spokane_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Durham crime trends",
+        "cmd": [sys.executable, "backend/ingest/durham_crime_trends.py"],
+        "skip_key": "skip_durham_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Chandler crime trends",
+        "cmd": [sys.executable, "backend/ingest/chandler_crime_trends.py"],
+        "skip_key": "skip_chandler_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Scottsdale crime trends",
+        "cmd": [sys.executable, "backend/ingest/scottsdale_crime_trends.py"],
+        "skip_key": "skip_scottsdale_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Gilbert crime trends",
+        "cmd": [sys.executable, "backend/ingest/gilbert_crime_trends.py"],
+        "skip_key": "skip_gilbert_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Glendale AZ crime trends",
+        "cmd": [sys.executable, "backend/ingest/glendale_az_crime_trends.py"],
+        "skip_key": "skip_glendale_az_crime",
+        "non_fatal": True,
+    },
+    {
+        "name": "Fetch Henderson NV crime trends",
+        "cmd": [sys.executable, "backend/ingest/henderson_crime_trends.py"],
+        "skip_key": "skip_henderson_crime",
+        "non_fatal": True,
+    },
+    {
+        # St. Louis rewritten to use SLMPD CSV files (slmpd.org/stats/).
+        # Old Socrata stub (data.stlouis-mo.gov) redirects and is not Socrata.
+        "name": "Fetch St. Louis crime trends (SLMPD CSV)",
+        "cmd": [sys.executable, "backend/ingest/st_louis_crime_trends.py"],
+        "skip_key": "skip_st_louis_crime",
+        "non_fatal": True,
+    },
     {
         # data-053: Fetches public school locations for all active cities using
         # NCES Common Core of Data via the Urban Institute Education Data API.
@@ -1005,6 +1077,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-aurora-crime", action="store_true", help="Skip the Aurora crime trends fetch step.")
     parser.add_argument("--skip-corpus-christi-crime", action="store_true", help="Skip the Corpus Christi crime trends fetch step.")
     parser.add_argument("--skip-greensboro-crime", action="store_true", help="Skip the Greensboro crime trends fetch step.")
+    # data-058: tier-8 cities
+    parser.add_argument("--skip-anchorage-crime", action="store_true", help="Skip the Anchorage crime trends fetch step.")
+    parser.add_argument("--skip-madison-crime", action="store_true", help="Skip the Madison crime trends fetch step.")
+    parser.add_argument("--skip-spokane-crime", action="store_true", help="Skip the Spokane crime trends fetch step.")
+    parser.add_argument("--skip-durham-crime", action="store_true", help="Skip the Durham crime trends fetch step.")
+    parser.add_argument("--skip-chandler-crime", action="store_true", help="Skip the Chandler crime trends fetch step.")
+    parser.add_argument("--skip-scottsdale-crime", action="store_true", help="Skip the Scottsdale crime trends fetch step.")
+    parser.add_argument("--skip-gilbert-crime", action="store_true", help="Skip the Gilbert crime trends fetch step.")
+    parser.add_argument("--skip-glendale-az-crime", action="store_true", help="Skip the Glendale AZ crime trends fetch step.")
+    parser.add_argument("--skip-henderson-crime", action="store_true", help="Skip the Henderson crime trends fetch step.")
     parser.add_argument(
         "--skip-school-ratings",
         action="store_true",

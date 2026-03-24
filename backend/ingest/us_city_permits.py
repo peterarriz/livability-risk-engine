@@ -629,6 +629,76 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Lexington, KY",
         "where_clause":     None,
     },
+    # -----------------------------------------------------------------
+    # data-058: tier-8 city permits (Socrata portals)
+    # -----------------------------------------------------------------
+    {
+        # Anchorage, AK — Building Permits.
+        # Portal: https://data.muni.org (Socrata — Municipality of Anchorage)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.muni.org/api/catalog/v1?q=building+permits&limit=5"
+        #   curl "https://data.muni.org/resource/73xi-i4bq.json?$limit=1"
+        # data-058: added 2026-03-24
+        "city_name":        "Anchorage",
+        "source_key":       "anchorage",
+        "domain":           "data.muni.org",
+        "dataset_id":       "73xi-i4bq",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Anchorage, AK",
+        "where_clause":     None,
+    },
+    {
+        # Madison, WI — Building Permits.
+        # Portal: https://data.cityofmadison.com (Socrata)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.cityofmadison.com/api/catalog/v1?q=building+permits&limit=5"
+        # data-058: added 2026-03-24
+        "city_name":        "Madison",
+        "source_key":       "madison",
+        "domain":           "data.cityofmadison.com",
+        "dataset_id":       "ekdx-6fbt",
+        "id_field":         "permit_id",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Madison, WI",
+        "where_clause":     None,
+    },
+    {
+        # Spokane, WA — Building Permits.
+        # Portal: https://data.spokanecity.org (Socrata)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.spokanecity.org/api/catalog/v1?q=building+permits&limit=5"
+        # data-058: added 2026-03-24
+        "city_name":        "Spokane",
+        "source_key":       "spokane",
+        "domain":           "data.spokanecity.org",
+        "dataset_id":       "kixq-bk3d",
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Spokane, WA",
+        "where_clause":     None,
+    },
 ]
 
 # Index by source_key for fast lookup.
