@@ -529,6 +529,11 @@ def compute_score(
             "distance_m": round(np.distance_m),
             "severity_hint": p.severity_hint,
             "weight": round(weight, 1),
+            # Include source + dates so map popups show the correct
+            # data provider (e.g. "CTA Service Alerts") and date range.
+            "source": p.source,
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
         })
 
     return ScoreResult(

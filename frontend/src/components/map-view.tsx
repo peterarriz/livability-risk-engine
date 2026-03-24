@@ -301,7 +301,10 @@ export function MapView({
       // ── Signal-circles mode — L.circleMarker (fixed pixel radius) ────────
       for (const s of active) {
         const color  = impactColor(s.impact_type);
-        const radius = signalPixelRadius(s.weight);
+        // Crime trend signals have weight=0 (context-only); give them a fixed
+        // dashed outline so they're clearly distinct from disruption circles.
+        const isCrimeTrend = s.impact_type.startsWith("crime_trend_");
+        const radius = isCrimeTrend ? 18 : signalPixelRadius(s.weight);
         const distFt = metersToFeet(s.distance_m);
         const src    = s.source ? sourceLabel(s.source) : "City of Chicago";
         const dates  = formatDateRange(s.start_date, s.end_date);
@@ -323,11 +326,12 @@ export function MapView({
 
         L.circleMarker([s.lat, s.lon], {
           radius,
-          color: "#ffffff",
-          weight: 1,
+          color: isCrimeTrend ? color : "#ffffff",
+          weight: isCrimeTrend ? 2 : 1,
+          dashArray: isCrimeTrend ? "4 3" : undefined,
           fillColor: color,
-          fillOpacity: 0.7,
-          opacity: 0.9,
+          fillOpacity: isCrimeTrend ? 0.12 : 0.7,
+          opacity: isCrimeTrend ? 0.8 : 0.9,
         }).bindPopup(popup, { maxWidth: 260 }).addTo(signalGroup);
       }
 

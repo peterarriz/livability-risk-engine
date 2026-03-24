@@ -1159,6 +1159,30 @@ tasks:
       Next: data-054 — live dry-run validation of tier-5 crime scripts (was data-053
       in the original backlog) plus state report card API research.
 
+  - id: data-055
+    title: Wire CTA alerts and crime trend signals into /score nearby_signals for map display
+    status: done
+    priority: high
+    github_issue: 154
+    notes_for_next_agent: >
+      Three changes shipped together (branch claude/enhance-map-feature-a92lv, PR #152):
+      1. backend/scoring/query.py — compute_score() now includes source, start_date,
+         end_date in nearby_signals so CTA alert popups show "CTA Service Alerts" +
+         date range instead of "City of Chicago / Dates unknown".
+      2. backend/scoring/query.py — new get_nearby_crime_signals() queries the
+         neighborhood_quality table (haversine, no PostGIS) for the nearest community
+         area and returns a single informational signal with impact_type like
+         crime_trend_increasing / decreasing / stable. Weight=0 so it doesn't affect
+         disruption_score but appears on the map.
+      3. backend/app/main.py — _score_live() calls get_nearby_crime_signals() and
+         appends result to nearby_signals (non-fatal if table absent).
+      4. frontend/src/components/map-view.tsx — adds crime_trend_* colors, labels,
+         heat radii; crime trend circles rendered as dashed outlines (distinct from
+         solid disruption circles); chicago_crime_trends added to SOURCE_LABEL.
+      CTA alerts already flow through get_nearby_projects() (they're in projects table
+      via normalize_cta_alert). Crime signals depend on neighborhood_quality table
+      being populated (run chicago_crime_trends.py ingest).
+
   - id: data-054
     title: Wire CTA alerts and crime trend signals into /score nearby_signals for map display
     status: done
