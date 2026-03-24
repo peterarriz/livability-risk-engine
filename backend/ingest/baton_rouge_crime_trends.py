@@ -50,13 +50,13 @@ import requests
 
 SOCRATA_DOMAIN = "data.brla.gov"
 # MUST VERIFY dataset ID via: curl "https://data.brla.gov/api/catalog/v1?q=crime&limit=5"
-DATASET_ID = "fabb-cnnu"
+DATASET_ID = "pbin-pcm7"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/baton_rouge_crime_trends.json")
 
-DATE_FIELD = "create_dt"       # MUST VERIFY — may be "date", "occurred_date"
-DISTRICT_FIELD = "district"    # MUST VERIFY — may be "zone", "beat", "municipality_council_district"
+DATE_FIELD = "charge_date"
+DISTRICT_FIELD = "district"
 LAT_FIELD = "latitude"
 LON_FIELD = "longitude"
 

@@ -184,41 +184,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    args = parse_args()
-    app_token = os.environ.get("SOCRATA_APP_TOKEN")
-
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print(f"Fetching current 12-month Tampa crime counts...")
-    try:
-        current_data = fetch_crime_counts_with_centroids(app_token, current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current Tampa crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(current_data)} zones with current crime data.")
-
-    print(f"Fetching prior 12-month Tampa crime counts...")
-    try:
-        prior_data = fetch_crime_counts_with_centroids(app_token, prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior Tampa crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} zones with prior crime data.")
-
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} zone trend records.")
-
-    if args.dry_run:
-        print("Dry-run mode: skipping file write.")
-        if records:
-            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
-        return
-
-    write_staging_file(records, args.output)
-    print("Done.")
+    print("SKIPPED: Tampa does not publish incident-level crime data through a public API.")
+    print("  opendata.tampa.gov uses CKAN (not Socrata) with only aggregate annual stats.")
+    print("  No machine-readable incident data source is currently available.")
+    print("  This script needs a new data source before it can run.")
+    print("  Exiting cleanly with 0 records.")
 
 
 if __name__ == "__main__":

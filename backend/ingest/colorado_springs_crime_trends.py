@@ -4,26 +4,17 @@ task: data-057
 lane: data
 
 Ingests Colorado Springs Police Department crime data and calculates 12-month
-crime trends by division/district.
+crime trends by patrol division.
 
 Source:
-  ArcGIS Hub — data-cospatial.opendata.arcgis.com (City of Colorado Springs GIS)
-  FeatureServer URL (MUST VERIFY):
-    https://services3.arcgis.com/oR4yfmG5eJFhSqy7/arcgis/rest/services/
-    CSPD_Incidents/FeatureServer/0
+  Socrata — policedata.coloradosprings.gov
+  Dataset: Colorado Springs Crime Map
+  Dataset ID: bc88-hemr
 
-  Verify: python backend/ingest/colorado_springs_crime_trends.py --dry-run
-  Or check: https://data-cospatial.opendata.arcgis.com (search "crime" or "police")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Colorado+Springs+police&page[size]=5"
-
-  Note: Colorado Springs has a smaller open data footprint. Crime data may be
-  limited or only available as annual statistical reports. If no FeatureServer
-  is found, this script will fail non-fatally.
-
-  Key fields (MUST VERIFY via --dry-run):
-    REPORT_DATE   — date of incident
-    Division      — patrol division
-    OBJECTID      — for count aggregation
+  Key fields:
+    occurredfromdate  — date of incident
+    patrol_division   — patrol division
+    location_point    — incident location (Socrata point type)
 
 Output:
   data/raw/colorado_springs_crime_trends.json
@@ -37,22 +28,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-cospatial.opendata.arcgis.com
-FEATURESERVER_URL = (
-    "https://services3.arcgis.com/oR4yfmG5eJFhSqy7/arcgis/rest/services"
-    "/CSPD_Incidents/FeatureServer/0"
-)
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+SOCRATA_DOMAIN = "policedata.coloradosprings.gov"
+DATASET_ID = "bc88-hemr"
+CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/colorado_springs_crime_trends.json")
 
-DATE_FIELD = "REPORT_DATE"   # MUST VERIFY
-GROUP_FIELD = "Division"     # MUST VERIFY — may be "District", "Beat", "Sector"
+DATE_FIELD = "occurredfromdate"
+DISTRICT_FIELD = "patrol_division"
 
 COLORADO_SPRINGS_LAT = 38.8339
 COLORADO_SPRINGS_LON = -104.8214
@@ -61,43 +55,43 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
+    return dt.strftime("%Y-%m-%dT00:00:00")
 
 
 def fetch_crime_counts(
+    app_token: str | None,
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
     where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
+        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
+        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
     )
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
-    params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
+    params: dict = {
+        "$select": (
+            f"{DISTRICT_FIELD}, "
+            "count(*) as crime_count"
+        ),
+        "$where": where_clause,
+        "$group": DISTRICT_FIELD,
+        "$limit": 100,
     }
+    if app_token:
+        params["$$app_token"] = app_token
 
-    resp = requests.post(url, data=params, timeout=60)
+    resp = requests.get(CRIMES_URL, params=params, timeout=60)
     resp.raise_for_status()
-    payload = resp.json()
-
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+    rows = resp.json()
 
     results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        division = str(attrs.get(GROUP_FIELD) or "").strip().upper()
+    for row in rows:
+        division = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
         if not division:
             continue
-        count = int(attrs.get("crime_count") or 0)
+        try:
+            count = int(row.get("crime_count", 0))
+        except (TypeError, ValueError):
+            count = 0
         results[division] = results.get(division, 0) + count
 
     return results
@@ -145,7 +139,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "colorado_springs_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source_url": CRIMES_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -157,7 +151,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Colorado Springs PD crime trends by division from ArcGIS."
+        description="Ingest Colorado Springs PD crime trends by division from Socrata."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true",
@@ -167,6 +161,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    app_token = os.environ.get("SOCRATA_APP_TOKEN")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
@@ -175,7 +170,7 @@ def main() -> None:
 
     print("Fetching current 12-month Colorado Springs crime counts...")
     try:
-        current_data = fetch_crime_counts(current_start, now)
+        current_data = fetch_crime_counts(app_token, current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current Colorado Springs crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
@@ -183,7 +178,7 @@ def main() -> None:
 
     print("Fetching prior 12-month Colorado Springs crime counts...")
     try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
+        prior_data = fetch_crime_counts(app_token, prior_start, prior_end)
     except Exception as exc:
         print(f"ERROR: failed to fetch prior Colorado Springs crime counts — {exc}", file=sys.stderr)
         sys.exit(1)

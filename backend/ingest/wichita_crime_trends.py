@@ -7,19 +7,16 @@ Ingests Wichita Police Department crime data and calculates 12-month crime
 trends by district/area.
 
 Source:
-  ArcGIS Hub — opendata.wichita.gov
-  FeatureServer URL (MUST VERIFY):
-    https://services.arcgis.com/sJ7GWBy3GCkiIsY7/arcgis/rest/services/
-    WPD_Crime_Incidents/FeatureServer/0
+  ArcGIS MapServer — gismaps.wichita.gov
+  MapServer URL:
+    https://gismaps.wichita.gov/ageweb/rest/services/OpenData/Crime/MapServer/0
 
-  Verify: python backend/ingest/wichita_crime_trends.py --dry-run
-  Or check: https://opendata.wichita.gov (search "crime" or "police incidents")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Wichita+police&page[size]=5"
-
-  Key fields (MUST VERIFY via --dry-run):
-    ReportDate    — date of incident
-    District      — patrol district
+  Key fields:
+    STARTDATETIME — date of incident
+    BEAT          — patrol beat
     OBJECTID      — for count aggregation
+
+  Note: Rolling 90-day window only. Prior-year data may be empty.
 
 Output:
   data/raw/wichita_crime_trends.json
@@ -39,16 +36,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://opendata.wichita.gov
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/sJ7GWBy3GCkiIsY7/arcgis/rest/services"
-    "/WPD_Crime_Incidents/FeatureServer/0"
+    "https://gismaps.wichita.gov/ageweb/rest/services"
+    "/OpenData/Crime/MapServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/wichita_crime_trends.json")
 
-DATE_FIELD = "ReportDate"   # MUST VERIFY
-GROUP_FIELD = "District"    # MUST VERIFY — may be "Area", "Beat", "Sector"
+DATE_FIELD = "STARTDATETIME"
+GROUP_FIELD = "BEAT"
 
 WICHITA_LAT = 37.6872
 WICHITA_LON = -97.3301

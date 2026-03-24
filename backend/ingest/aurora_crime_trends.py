@@ -7,19 +7,15 @@ Ingests Aurora CO Police Department crime data and calculates 12-month crime
 trends by district/division.
 
 Source:
-  ArcGIS Hub — data-auroragis.opendata.arcgis.com (City of Aurora GIS)
-  FeatureServer URL (MUST VERIFY):
-    https://services1.arcgis.com/IJdEUGKefCEk4KsP/arcgis/rest/services/
-    APD_Crime_Incidents/FeatureServer/0
-
-  Verify: python backend/ingest/aurora_crime_trends.py --dry-run
-  Or check: https://data-auroragis.opendata.arcgis.com (search "crime" or "police")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Aurora+CO+police&page[size]=5"
+  ArcGIS FeatureServer — APD Transparency Portal
+  FeatureServer URL:
+    https://services3.arcgis.com/0Va1ID99NSrNyyPX/arcgis/rest/services/
+    APD_Transparency_RMS_Public_View/FeatureServer/36
 
   Note: This is Aurora CO (Denver suburb), not Aurora IL.
 
-  Key fields (MUST VERIFY via --dry-run):
-    IncidentDate  — date of incident
+  Key fields:
+    ReportDate    — date of incident
     District      — patrol district
     OBJECTID      — for count aggregation
 
@@ -41,16 +37,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-auroragis.opendata.arcgis.com
 FEATURESERVER_URL = (
-    "https://services1.arcgis.com/IJdEUGKefCEk4KsP/arcgis/rest/services"
-    "/APD_Crime_Incidents/FeatureServer/0"
+    "https://services3.arcgis.com/0Va1ID99NSrNyyPX/arcgis/rest/services"
+    "/APD_Transparency_RMS_Public_View/FeatureServer/36"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/aurora_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"   # MUST VERIFY
-GROUP_FIELD = "District"      # MUST VERIFY — may be "Division", "Beat", "Zone"
+DATE_FIELD = "ReportDate"
+GROUP_FIELD = "District"
 
 AURORA_LAT = 39.7294
 AURORA_LON = -104.8319

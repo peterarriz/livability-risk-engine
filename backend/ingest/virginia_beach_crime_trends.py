@@ -7,23 +7,17 @@ Ingests Virginia Beach Police Department crime data and calculates 12-month
 crime trends by precinct/district.
 
 Source:
-  ArcGIS Hub — gis.data.vbgov.com (Virginia Beach GIS open data)
-  FeatureServer URL (MUST VERIFY):
-    https://services1.arcgis.com/DqA6wR9XSVCoCbVN/arcgis/rest/services/
-    VBPD_Crime_Incidents/FeatureServer/0
+  ArcGIS FeatureServer — data.virginiabeach.gov
+  FeatureServer URL:
+    https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services/
+    Police_Incident_Reports_view/FeatureServer/0
 
-  Verify: python backend/ingest/virginia_beach_crime_trends.py --dry-run
-  Or check: https://gis.data.vbgov.com (search "crime" or "police incidents")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Virginia+Beach+police&page[size]=5"
-
-  Note: Virginia Beach has a robust GIS operation but crime data availability
-  varies. If no FeatureServer is found, check for annual report PDFs at
-  https://www.vbgov.com/government/departments/police/
-
-  Key fields (MUST VERIFY via --dry-run):
-    CrimeDate     — date of incident
+  Key fields:
+    Date_Occurred — date of incident
     Precinct      — patrol precinct
     OBJECTID      — for count aggregation
+
+  Note: Non-spatial table (no geometry); uses Precinct for geographic grouping.
 
 Output:
   data/raw/virginia_beach_crime_trends.json
@@ -43,16 +37,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://gis.data.vbgov.com
 FEATURESERVER_URL = (
-    "https://services1.arcgis.com/DqA6wR9XSVCoCbVN/arcgis/rest/services"
-    "/VBPD_Crime_Incidents/FeatureServer/0"
+    "https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services"
+    "/Police_Incident_Reports_view/FeatureServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/virginia_beach_crime_trends.json")
 
-DATE_FIELD = "CrimeDate"     # MUST VERIFY
-GROUP_FIELD = "Precinct"     # MUST VERIFY — may be "District", "Division", "Beat"
+DATE_FIELD = "Date_Occurred"
+GROUP_FIELD = "Precinct"
 
 VIRGINIA_BEACH_LAT = 36.8529
 VIRGINIA_BEACH_LON = -75.9780

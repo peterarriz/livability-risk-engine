@@ -7,19 +7,17 @@ Ingests Corpus Christi Police Department crime data and calculates 12-month
 crime trends by district/zone.
 
 Source:
-  ArcGIS Hub — data-cctexas.opendata.arcgis.com (City of Corpus Christi)
-  FeatureServer URL (MUST VERIFY):
-    https://services.arcgis.com/5eqOE8IxIoFkEeGd/arcgis/rest/services/
-    CCPD_Crime_Incidents/FeatureServer/0
+  ArcGIS MapServer — ccpublicgis.cctexas.com
+  MapServer URL:
+    https://ccpublicgis.cctexas.com/server01/rest/services/
+    CCPD/CCPD_CRIME_DASH_SV/MapServer/0
 
-  Verify: python backend/ingest/corpus_christi_crime_trends.py --dry-run
-  Or check: https://data-cctexas.opendata.arcgis.com (search "crime" or "police")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Corpus+Christi+police&page[size]=5"
-
-  Key fields (MUST VERIFY via --dry-run):
-    IncidentDate  — date of incident
-    District      — patrol district
+  Key fields:
+    offense_date  — date of incident
+    type          — crime type (no geographic district field available)
     OBJECTID      — for count aggregation
+
+  Note: No geographic grouping field (district/zone). Groups by crime type instead.
 
 Output:
   data/raw/corpus_christi_crime_trends.json
@@ -39,16 +37,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-cctexas.opendata.arcgis.com
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/5eqOE8IxIoFkEeGd/arcgis/rest/services"
-    "/CCPD_Crime_Incidents/FeatureServer/0"
+    "https://ccpublicgis.cctexas.com/server01/rest/services"
+    "/CCPD/CCPD_CRIME_DASH_SV/MapServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/corpus_christi_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"   # MUST VERIFY
-GROUP_FIELD = "District"      # MUST VERIFY — may be "Zone", "Beat", "Area"
+DATE_FIELD = "offense_date"
+GROUP_FIELD = "type"  # No geographic district field; group by crime type
 
 CORPUS_CHRISTI_LAT = 27.8006
 CORPUS_CHRISTI_LON = -97.3964

@@ -165,40 +165,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    args = parse_args()
-
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print("Fetching current 12-month Tulsa crime counts...")
-    try:
-        current_data = fetch_crime_counts(current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current Tulsa crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(current_data)} divisions with current crime data.")
-
-    print("Fetching prior 12-month Tulsa crime counts...")
-    try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior Tulsa crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} divisions with prior crime data.")
-
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} division trend records.")
-
-    if args.dry_run:
-        print("Dry-run mode: skipping file write.")
-        if records:
-            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
-        return
-
-    write_staging_file(records, args.output)
-    print("Done.")
+    print("SKIPPED: Tulsa's public crime FeatureServer data ends January 2019 (stale).")
+    print("  The live crime dashboard at maps.cityoftulsa.org requires org auth.")
+    print("  No publicly accessible current crime data API exists.")
+    print("  Exiting cleanly with 0 records.")
 
 
 if __name__ == "__main__":

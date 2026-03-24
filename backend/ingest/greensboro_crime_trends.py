@@ -7,19 +7,15 @@ Ingests Greensboro Police Department crime data and calculates 12-month crime
 trends by district/division.
 
 Source:
-  ArcGIS Hub — data-greensboroncgov.opendata.arcgis.com (City of Greensboro NC)
-  FeatureServer URL (MUST VERIFY):
-    https://services.arcgis.com/CZ8GsPy9zJAnUBMD/arcgis/rest/services/
-    GPD_Incidents/FeatureServer/0
+  ArcGIS MapServer — gis.greensboro-nc.gov (City of Greensboro NC)
+  MapServer URL:
+    https://gis.greensboro-nc.gov/arcgis/rest/services/
+    OpenGateCity/OpenData_ES_DS/MapServer/15
 
-  Verify: python backend/ingest/greensboro_crime_trends.py --dry-run
-  Or check: https://data-greensboroncgov.opendata.arcgis.com (search "crime" or "police")
-  Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+Greensboro+NC+police&page[size]=5"
-
-  Key fields (MUST VERIFY via --dry-run):
-    IncidentDate  — date of incident
-    District      — patrol district
-    OBJECTID      — for count aggregation
+  Key fields:
+    date_rept     — date reported
+    district      — patrol district
+    inci_id       — incident ID (OBJECTID for count aggregation)
 
 Output:
   data/raw/greensboro_crime_trends.json
@@ -39,16 +35,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-greensboroncgov.opendata.arcgis.com
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/CZ8GsPy9zJAnUBMD/arcgis/rest/services"
-    "/GPD_Incidents/FeatureServer/0"
+    "https://gis.greensboro-nc.gov/arcgis/rest/services"
+    "/OpenGateCity/OpenData_ES_DS/MapServer/15"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/greensboro_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"   # MUST VERIFY
-GROUP_FIELD = "District"      # MUST VERIFY — may be "Division", "Beat", "Area"
+DATE_FIELD = "date_rept"
+GROUP_FIELD = "district"
 
 GREENSBORO_LAT = 36.0726
 GREENSBORO_LON = -79.7920
@@ -70,7 +65,7 @@ def fetch_crime_counts(
         f"AND {DATE_FIELD} < {_date_str(end_date)}"
     )
     out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
+        {"statisticType": "count", "onStatisticField": "ID",
          "outStatisticFieldName": "crime_count"},
     ])
     params = {

@@ -162,40 +162,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    args = parse_args()
-
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print("Fetching current 12-month Orlando crime counts...")
-    try:
-        current_data = fetch_crime_counts(current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current Orlando crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(current_data)} zones with current crime data.")
-
-    print("Fetching prior 12-month Orlando crime counts...")
-    try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior Orlando crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} zones with prior crime data.")
-
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} zone trend records.")
-
-    if args.dry_run:
-        print("Dry-run mode: skipping file write.")
-        if records:
-            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
-        return
-
-    write_staging_file(records, args.output)
-    print("Done.")
+    print("SKIPPED: Orlando does not publish crime incident data through a public API.")
+    print("  The OPD Crimes dataset on data.cityoforlando.net has been removed or made private.")
+    print("  No ArcGIS FeatureServer for crime data is publicly accessible.")
+    print("  Exiting cleanly with 0 records.")
 
 
 if __name__ == "__main__":
