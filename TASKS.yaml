@@ -106,19 +106,25 @@ tasks:
 
   - id: data-046
     title: Add utility outage and repair data sources to scoring model
-    status: backlog
+    status: done
     priority: medium
-    github_issue: ~
+    github_issue: 167
     notes_for_next_agent: >
-      Research and implement:
-        1. Chicago Water Main Breaks — check if 311 dataset v6vf-nfxy (already ingested)
-           can be filtered by SR_TYPE='Water Main Break' instead of a separate source.
-        2. ComEd Planned Outages — check comed.com/outages for API. If no API: won't-fix.
-        3. Peoples Gas construction — check Chicago Data Portal or ILCC filings.
-      For any source found: add ingest script, normalizer in project.py using
-      impact_type 'utility_outage' or 'utility_repair', base_weight in query.py
-      (suggested: utility_outage=25, utility_repair=15), load function in
-      load_projects.py, and --skip-utilities flag in run_pipeline.py.
+      Implemented data-046. No new ingest script needed — utility data flows through
+      the existing 311 pipeline (chicago_311_requests.py / v6vf-nfxy).
+      Changes made:
+        - backend/models/project.py: Added IMPACT_UTILITY_OUTAGE ("utility_outage",
+          weight 25, severity HIGH) and IMPACT_UTILITY_REPAIR ("utility_repair",
+          weight 15, severity MEDIUM) constants. Updated _classify_311_request()
+          to map water main breaks and gas leaks to utility_outage (was construction).
+        - backend/ingest/chicago_311_requests.py: Added "Gas Leak" to DISRUPTION_SR_TYPES.
+        - backend/scoring/query.py: Imported new constants. Updated _derive_severity()
+          (utility types contribute to traffic + noise), _build_top_risks(), and
+          _build_explanation() with utility-specific strings.
+        - IMPACT_UTILITY_REPAIR (weight 15) is in the model for future use but no
+          records map to it yet — no public API found for Peoples Gas repair crews.
+        - ComEd planned outages: won't-fix, no public REST API exists.
+        - Utility ingest is controlled by the existing --skip-311 flag in run_pipeline.py.
 
   - id: data-038
     title: Add CDOT traffic signal outage data source
