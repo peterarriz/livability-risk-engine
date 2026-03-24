@@ -259,6 +259,30 @@ COMMENT ON TABLE score_history IS
 
 
 -- ---------------------------------------------------------------------------
+-- Amenity richness cache  (data-064)
+--
+-- Caches OSM Overpass API results keyed on a 0.01° lat/lon bucket
+-- (~800 m grid square at Chicago's latitude).  TTL = 7 days.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS amenity_cache (
+    id            BIGSERIAL   PRIMARY KEY,
+    lat_bucket    NUMERIC(6,2) NOT NULL,   -- round(lat, 2)
+    lon_bucket    NUMERIC(6,2) NOT NULL,   -- round(lon, 2)
+    amenities     JSONB        NOT NULL DEFAULT '[]',
+    amenity_score INT          NOT NULL DEFAULT 0,
+    fetched_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS amenity_cache_bucket_idx
+    ON amenity_cache (lat_bucket, lon_bucket);
+
+COMMENT ON TABLE amenity_cache IS
+    'Cached OSM Overpass amenity results per 0.01° grid cell (data-064). '
+    'Rows older than 7 days are treated as stale and re-fetched on next request.';
+
+
+-- ---------------------------------------------------------------------------
 -- Score alert watchlist  (data-030)
 --
 -- Users subscribe an email + score threshold to a Chicago address.

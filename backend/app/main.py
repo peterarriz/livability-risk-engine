@@ -1299,6 +1299,108 @@ def get_score_trend(
 
 
 # ---------------------------------------------------------------------------
+# /nearby-amenities endpoint  (data-064)
+# Returns OSM walkable amenities near a lat/lon, with a 0–100 richness score.
+# Results are cached in amenity_cache for 7 days (keyed on 0.01° bucket).
+# ---------------------------------------------------------------------------
+
+_AMENITY_CACHE_TTL_DAYS = 7
+
+
+@app.get("/nearby-amenities")
+def get_nearby_amenities(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+) -> dict:
+    """
+    Return walkable amenity data (parks, grocery, transit, restaurants,
+    pharmacies) near (lat, lon) from OpenStreetMap via the Overpass API.
+
+    Results are cached per 0.01° grid cell (~800 m) for 7 days so repeat
+    requests for nearby addresses are instant.
+
+    Response shape:
+      {
+        "amenity_score": 75,          // 0-100; null when Overpass unavailable
+        "categories": {
+          "transit":    [{"name": "...", "lat": ..., "lon": ..., "distance_m": 210, "category": "transit"}, ...],
+          "grocery":    [...],
+          "park":       [...],
+          "restaurant": [...],
+          "pharmacy":   [...],
+        }
+      }
+
+    Returns {"amenity_score": null, "categories": {}} on any error.
+    """
+    _EMPTY = {"amenity_score": None, "categories": {}}
+
+    lat_b = round(lat, 2)
+    lon_b = round(lon, 2)
+
+    # ── Cache lookup ──────────────────────────────────────────────────────────
+    if _is_db_configured():
+        try:
+            from backend.scoring.query import get_db_connection
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT amenities, amenity_score
+                        FROM amenity_cache
+                        WHERE lat_bucket = %s AND lon_bucket = %s
+                          AND fetched_at >= now() - INTERVAL '7 days'
+                        """,
+                        (lat_b, lon_b),
+                    )
+                    row = cur.fetchone()
+            finally:
+                conn.close()
+
+            if row:
+                log.debug("amenity_cache hit lat_b=%s lon_b=%s", lat_b, lon_b)
+                return {"amenity_score": row[1], "categories": row[0]}
+        except Exception as cache_exc:
+            log.debug("amenity_cache lookup failed: %s", cache_exc)
+
+    # ── Overpass fetch ────────────────────────────────────────────────────────
+    try:
+        from backend.ingest.osm_amenities import fetch_amenities
+        result = fetch_amenities(lat, lon)
+    except Exception as fetch_exc:
+        log.warning("nearby_amenities Overpass fetch failed lat=%s lon=%s: %s", lat, lon, fetch_exc)
+        return _EMPTY
+
+    # ── Cache write ───────────────────────────────────────────────────────────
+    if _is_db_configured():
+        try:
+            from backend.scoring.query import get_db_connection
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO amenity_cache (lat_bucket, lon_bucket, amenities, amenity_score)
+                        VALUES (%s, %s, %s::jsonb, %s)
+                        ON CONFLICT (lat_bucket, lon_bucket) DO UPDATE SET
+                            amenities     = EXCLUDED.amenities,
+                            amenity_score = EXCLUDED.amenity_score,
+                            fetched_at    = now()
+                        """,
+                        (lat_b, lon_b, json.dumps(result["categories"]), result["amenity_score"]),
+                    )
+                conn.commit()
+            finally:
+                conn.close()
+            log.info("amenity_cache stored lat_b=%s lon_b=%s score=%s", lat_b, lon_b, result["amenity_score"])
+        except Exception as write_exc:
+            log.warning("amenity_cache write failed: %s", write_exc)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # /health endpoint (app-020)
 # Lightweight liveness check — responds instantly so Railway's healthchecker
 # never times out waiting for a DB connection.  DB connectivity is reported
