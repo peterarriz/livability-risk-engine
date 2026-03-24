@@ -11,13 +11,32 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-063 (flood risk map layer)
-# Next task to create: data-064
+# Last completed task: data-064 (amenity richness map layer)
+# Next task to create: data-065
 
 tasks:
+  - id: data-064
+    title: Amenity richness — OSM Overpass POI fetch + /nearby-amenities endpoint + map layer
+    status: in-progress
+    priority: high
+    github_issue: 189
+    notes_for_next_agent: >
+      Implemented full amenity richness pipeline (data-064).
+      Backend: backend/ingest/osm_amenities.py — Overpass QL client, fetch_amenities(lat, lon),
+      5 categories (transit/grocery/park/restaurant/pharmacy), score 0–100, CLI --dry-run.
+      DB: amenity_cache table (lat_bucket NUMERIC(6,2), lon_bucket NUMERIC(6,2), amenities JSONB,
+      amenity_score INT, fetched_at); unique index on (lat_bucket, lon_bucket); 7-day TTL.
+      Backend: GET /nearby-amenities?lat=&lon= endpoint in main.py — cache-first (7-day),
+      Overpass on miss, upserts cache, returns {amenity_score, categories}.
+      Frontend: NearbyAmenity + AmenitiesResponse types + fetchAmenities() in api.ts.
+      map-view.tsx: amenities prop + amenityGroupRef + Effect 8 renders circleMarker (r=5)
+      per POI, colored by category (transit=purple, grocery=blue, park=green,
+      restaurant=amber, pharmacy=teal), max 3 per category sorted by distance.
+      page.tsx: fetches amenities after score loads, passes categories dict to MapView.
+
   - id: data-063
     title: Flood risk map layer — surface fema_flood_zone + flood_risk on map
-    status: in-progress
+    status: done
     priority: high
     github_issue: 183
     notes_for_next_agent: >
@@ -40,10 +59,6 @@ tasks:
         frontend/src/app/page.tsx:
           - Removed duplicate nearbySchools={...} prop (cleanup).
           - Added floodRisk and femaZone props to MapView.
-      Next: data-064 Amenity richness (#7) — entirely new data source.
-      Best source: OpenStreetMap Overpass API (parks, grocery, transit, restaurants).
-      Define the metric, ingest script, scoring weight, and map layer.
-
 
   - id: data-062
     title: Historical disruption trend — /score-trend aggregation endpoint + area sparkline

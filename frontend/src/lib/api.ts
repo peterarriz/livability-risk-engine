@@ -838,6 +838,43 @@ export async function fetchScoreTrend(
   }
 }
 
+// Amenity richness types (data-064).
+export type NearbyAmenity = {
+  name: string;
+  lat: number;
+  lon: number;
+  distance_m: number;
+  category: string;
+};
+
+export type AmenitiesResponse = {
+  amenity_score: number | null;
+  categories: Record<string, NearbyAmenity[]>;
+};
+
+/**
+ * Fetch walkable amenity data near (lat, lon) from the /nearby-amenities endpoint.
+ * Results are cached on the backend for 7 days. Returns null on network failure.
+ */
+export async function fetchAmenities(
+  lat: number,
+  lon: number,
+): Promise<AmenitiesResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/nearby-amenities");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as AmenitiesResponse;
+  } catch {
+    return null;
+  }
+}
+
 // Neighborhood page types (data-026).
 export type NeighborhoodProject = {
   project_id: string;
