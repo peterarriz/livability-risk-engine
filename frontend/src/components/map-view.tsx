@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchMapNarration, type NearbySignal, type TopRiskDetail } from "@/lib/api";
+import { fetchMapNarration, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
 
 type MapMode = "signals" | "heatmap";
 type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -13,6 +13,7 @@ type MapViewProps = {
   address: string;
   disruptionScore?: number;
   signals?: NearbySignal[];
+  schools?: NearbySchool[];
   topRiskDetails?: TopRiskDetail[];
   isPro?: boolean;
 };
@@ -42,6 +43,16 @@ const IMPACT_COLOR: Record<string, string> = {
   crime_trend_decreasing: "#16A34A", // green — improving
 };
 const DEFAULT_COLOR = "#94a3b8";
+
+// ─── School rating colours (data-061) ─────────────────────────────────────────
+const SCHOOL_COLOR: Record<string, string> = {
+  green:       "#16A34A", // Level 1+ / Excellent
+  light_green: "#4ADE80", // Level 1 / Strong
+  yellow:      "#EAB308", // Level 2 / Average
+  orange:      "#F97316", // Level 3 / Weak
+  red:         "#DC2626", // Level 4 / Very Weak
+  gray:        "#6B7280", // Unknown / null
+};
 
 // ─── CircleMarker pixel radius — weight-proportional, clamped 8–28px ─────────
 function signalPixelRadius(weight: number): number {
@@ -188,6 +199,7 @@ export function MapView({
   address,
   disruptionScore,
   signals = [],
+  schools = [],
   topRiskDetails: _topRiskDetails = [],
   isPro = false,
 }: MapViewProps) {
@@ -202,6 +214,8 @@ export function MapView({
   const leafletRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ringGroupRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const schoolGroupRef = useRef<any>(null);
 
   // mapVersion increments after the Leaflet async init completes, triggering
   // the layer-update effect which would otherwise see null refs.
@@ -231,6 +245,7 @@ export function MapView({
       signalGroupRef.current = null;
       heatGroupRef.current = null;
       ringGroupRef.current = null;
+      schoolGroupRef.current = null;
       leafletRef.current = null;
     }
 
@@ -281,6 +296,7 @@ export function MapView({
 
       signalGroupRef.current = L.layerGroup().addTo(map);
       heatGroupRef.current   = L.layerGroup(); // added/removed by layer effect
+      schoolGroupRef.current = L.layerGroup().addTo(map); // always visible
       leafletRef.current     = L;
       mapRef.current         = map;
 
@@ -295,6 +311,7 @@ export function MapView({
         signalGroupRef.current = null;
         heatGroupRef.current = null;
         ringGroupRef.current = null;
+        schoolGroupRef.current = null;
         leafletRef.current = null;
       }
     };
@@ -422,7 +439,40 @@ export function MapView({
     }
   }, [mapVersion, signals, mapMode, forecastDay, forecastActive, showTransitLayer]);
 
-  // ── Effect 3: Start / stop forecast animation ─────────────────────────────
+  // ── Effect 3: School quality markers (data-061) ───────────────────────────
+  useEffect(() => {
+    const L = leafletRef.current;
+    const schoolGroup = schoolGroupRef.current;
+    if (!L || !schoolGroup) return;
+
+    schoolGroup.clearLayers();
+
+    for (const school of schools) {
+      const hex = SCHOOL_COLOR[school.color] ?? SCHOOL_COLOR.gray;
+      const rating = school.rating ?? "Unknown";
+      const distFt = metersToFeet(school.distance_m);
+      const popup = `
+        <div style="font-family:system-ui,sans-serif;min-width:180px;max-width:220px;padding:2px 0">
+          <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${hex};margin-bottom:5px">School</div>
+          <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${school.name}</div>
+          <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Rating</td><td>${rating}</td></tr>
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
+          </table>
+        </div>`;
+
+      L.circleMarker([school.lat, school.lon], {
+        radius: 7,
+        color: hex,
+        weight: 2,
+        fillColor: hex,
+        fillOpacity: 0.5,
+        opacity: 0.9,
+      }).bindPopup(popup, { maxWidth: 240 }).addTo(schoolGroup);
+    }
+  }, [mapVersion, schools]);
+
+  // ── Effect 5: Start / stop forecast animation ─────────────────────────────
   useEffect(() => {
     if (forecastTimerRef.current) {
       clearInterval(forecastTimerRef.current);
@@ -441,7 +491,7 @@ export function MapView({
     };
   }, [forecastActive]);
 
-  // ── Effect 4: Auto-stop when animation completes ──────────────────────────
+  // ── Effect 6: Auto-stop when animation completes ──────────────────────────
   useEffect(() => {
     if (forecastDay >= TOTAL_FORECAST_DAYS && forecastTimerRef.current) {
       clearInterval(forecastTimerRef.current);
@@ -449,7 +499,7 @@ export function MapView({
     }
   }, [forecastDay]);
 
-  // ── Effect 5: Show / hide distance rings ─────────────────────────────────
+  // ── Effect 7: Show / hide distance rings ─────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     const ringGroup = ringGroupRef.current;
