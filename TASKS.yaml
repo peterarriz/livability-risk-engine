@@ -15,6 +15,29 @@
 # Next task to create: data-061
 
 tasks:
+  - id: data-061
+    title: School quality map layer — nearby_schools in /score + map display
+    status: done
+    priority: high
+    github_issue: 174
+    notes_for_next_agent: >
+      Added get_nearby_schools() to backend/scoring/query.py — queries
+      neighborhood_quality WHERE region_type='school' within 1 km, returns
+      lat/lon/name/rating/color/distance_m. Wired into _score_live() in main.py
+      as non-fatal nearby_schools field. Added NearbySchool type to api.ts and
+      nearby_schools to ScoreResponse. Map renders school CircleMarkers (radius 7,
+      colored border+fill, 50% opacity) in a separate schoolGroupRef layer.
+      Colors: green=Level 1+/Excellent, light_green=Level 1/Strong,
+      yellow=Level 2/Average, orange=Level 3/Weak, red=Level 4/Very Weak, gray=unknown.
+      Also fixed map tile badge label ("Stadia Dark" → "CARTO Dark") in page.tsx.
+      Next: verify schools appear for Chicago addresses. If neighborhood_quality
+      has no school rows yet, run:
+        python backend/ingest/il_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools
+        python backend/ingest/national_school_ratings.py
+        python backend/ingest/load_neighborhood_quality.py --source schools_national
+
+
   - id: data-058
     title: Expand to next 25 US cities — permits and crime (tier-8)
     status: done
@@ -150,26 +173,26 @@ tasks:
     priority: medium
     github_issue: 171
     notes_for_next_agent: >
-      Research confirmed: no standalone traffic signal outage dataset exists on the
-      Chicago Data Portal. Reports flow through the existing 311 dataset (v6vf-nfxy)
-      with SR types like "Traffic Signal Out - All Signals Out".
-      Implementation mirrors how utility_outage was added in PR #168:
-        - Added SR types to DISRUPTION_SR_TYPES in chicago_311_requests.py:
-          "Traffic Signal Out - All Signals Out", "Traffic Signal Out - Sporadic/Cycling",
-          "Traffic Light Out - All Signals Out" (alternate name variant)
-        - Added IMPACT_TRAFFIC_SIGNAL = "traffic_signal_outage" to project.py
-          with weight 22 (HIGH severity — between closure_single_lane=28 and
-          road_construction=20). Regex _311_SIGNAL matches any "traffic signal/light * out"
-          SR type, so variant names are handled gracefully.
-        - Wired into query.py: contributes to traffic severity; own risk string
-          ("Traffic signal outage at intersection near...") and explanation.
-        - Added to map-view.tsx: yellow #EAB308, 160m radius, "Traffic signal outage" label.
-        - Added to api.ts ImpactType union.
-      IMPORTANT: SR type strings MUST be verified with a live dry-run once
-      network access is available:
-        python backend/ingest/chicago_311_requests.py --dry-run
-      If the SR types don't match exactly, update DISRUPTION_SR_TYPES and _311_SIGNAL
-      regex with the correct strings. The regex fallback will catch variants.
+      Implemented data-038 (PR #171). Traffic signal outage data flows through
+      the existing 311 pipeline (chicago_311_requests.py / v6vf-nfxy) — same
+      pattern as data-046 utility_outage. No new ingest script needed.
+      Changes made:
+        - backend/ingest/chicago_311_requests.py: Added
+          "Traffic Signal Out - All Signals Out" and
+          "Traffic Signal Out - Sporadic/Cycling" to DISRUPTION_SR_TYPES.
+        - backend/models/project.py: Added IMPACT_TRAFFIC_SIGNAL
+          ("traffic_signal_outage", weight 22, severity HIGH). Added
+          _311_TRAFFIC_SIGNAL regex. Updated _classify_311_request() to map
+          traffic signal SR types to traffic_signal_outage (priority 2, before
+          cave-in). Added to BASE_WEIGHTS and IMPACT_SEVERITY dicts.
+        - backend/scoring/query.py: Imported IMPACT_TRAFFIC_SIGNAL. Wired into
+          _derive_severity() (traffic category), _build_top_risks(), and
+          _build_explanation().
+      SR type strings were taken from the issue body (MUST VERIFY via dry-run
+      with live network access — exact strings may differ slightly in prod).
+      Frontend map display (map-view.tsx + api.ts) not done — out of scope for
+      data lane. Frontend agent should add traffic_signal_outage with yellow
+      #EAB308 color following the pattern from data-060 (utility types).
 
   - id: data-048
     title: Dry-run validation for tier-3 city data (data-047 SF/Denver/Baltimore/Nashville/Portland)
