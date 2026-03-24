@@ -11,10 +11,69 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-064 (amenity richness map layer)
-# Next task to create: data-065
+# Last completed task: data-065 (overnight expansion — AZ cities + school API research)
+# Next task to create: data-066
 
 tasks:
+  - id: data-066
+    title: Verify and fix AZ city ArcGIS endpoints (Tempe, Peoria AZ, Surprise AZ, Goodyear AZ) + Gilbert AZ
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      All AZ city scripts from data-065 use MUST VERIFY org IDs that need live web
+      verification. See data-065 notes_for_next_agent for dry-run commands.
+      Gilbert AZ: org ID K1VMQDQNLVxLvLqs returns "Invalid URL". Fix via
+      data.gilbertaz.gov portal lookup (see SKILL.md for step-by-step).
+      Tempe portal: https://data.tempe.gov
+      Peoria AZ portal: https://data.peoriaaz.gov
+      Surprise AZ portal: https://data.surpriseaz.gov
+      Goodyear AZ portal: https://data.goodyearaz.gov
+
+  - id: data-065
+    title: Overnight expansion — next 30 cities permits+crime + Gilbert fix + school API research
+    status: done
+    priority: high
+    github_issue: 191
+    notes_for_next_agent: >
+      Implemented tier-10 city expansion (data-065).
+      New crime scripts (ArcGIS, MUST VERIFY): tempe_crime_trends.py,
+        peoria_az_crime_trends.py, surprise_az_crime_trends.py,
+        goodyear_az_crime_trends.py.
+      New permit configs in us_city_permits_arcgis.py (MUST VERIFY):
+        tempe, peoria_az, surprise_az, goodyear_az.
+      All 4 wired into load_neighborhood_quality.py (STAGING_FILES + --source choices).
+      Gilbert AZ: org ID K1VMQDQNLVxLvLqs confirmed invalid (400 Invalid URL).
+        Fix requires visiting data.gilbertaz.gov to get correct org ID.
+        See SKILL.md "Gilbert AZ org ID invalid" section for step-by-step fix.
+      Gilbert permits in us_city_permits_arcgis.py also uses same invalid org ID.
+      Skipped (no public API, documented in SKILL.md under data-065):
+        Montgomery AL, Little Rock AR, Jackson MS, Columbus GA, Savannah GA,
+        Augusta GA, Cape Coral FL, Kansas City KS, Spokane Valley WA,
+        Bakersfield CA, Elk Grove CA, + all previously skipped cities from
+        data-058 (Laredo TX, Garland TX, Lubbock TX, Chesapeake VA,
+        North Las Vegas NV, Boise ID, Fremont CA, Irvine CA) and
+        data-059 (Akron OH, Knoxville TN, Fort Wayne IN, Shreveport LA,
+        Tallahassee FL, Huntsville AL, Winston-Salem NC).
+      School performance API research documented in SKILL.md (do NOT implement yet):
+        CA (CAASPP — file downloads, CDS code), TX (TEA — file downloads, A–F),
+        WA (OSPI — Socrata on data.wa.gov), NC (NCDPI — file downloads, A–F),
+        OH (ODE — file downloads, A–F, IRN identifier),
+        AZ (ADE — file downloads, A–F, CTDS code).
+        None have REST APIs. Implementation priority: TX → OH → AZ → NC → CA → WA.
+      Next agent MUST run --dry-run for all new scripts and fix any errors:
+        python backend/ingest/tempe_crime_trends.py --dry-run
+        python backend/ingest/peoria_az_crime_trends.py --dry-run
+        python backend/ingest/surprise_az_crime_trends.py --dry-run
+        python backend/ingest/goodyear_az_crime_trends.py --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city tempe --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city peoria_az --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city surprise_az --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city goodyear_az --dry-run
+        python backend/ingest/gilbert_crime_trends.py --dry-run
+      All new scripts need org ID verification via data portal before they will work.
+      Follow SKILL.md "Gilbert AZ org ID invalid" fix pattern for each.
+
   - id: data-064
     title: Amenity richness — OSM Overpass POI fetch + /nearby-amenities endpoint + map layer
     status: in-progress
