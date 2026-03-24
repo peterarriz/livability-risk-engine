@@ -68,6 +68,14 @@ export type NearbySignal = {
   end_date?: string | null;
 };
 
+export type NearbySchool = {
+  lat: number;
+  lon: number;
+  name: string;
+  rating: string | null;
+  distance_m: number;
+};
+
 export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
 
 export type MapNarrationResponse = {
@@ -101,6 +109,8 @@ export type ScoreResponse = {
   longitude?: number | null;
   // Nearby permit/closure signals for the map heat layer.
   nearby_signals?: NearbySignal[];
+  // Nearby schools for the school quality map layer (data-061).
+  nearby_schools?: NearbySchool[];
 };
 
 export type ScoreSource = ScoreMode;

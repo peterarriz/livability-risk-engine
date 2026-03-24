@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchMapNarration, type NearbySignal, type TopRiskDetail } from "@/lib/api";
+import { fetchMapNarration, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
 
 type MapMode = "signals" | "heatmap";
 type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -14,6 +14,7 @@ type MapViewProps = {
   disruptionScore?: number;
   signals?: NearbySignal[];
   topRiskDetails?: TopRiskDetail[];
+  nearbySchools?: NearbySchool[];
   isPro?: boolean;
 };
 
@@ -42,6 +43,18 @@ const IMPACT_COLOR: Record<string, string> = {
   crime_trend_decreasing: "#16A34A", // green — improving
 };
 const DEFAULT_COLOR = "#94a3b8";
+
+// ─── School rating → colour (data-061) ────────────────────────────────────────
+function schoolRatingColor(rating: string | null | undefined): string {
+  if (!rating) return "#6B7280"; // gray — unknown
+  const r = rating.trim().toUpperCase();
+  if (r === "LEVEL 1+" || r === "EXCELLENT") return "#16A34A"; // green
+  if (r === "LEVEL 1"  || r === "STRONG")    return "#4ADE80"; // light green
+  if (r === "LEVEL 2"  || r === "AVERAGE")   return "#EAB308"; // yellow
+  if (r === "LEVEL 3"  || r === "WEAK")      return "#F97316"; // orange
+  if (r === "LEVEL 4"  || r === "VERY WEAK") return "#DC2626"; // red
+  return "#6B7280"; // gray — unrecognised
+}
 
 // ─── CircleMarker pixel radius — weight-proportional, clamped 8–28px ─────────
 function signalPixelRadius(weight: number): number {
@@ -189,6 +202,7 @@ export function MapView({
   disruptionScore,
   signals = [],
   topRiskDetails: _topRiskDetails = [],
+  nearbySchools = [],
   isPro = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -202,6 +216,8 @@ export function MapView({
   const leafletRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ringGroupRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const schoolGroupRef = useRef<any>(null);
 
   // mapVersion increments after the Leaflet async init completes, triggering
   // the layer-update effect which would otherwise see null refs.
@@ -231,6 +247,7 @@ export function MapView({
       signalGroupRef.current = null;
       heatGroupRef.current = null;
       ringGroupRef.current = null;
+      schoolGroupRef.current = null;
       leafletRef.current = null;
     }
 
@@ -281,6 +298,7 @@ export function MapView({
 
       signalGroupRef.current = L.layerGroup().addTo(map);
       heatGroupRef.current   = L.layerGroup(); // added/removed by layer effect
+      schoolGroupRef.current = L.layerGroup().addTo(map); // school markers always visible
       leafletRef.current     = L;
       mapRef.current         = map;
 
@@ -295,6 +313,7 @@ export function MapView({
         signalGroupRef.current = null;
         heatGroupRef.current = null;
         ringGroupRef.current = null;
+        schoolGroupRef.current = null;
         leafletRef.current = null;
       }
     };
@@ -460,6 +479,49 @@ export function MapView({
       if (map.hasLayer(ringGroup)) map.removeLayer(ringGroup);
     }
   }, [showRings, mapVersion]);
+
+  // ── Effect 6: Render school quality markers ───────────────────────────────
+  useEffect(() => {
+    const L = leafletRef.current;
+    const schoolGroup = schoolGroupRef.current;
+    if (!L || !schoolGroup) return;
+
+    schoolGroup.clearLayers();
+
+    for (const school of nearbySchools) {
+      const color = schoolRatingColor(school.rating);
+      const distFt = metersToFeet(school.distance_m);
+      const ratingLabel = school.rating ?? "Unknown";
+
+      const popup = `
+        <div style="font-family:system-ui,sans-serif;min-width:200px;max-width:240px;padding:2px 0">
+          <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">School</div>
+          <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${school.name}</div>
+          <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Rating</td><td>${ratingLabel}</td></tr>
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
+          </table>
+        </div>`;
+
+      // Square school marker via divIcon to distinguish from signal circles
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="
+          width:12px;height:12px;
+          background:${color};
+          border:2px solid rgba(255,255,255,0.85);
+          border-radius:2px;
+          opacity:0.9;
+        "></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+
+      L.marker([school.lat, school.lon], { icon })
+        .bindPopup(popup, { maxWidth: 260 })
+        .addTo(schoolGroup);
+    }
+  }, [mapVersion, nearbySchools]);
 
   // ── Derived display values ────────────────────────────────────────────────
   const today = new Date();
