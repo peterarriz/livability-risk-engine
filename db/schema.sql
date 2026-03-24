@@ -333,5 +333,54 @@ COMMENT ON TABLE api_keys IS
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS call_count     INT         NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_called_at TIMESTAMPTZ;
 
--- Idempotent migration: add batch_id to score_history for batch scoring (data-045).
-ALTER TABLE score_history ADD COLUMN IF NOT EXISTS batch_id TEXT;
+COMMENT ON TABLE signal_display IS
+    'Claude API-generated 4-field display cards for each project signal (data-043). '
+    'Keyed on project_id. Populated lazily on the first /score request that references '
+    'each project. Falls back to Option A deterministic formatter on API failure. '
+    'Supersedes signal_rewrites with richer display_title, distance, description, '
+    'and why_it_matters fields.';
+
+
+-- ---------------------------------------------------------------------------
+-- User accounts  (data-045)
+--
+-- Stores registered user accounts. Supports two auth methods:
+--   1. Email + password (password_hash populated, google_id NULL)
+--   2. Google OAuth     (google_id populated, password_hash NULL)
+--   3. Both             (user linked email account then connected Google)
+--
+-- watchlist and score_history rows may optionally reference an account_id
+-- so saved data can be associated with a user across sessions.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS accounts (
+    id              BIGSERIAL   PRIMARY KEY,
+    email           TEXT        NOT NULL UNIQUE,
+    password_hash   TEXT,                       -- NULL for OAuth-only users
+    google_id       TEXT        UNIQUE,          -- NULL for email/password users
+    display_name    TEXT,
+    email_verified  BOOLEAN     NOT NULL DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS accounts_email_idx    ON accounts (email);
+CREATE INDEX IF NOT EXISTS accounts_google_id_idx ON accounts (google_id) WHERE google_id IS NOT NULL;
+
+COMMENT ON TABLE accounts IS
+    'Registered user accounts (data-045). Supports email+password and Google OAuth. '
+    'password_hash uses bcrypt. google_id is the Google sub claim. '
+    'Linked from watchlist and score_history via account_id FK.';
+
+-- Add nullable account_id FK to watchlist so saved alerts can be owned by a user.
+-- NULL = legacy anonymous entry (backward compatible).
+ALTER TABLE watchlist
+    ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS watchlist_account_idx ON watchlist (account_id) WHERE account_id IS NOT NULL;
+
+-- Add nullable account_id FK to score_history so score lookups can be tied to a user.
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS score_history_account_idx ON score_history (account_id) WHERE account_id IS NOT NULL;

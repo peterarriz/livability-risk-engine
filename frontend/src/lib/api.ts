@@ -871,3 +871,57 @@ export async function fetchCommute(
   }
   return (await resp.json()) as CommuteResponse;
 }
+
+
+// ---------------------------------------------------------------------------
+// Auth helpers  (data-045)
+//
+// These utilities attach the user's backend_token (from their NextAuth session)
+// to API requests as a Bearer token, and expose typed wrappers for the
+// /auth/* endpoints on the FastAPI backend.
+//
+// Usage (client component):
+//   const { data: session } = useSession();
+//   const headers = getAuthHeaders(session?.user?.backend_token);
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an Authorization header object from a backend JWT.
+ * Returns an empty object when token is absent so callers can always spread it.
+ */
+export function getAuthHeaders(backendToken?: string | null): Record<string, string> {
+  if (!backendToken) return {};
+  return { Authorization: `Bearer ${backendToken}` };
+}
+
+// Shape returned by /auth/register, /auth/login, /auth/google
+export type AuthResponse = {
+  account_id: number;
+  email: string;
+  display_name: string | null;
+  token: string;
+};
+
+// Shape returned by /auth/me
+export type AuthUser = {
+  account_id: string;
+  email: string;
+  name: string | null;
+};
+
+/**
+ * Fetch the current user's profile from the backend.
+ * Returns null if the token is missing or invalid (unauthenticated).
+ */
+export async function fetchAuthMe(backendToken: string): Promise<AuthUser | null> {
+  try {
+    const resp = await fetch(buildApiUrl("/auth/me").toString(), {
+      headers: getAuthHeaders(backendToken),
+      cache: "no-store",
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as AuthUser;
+  } catch {
+    return null;
+  }
+}

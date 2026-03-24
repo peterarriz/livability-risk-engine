@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Livability Risk Engine",
-  description: "Illinois disruption intelligence for evaluating near-term construction risk by address.",
+  description: "Real-time livability intelligence for any address — construction, crime, schools, and neighborhood context.",
 };
 
 export default function RootLayout({
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Analytics />
         <SpeedInsights />
       </body>
