@@ -55,6 +55,7 @@ from backend.models.project import (
     IMPACT_MULTI_LANE,
     IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
+    IMPACT_TRAFFIC_SIGNAL,
     IMPACT_UTILITY_OUTAGE,
     IMPACT_UTILITY_REPAIR,
     Project,
@@ -288,6 +289,7 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
         if np.project.impact_type in (
             IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
             IMPACT_ROAD_CONSTRUCTION, IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
+            IMPACT_TRAFFIC_SIGNAL,
         )
     )
     noise_pts = sum(
@@ -372,6 +374,8 @@ def _build_top_risks(
             risk = f"Active construction permit near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_UTILITY_OUTAGE:
             risk = f"Utility emergency (water main break or gas leak) near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
+            risk = f"Traffic signal outage near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_UTILITY_REPAIR:
             risk = f"Utility repair crew active near {p.title} {dist_str}"
         else:
@@ -447,6 +451,9 @@ def _build_explanation(
     elif p.impact_type == IMPACT_UTILITY_OUTAGE:
         lead = f"A utility emergency ({p.title}, {dist_str}) is the main driver"
         category = "access and traffic disruption from emergency response"
+    elif p.impact_type == IMPACT_TRAFFIC_SIGNAL:
+        lead = f"A traffic signal outage ({p.title}, {dist_str}) is the main driver"
+        category = "traffic disruption from non-functional signals"
     elif p.impact_type == IMPACT_UTILITY_REPAIR:
         lead = f"Nearby utility repair work ({p.title}, {dist_str}) is the main driver"
         category = "traffic disruption from repair crews"

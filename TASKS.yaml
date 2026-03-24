@@ -11,7 +11,7 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-060 (fix utility_outage/utility_repair map display)
+# Last completed task: data-038 (traffic signal outage signals)
 # Next task to create: data-061
 
 tasks:
@@ -145,20 +145,31 @@ tasks:
         - Utility ingest is controlled by the existing --skip-311 flag in run_pipeline.py.
 
   - id: data-038
-    title: Add CDOT traffic signal outage data source
-    status: backlog
+    title: Add traffic signal outage signals to scoring model
+    status: done
     priority: medium
-    github_issue: ~
+    github_issue: 171
     notes_for_next_agent: >
-      Add Chicago CDOT Traffic Signal Outages as a disruption signal.
-      Search data.cityofchicago.org for "traffic signal" or "signal outage".
-      Implementation pattern mirrors chicago_311_requests.py:
-        - Fetch active outages from Socrata (filter status='Active')
-        - normalize_signal_outage() in project.py
-        - load_signal_outages() in load_projects.py
-        - --skip-signals flag in run_pipeline.py
-        - Scoring weight: similar to 311 requests (~0.5–0.8 relative to closures)
-      Verify dataset ID and field names via dry-run before wiring into pipeline.
+      Implemented data-038 (PR #171). Traffic signal outage data flows through
+      the existing 311 pipeline (chicago_311_requests.py / v6vf-nfxy) — same
+      pattern as data-046 utility_outage. No new ingest script needed.
+      Changes made:
+        - backend/ingest/chicago_311_requests.py: Added
+          "Traffic Signal Out - All Signals Out" and
+          "Traffic Signal Out - Sporadic/Cycling" to DISRUPTION_SR_TYPES.
+        - backend/models/project.py: Added IMPACT_TRAFFIC_SIGNAL
+          ("traffic_signal_outage", weight 22, severity HIGH). Added
+          _311_TRAFFIC_SIGNAL regex. Updated _classify_311_request() to map
+          traffic signal SR types to traffic_signal_outage (priority 2, before
+          cave-in). Added to BASE_WEIGHTS and IMPACT_SEVERITY dicts.
+        - backend/scoring/query.py: Imported IMPACT_TRAFFIC_SIGNAL. Wired into
+          _derive_severity() (traffic category), _build_top_risks(), and
+          _build_explanation().
+      SR type strings were taken from the issue body (MUST VERIFY via dry-run
+      with live network access — exact strings may differ slightly in prod).
+      Frontend map display (map-view.tsx + api.ts) not done — out of scope for
+      data lane. Frontend agent should add traffic_signal_outage with yellow
+      #EAB308 color following the pattern from data-060 (utility types).
 
   - id: data-048
     title: Dry-run validation for tier-3 city data (data-047 SF/Denver/Baltimore/Nashville/Portland)
