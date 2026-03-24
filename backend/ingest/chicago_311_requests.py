@@ -54,6 +54,7 @@ DISRUPTION_SR_TYPES = [
     "Pavement Cave-In",
     "Tree Emergency",
     "Street Light - Pole Down",
+    "Gas Leak",                   # data-046: Peoples Gas emergency events
 ]
 
 # Fields to retain from the raw 311 request record.

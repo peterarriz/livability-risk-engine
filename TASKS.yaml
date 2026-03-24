@@ -105,20 +105,18 @@ tasks:
          See issue #148 for per-state API links.
 
   - id: data-046
-    title: Add utility outage and repair data sources to scoring model
-    status: backlog
+    title: Add utility outage signals to scoring model
+    status: done
     priority: medium
-    github_issue: ~
+    github_issue: 167
     notes_for_next_agent: >
-      Research and implement:
-        1. Chicago Water Main Breaks — check if 311 dataset v6vf-nfxy (already ingested)
-           can be filtered by SR_TYPE='Water Main Break' instead of a separate source.
-        2. ComEd Planned Outages — check comed.com/outages for API. If no API: won't-fix.
-        3. Peoples Gas construction — check Chicago Data Portal or ILCC filings.
-      For any source found: add ingest script, normalizer in project.py using
-      impact_type 'utility_outage' or 'utility_repair', base_weight in query.py
-      (suggested: utility_outage=25, utility_repair=15), load function in
-      load_projects.py, and --skip-utilities flag in run_pipeline.py.
+      Implemented: new IMPACT_UTILITY_OUTAGE="utility_outage" constant (weight 25,
+      severity HIGH). Water main breaks reclassified from construction (16) to
+      utility_outage (25). Gas Leak added to DISRUPTION_SR_TYPES and classified as
+      utility_outage. scoring/query.py updated: _derive_severity adds utility_outage
+      to traffic_pts; _build_top_risks and _build_explanation handle utility_outage.
+      ComEd planned outages: no public REST API — won't-fix.
+      Peoples Gas non-emergency construction: won't-fix (covered by Gas Leak 311).
 
   - id: data-038
     title: Add CDOT traffic signal outage data source

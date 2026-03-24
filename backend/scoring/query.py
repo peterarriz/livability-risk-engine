@@ -55,6 +55,7 @@ from backend.models.project import (
     IMPACT_MULTI_LANE,
     IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
+    IMPACT_UTILITY_OUTAGE,
     Project,
 )
 
@@ -285,7 +286,7 @@ def _derive_severity(contributions: list[tuple[NearbyProject, float]]) -> dict:
         w for np, w in contributions
         if np.project.impact_type in (
             IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
-            IMPACT_ROAD_CONSTRUCTION,
+            IMPACT_ROAD_CONSTRUCTION, IMPACT_UTILITY_OUTAGE,
         )
     )
     noise_pts = sum(
@@ -365,6 +366,8 @@ def _build_top_risks(
             risk = f"Active road reconstruction or resurfacing near {p.title} {dist_str}"
         elif p.impact_type == IMPACT_CONSTRUCTION:
             risk = f"Active construction permit near {p.title} {dist_str}"
+        elif p.impact_type == IMPACT_UTILITY_OUTAGE:
+            risk = f"Active utility emergency near {p.title} {dist_str}"
         else:
             risk = f"Nearby permit activity: {p.title} {dist_str}"
 
@@ -435,6 +438,9 @@ def _build_explanation(
     elif p.impact_type == IMPACT_CONSTRUCTION:
         lead = f"Nearby construction activity ({p.title}, {dist_str}) is the main driver"
         category = "noise disruption"
+    elif p.impact_type == IMPACT_UTILITY_OUTAGE:
+        lead = f"An active utility emergency ({p.title}, {dist_str}) is the main driver"
+        category = "traffic and service disruption"
     else:
         lead = f"Nearby permitted work ({p.title}, {dist_str}) is contributing"
         category = "minor disruption"
