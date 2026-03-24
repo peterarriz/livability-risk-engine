@@ -421,22 +421,24 @@ function getBenchmarkText(score: number): string {
 }
 
 export function ScoreHero({ result }: ScoreHeroProps) {
-  const displayScore = useAnimatedScore(result.disruption_score);
-  const scoreMessage = getScoreMessage(result.disruption_score);
+  const headlineScore = result.livability_score ?? result.disruption_score;
+  const displayScore = useAnimatedScore(headlineScore);
+  const scoreMessage = getScoreMessage(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
   const isDemo = result.mode === "demo";
   const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
   const modeLabelTooltip = isDemo
     ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
     : undefined;
-  const gaugeBand = getGaugeBand(result.disruption_score);
+  const gaugeBand = getGaugeBand(headlineScore);
+  const breakdown = result.livability_breakdown?.components ?? {};
 
   return (
     <div className="score-hero">
       <div className="score-hero-copy">
         <p className="score-hero-kicker">Headline assessment</p>
         <div className="score-hero-topline">
-          <p className="score-label">Disruption score</p>
+          <p className="score-label">Livability Score</p>
           <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
@@ -454,7 +456,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <span>100 — High</span>
           </div>
         </div>
-        <p className="score-benchmark">{getBenchmarkText(result.disruption_score)}</p>
+        <p className="score-benchmark">{getBenchmarkText(headlineScore)}</p>
 
         <h2 className="score-hero-title">{scoreMessage.label}</h2>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
@@ -476,7 +478,21 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <span>Primary signals</span>
             <strong>{result.top_risks.length} detected</strong>
           </div>
+          <div>
+            <span>Disruption score</span>
+            <strong>{result.disruption_score}</strong>
+          </div>
         </div>
+        {Object.keys(breakdown).length > 0 && (
+          <div className="score-hero-meta-stack" style={{ marginTop: "0.75rem" }}>
+            {Object.entries(breakdown).map(([k, v]) => (
+              <div key={k}>
+                <span>{k.replace(/_/g, " ")}</span>
+                <strong>{v.weighted_contribution.toFixed(1)} pts</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -218,6 +218,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
                 latitude={mapCoords.lat}
                 longitude={mapCoords.lon}
                 address={report.address}
+                disruptionScore={report.disruption_score}
                 signals={report.nearby_signals ?? []}
               />
               <p className="map-copy">Use the map to anchor the score geographically.</p>

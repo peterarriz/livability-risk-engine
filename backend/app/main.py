@@ -80,6 +80,23 @@ app.add_middleware(
 DEMO_RESPONSE = {
     "address": None,            # filled in at request time
     "disruption_score": 62,
+    "livability_score": 48,
+    "livability_breakdown": {
+        "weights": {
+            "disruption_risk": 0.35,
+            "crime_trend": 0.25,
+            "school_rating": 0.20,
+            "demographics_stability": 0.10,
+            "flood_environmental": 0.10,
+        },
+        "components": {
+            "disruption_risk": {"raw_score": 38, "weighted_contribution": 13.3},
+            "crime_trend": {"raw_score": 55, "weighted_contribution": 13.8},
+            "school_rating": {"raw_score": 60, "weighted_contribution": 12.0},
+            "demographics_stability": {"raw_score": 52, "weighted_contribution": 5.2},
+            "flood_environmental": {"raw_score": 40, "weighted_contribution": 4.0},
+        },
+    },
     "confidence": "MEDIUM",
     "severity": {
         "noise": "LOW",
@@ -127,6 +144,144 @@ DEMO_RESPONSE = {
         },
     ],
 }
+
+_LIVABILITY_WEIGHTS = {
+    "disruption_risk": float(os.environ.get("LIVABILITY_W_DISRUPTION", "0.35")),
+    "crime_trend": float(os.environ.get("LIVABILITY_W_CRIME", "0.25")),
+    "school_rating": float(os.environ.get("LIVABILITY_W_SCHOOL", "0.20")),
+    "demographics_stability": float(os.environ.get("LIVABILITY_W_DEMOGRAPHICS", "0.10")),
+    "flood_environmental": float(os.environ.get("LIVABILITY_W_FLOOD", "0.10")),
+}
+
+
+def _school_rating_to_score(v) -> float:
+    if v is None:
+        return 50.0
+    text = str(v).strip().upper()
+    if text in {"EXCELLENT", "LEVEL 1+"}:
+        return 92.0
+    if text in {"STRONG", "LEVEL 1"}:
+        return 78.0
+    if text in {"AVERAGE", "LEVEL 2"}:
+        return 58.0
+    if text in {"WEAK", "LEVEL 3"}:
+        return 34.0
+    if text in {"VERY WEAK", "LEVEL 4"}:
+        return 20.0
+    try:
+        n = float(text)
+        if n <= 5:
+            return max(0.0, min(100.0, n * 20.0))
+        return max(0.0, min(100.0, n))
+    except Exception:
+        return 50.0
+
+
+def _compute_livability_score(
+    *,
+    disruption_score: int,
+    neighborhood_context: dict | None,
+    lat: float,
+    lon: float,
+    conn,
+) -> tuple[int, dict]:
+    neighborhood_context = neighborhood_context or {}
+    weights = _LIVABILITY_WEIGHTS
+
+    # 1) disruption risk (inverted)
+    disruption_component = max(0.0, min(100.0, 100.0 - float(disruption_score)))
+
+    # 2) crime trend
+    trend = str(neighborhood_context.get("crime_trend") or "").upper()
+    crime_component = {"DECREASING": 85.0, "STABLE": 60.0, "INCREASING": 25.0}.get(trend, 50.0)
+    trend_pct = neighborhood_context.get("crime_trend_pct")
+    if trend_pct is not None:
+        crime_component = max(0.0, min(100.0, crime_component + float(trend_pct) * -0.4))
+
+    # 3) school rating (nearest school from neighborhood_quality)
+    school_component = 50.0
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT school_rating
+                FROM neighborhood_quality
+                WHERE region_type = 'school' AND geom IS NOT NULL
+                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                LIMIT 1
+                """,
+                (lon, lat),
+            )
+            row = cur.fetchone()
+            if row:
+                school_component = _school_rating_to_score(row[0])
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # 4) demographics/stability (income percentile + low vacancy)
+    demo_component = 50.0
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT income_percentile, vacancy_rate
+                FROM (
+                    SELECT
+                        region_id,
+                        median_income,
+                        vacancy_rate,
+                        cume_dist() OVER (ORDER BY median_income) AS income_percentile,
+                        geom
+                    FROM neighborhood_quality
+                    WHERE region_type = 'census_tract'
+                      AND geom IS NOT NULL
+                      AND median_income IS NOT NULL
+                ) q
+                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                LIMIT 1
+                """,
+                (lon, lat),
+            )
+            row = cur.fetchone()
+            if row:
+                income_pct = float(row[0]) if row[0] is not None else 0.5
+                vacancy = float(row[1]) if row[1] is not None else 8.0
+                vacancy_score = max(0.0, min(100.0, 100.0 - (vacancy * 8.0)))
+                demo_component = max(0.0, min(100.0, (income_pct * 100.0 * 0.65) + (vacancy_score * 0.35)))
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # 5) flood/environment
+    flood_risk = str(neighborhood_context.get("flood_risk") or "").upper()
+    flood_component = {"MINIMAL": 90.0, "MODERATE": 65.0, "HIGH": 25.0}.get(flood_risk, 50.0)
+
+    components = {
+        "disruption_risk": disruption_component,
+        "crime_trend": crime_component,
+        "school_rating": school_component,
+        "demographics_stability": demo_component,
+        "flood_environmental": flood_component,
+    }
+    weighted = {
+        k: round(v * weights[k], 1)
+        for k, v in components.items()
+    }
+    livability_score = int(round(sum(weighted.values())))
+    livability_score = max(0, min(100, livability_score))
+
+    return livability_score, {
+        "weights": weights,
+        "components": {
+            k: {"raw_score": round(components[k], 1), "weighted_contribution": weighted[k]}
+            for k in components
+        },
+    }
 
 
 def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
@@ -423,8 +578,17 @@ def _score_live(address: str) -> dict:
                 pass
 
         result = compute_score(nearby, address)
+        livability_score, livability_breakdown = _compute_livability_score(
+            disruption_score=result.disruption_score,
+            neighborhood_context=neighborhood_context,
+            lat=lat,
+            lon=lon,
+            conn=conn,
+        )
         result_dict = {
             **asdict(result),
+            "livability_score": livability_score,
+            "livability_breakdown": livability_breakdown,
             "mode": "live",
             "fallback_reason": None,
             "latitude": lat,
@@ -477,12 +641,16 @@ def _write_score_history(address: str, result: dict) -> None:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO score_history (address, disruption_score, confidence, mode)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO score_history (
+                        address, disruption_score, livability_score, livability_breakdown, confidence, mode
+                    )
+                    VALUES (%s, %s, %s, %s::jsonb, %s, %s)
                     """,
                     (
                         address,
                         result["disruption_score"],
+                        result.get("livability_score", result["disruption_score"]),
+                        json.dumps(result.get("livability_breakdown") or {}),
                         result["confidence"],
                         result.get("mode", "live"),
                     ),
@@ -602,10 +770,20 @@ def _write_batch_history(results: list[dict], batch_id: str) -> None:
                 for r in live_results:
                     cur.execute(
                         """
-                        INSERT INTO score_history (address, disruption_score, confidence, mode, batch_id)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO score_history (
+                            address, disruption_score, livability_score, livability_breakdown, confidence, mode, batch_id
+                        )
+                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s)
                         """,
-                        (r["address"], r["disruption_score"], r["confidence"], r["mode"], batch_id),
+                        (
+                            r["address"],
+                            r["disruption_score"],
+                            r.get("livability_score", r["disruption_score"]),
+                            json.dumps(r.get("livability_breakdown") or {}),
+                            r["confidence"],
+                            r["mode"],
+                            batch_id,
+                        ),
                     )
             conn.commit()
         finally:
@@ -781,6 +959,114 @@ async def post_score_batch_csv(
     )
 
 
+class MapNarrationSignal(BaseModel):
+    lat: float
+    lon: float
+    impact_type: str
+    title: str
+    source: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    distance_m: Optional[float] = None
+
+
+class MapNarrationRequest(BaseModel):
+    address: str
+    interaction_type: str  # default_load | signal_click | map_pan
+    signals: list[MapNarrationSignal]
+    top_signal_title: Optional[str] = None
+    clicked_signal: Optional[MapNarrationSignal] = None
+    original_score: Optional[int] = None
+    current_lat: Optional[float] = None
+    current_lon: Optional[float] = None
+
+
+def _calmer_direction(lat: float, lon: float, signals: list[dict]) -> str:
+    """
+    Pick the cardinal direction with the fewest nearby signals.
+    Used to provide a directional "calmer area" hint in map narration.
+    """
+    if not signals:
+        return "north"
+
+    counts = {"north": 0, "south": 0, "east": 0, "west": 0}
+    for s in signals:
+        slat = float(s.get("lat", lat))
+        slon = float(s.get("lon", lon))
+        if slat >= lat:
+            counts["north"] += 1
+        else:
+            counts["south"] += 1
+        if slon >= lon:
+            counts["east"] += 1
+        else:
+            counts["west"] += 1
+
+    return min(counts, key=lambda k: counts[k])
+
+
+@app.post("/map/narrate")
+def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) -> dict:
+    """
+    Internal map narrator endpoint.
+    Returns {"narration": <2-3 sentence summary>} or {"narration": null} on any
+    failure so the frontend can fail silently and hide the panel.
+    """
+    if not body.signals:
+        return {"narration": None}
+
+    # Compute score for the panned-to map center when available.
+    current_score: Optional[int] = None
+    if (
+        body.interaction_type == "map_pan"
+        and body.current_lat is not None
+        and body.current_lon is not None
+        and _is_db_configured()
+    ):
+        try:
+            from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
+            conn_pan = get_db_connection()
+            try:
+                nearby_pan = get_nearby_projects(body.current_lat, body.current_lon, conn_pan)
+                current_score = compute_score(nearby_pan, body.address).disruption_score
+            finally:
+                conn_pan.close()
+        except Exception as exc:
+            log.debug("map narrator pan-score lookup skipped: %s", exc)
+
+    signals = [s.model_dump() for s in body.signals]
+    clicked_signal = body.clicked_signal.model_dump() if body.clicked_signal else None
+
+    try:
+        from backend.scoring.query import get_db_connection
+        from backend.scoring.rewrite import get_map_narration
+
+        conn = get_db_connection() if _is_db_configured() else None
+        try:
+            narration = get_map_narration(
+                address=body.address,
+                signals=signals,
+                interaction_type=body.interaction_type,
+                top_signal_title=body.top_signal_title or signals[0].get("title", "nearby disruption"),
+                calmer_direction=_calmer_direction(
+                    body.current_lat or signals[0]["lat"],
+                    body.current_lon or signals[0]["lon"],
+                    signals,
+                ),
+                clicked_signal=clicked_signal,
+                original_score=body.original_score,
+                current_score=current_score,
+                conn=conn,
+            )
+            return {"narration": narration}
+        finally:
+            if conn:
+                conn.close()
+    except Exception as exc:
+        log.debug("map narrator unavailable: %s", exc)
+        return {"narration": None}
+
+
 # ---------------------------------------------------------------------------
 # /suggest endpoint (data-016)
 # Returns real Chicago address suggestions from Nominatim (OpenStreetMap).
@@ -858,7 +1144,7 @@ def get_history(
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT disruption_score, confidence, mode, scored_at
+                    SELECT disruption_score, livability_score, confidence, mode, scored_at
                     FROM score_history
                     WHERE address = %s
                     ORDER BY scored_at DESC
@@ -873,9 +1159,10 @@ def get_history(
         history = [
             {
                 "disruption_score": row[0],
-                "confidence": row[1],
-                "mode": row[2],
-                "scored_at": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3]),
+                "livability_score": row[1],
+                "confidence": row[2],
+                "mode": row[3],
+                "scored_at": row[4].isoformat() if hasattr(row[4], "isoformat") else str(row[4]),
             }
             for row in rows
         ]
@@ -1964,6 +2251,8 @@ class SaveReportRequest(BaseModel):
     """Score JSON payload to persist as a saved report."""
     address: str
     disruption_score: int
+    livability_score: int | None = None
+    livability_breakdown: dict | None = None
     confidence: str
     severity: dict
     top_risks: list
@@ -1975,7 +2264,7 @@ class SaveReportRequest(BaseModel):
 
 
 @app.post("/save")
-def save_report(body: SaveReportRequest) -> dict:
+def save_report(body: SaveReportRequest, authorization: str = Header(default=None)) -> dict:
     """
     Store a score result in the reports table and return a shareable UUID.
 
@@ -1987,16 +2276,38 @@ def save_report(body: SaveReportRequest) -> dict:
         return {"report_id": _DEMO_REPORT_ID}
 
     try:
+        from backend.app.auth import get_current_user_optional
         from backend.scoring.query import get_db_connection
+        user = get_current_user_optional(authorization)
+        account_id = int(user["sub"]) if user and user.get("sub") else None
         conn = get_db_connection()
         report_id = str(uuid.uuid4())
         score_json = body.model_dump()
+        if account_id is not None:
+            score_json["account_id"] = account_id
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO reports (id, address, score_json) VALUES (%s, %s, %s)",
                     (report_id, body.address, score_json),
                 )
+                if account_id is not None:
+                    cur.execute(
+                        """
+                        INSERT INTO score_history
+                            (address, disruption_score, livability_score, livability_breakdown, confidence, mode, account_id)
+                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s)
+                        """,
+                        (
+                            body.address,
+                            body.disruption_score,
+                            body.livability_score if body.livability_score is not None else body.disruption_score,
+                            json.dumps(body.livability_breakdown or {}),
+                            body.confidence,
+                            body.mode or "live",
+                            account_id,
+                        ),
+                    )
             conn.commit()
         finally:
             conn.close()
@@ -2065,6 +2376,96 @@ def get_report(report_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# /dashboard endpoint
+# Authenticated summary for saved reports + watchlist health.
+# ---------------------------------------------------------------------------
+
+@app.get("/dashboard")
+def get_dashboard(authorization: str = Header(default=None)) -> dict:
+    from backend.app.auth import get_current_user
+    from backend.scoring.query import get_db_connection
+
+    user = get_current_user(authorization)
+    account_id = int(user["sub"])
+
+    if not _is_db_configured():
+        return {"saved_reports": [], "watchlist": []}
+
+    try:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                # Saved reports (last 10) filtered by account_id stored in score_json.
+                cur.execute(
+                    """
+                    SELECT id, address, score_json, created_at
+                    FROM reports
+                    WHERE (score_json->>'account_id') = %s
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                    """,
+                    (str(account_id),),
+                )
+                report_rows = cur.fetchall()
+
+                cur.execute(
+                    """
+                    SELECT id, address, threshold_score, created_at
+                    FROM watchlist
+                    WHERE account_id = %s AND is_active = true
+                    ORDER BY created_at DESC
+                    """,
+                    (account_id,),
+                )
+                watch_rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        saved_reports = []
+        for rid, address, score_json, created_at in report_rows:
+            saved_reports.append(
+                {
+                    "report_id": str(rid),
+                    "address": address,
+                    "saved_disruption_score": score_json.get("disruption_score"),
+                    "saved_livability_score": score_json.get("livability_score"),
+                    "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
+                }
+            )
+
+        watch_items = []
+        for wid, address, threshold_score, created_at in watch_rows:
+            current = None
+            diff = None
+            try:
+                current_result = _score_live(address)
+                current = current_result.get("livability_score")
+            except Exception:
+                current = None
+
+            saved_match = next((r for r in saved_reports if r["address"] == address), None)
+            if saved_match and saved_match.get("saved_livability_score") is not None and current is not None:
+                diff = int(current) - int(saved_match["saved_livability_score"])
+
+            watch_items.append(
+                {
+                    "id": wid,
+                    "address": address,
+                    "threshold": threshold_score,
+                    "current_livability_score": current,
+                    "score_diff_since_saved": diff,
+                    "score_changed": diff is not None and diff != 0,
+                    "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at),
+                }
+            )
+
+        return {"saved_reports": saved_reports, "watchlist": watch_items}
+    except Exception as exc:
+        log.error("dashboard error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not load dashboard.") from exc
+
+
+# ---------------------------------------------------------------------------
 # /watch endpoints (data-030)
 # Score alert watchlist — subscribe an email + threshold to an address.
 # When the score crosses the threshold, an entry is written to alert_log
@@ -2072,13 +2473,14 @@ def get_report(report_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 class WatchRequest(BaseModel):
-    email: str
+    email: str | None = None
     address: str
     threshold: int  # 0–100 disruption score
 
 
 @app.post("/watch")
-def subscribe_watch(body: WatchRequest) -> dict:
+@app.post("/watchlist")
+def subscribe_watch(body: WatchRequest, authorization: str = Header(default=None)) -> dict:
     """
     Subscribe an email address to score alerts for a Chicago address.
 
@@ -2092,17 +2494,22 @@ def subscribe_watch(body: WatchRequest) -> dict:
     if not (0 <= body.threshold <= 100):
         raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
 
+    from backend.app.auth import get_current_user_optional
+    user = get_current_user_optional(authorization)
+    account_id = int(user["sub"]) if user and user.get("sub") else None
+    email = (body.email or (user.get("email") if user else None) or "").strip()
+
     if not _is_db_configured():
         # DB not yet live — accept the intent and return a demo success so the
         # email-capture form always works on the free tier. Real alert delivery
         # starts once DATABASE_URL is configured.
         log.info(
             "watch subscribe (demo) email=%r address=%r threshold=%d",
-            body.email, body.address, body.threshold,
+            email, body.address, body.threshold,
         )
         return {
             "id": None,
-            "email": body.email,
+            "email": email,
             "address": body.address,
             "threshold": body.threshold,
             "token": None,
@@ -2119,13 +2526,16 @@ def subscribe_watch(body: WatchRequest) -> dict:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO watchlist (email, address, threshold, token)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO watchlist (email, address, threshold_score, token, account_id)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (email, address)
-                    DO UPDATE SET threshold = EXCLUDED.threshold, token = EXCLUDED.token
+                    DO UPDATE SET
+                        threshold_score = EXCLUDED.threshold_score,
+                        token = EXCLUDED.token,
+                        account_id = COALESCE(EXCLUDED.account_id, watchlist.account_id)
                     RETURNING id, token
                     """,
-                    (body.email, body.address, body.threshold, token),
+                    (email, body.address, body.threshold, token, account_id),
                 )
                 row = cur.fetchone()
                 watch_id, stored_token = row[0], row[1]
@@ -2135,11 +2545,11 @@ def subscribe_watch(body: WatchRequest) -> dict:
 
         log.info(
             "watch subscribe id=%d email=%r address=%r threshold=%d",
-            watch_id, body.email, body.address, body.threshold,
+            watch_id, email, body.address, body.threshold,
         )
         return {
             "id": watch_id,
-            "email": body.email,
+            "email": email,
             "address": body.address,
             "threshold": body.threshold,
             "token": stored_token,
@@ -2150,6 +2560,53 @@ def subscribe_watch(body: WatchRequest) -> dict:
     except Exception as exc:
         log.error("subscribe_watch error: %s", exc)
         raise HTTPException(status_code=503, detail="Could not create watchlist entry.") from exc
+
+
+@app.get("/watchlist")
+def get_watchlist(authorization: str = Header(default=None)) -> dict:
+    """
+    Return active watchlist entries for the authenticated user.
+    """
+    from backend.app.auth import get_current_user
+    user = get_current_user(authorization)
+    account_id = int(user["sub"])
+
+    if not _is_db_configured():
+        return {"entries": []}
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, email, address, threshold_score, created_at, is_active
+                    FROM watchlist
+                    WHERE account_id = %s AND is_active = true
+                    ORDER BY created_at DESC
+                    """,
+                    (account_id,),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        return {
+            "entries": [
+                {
+                    "id": r[0],
+                    "email": r[1],
+                    "address": r[2],
+                    "threshold": r[3],
+                    "created_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4]),
+                    "is_active": r[5],
+                }
+                for r in rows
+            ]
+        }
+    except Exception as exc:
+        log.error("get_watchlist error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not fetch watchlist.") from exc
 
 
 @app.get("/watch/unsubscribe")
@@ -2222,7 +2679,7 @@ def check_watchlist() -> dict:
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, email, address, threshold FROM watchlist")
+                cur.execute("SELECT id, email, address, threshold_score FROM watchlist")
                 entries = cur.fetchall()
         finally:
             conn.close()
@@ -2236,7 +2693,7 @@ def check_watchlist() -> dict:
                 if score is None:
                     continue
 
-                if score < threshold:
+                if score >= threshold:
                     # Log alert — email delivery stubbed.
                     log.info(
                         "ALERT [stub] watch_id=%d email=%r address=%r "
@@ -2248,7 +2705,7 @@ def check_watchlist() -> dict:
                     try:
                         with conn2.cursor() as cur2:
                             cur2.execute(
-                                "INSERT INTO alert_log (watchlist_id, score) VALUES (%s, %s)",
+                                "INSERT INTO alert_log (watchlist_id, disruption_score) VALUES (%s, %s)",
                                 (watch_id, score),
                             )
                         conn2.commit()

@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { NearbySignal, TopRiskDetail } from "@/lib/api";
+import { fetchMapNarration, type NearbySignal, type TopRiskDetail } from "@/lib/api";
 
 type MapMode = "signals" | "heatmap";
+type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
 
 type MapViewProps = {
   latitude: number;
   longitude: number;
   address: string;
+  disruptionScore?: number;
   signals?: NearbySignal[];
   topRiskDetails?: TopRiskDetail[];
   isPro?: boolean;
@@ -168,6 +170,7 @@ export function MapView({
   latitude,
   longitude,
   address,
+  disruptionScore,
   signals = [],
   topRiskDetails: _topRiskDetails = [],
   isPro = false,
@@ -191,6 +194,14 @@ export function MapView({
   const [forecastActive, setForecastActive] = useState(false);
   const [forecastDay, setForecastDay] = useState(0);
   const [showRings, setShowRings] = useState(true);
+  const [showTransitLayer, setShowTransitLayer] = useState(true);
+  const [narration, setNarration] = useState<string | null>(null);
+  const [pendingNarration, setPendingNarration] = useState<{
+    type: NarrationInteraction;
+    clicked?: NearbySignal;
+    center?: { lat: number; lon: number };
+  } | null>(null);
+  const narrationSeqRef = useRef(0);
   const forecastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Effect 1: Create / recreate map when coordinates change ──────────────
@@ -221,6 +232,13 @@ export function MapView({
       });
 
       const map = L.map(containerRef.current).setView([latitude, longitude], 15);
+      map.on("moveend", () => {
+        const center = map.getCenter();
+        setPendingNarration({
+          type: "map_pan",
+          center: { lat: center.lat, lon: center.lng },
+        });
+      });
 
       L.tileLayer("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -283,17 +301,21 @@ export function MapView({
     const forecastDate = new Date(baseDate);
     forecastDate.setDate(forecastDate.getDate() + forecastDay);
 
+    const filteredSignals = showTransitLayer
+      ? signals
+      : signals.filter((s) => !(s.source || "").startsWith("cta"));
+
     const active = forecastActive
-      ? signals.filter((s) => isSignalActiveOnDay(s, forecastDate))
-      : signals;
+      ? filteredSignals.filter((s) => isSignalActiveOnDay(s, forecastDate))
+      : filteredSignals;
     const faded = forecastActive
-      ? signals.filter((s) => !isSignalActiveOnDay(s, forecastDate))
+      ? filteredSignals.filter((s) => !isSignalActiveOnDay(s, forecastDate))
       : [];
 
     // ── Debug: log signals to console so devtools can confirm data is present ──
     console.debug(
       "[MapView] rendering signals mode=%s active=%d faded=%d total=%d",
-      mapMode, active.length, faded.length, signals.length,
+      mapMode, active.length, faded.length, filteredSignals.length,
       active.slice(0, 3).map((s) => ({ lat: s.lat, lon: s.lon, type: s.impact_type, weight: s.weight })),
     );
 
@@ -332,7 +354,9 @@ export function MapView({
           fillColor: color,
           fillOpacity: isCrimeTrend ? 0.12 : 0.7,
           opacity: isCrimeTrend ? 0.8 : 0.9,
-        }).bindPopup(popup, { maxWidth: 260 }).addTo(signalGroup);
+        }).bindPopup(popup, { maxWidth: 260 })
+          .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+          .addTo(signalGroup);
       }
 
       // Faded (out-of-window) signals shown as ghost outlines.
@@ -379,7 +403,7 @@ export function MapView({
       if (!map.hasLayer(heatGroup)) heatGroup.addTo(map);
       if (map.hasLayer(signalGroup)) map.removeLayer(signalGroup);
     }
-  }, [mapVersion, signals, mapMode, forecastDay, forecastActive]);
+  }, [mapVersion, signals, mapMode, forecastDay, forecastActive, showTransitLayer]);
 
   // ── Effect 3: Start / stop forecast animation ─────────────────────────────
   useEffect(() => {
@@ -436,10 +460,52 @@ export function MapView({
     : "\u25b6 30-day forecast";
 
   // ── Signal counts per type (for legend badges) ────────────────────────────
+  const displayedSignals = useMemo(
+    () => (
+      showTransitLayer
+        ? signals
+        : signals.filter((s) => !(s.source || "").startsWith("cta"))
+    ),
+    [signals, showTransitLayer],
+  );
+
   const typeCounts: Record<string, number> = {};
-  for (const s of signals) {
+  for (const s of displayedSignals) {
     typeCounts[s.impact_type] = (typeCounts[s.impact_type] ?? 0) + 1;
   }
+
+  // Trigger default narration when signal set changes (including transit toggle).
+  useEffect(() => {
+    if (displayedSignals.length === 0) {
+      setNarration(null);
+      setPendingNarration(null);
+      return;
+    }
+    setPendingNarration({ type: "default_load" });
+  }, [address, displayedSignals.length]);
+
+  // Debounced narrator updates (800ms after interaction).
+  useEffect(() => {
+    if (!pendingNarration || displayedSignals.length === 0) return;
+    const timer = setTimeout(async () => {
+      const seq = ++narrationSeqRef.current;
+      const response = await fetchMapNarration({
+        address,
+        interaction_type: pendingNarration.type,
+        signals: displayedSignals,
+        top_signal_title: displayedSignals[0]?.title,
+        clicked_signal: pendingNarration.clicked,
+        original_score: Math.round(
+          disruptionScore ?? displayedSignals.reduce((sum, s) => sum + (s.weight || 0), 0),
+        ),
+        current_lat: pendingNarration.center?.lat,
+        current_lon: pendingNarration.center?.lon,
+      });
+      if (seq !== narrationSeqRef.current) return;
+      setNarration(response.narration);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [pendingNarration, address, displayedSignals]);
 
   return (
     <>
@@ -491,6 +557,28 @@ export function MapView({
           }}
         >
           &#8857; Rings
+        </button>
+
+        {/* CTA transit layer toggle */}
+        <button
+          type="button"
+          onClick={() => setShowTransitLayer((v) => !v)}
+          aria-pressed={showTransitLayer}
+          title="Toggle CTA service alert signals"
+          style={{
+            padding: "5px 13px",
+            fontSize: "0.74rem",
+            fontWeight: 600,
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "7px",
+            cursor: "pointer",
+            background: showTransitLayer ? "rgba(96,165,250,0.2)" : "rgba(255,255,255,0.04)",
+            color: showTransitLayer ? "#bfdbfe" : "var(--text-muted, #94a3b8)",
+            transition: "background 0.14s, color 0.14s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {showTransitLayer ? "🚇 Transit on" : "🚇 Transit off"}
         </button>
 
         {/* Forecast button */}
@@ -561,6 +649,32 @@ export function MapView({
         )}
       </div>
 
+      {/* Claude narrator panel (hidden if unavailable) */}
+      {narration && (
+        <div style={{
+          marginBottom: "10px",
+          padding: "10px 12px",
+          borderRadius: "8px",
+          border: "1px solid rgba(125,211,252,0.25)",
+          background: "rgba(14,116,144,0.14)",
+          color: "#dbeafe",
+          fontSize: "0.8rem",
+          lineHeight: 1.45,
+        }}>
+          <div style={{
+            fontSize: "0.65rem",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+            color: "#7dd3fc",
+            marginBottom: "4px",
+          }}>
+            Live area narrator
+          </div>
+          {narration}
+        </div>
+      )}
+
       {/* ── Forecast scrubber — Pro only, shown when forecast is active ───── */}
       {isPro && forecastActive && (
         <div style={{
@@ -600,7 +714,7 @@ export function MapView({
         <div
           ref={containerRef}
           style={{ height: "420px", width: "100%", borderRadius: "var(--radius, 6px)" }}
-          aria-label={`Map showing ${address} with ${signals.length} nearby signal${signals.length !== 1 ? "s" : ""}`}
+          aria-label={`Map showing ${address} with ${displayedSignals.length} nearby signal${displayedSignals.length !== 1 ? "s" : ""}`}
         />
 
         {/* Forecast overlay badge */}
@@ -636,10 +750,10 @@ export function MapView({
       </div>
 
       {/* ── Legend with signal counts ─────────────────────────────────────── */}
-      {signals.length > 0 && (
+      {displayedSignals.length > 0 && (
         <div className="map-legend" aria-label="Map legend">
           {ALL_IMPACT_TYPES
-            .filter((t) => signals.some((s) => s.impact_type === t))
+            .filter((t) => displayedSignals.some((s) => s.impact_type === t))
             .map((t) => (
               <span key={t} className="map-legend-item">
                 <span className="map-legend-dot" style={{ background: impactColor(t) }} />
