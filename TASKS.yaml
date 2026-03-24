@@ -11,8 +11,8 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-058 (tier-8 city expansion — 25 cities)
-# Next task to create: data-059
+# Last completed task: data-060 (fix utility_outage/utility_repair map display)
+# Next task to create: data-061
 
 tasks:
   - id: data-058
@@ -64,6 +64,24 @@ tasks:
         Boise ID, Richmond CA, Fremont CA, Irvine CA, San Bernardino CA,
         Modesto CA, Fontana CA, Moreno Valley CA, Lubbock TX, Garland TX,
         Chesapeake VA — documented in SKILL.md.
+
+  - id: data-060
+    title: Fix map display for utility_outage and utility_repair signal types
+    status: done
+    priority: high
+    github_issue: 169
+    notes_for_next_agent: >
+      data-046 (PR #168) added utility_outage and utility_repair to the backend
+      scoring model and to the ImpactType TS union in api.ts, but map-view.tsx
+      was never updated. This caused water main breaks and gas leak 311 signals
+      to render as gray unlabeled circles on the map.
+      Fix: added utility_outage (#7C3AED deep violet, 170m radius) and
+      utility_repair (#A78BFA light violet, 130m radius) to IMPACT_COLOR,
+      HEAT_RADIUS, IMPACT_LABEL, and ALL_IMPACT_TYPES in map-view.tsx.
+      Verified: 311 signals (potholes/cave-ins/trees), special events, and
+      film permits all render correctly using existing impact types.
+      CTA alerts also confirmed correct (map to standard types).
+      Next: data-059 (tier-8 dry-run validation) or data-038 (CDOT signal outage ingest).
 
   - id: data-059
     title: Dry-run validation for tier-8 city scripts (data-058)
