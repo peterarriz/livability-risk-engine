@@ -3,19 +3,28 @@ backend/ingest/spokane_crime_trends.py
 task: data-058
 lane: data
 
-Ingests Spokane Police Department (SPD) crime data and calculates
-12-month crime trends by precinct/sector.
+Ingests Spokane-area crime data from the Washington State NIBRS dataset
+on data.wa.gov and calculates year-over-year crime trends by agency.
 
 Source:
-  Socrata — data.spokanecity.org (City of Spokane Open Data)
-  Dataset: SPD Crime Incidents (MUST VERIFY dataset ID)
-  Verify: curl "https://data.spokanecity.org/api/catalog/v1?q=crime&limit=10"
-  Sample: curl "https://data.spokanecity.org/resource/{DATASET_ID}.json?$limit=1"
+  Socrata — data.wa.gov (Washington State Open Data)
+  Dataset: WA Uniform Crime Reporting – NIBRS (vvfu-ry7f)
+  Sample: curl "https://data.wa.gov/resource/vvfu-ry7f.json?location=Spokane%20Police%20Department&$limit=3&$order=indexyear%20DESC"
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    reported_date or crime_date — date of incident
-    precinct or sector          — geographic grouping
-    latitude, longitude         — incident coordinates
+  Key fields:
+    indexyear  — year of report
+    location   — agency name (e.g. "Spokane Police Department")
+    county     — county name (SPOKANE)
+    total      — total offenses
+    prsntotal  — person offenses
+    prprtytotal — property offenses
+    sctytotal  — society offenses
+    murder, assault, burglary, theft, robbery, etc. — individual categories
+
+  Note: Spokane does not publish incident-level crime data via Socrata.
+  The city's own portal (my.spokanecity.org) uses a proprietary dashboard
+  with no public API. This script uses the state-level NIBRS data instead,
+  which provides annual totals per law-enforcement agency.
 
 Output:
   data/raw/spokane_crime_trends.json
@@ -35,7 +44,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -44,18 +53,25 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_DOMAIN = "data.spokanecity.org"
-# MUST VERIFY dataset ID via: curl "https://data.spokanecity.org/api/catalog/v1?q=crime&limit=10"
-DATASET_ID = "4gj6-ujfi"
+SOCRATA_DOMAIN = "data.wa.gov"
+DATASET_ID = "vvfu-ry7f"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/spokane_crime_trends.json")
 
-# MUST VERIFY field names by running: python ... --dry-run
-DATE_FIELD = "reported_date"  # MUST VERIFY — may be "crime_date" or "date_reported"
-DISTRICT_FIELD = "precinct"   # MUST VERIFY — may be "sector" or "reporting_area"
-LAT_FIELD = "latitude"
-LON_FIELD = "longitude"
+# Agencies to include — covers the Spokane metro area
+SPOKANE_AGENCIES = [
+    "Spokane Police Department",
+    "Spokane County Sheriffs Office",
+    "Spokane Valley Police Department",
+]
+
+# Approximate centroids for each agency's jurisdiction
+AGENCY_COORDS: dict[str, tuple[float, float]] = {
+    "Spokane Police Department":       (47.6588, -117.4260),
+    "Spokane County Sheriffs Office":   (47.6200, -117.3600),
+    "Spokane Valley Police Department": (47.6733, -117.2394),
+}
 
 SPOKANE_LAT = 47.6587
 SPOKANE_LON = -117.4260
@@ -63,29 +79,15 @@ SPOKANE_LON = -117.4260
 STABLE_THRESHOLD_PCT = 5.0
 
 
-def _date_str(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT00:00:00")
-
-
-def fetch_crime_counts_with_centroids(
+def fetch_agency_year(
     app_token: str | None,
-    start_date: datetime,
-    end_date: datetime,
-) -> dict[str, dict]:
-    where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
-    )
+    agency: str,
+    year: int,
+) -> dict | None:
+    """Fetch a single agency-year record from the WA NIBRS dataset."""
     params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            f"avg({LAT_FIELD} :: number) as avg_lat, "
-            f"avg({LON_FIELD} :: number) as avg_lon"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 200,
+        "$where": f"location='{agency}' AND indexyear='{year}'",
+        "$limit": 1,
     }
     if app_token:
         params["$$app_token"] = app_token
@@ -97,26 +99,46 @@ def fetch_crime_counts_with_centroids(
     if isinstance(rows, dict) and "error" in rows:
         raise RuntimeError(f"Socrata query error: {rows}")
 
-    results: dict[str, dict] = {}
-    for row in rows:
-        district = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
-        if not district:
-            continue
-        try:
-            count = int(row.get("crime_count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[district] = {"count": count, "lat": avg_lat, "lon": avg_lon}
+    if not rows:
+        return None
+    return rows[0]
 
-    return results
+
+def fetch_available_years(
+    app_token: str | None,
+    agency: str,
+) -> list[int]:
+    """Return sorted list of years available for a given agency."""
+    params: dict = {
+        "$select": "indexyear",
+        "$where": f"location='{agency}'",
+        "$order": "indexyear DESC",
+        "$limit": 50,
+    }
+    if app_token:
+        params["$$app_token"] = app_token
+
+    resp = requests.get(CRIMES_URL, params=params, timeout=60)
+    resp.raise_for_status()
+    rows = resp.json()
+
+    if isinstance(rows, dict) and "error" in rows:
+        raise RuntimeError(f"Socrata query error: {rows}")
+
+    years = []
+    for row in rows:
+        try:
+            years.append(int(row["indexyear"]))
+        except (KeyError, ValueError):
+            continue
+    return sorted(years, reverse=True)
+
+
+def _safe_int(val) -> int:
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _classify_trend(current: int, prior: int) -> tuple[str, float]:
@@ -133,39 +155,65 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 
 
 def build_trend_records(
-    current_data: dict[str, dict],
-    prior_data: dict[str, dict],
+    current_rows: dict[str, dict | None],
+    prior_rows: dict[str, dict | None],
+    current_year: int,
+    prior_year: int,
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    """Build trend records comparing two years of data per agency."""
     records = []
-    for district in sorted(all_districts):
-        curr = current_data.get(district, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(district, {"count": 0, "lat": None, "lon": None})
-        current_count = curr["count"]
-        prior_count = prev["count"]
-        trend, trend_pct = _classify_trend(current_count, prior_count)
-        lat = curr["lat"] or prev["lat"]
-        lon = curr["lon"] or prev["lon"]
-        slug = district.lower().replace(" ", "_")
-        records.append({
-            "region_type": "precinct",
-            "region_id": f"spokane_precinct_{slug}",
-            "district_id": district,
-            "district_name": f"Spokane Precinct {district}",
-            "crime_12mo": current_count,
-            "crime_prior_12mo": prior_count,
+    for agency in SPOKANE_AGENCIES:
+        curr = current_rows.get(agency)
+        prev = prior_rows.get(agency)
+
+        current_total = _safe_int((curr or {}).get("total", 0))
+        prior_total = _safe_int((prev or {}).get("total", 0))
+        trend, trend_pct = _classify_trend(current_total, prior_total)
+
+        lat, lon = AGENCY_COORDS.get(agency, (SPOKANE_LAT, SPOKANE_LON))
+
+        slug = agency.lower().replace(" ", "_").replace("'", "")
+        region_id = f"spokane_{slug}"
+
+        # Build crime category breakdown from current year
+        categories = {}
+        if curr:
+            for field in [
+                "murder", "manslaughter", "forcible_sex", "assault",
+                "robbery", "burglary", "theft", "arson",
+                "destruction_of_property", "drug_violations",
+                "weapon_law_violation",
+            ]:
+                categories[field] = _safe_int(curr.get(field, 0))
+
+        record = {
+            "region_type": "agency",
+            "region_id": region_id,
+            "district_id": agency,
+            "district_name": agency,
+            "crime_12mo": current_total,
+            "crime_prior_12mo": prior_total,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": lat or SPOKANE_LAT,
-            "longitude": lon or SPOKANE_LON,
-        })
+            "current_year": current_year,
+            "prior_year": prior_year,
+            "person_crimes": _safe_int((curr or {}).get("prsntotal", 0)),
+            "property_crimes": _safe_int((curr or {}).get("prprtytotal", 0)),
+            "society_crimes": _safe_int((curr or {}).get("sctytotal", 0)),
+            "population": _safe_int((curr or {}).get("population", 0)),
+            "categories": categories,
+            "latitude": lat,
+            "longitude": lon,
+        }
+        records.append(record)
+
     return records
 
 
 def discover_datasets() -> None:
-    """Search Spokane Socrata portal for crime datasets."""
+    """Search data.wa.gov for Spokane-related crime datasets."""
     url = f"https://{SOCRATA_DOMAIN}/api/catalog/v1"
-    for q in ["crime", "police incident", "SPD"]:
+    for q in ["washington crime NIBRS", "uniform crime reporting", "spokane"]:
         resp = requests.get(url, params={"q": q, "limit": 5}, timeout=30)
         resp.raise_for_status()
         data = resp.json()
@@ -191,13 +239,13 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Spokane SPD crime trends by precinct from Socrata."
+        description="Ingest Spokane crime trends from WA State NIBRS data on data.wa.gov."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch data but do not write output file.")
     parser.add_argument("--discover", action="store_true",
-                        help="Search data.spokanecity.org for crime datasets.")
+                        help="Search data.wa.gov for crime datasets.")
     return parser.parse_args()
 
 
@@ -209,38 +257,42 @@ def main() -> None:
         discover_datasets()
         return
 
-    print(f"NOTE: DATASET_ID={DATASET_ID!r} MUST VERIFY. Run --discover to find the correct ID.")
-
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print(f"Fetching current 12-month Spokane crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
-    try:
-        current_data = fetch_crime_counts_with_centroids(app_token, current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
+    # Find the two most recent years with data for SPD
+    print("Fetching available years for Spokane Police Department...")
+    years = fetch_available_years(app_token, "Spokane Police Department")
+    if len(years) < 2:
+        print(f"ERROR: need at least 2 years of data, found {len(years)}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(current_data)} precincts with current crime data.")
+    current_year = years[0]
+    prior_year = years[1]
+    print(f"  Most recent years: {current_year} (current), {prior_year} (prior)")
 
-    print(f"\nFetching prior 12-month Spokane crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    try:
-        prior_data = fetch_crime_counts_with_centroids(app_token, prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} precincts with prior crime data.")
+    # Fetch data for each agency for both years
+    print(f"\nFetching {current_year} crime data for Spokane-area agencies...")
+    current_rows: dict[str, dict | None] = {}
+    for agency in SPOKANE_AGENCIES:
+        row = fetch_agency_year(app_token, agency, current_year)
+        current_rows[agency] = row
+        total = _safe_int((row or {}).get("total", 0))
+        print(f"  {agency}: {total:,} total offenses")
 
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} precinct trend records.")
+    print(f"\nFetching {prior_year} crime data for Spokane-area agencies...")
+    prior_rows: dict[str, dict | None] = {}
+    for agency in SPOKANE_AGENCIES:
+        row = fetch_agency_year(app_token, agency, prior_year)
+        prior_rows[agency] = row
+        total = _safe_int((row or {}).get("total", 0))
+        print(f"  {agency}: {total:,} total offenses")
+
+    records = build_trend_records(current_rows, prior_rows, current_year, prior_year)
+    print(f"\nBuilt {len(records)} agency trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} precincts")
+        print(f"  {trend}: {count} agencies")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

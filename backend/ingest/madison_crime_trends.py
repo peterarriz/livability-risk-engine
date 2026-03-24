@@ -4,18 +4,22 @@ task: data-058
 lane: data
 
 Ingests Madison Police Department (MPD) crime data and calculates
-12-month crime trends by police sector.
+12-month crime trends by incident type.
 
 Source:
-  Socrata — data.cityofmadison.com (City of Madison Open Data)
-  Dataset: Incidents Reported to Madison Police (MUST VERIFY dataset ID)
-  Verify: curl "https://data.cityofmadison.com/api/catalog/v1?q=crime+incident&limit=10"
-  Sample: curl "https://data.cityofmadison.com/resource/{DATASET_ID}.json?$limit=1"
+  ArcGIS Hub — data-cityofmadison.opendata.arcgis.com
+  Dataset: Police Incident Reports (ArcGIS item 61c36ee8e2d14cd094a265a288e27151)
+  Service: MapServer layer 2 on maps.cityofmadison.com (OPEN_DB_TABLES)
+  Download: GeoJSON bulk download via opendata.arcgis.com
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    Incident Date or date_of_incident — date of incident
-    Sector or police_sector          — geographic grouping
-    Latitude, Longitude              — incident coordinates
+  Note: This dataset contains selected incidents only (those chosen by the
+        Officer In Charge for public interest). Records have no geometry
+        (lat/lon) and no sector/district field, so trends are grouped by
+        IncidentType and use the city centroid for coordinates.
+
+  Key fields:
+    IncidentDate  — ISO-8601 date string (e.g. "2023-04-02T18:08:00Z")
+    IncidentType  — category of incident (e.g. "Robbery", "Battery")
 
 Output:
   data/raw/madison_crime_trends.json
@@ -24,16 +28,12 @@ Usage:
   python backend/ingest/madison_crime_trends.py
   python backend/ingest/madison_crime_trends.py --dry-run
   python backend/ingest/madison_crime_trends.py --discover
-
-Environment variables (optional):
-  SOCRATA_APP_TOKEN  — increases Socrata API rate limits
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -44,18 +44,21 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_DOMAIN = "data.cityofmadison.com"
-# MUST VERIFY dataset ID via: curl "https://data.cityofmadison.com/api/catalog/v1?q=incidents+police&limit=10"
-DATASET_ID = "68yf-zu8t"
-CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
+GEOJSON_URL = (
+    "https://opendata.arcgis.com/api/v3/datasets/"
+    "61c36ee8e2d14cd094a265a288e27151_2/downloads/data"
+    "?format=geojson&spatialRefId=4326"
+)
+
+SERVICE_URL = (
+    "https://maps.cityofmadison.com/arcgis/rest/services"
+    "/Public/OPEN_DB_TABLES/MapServer/2"
+)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/madison_crime_trends.json")
 
-# MUST VERIFY field names by running: python ... --dry-run
-DATE_FIELD = "incident_date"  # MUST VERIFY — may be "Incident Date" or "date_reported"
-DISTRICT_FIELD = "sector"     # MUST VERIFY — may be "Sector" or "police_sector"
-LAT_FIELD = "latitude"
-LON_FIELD = "longitude"
+DATE_FIELD = "IncidentDate"
+GROUP_FIELD = "IncidentType"
 
 MADISON_LAT = 43.0731
 MADISON_LON = -89.4012
@@ -63,59 +66,52 @@ MADISON_LON = -89.4012
 STABLE_THRESHOLD_PCT = 5.0
 
 
-def _date_str(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT00:00:00")
+def _parse_date(date_str: str) -> datetime | None:
+    """Parse ISO-8601 date string from the GeoJSON download."""
+    if not date_str:
+        return None
+    try:
+        # Handle "2023-04-02T18:08:00Z" format
+        return datetime.strptime(date_str.strip(), "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except (ValueError, TypeError):
+        return None
 
 
-def fetch_crime_counts_with_centroids(
-    app_token: str | None,
+def _fetch_all_features() -> list[dict]:
+    """Download the full GeoJSON dataset from ArcGIS Hub."""
+    print(f"  Downloading GeoJSON from ArcGIS Hub...")
+    resp = requests.get(GEOJSON_URL, timeout=120)
+    resp.raise_for_status()
+    data = resp.json()
+
+    if not isinstance(data, dict) or "features" not in data:
+        raise RuntimeError(f"Unexpected GeoJSON response: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+
+    return data["features"]
+
+
+def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
-) -> dict[str, dict]:
-    where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
-    )
-    params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            f"avg({LAT_FIELD} :: number) as avg_lat, "
-            f"avg({LON_FIELD} :: number) as avg_lon"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 200,
-    }
-    if app_token:
-        params["$$app_token"] = app_token
-
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    rows = resp.json()
-
-    if isinstance(rows, dict) and "error" in rows:
-        raise RuntimeError(f"Socrata query error: {rows}")
-
-    results: dict[str, dict] = {}
-    for row in rows:
-        district = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
-        if not district:
+    all_features: list[dict],
+) -> dict[str, int]:
+    """Filter pre-fetched GeoJSON features by date range and count by incident type."""
+    results: dict[str, int] = {}
+    for feature in all_features:
+        props = feature.get("properties", {})
+        date_val = _parse_date(str(props.get(DATE_FIELD) or ""))
+        if date_val is None:
             continue
-        try:
-            count = int(row.get("crime_count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[district] = {"count": count, "lat": avg_lat, "lon": avg_lon}
-
+        if not (start_date <= date_val < end_date):
+            continue
+        group = str(props.get(GROUP_FIELD) or "").strip()
+        if not group:
+            continue
+        results[group] = results.get(group, 0) + 1
     return results
 
 
@@ -133,53 +129,71 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 
 
 def build_trend_records(
-    current_data: dict[str, dict],
-    prior_data: dict[str, dict],
+    current_data: dict[str, int],
+    prior_data: dict[str, int],
+    period_label: str = "12mo",
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    all_groups = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for district in sorted(all_districts):
-        curr = current_data.get(district, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(district, {"count": 0, "lat": None, "lon": None})
-        current_count = curr["count"]
-        prior_count = prev["count"]
+    for group in sorted(all_groups):
+        current_count = current_data.get(group, 0)
+        prior_count = prior_data.get(group, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        lat = curr["lat"] or prev["lat"]
-        lon = curr["lon"] or prev["lon"]
-        slug = district.lower().replace(" ", "_")
+        slug = group.lower().replace(" ", "_").replace("/", "_")
         records.append({
-            "region_type": "sector",
-            "region_id": f"madison_sector_{slug}",
-            "district_id": district,
-            "district_name": f"Madison Sector {district}",
-            "crime_12mo": current_count,
-            "crime_prior_12mo": prior_count,
+            "region_type": "incident_type",
+            "region_id": f"madison_type_{slug}",
+            "district_id": group,
+            "district_name": group,
+            f"crime_{period_label}": current_count,
+            f"crime_prior_{period_label}": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": lat or MADISON_LAT,
-            "longitude": lon or MADISON_LON,
+            "latitude": MADISON_LAT,
+            "longitude": MADISON_LON,
         })
     return records
 
 
 def discover_datasets() -> None:
-    """Search Madison Socrata portal for crime datasets."""
-    url = f"https://{SOCRATA_DOMAIN}/api/catalog/v1"
-    for q in ["crime", "police incident", "MPD"]:
-        resp = requests.get(url, params={"q": q, "limit": 5}, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        print(f"\nQuery: {q!r}")
-        for r in data.get("results", []):
-            meta = r.get("resource", {})
-            print(f"  {meta.get('id')} — {meta.get('name')}")
+    """Print field names and date range from a sample of the dataset."""
+    print("Fetching Police Incident Reports from ArcGIS Hub...")
+    features = _fetch_all_features()
+    print(f"  Total features: {len(features)}")
+
+    if not features:
+        print("  No features found.")
+        return
+
+    # Show field names from first record
+    props = features[0].get("properties", {})
+    print(f"\n  Fields: {list(props.keys())}")
+
+    # Date range
+    dates = []
+    types: set[str] = set()
+    for f in features:
+        p = f.get("properties", {})
+        d = _parse_date(str(p.get(DATE_FIELD) or ""))
+        if d:
+            dates.append(d)
+        t = p.get(GROUP_FIELD, "")
+        if t:
+            types.add(t)
+
+    dates.sort()
+    if dates:
+        print(f"  Date range: {dates[0]:%Y-%m-%d} to {dates[-1]:%Y-%m-%d}")
+    print(f"\n  Incident types ({len(types)}):")
+    for t in sorted(types):
+        print(f"    {t}")
 
 
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "madison_crime_trends",
-        "source_url": CRIMES_URL,
+        "source_url": SERVICE_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -191,56 +205,69 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Madison MPD crime trends by sector from Socrata."
+        description="Ingest Madison MPD crime trends by incident type from ArcGIS Hub."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch data but do not write output file.")
     parser.add_argument("--discover", action="store_true",
-                        help="Search data.cityofmadison.com for crime datasets.")
+                        help="Show available fields and incident types.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    app_token = os.environ.get("SOCRATA_APP_TOKEN")
 
     if args.discover:
         discover_datasets()
         return
 
-    print(f"NOTE: DATASET_ID={DATASET_ID!r} MUST VERIFY. Run --discover to find the correct ID.")
+    print("Fetching all Madison Police Incident Reports from ArcGIS Hub...")
+    try:
+        all_features = _fetch_all_features()
+    except Exception as exc:
+        print(f"ERROR: failed to fetch records — {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"  Retrieved {len(all_features):,} total records.")
 
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
+    # Determine the latest date in the dataset to anchor our windows
+    dates = []
+    for f in all_features:
+        d = _parse_date(str(f.get("properties", {}).get(DATE_FIELD) or ""))
+        if d:
+            dates.append(d)
+    if not dates:
+        print("ERROR: no valid dates found in data.", file=sys.stderr)
+        sys.exit(1)
+
+    latest = max(dates)
+    print(f"  Latest incident date: {latest:%Y-%m-%d}")
+
+    # Use 12-month windows anchored to the latest date in the dataset
+    current_end = latest + timedelta(days=1)
+    current_start = current_end - timedelta(days=365)
+    prior_start = current_start - timedelta(days=365)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Madison crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
-    try:
-        current_data = fetch_crime_counts_with_centroids(app_token, current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(current_data)} sectors with current crime data.")
+    print(f"\nCounting current 12-month crimes ({current_start:%Y-%m-%d} -> {current_end:%Y-%m-%d})...")
+    current_data = fetch_crime_counts(current_start, current_end, all_features)
+    total_current = sum(current_data.values())
+    print(f"  {len(current_data)} incident types, {total_current:,} total incidents.")
 
-    print(f"\nFetching prior 12-month Madison crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    try:
-        prior_data = fetch_crime_counts_with_centroids(app_token, prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} sectors with prior crime data.")
+    print(f"\nCounting prior 12-month crimes ({prior_start:%Y-%m-%d} -> {prior_end:%Y-%m-%d})...")
+    prior_data = fetch_crime_counts(prior_start, prior_end, all_features)
+    total_prior = sum(prior_data.values())
+    print(f"  {len(prior_data)} incident types, {total_prior:,} total incidents.")
 
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} sector trend records.")
+    records = build_trend_records(current_data, prior_data, period_label="12mo")
+    print(f"\nBuilt {len(records)} incident-type trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} sectors")
+        print(f"  {trend}: {count} types")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

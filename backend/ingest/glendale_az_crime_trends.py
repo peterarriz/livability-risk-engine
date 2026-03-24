@@ -4,20 +4,19 @@ task: data-058
 lane: data
 
 Ingests Glendale, AZ Police Department (GPD) crime data and calculates
-12-month crime trends by district/beat.
+12-month crime trends by beat.
 
 NOTE: This is Glendale, AZ (Maricopa County), not Glendale, CA.
 
 Source:
   ArcGIS FeatureServer — Glendale AZ Open Data (ArcGIS Hub)
-  Portal: https://data.glendaleaz.gov  (or glendale-az.opendata.arcgis.com)
-  Service: GPD Crime Incidents (MUST VERIFY service URL)
-  Verify: Visit the Glendale AZ open data portal, search "crime incidents",
-          click API → copy FeatureServer/0 URL.
+  Portal: https://glendaleaz-cog-gis.hub.arcgis.com/
+  Service: GPD CRIME DATA REDACTED (Table ID 2)
+  Item: https://www.arcgis.com/home/item.html?id=2565b89bed184a89aa0300c85fe14c43
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    IncidentDate or OccurredOn — date of incident
-    District or Beat           — geographic grouping
+  Key fields:
+    Occurred_On_Date — date of incident
+    BEAT_GIS         — beat (geographic grouping)
 
 Output:
   data/raw/glendale_az_crime_trends.json
@@ -37,16 +36,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY: visit Glendale AZ open data portal → search "crime" → API tab
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/s0YYoMkpLLkb2IPC/arcgis/rest/services"
-    "/GPD_Crime_Incidents/FeatureServer/0"
+    "https://services1.arcgis.com/9fVTQQSiODPjLUTa/arcgis/rest/services"
+    "/GPD_CRIME_DATA_REDACTED/FeatureServer/2"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/glendale_az_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY — may be "OccurredOn" or "ReportDate"
-GROUP_FIELD = "District"     # MUST VERIFY — may be "Beat" or "Precinct"
+DATE_FIELD = "Occurred_On_Date"
+GROUP_FIELD = "BEAT_GIS"
 
 GLENDALE_AZ_LAT = 33.5387
 GLENDALE_AZ_LON = -112.1860
@@ -55,7 +53,8 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
+    """Return date string for ArcGIS date queries (single-quoted)."""
+    return f"'{dt.strftime('%Y-%m-%d')}'"
 
 
 def fetch_crime_counts(
@@ -91,11 +90,11 @@ def fetch_crime_counts(
     results: dict[str, int] = {}
     for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not district:
+        beat = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not beat:
             continue
         count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
+        results[beat] = results.get(beat, 0) + count
     return results
 
 
@@ -116,18 +115,18 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    all_beats = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for district in sorted(all_districts):
-        current_count = current_data.get(district, 0)
-        prior_count = prior_data.get(district, 0)
+    for beat in sorted(all_beats):
+        current_count = current_data.get(beat, 0)
+        prior_count = prior_data.get(beat, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = district.lower().replace(" ", "_")
+        slug = beat.lower().replace(" ", "_")
         records.append({
-            "region_type": "district",
-            "region_id": f"glendale_az_district_{slug}",
-            "district_id": district,
-            "district_name": f"Glendale AZ District {district}",
+            "region_type": "beat",
+            "region_id": f"glendale_az_beat_{slug}",
+            "beat_id": beat,
+            "beat_name": f"Glendale AZ Beat {beat}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -164,7 +163,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"NOTE: FEATURESERVER_URL MUST VERIFY — see script docstring.")
+    print("Glendale AZ crime trends ingest — GPD CRIME DATA REDACTED (FeatureServer/2)")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
@@ -178,7 +177,7 @@ def main() -> None:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_current = sum(current_data.values())
-    print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
+    print(f"  {len(current_data)} beats, {total_current:,} total crimes.")
 
     print(f"\nFetching prior 12-month Glendale AZ crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
@@ -187,17 +186,17 @@ def main() -> None:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_prior = sum(prior_data.values())
-    print(f"  {len(prior_data)} districts, {total_prior:,} total crimes.")
+    print(f"  {len(prior_data)} beats, {total_prior:,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} district trend records.")
+    print(f"\nBuilt {len(records)} beat trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} districts")
+        print(f"  {trend}: {count} beats")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

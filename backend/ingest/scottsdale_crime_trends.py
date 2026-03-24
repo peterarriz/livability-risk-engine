@@ -4,18 +4,18 @@ task: data-058
 lane: data
 
 Ingests Scottsdale Police Department (SPD) crime data and calculates
-12-month crime trends by district/beat.
+crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Scottsdale Open Data (ArcGIS Hub)
-  Portal: https://data.scottsdaleaz.gov  (or scottsdaleopendata.arcgis.com)
-  Service: SPD Crime Incidents (MUST VERIFY service URL)
-  Verify: Visit the Scottsdale open data portal, search "crime incidents",
-          click API → copy FeatureServer/0 URL.
+  Scottsdale Open Data — Police Incident Reports
+  Portal: https://data-cos-gis.hub.arcgis.com/datasets/police-incident-reports
+  Service: MapServer layer 4 on maps.scottsdaleaz.gov
+  Note: Only one rolling year of data is available. The script splits
+        that year into two 6-month halves to compute a trend.
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    IncidentDate or ReportDate — date of incident
-    District or Beat           — geographic grouping
+  Key fields:
+    DateOccurred  — date of incident (string, MM/DD/YYYY)
+    District      — two-letter district code (e.g. MK, FH)
 
 Output:
   data/raw/scottsdale_crime_trends.json
@@ -35,65 +35,87 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY: visit Scottsdale open data portal → search "crime" → API tab
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/4sF4h3aBrdOGHDuF/arcgis/rest/services"
-    "/SPD_Crime_Incidents/FeatureServer/0"
+SERVICE_URL = (
+    "https://maps.scottsdaleaz.gov/arcgis/rest/services"
+    "/OpenData_Tabular/MapServer/4"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/scottsdale_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"     # MUST VERIFY — may be "Beat" or "Precinct"
+DATE_FIELD = "DateOccurred"
+GROUP_FIELD = "District"
 
 SCOTTSDALE_LAT = 33.4942
 SCOTTSDALE_LON = -111.9261
 
 STABLE_THRESHOLD_PCT = 5.0
 
+MAX_RECORD_COUNT = 1000
 
-def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
+
+def _fetch_all_records() -> list[dict]:
+    """Paginate through the MapServer to retrieve all records."""
+    url = f"{SERVICE_URL}/query"
+    all_features: list[dict] = []
+    offset = 0
+
+    while True:
+        params = {
+            "where": "1=1",
+            "outFields": f"{DATE_FIELD},{GROUP_FIELD}",
+            "resultOffset": str(offset),
+            "resultRecordCount": str(MAX_RECORD_COUNT),
+            "f": "json",
+        }
+        resp = requests.get(url, params=params, timeout=60)
+        resp.raise_for_status()
+        payload = resp.json()
+
+        if "error" in payload:
+            raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+
+        features = payload.get("features", [])
+        if not features:
+            break
+
+        all_features.extend(features)
+        offset += len(features)
+
+        # If fewer than requested, we've reached the end
+        if len(features) < MAX_RECORD_COUNT:
+            break
+
+    return all_features
+
+
+def _parse_date(date_str: str) -> datetime | None:
+    """Parse MM/DD/YYYY date string."""
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str.strip(), "%m/%d/%Y")
+    except ValueError:
+        return None
 
 
 def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
+    all_records: list[dict],
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
-
-    where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
-    )
-
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
-
-    params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
-    }
-
-    resp = requests.post(url, data=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
-
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
-
+    """Filter pre-fetched records by date range and count by district."""
     results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
+    for feature in all_records:
+        attrs = feature.get("attributes", {})
+        date_val = _parse_date(str(attrs.get(DATE_FIELD) or ""))
+        if date_val is None:
+            continue
+        if not (start_date <= date_val < end_date):
+            continue
         district = str(attrs.get(GROUP_FIELD) or "").strip()
         if not district:
             continue
-        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
+        results[district] = results.get(district, 0) + 1
     return results
 
 
@@ -125,9 +147,9 @@ def build_trend_records(
             "region_type": "district",
             "region_id": f"scottsdale_district_{slug}",
             "district_id": district,
-            "district_name": f"Scottsdale District {district}",
-            "crime_12mo": current_count,
-            "crime_prior_12mo": prior_count,
+            "district_name": f"District {district}",
+            "crime_6mo": current_count,
+            "crime_prior_6mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
             "latitude": SCOTTSDALE_LAT,
@@ -140,7 +162,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "scottsdale_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source_url": SERVICE_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -162,28 +184,27 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"NOTE: FEATURESERVER_URL MUST VERIFY — see script docstring.")
+    # Scottsdale only publishes one rolling year of data, so we split
+    # it into two 6-month halves to compute a trend direction.
+    now = datetime.now()  # naive, matching parsed dates
+    midpoint = now - timedelta(days=182)
+    year_ago = now - timedelta(days=365)
 
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print(f"Fetching current 12-month Scottsdale crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    print(f"Fetching all Scottsdale police incident records...")
     try:
-        current_data = fetch_crime_counts(current_start, now)
+        all_records = _fetch_all_records()
     except Exception as exc:
-        print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
+        print(f"ERROR: failed to fetch records — {exc}", file=sys.stderr)
         sys.exit(1)
+    print(f"  Retrieved {len(all_records):,} total records.")
+
+    print(f"\nCounting recent 6-month crimes ({midpoint:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    current_data = fetch_crime_counts(midpoint, now, all_records)
     total_current = sum(current_data.values())
     print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
 
-    print(f"\nFetching prior 12-month Scottsdale crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
+    print(f"\nCounting prior 6-month crimes ({year_ago:%Y-%m-%d} → {midpoint:%Y-%m-%d})...")
+    prior_data = fetch_crime_counts(year_ago, midpoint, all_records)
     total_prior = sum(prior_data.values())
     print(f"  {len(prior_data)} districts, {total_prior:,} total crimes.")
 

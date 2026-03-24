@@ -7,25 +7,23 @@ Ingests St. Louis Metropolitan Police Department (SLMPD) crime data and
 calculates 12-month crime trends by neighborhood/district.
 
 Source:
-  SLMPD publishes annual and monthly crime CSV files at slmpd.org/stats/
-  Annual file URL pattern (MUST VERIFY):
-    https://www.slmpd.org/Crime/{year}Annual.csv
+  SLMPD publishes monthly NIBRS crime CSV files on their WordPress site.
+  URL pattern:
+    https://slmpd.org/wp-content/uploads/{upload_year}/{upload_month:02d}/{MonthName}{data_year}.csv
 
-  Verify available files:
-    curl -I "https://www.slmpd.org/Crime/2025Annual.csv"
-    curl -I "https://www.slmpd.org/Crime/2024Annual.csv"
+  The upload directory is the month *after* the data month.
+  E.g. January 2025 data lives at:
+    https://slmpd.org/wp-content/uploads/2025/02/January2025.csv
 
-  Alternatively, the SLMPD may publish monthly files:
-    https://www.slmpd.org/Crime/CrimeXtMonth.csv   (current month)
-    https://www.slmpd.org/Crime/{year}{month}.csv   (historical)
+  Landing page:
+    https://slmpd.org/stats/slmpd-downloadable-crime-files/
 
-  Key fields (MUST VERIFY field names by downloading a sample CSV):
-    Date         — date of incident (MM/DD/YYYY or similar)
-    NeighborhoodDesc (or District) — geographic grouping
-    Latitude, Longitude — incident coordinates
-
-  If the URL pattern returns 404, visit slmpd.org/stats/ to find the
-  current download links and update CSV_URL_TEMPLATE below.
+  Key CSV fields (NIBRS format):
+    IncidentDate   — date of incident ("M/D/YYYY H:M:S AM/PM")
+    Neighborhood   — neighborhood name
+    District       — police district number
+    Latitude       — incident latitude
+    Longitude      — incident longitude
 
 Output:
   data/raw/st_louis_crime_trends.json
@@ -52,49 +50,79 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# SLMPD annual crime CSV files.
-# MUST VERIFY URL pattern: visit https://www.slmpd.org/stats/ to confirm.
-# Typical pattern: https://www.slmpd.org/Crime/{year}Annual.csv
-CSV_URL_TEMPLATE = "https://www.slmpd.org/Crime/{year}Annual.csv"
+MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
 
-# Fallback: SLMPD also publishes a running YTD file
-CSV_CURRENT_MONTH_URL = "https://www.slmpd.org/Crime/CrimeXtMonth.csv"
+# Monthly NIBRS CSV URL pattern.
+# upload_year/upload_month is the month AFTER the data month.
+CSV_URL_TEMPLATE = (
+    "https://slmpd.org/wp-content/uploads/{upload_year}/{upload_month:02d}/"
+    "{month_name}{data_year}.csv"
+)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/st_louis_crime_trends.json")
 
-# MUST VERIFY: Run --dry-run to inspect the CSV headers and update these.
-# Common SLMPD field names include: "NeighborhoodDesc", "District",
-#   "Neighborhood", "CodedMonth", "DateOccur", "Latitude", "Longitude"
-DATE_FIELD = "DateOccur"           # MUST VERIFY
-DISTRICT_FIELD = "NeighborhoodDesc"  # MUST VERIFY — may be "District" or "Neighborhood"
-LAT_FIELD = "Latitude"             # MUST VERIFY
-LON_FIELD = "Longitude"            # MUST VERIFY
+# NIBRS CSV field names (verified 2025-12 file)
+DATE_FIELD = "IncidentDate"
+DISTRICT_FIELD = "Neighborhood"
+LAT_FIELD = "Latitude"
+LON_FIELD = "Longitude"
 
 ST_LOUIS_LAT = 38.6270
 ST_LOUIS_LON = -90.1994
 
 STABLE_THRESHOLD_PCT = 5.0
 
+REQUEST_HEADERS = {
+    "User-Agent": "livability-risk-engine/1.0 (data ingest)",
+}
 
-def _years_in_range(start: datetime, end: datetime) -> list[int]:
-    years = set()
-    d = start
-    while d <= end:
-        years.add(d.year)
-        d += timedelta(days=365)
-    years.add(end.year)
-    return sorted(years)
+
+def _monthly_csv_url(year: int, month: int) -> str:
+    """Build the download URL for a given data year/month."""
+    month_name = MONTH_NAMES[month - 1]
+    # Upload directory is the next month
+    upload_month = month + 1
+    upload_year = year
+    if upload_month > 12:
+        upload_month = 1
+        upload_year = year + 1
+    return CSV_URL_TEMPLATE.format(
+        upload_year=upload_year,
+        upload_month=upload_month,
+        month_name=month_name,
+        data_year=year,
+    )
+
+
+def _months_in_range(start: datetime, end: datetime) -> list[tuple[int, int]]:
+    """Return list of (year, month) tuples covering the date range."""
+    months = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        months.append((y, m))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return months
 
 
 def _parse_date(raw: str) -> str | None:
-    """Parse various SLMPD date formats and return YYYY-MM-DD or None."""
-    raw = raw.strip()
+    """Parse SLMPD date format and return YYYY-MM-DD or None.
+
+    SLMPD uses: "M/D/YYYY H:M:S AM" or "M/D/YYYY".
+    """
+    raw = raw.strip().strip('"')
     if not raw:
         return None
-    # Try MM/DD/YYYY
+    # Take just the date part (before the space/time)
+    date_part = raw.split(" ")[0] if " " in raw else raw
     try:
-        if "/" in raw:
-            parts = raw.split("/")
+        if "/" in date_part:
+            parts = date_part.split("/")
             if len(parts) == 3:
                 m, d, y = parts[0].zfill(2), parts[1].zfill(2), parts[2][:4]
                 return f"{y}-{m}-{d}"
@@ -106,24 +134,27 @@ def _parse_date(raw: str) -> str | None:
     return None
 
 
-def _fetch_and_count(
+def _fetch_month_csv(
     year: int,
+    month: int,
     start_date: datetime,
     end_date: datetime,
     dry_run: bool,
 ) -> dict[str, dict]:
-    """Download SLMPD annual CSV for one year, filter by date range, count by district."""
-    url = CSV_URL_TEMPLATE.format(year=year)
+    """Download one monthly SLMPD CSV, filter by date range, count by neighborhood."""
+    url = _monthly_csv_url(year, month)
     print(f"    Downloading {url}...", end=" ", flush=True)
 
     try:
-        resp = requests.get(url, timeout=120, stream=True)
+        resp = requests.get(url, timeout=120, headers=REQUEST_HEADERS)
         resp.raise_for_status()
     except requests.HTTPError as exc:
-        if exc.response is not None and exc.response.status_code == 404:
-            print(f"HTTP 404 — skipping year {year}")
-            return {}
-        raise
+        status = exc.response.status_code if exc.response is not None else "?"
+        print(f"HTTP {status} -- skipping {MONTH_NAMES[month-1]} {year}")
+        return {}
+    except requests.RequestException as exc:
+        print(f"ERROR: {exc}")
+        return {}
 
     start_iso = start_date.strftime("%Y-%m-%d")
     end_iso = end_date.strftime("%Y-%m-%d")
@@ -141,7 +172,7 @@ def _fetch_and_count(
             if dt_str < start_iso or dt_str >= end_iso:
                 continue
 
-            district = (row.get(DISTRICT_FIELD) or "").strip().upper()
+            district = (row.get(DISTRICT_FIELD) or "").strip()
             if not district:
                 continue
 
@@ -167,19 +198,12 @@ def _fetch_and_count(
                 break
 
     except Exception as exc:
-        print(f"WARN: CSV parse error for {year}: {exc}")
+        print(f"WARN: CSV parse error for {MONTH_NAMES[month-1]} {year}: {exc}")
         return {}
 
     total = sum(v["count"] for v in counts.values())
-    print(f"{total:,} matching crimes in {len(counts)} districts")
-
-    # Compute centroid averages
-    result: dict[str, dict] = {}
-    for dist, v in counts.items():
-        avg_lat = (v["lat_sum"] / v["n"]) if v["n"] > 0 else None
-        avg_lon = (v["lon_sum"] / v["n"]) if v["n"] > 0 else None
-        result[dist] = {"count": v["count"], "lat": avg_lat, "lon": avg_lon}
-    return result
+    print(f"{total:,} matching crimes in {len(counts)} neighborhoods")
+    return counts
 
 
 def fetch_crime_counts(
@@ -188,19 +212,31 @@ def fetch_crime_counts(
     dry_run: bool,
 ) -> dict[str, dict]:
     combined: dict[str, dict] = {}
-    for year in _years_in_range(start_date, end_date):
+    for year, month in _months_in_range(start_date, end_date):
         try:
-            year_counts = _fetch_and_count(year, start_date, end_date, dry_run)
-            for district, v in year_counts.items():
+            month_counts = _fetch_month_csv(year, month, start_date, end_date, dry_run)
+            for district, v in month_counts.items():
                 if district not in combined:
-                    combined[district] = {"count": 0, "lat": v["lat"], "lon": v["lon"]}
+                    combined[district] = {
+                        "count": 0,
+                        "lat_sum": 0.0,
+                        "lon_sum": 0.0,
+                        "n": 0,
+                    }
                 combined[district]["count"] += v["count"]
-                if v["lat"] and not combined[district]["lat"]:
-                    combined[district]["lat"] = v["lat"]
-                    combined[district]["lon"] = v["lon"]
+                combined[district]["lat_sum"] += v["lat_sum"]
+                combined[district]["lon_sum"] += v["lon_sum"]
+                combined[district]["n"] += v["n"]
         except Exception as exc:
-            print(f"WARN: year {year} — {exc}")
-    return combined
+            print(f"WARN: {MONTH_NAMES[month-1]} {year} -- {exc}")
+
+    # Compute centroid averages
+    result: dict[str, dict] = {}
+    for dist, v in combined.items():
+        avg_lat = (v["lat_sum"] / v["n"]) if v["n"] > 0 else None
+        avg_lon = (v["lon_sum"] / v["n"]) if v["n"] > 0 else None
+        result[dist] = {"count": v["count"], "lat": avg_lat, "lon": avg_lon}
+    return result
 
 
 def _classify_trend(current: int, prior: int) -> tuple[str, float]:
@@ -247,29 +283,32 @@ def build_trend_records(
 
 
 def discover_files() -> None:
-    """Check which SLMPD annual CSV files are available."""
-    print("Discovering SLMPD annual CSV files...")
-    for year in range(2019, datetime.now().year + 2):
-        url = CSV_URL_TEMPLATE.format(year=year)
-        try:
-            resp = requests.head(url, timeout=10, allow_redirects=True)
-            size = resp.headers.get("Content-Length", "?")
-            print(f"  {year}: HTTP {resp.status_code} — {url} (size={size})")
-        except Exception as exc:
-            print(f"  {year}: ERROR — {exc}")
-    # Also check the current month file
-    try:
-        resp = requests.head(CSV_CURRENT_MONTH_URL, timeout=10, allow_redirects=True)
-        print(f"  Current month: HTTP {resp.status_code} — {CSV_CURRENT_MONTH_URL}")
-    except Exception as exc:
-        print(f"  Current month: ERROR — {exc}")
+    """Check which SLMPD monthly CSV files are available."""
+    print("Discovering SLMPD monthly NIBRS CSV files...")
+    now = datetime.now(timezone.utc)
+    # Check from Jan 2024 through current month
+    start_year = now.year - 2
+    for year in range(start_year, now.year + 1):
+        for month in range(1, 13):
+            if (year, month) > (now.year, now.month):
+                break
+            url = _monthly_csv_url(year, month)
+            try:
+                resp = requests.head(
+                    url, timeout=10, allow_redirects=True, headers=REQUEST_HEADERS
+                )
+                size = resp.headers.get("Content-Length", "?")
+                status_mark = "OK" if resp.status_code == 200 else f"HTTP {resp.status_code}"
+                print(f"  {MONTH_NAMES[month-1]:>10} {year}: {status_mark:>8}  size={size}  {url}")
+            except Exception as exc:
+                print(f"  {MONTH_NAMES[month-1]:>10} {year}: ERROR -- {exc}")
 
 
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "st_louis_crime_trends",
-        "source_url": CSV_URL_TEMPLATE.format(year="YYYY"),
+        "source_url": "https://slmpd.org/stats/slmpd-downloadable-crime-files/",
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -290,7 +329,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--discover", action="store_true",
-        help="Check which SLMPD annual CSV files are available.",
+        help="Check which SLMPD monthly CSV files are available.",
     )
     return parser.parse_args()
 
@@ -307,21 +346,19 @@ def main() -> None:
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month St. Louis crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
-    print(f"  NOTE: Run --discover first to verify CSV URL pattern.")
-    print(f"  Field names (DATE_FIELD={DATE_FIELD!r}, DISTRICT_FIELD={DISTRICT_FIELD!r}) MUST VERIFY.")
+    print(f"Fetching current 12-month St. Louis crime counts ({current_start:%Y-%m-%d} -> {now:%Y-%m-%d})...")
     current_data = fetch_crime_counts(current_start, now, args.dry_run)
-    print(f"  {len(current_data)} districts with current data.")
+    print(f"  {len(current_data)} neighborhoods with current data.")
 
-    print(f"\nFetching prior 12-month St. Louis crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    print(f"\nFetching prior 12-month St. Louis crime counts ({prior_start:%Y-%m-%d} -> {prior_end:%Y-%m-%d})...")
     prior_data = fetch_crime_counts(prior_start, prior_end, args.dry_run)
-    print(f"  {len(prior_data)} districts with prior data.")
+    print(f"  {len(prior_data)} neighborhoods with prior data.")
 
     if not current_data and not prior_data:
         print(
             "ERROR: no data returned. CSV URL or field names may be wrong.\n"
             "  Run: python backend/ingest/st_louis_crime_trends.py --discover\n"
-            "  Then update CSV_URL_TEMPLATE, DATE_FIELD, DISTRICT_FIELD.",
+            "  Then check CSV_URL_TEMPLATE and field name constants.",
             file=sys.stderr,
         )
         sys.exit(1)

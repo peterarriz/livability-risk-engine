@@ -3,19 +3,17 @@ backend/ingest/chandler_crime_trends.py
 task: data-058
 lane: data
 
-Ingests Chandler Police Department (CPD) crime data and calculates
-12-month crime trends by district/beat.
+Ingests Chandler Police Department crime data (CSV) and calculates
+12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Chandler Open Data (data.chandleraz.gov, ArcGIS Hub)
-  Portal: https://data.chandleraz.gov
-  Service: CPD Crime Incidents (MUST VERIFY service URL)
-  Verify: Visit data.chandleraz.gov, search "crime incidents",
-          click API → copy FeatureServer/0 URL.
+  Chandler PD Open Data — General Offense Reports (CSV download)
+  Portal: https://data.chandlerpd.com/
+  CSV:    https://data.chandlerpd.com/catalog/general-offenses/download/csv/
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    IncidentDate or ReportDate — date of incident
-    District or Beat           — geographic grouping
+  Key fields:
+    report_event_date — date of incident  (YYYY-MM-DD)
+    report_district   — police district   (1-5)
 
 Output:
   data/raw/chandler_crime_trends.json
@@ -28,6 +26,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import sys
 from datetime import datetime, timedelta, timezone
@@ -35,16 +35,12 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY: visit data.chandleraz.gov → search "crime" → open dataset → API tab
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/SVsGn6WnqbDYPUgf/arcgis/rest/services"
-    "/CPD_Crime_Incidents/FeatureServer/0"
-)
+CSV_URL = "https://data.chandlerpd.com/catalog/general-offenses/download/csv/"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/chandler_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY — may be "ReportDate" or "date_reported"
-GROUP_FIELD = "District"     # MUST VERIFY — may be "Beat" or "Precinct"
+DATE_FIELD = "report_event_date"
+GROUP_FIELD = "report_district"
 
 CHANDLER_LAT = 33.3062
 CHANDLER_LON = -111.8413
@@ -52,49 +48,40 @@ CHANDLER_LON = -111.8413
 STABLE_THRESHOLD_PCT = 5.0
 
 
-def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
-
-
-def fetch_crime_counts(
+def fetch_and_count(
     start_date: datetime,
     end_date: datetime,
+    rows: list[dict],
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
-
-    where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
-    )
-
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
-
-    params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
-    }
-
-    resp = requests.post(url, data=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
-
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+    """Filter rows by date range and count by district."""
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
 
     results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
+    for row in rows:
+        event_date = row.get(DATE_FIELD, "").strip()
+        if not event_date:
+            continue
+        if event_date < start_str or event_date >= end_str:
+            continue
+        district = row.get(GROUP_FIELD, "").strip()
         if not district:
             continue
-        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
+        results[district] = results.get(district, 0) + 1
     return results
+
+
+def download_csv() -> list[dict]:
+    """Download the full CSV and return rows as list of dicts."""
+    print(f"  Downloading CSV from {CSV_URL}...")
+    resp = requests.get(CSV_URL, timeout=120)
+    resp.raise_for_status()
+
+    text = resp.text
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+    print(f"  Downloaded {len(rows):,} rows.")
+    return rows
 
 
 def _classify_trend(current: int, prior: int) -> tuple[str, float]:
@@ -140,7 +127,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "chandler_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source_url": CSV_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -152,7 +139,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Chandler CPD crime trends by district from ArcGIS FeatureServer."
+        description="Ingest Chandler PD crime trends by district from open data CSV."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true")
@@ -162,28 +149,25 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"NOTE: FEATURESERVER_URL MUST VERIFY — see script docstring.")
-
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Chandler crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    print("Downloading Chandler PD General Offense CSV...")
     try:
-        current_data = fetch_crime_counts(current_start, now)
+        rows = download_csv()
     except Exception as exc:
-        print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
+        print(f"ERROR: failed to download CSV — {exc}", file=sys.stderr)
         sys.exit(1)
+
+    print(f"\nCounting current 12-month crimes ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    current_data = fetch_and_count(current_start, now, rows)
     total_current = sum(current_data.values())
     print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
 
-    print(f"\nFetching prior 12-month Chandler crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
-        sys.exit(1)
+    print(f"\nCounting prior 12-month crimes ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    prior_data = fetch_and_count(prior_start, prior_end, rows)
     total_prior = sum(prior_data.values())
     print(f"  {len(prior_data)} districts, {total_prior:,} total crimes.")
 

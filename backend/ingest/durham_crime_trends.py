@@ -8,15 +8,14 @@ Ingests Durham Police Department (DPD) crime data and calculates
 
 Source:
   ArcGIS FeatureServer — Durham Open Data (ArcGIS Hub)
-  Portal: https://data-durhamnc.opendata.arcgis.com
-  Service: DPD Crime Incidents (MUST VERIFY service URL)
-  Verify: Visit data-durhamnc.opendata.arcgis.com, search "crime incidents",
-          click API → copy FeatureServer/0 URL.
+  Portal: https://live-durhamnc.opendata.arcgis.com
+  Service: Crime_Incidents
+  URL: https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services/Crime_Incidents/FeatureServer/0
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    DateOccur or IncidentDate — date of incident
-    District or Division      — geographic grouping
-    Latitude, Longitude       — incident coordinates
+  Key fields:
+    OffenseDate  — date of incident (esriFieldTypeDate)
+    District     — geographic grouping (e.g. "District 1" .. "District 5", "District O")
+    LAT, LON     — incident coordinates
 
 Output:
   data/raw/durham_crime_trends.json
@@ -36,18 +35,15 @@ from pathlib import Path
 
 import requests
 
-# ArcGIS Hub org for Durham, NC.
-# MUST VERIFY: visit data-durhamnc.opendata.arcgis.com → search "crime incidents"
-# → open dataset → click "API" → copy FeatureServer URL.
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/QLwOtBvdB5bFqPNF/arcgis/rest/services"
-    "/DPD_Crime_Incidents/FeatureServer/0"
+    "https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services"
+    "/Crime_Incidents/FeatureServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/durham_crime_trends.json")
 
-DATE_FIELD = "DateOccur"    # MUST VERIFY — may be "IncidentDate" or "date_reported"
-GROUP_FIELD = "District"    # MUST VERIFY — may be "Division" or "Sector"
+DATE_FIELD = "OffenseDate"
+GROUP_FIELD = "District"
 
 DURHAM_LAT = 35.9940
 DURHAM_LON = -78.8986
@@ -128,7 +124,7 @@ def build_trend_records(
             "region_type": "district",
             "region_id": f"durham_district_{slug}",
             "district_id": district,
-            "district_name": f"Durham District {district}",
+            "district_name": f"Durham {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -165,7 +161,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"NOTE: FEATURESERVER_URL MUST VERIFY — see script docstring.")
+    print(f"Durham crime trends ingest — source: {FEATURESERVER_URL}")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)

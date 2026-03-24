@@ -8,14 +8,12 @@ Ingests Gilbert Police Department (GPD) crime data and calculates
 
 Source:
   ArcGIS FeatureServer — Gilbert Open Data (ArcGIS Hub)
-  Portal: https://data.gilbertaz.gov  (or gilbertopendata.arcgis.com)
-  Service: GPD Crime Incidents (MUST VERIFY service URL)
-  Verify: Visit the Gilbert open data portal, search "crime incidents",
-          click API → copy FeatureServer/0 URL.
+  Portal: https://data.gilbertaz.gov
+  Service: Crime_Incidents FeatureServer/0
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    IncidentDate or OccurredOn — date of incident
-    District or Beat           — geographic grouping
+  Key fields (verified 2026-03-24):
+    OffenseDate — date of incident
+    District    — geographic grouping
 
 Output:
   data/raw/gilbert_crime_trends.json
@@ -35,16 +33,15 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY: visit Gilbert open data portal → search "crime" → API tab
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/K1VMQDQNLVxLvLqs/arcgis/rest/services"
-    "/GPD_Crime_Incidents/FeatureServer/0"
+    "https://services3.arcgis.com/dty2kHktVXHrqO8i/ArcGIS/rest/services"
+    "/Crime_Incidents/FeatureServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/gilbert_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY — may be "OccurredOn" or "ReportDate"
-GROUP_FIELD = "District"     # MUST VERIFY — may be "Beat" or "Precinct"
+DATE_FIELD = "OffenseDate"
+GROUP_FIELD = "District"
 
 GILBERT_LAT = 33.3528
 GILBERT_LON = -111.7890
@@ -125,7 +122,7 @@ def build_trend_records(
             "region_type": "district",
             "region_id": f"gilbert_district_{slug}",
             "district_id": district,
-            "district_name": f"Gilbert District {district}",
+            "district_name": f"Gilbert {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -162,7 +159,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"NOTE: FEATURESERVER_URL MUST VERIFY — see script docstring.")
+    print(f"Source: {FEATURESERVER_URL}")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
