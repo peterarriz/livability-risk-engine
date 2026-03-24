@@ -41,7 +41,12 @@ export type ImpactType =
   | "closure_single_lane"
   | "demolition"
   | "construction"
-  | "light_permit";
+  | "road_construction"
+  | "light_permit"
+  // Crime trend signals (data-054)
+  | "crime_trend_increasing"
+  | "crime_trend_decreasing"
+  | "crime_trend_stable";
 
 export type NearbySignal = {
   lat: number;

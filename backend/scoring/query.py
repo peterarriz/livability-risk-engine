@@ -649,40 +649,40 @@ def get_neighborhood_context(
 
 
 # ---------------------------------------------------------------------------
-# Nearby crime trend signals  (data-054)
+# Crime trend map signals  (data-054)
 # ---------------------------------------------------------------------------
-# Returns 0-1 informational signal for the nearest community area crime trend.
-# Uses haversine lat/lon math (no PostGIS) consistent with the projects query.
-# The signal is appended to nearby_signals in _score_live() but does NOT
-# contribute to the disruption_score — it is map context only.
 
-_CRIME_SEARCH_RADIUS_M = 3000   # community-area centroids can be ~1–2 mi away
-
-NEARBY_CRIME_SIGNALS_SQL = """
+# SQL fetches the nearest community_area record from neighborhood_quality,
+# extracts centroid lat/lon from the stored POINT geometry, and computes
+# haversine distance from the query coordinate.
+CRIME_SIGNALS_SQL = """
     SELECT
-        community_name,
-        crime_trend,
+        region_id,
         crime_12mo,
+        crime_prior_12mo,
+        crime_trend,
         crime_trend_pct,
-        latitude,
-        longitude,
+        ST_Y(geom) AS centroid_lat,
+        ST_X(geom) AS centroid_lon,
         6371000.0 * 2.0 * asin(
             sqrt(
-                power(sin(radians((latitude - %s) / 2.0)), 2) +
-                cos(radians(%s)) * cos(radians(latitude)) *
-                power(sin(radians((longitude - %s) / 2.0)), 2)
+                power(sin(radians((ST_Y(geom) - %s) / 2.0)), 2) +
+                cos(radians(%s)) * cos(radians(ST_Y(geom))) *
+                power(sin(radians((ST_X(geom) - %s) / 2.0)), 2)
             )
         ) AS distance_m
     FROM neighborhood_quality
-    WHERE
-        region_type = 'community_area'
-        AND latitude  IS NOT NULL
-        AND longitude IS NOT NULL
-        AND latitude  BETWEEN %s AND %s
-        AND longitude BETWEEN %s AND %s
-    ORDER BY distance_m ASC
+    WHERE region_type = 'community_area' AND geom IS NOT NULL
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
     LIMIT 1;
 """
+
+# Maps crime_trend string from the DB → synthetic impact_type for the map.
+_CRIME_TREND_IMPACT = {
+    "INCREASING": "crime_trend_increasing",
+    "DECREASING": "crime_trend_decreasing",
+    "STABLE":     "crime_trend_stable",
+}
 
 
 def get_nearby_crime_signals(
@@ -691,70 +691,62 @@ def get_nearby_crime_signals(
     db_conn,
 ) -> list[dict]:
     """
-    Return 0-1 informational map signals for the nearest community area
-    crime trend from the neighborhood_quality table.
+    Return a synthetic nearby_signals entry for the nearest crime community area.
 
-    These are displayed on the map but do NOT affect disruption_score.
-    Returns [] if neighborhood_quality is empty or not yet populated.
+    Queries neighborhood_quality for the nearest community_area record using
+    PostGIS KNN ordering and haversine distance math. Maps crime_trend to a
+    synthetic impact_type (crime_trend_increasing / _decreasing / _stable)
+    and returns a signal dict in the same shape as nearby_signals from
+    compute_score() so the map renderer can display it without changes.
 
     Args:
         lat: Query latitude (WGS84).
         lon: Query longitude (WGS84).
         db_conn: An open psycopg2 connection.
+
+    Returns:
+        A list with 0 or 1 signal dict. Empty list if the table is absent,
+        empty, or an error occurs (graceful degradation).
     """
     if not HAS_PSYCOPG2:
         return []
 
-    lat_delta = _CRIME_SEARCH_RADIUS_M / 111_000.0
-    lon_delta = _CRIME_SEARCH_RADIUS_M / (111_000.0 * math.cos(math.radians(lat)) + 1e-9)
-
     try:
         with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute(
-                NEARBY_CRIME_SIGNALS_SQL,
-                (
-                    lat, lat, lon,
-                    lat - lat_delta, lat + lat_delta,
-                    lon - lon_delta, lon + lon_delta,
-                ),
-            )
+            cur.execute(CRIME_SIGNALS_SQL, (lat, lat, lon, lon, lat))
             row = cur.fetchone()
     except Exception:
-        # neighborhood_quality table may not exist yet (pre data-040).
         return []
 
     if not row:
         return []
 
-    trend = (row["crime_trend"] or "STABLE").upper()
-    # impact_type drives the map colour: crime_trend_increasing / decreasing / stable
-    impact_type = f"crime_trend_{trend.lower()}"
+    crime_trend = (row["crime_trend"] or "").upper()
+    impact_type = _CRIME_TREND_IMPACT.get(crime_trend, "crime_trend_stable")
 
-    pct = row["crime_trend_pct"]
-    pct_str = f" ({float(pct):+.0f}%)" if pct is not None else ""
-    count = row["crime_12mo"] or 0
-    title = (
-        f"{row['community_name']}: crime {trend.lower()}{pct_str}"
-        f" \u2014 {int(count):,} incidents/yr"
+    crime_12mo = row["crime_12mo"] or 0
+    crime_trend_pct = (
+        float(row["crime_trend_pct"]) if row["crime_trend_pct"] is not None else None
     )
 
-    severity_hint = (
-        "HIGH" if trend == "INCREASING"
-        else "LOW" if trend == "DECREASING"
-        else "MEDIUM"
-    )
+    trend_word = crime_trend.capitalize() if crime_trend else "Stable"
+    pct_str = f" ({crime_trend_pct:+.0f}%)" if crime_trend_pct is not None else ""
+    title = f"Crime trend: {trend_word}{pct_str} · {crime_12mo:,} incidents (12 mo)"
+
+    severity_map = {"INCREASING": "HIGH", "STABLE": "MEDIUM", "DECREASING": "LOW"}
 
     return [{
-        "lat": float(row["latitude"]),
-        "lon": float(row["longitude"]),
+        "lat": row["centroid_lat"],
+        "lon": row["centroid_lon"],
         "impact_type": impact_type,
         "title": title,
-        "distance_m": round(float(row["distance_m"])),
-        "severity_hint": severity_hint,
-        "weight": 0,        # informational only — excluded from disruption_score
+        "address": None,
         "source": "chicago_crime_trends",
         "start_date": None,
         "end_date": None,
+        "distance_m": round(float(row["distance_m"])),
+        "severity_hint": severity_map.get(crime_trend, "MEDIUM"),
+        "weight": 0.0,
     }]
 
 

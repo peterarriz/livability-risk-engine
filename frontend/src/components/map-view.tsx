@@ -29,10 +29,10 @@ const IMPACT_COLOR: Record<string, string> = {
   construction:        "#F59E0B", // amber
   road_construction:   "#F97316", // orange
   light_permit:        "#3B82F6", // blue
-  // Crime trend signals — neighbourhood context layer (data-055)
-  crime_trend_increasing: "#DC2626", // deep red
-  crime_trend_decreasing: "#10B981", // emerald green
-  crime_trend_stable:     "#64748b", // slate gray
+  // Crime trend signals (data-054)
+  crime_trend_increasing: "#DC2626", // dark red — elevated risk
+  crime_trend_stable:     "#6B7280", // slate gray — neutral
+  crime_trend_decreasing: "#16A34A", // green — improving
 };
 const DEFAULT_COLOR = "#94a3b8";
 
@@ -50,9 +50,10 @@ const HEAT_RADIUS: Record<string, number> = {
   construction:        130,
   road_construction:   155,
   light_permit:        95,
-  crime_trend_increasing: 400,
-  crime_trend_decreasing: 400,
-  crime_trend_stable:     400,
+  // Crime trend signals (data-054) — large radius to convey neighborhood-level scope
+  crime_trend_increasing: 500,
+  crime_trend_stable:     450,
+  crime_trend_decreasing: 450,
 };
 const DEFAULT_HEAT_RADIUS = 120;
 
@@ -65,9 +66,10 @@ const IMPACT_LABEL: Record<string, string> = {
   construction:        "Active construction",
   road_construction:   "Road construction",
   light_permit:        "Permitted work",
-  crime_trend_increasing: "Crime trend: rising",
-  crime_trend_decreasing: "Crime trend: falling",
+  // Crime trend signals (data-054)
+  crime_trend_increasing: "Crime trend: increasing",
   crime_trend_stable:     "Crime trend: stable",
+  crime_trend_decreasing: "Crime trend: decreasing",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -92,8 +94,7 @@ const DISTANCE_RINGS = [
 const ALL_IMPACT_TYPES = [
   "closure_full", "closure_multi_lane", "closure_single_lane",
   "demolition", "construction", "road_construction", "light_permit",
-  // Crime trend context signals (data-055)
-  "crime_trend_increasing", "crime_trend_decreasing", "crime_trend_stable",
+  "crime_trend_increasing", "crime_trend_stable", "crime_trend_decreasing",
 ] as const;
 
 function impactLabel(t: string) { return IMPACT_LABEL[t] ?? t; }
