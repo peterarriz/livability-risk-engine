@@ -1,26 +1,27 @@
 """
-backend/ingest/gilbert_crime_trends.py
-task: data-058, data-059
+backend/ingest/cary_crime_trends.py
+task: data-059
 lane: data
 
-Ingests Gilbert Police Department (GPD) crime data and calculates
+Ingests Cary NC Police Department crime data and calculates
 12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Gilbert AZ Open Data
-  Portal: https://data.gilbertaz.gov
-  Service: GPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
+  OpenDataSoft — Town of Cary Open Data
+  Portal: https://data.townofcary.org
+  Dataset: cpd-incidents
 
-  Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+  Key fields (verified 2026-03-24):
+    date_from   — date/time of incident start
+    district    — police district (e.g. "CPDS")
+    beat_number — beat within district
 
 Output:
-  data/raw/gilbert_crime_trends.json
+  data/raw/cary_crime_trends.json
 
 Usage:
-  python backend/ingest/gilbert_crime_trends.py
-  python backend/ingest/gilbert_crime_trends.py --dry-run
+  python backend/ingest/cary_crime_trends.py
+  python backend/ingest/cary_crime_trends.py --dry-run
 """
 
 from __future__ import annotations
@@ -33,63 +34,46 @@ from pathlib import Path
 
 import requests
 
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/K1VMQDQNLVxLvLqs/ArcGIS/rest/services"
-    "/GPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
-)
+API_BASE = "https://data.townofcary.org/api/v2/catalog/datasets/cpd-incidents"
 
-DEFAULT_OUTPUT_PATH = Path("data/raw/gilbert_crime_trends.json")
+DEFAULT_OUTPUT_PATH = Path("data/raw/cary_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = "date_from"
+GROUP_FIELD = "district"
 
-GILBERT_LAT = 33.3528
-GILBERT_LON = -111.7890
+CARY_LAT = 35.7915
+CARY_LON = -78.7811
 
 STABLE_THRESHOLD_PCT = 5.0
-
-
-def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
 
 
 def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
+    """Query OpenDataSoft aggregation API to get counts grouped by district."""
+    url = f"{API_BASE}/aggregates"
 
-    where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
-    )
-
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
+    start_str = start_date.strftime("%Y-%m-%dT%H:%M:%S")
+    end_str = end_date.strftime("%Y-%m-%dT%H:%M:%S")
 
     params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
+        "select": f"{GROUP_FIELD}, count(*) as crime_count",
+        "where": f"{DATE_FIELD} >= '{start_str}' AND {DATE_FIELD} < '{end_str}'",
+        "group_by": GROUP_FIELD,
+        "limit": 100,
     }
 
-    resp = requests.post(url, data=params, timeout=60)
+    resp = requests.get(url, params=params, timeout=60)
     resp.raise_for_status()
     payload = resp.json()
 
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
-
     results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
+    for agg in payload.get("aggregations", []):
+        district = str(agg.get(GROUP_FIELD) or "").strip()
         if not district:
             continue
-        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
+        count = int(agg.get("crime_count", 0))
         results[district] = results.get(district, 0) + count
     return results
 
@@ -120,15 +104,15 @@ def build_trend_records(
         slug = district.lower().replace(" ", "_")
         records.append({
             "region_type": "district",
-            "region_id": f"gilbert_district_{slug}",
+            "region_id": f"cary_district_{slug}",
             "district_id": district,
-            "district_name": f"Gilbert {district}",
+            "district_name": f"Cary {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": GILBERT_LAT,
-            "longitude": GILBERT_LON,
+            "latitude": CARY_LAT,
+            "longitude": CARY_LON,
         })
     return records
 
@@ -136,8 +120,8 @@ def build_trend_records(
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
-        "source": "gilbert_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source": "cary_crime_trends",
+        "source_url": API_BASE,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -149,7 +133,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Gilbert GPD crime trends by district from ArcGIS FeatureServer."
+        description="Ingest Cary NC CPD crime trends by district from OpenDataSoft."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true")
@@ -159,14 +143,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"Source: {FEATURESERVER_URL}")
+    print(f"Cary NC crime trends ingest — source: {API_BASE}")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Gilbert crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    print(f"Fetching current 12-month Cary crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
     try:
         current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
@@ -175,7 +159,7 @@ def main() -> None:
     total_current = sum(current_data.values())
     print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
 
-    print(f"\nFetching prior 12-month Gilbert crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    print(f"\nFetching prior 12-month Cary crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
         prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:

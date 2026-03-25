@@ -240,14 +240,46 @@ ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS livability_score INT NOT NULL DEFAULT 0;
 ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS livability_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb;
+-- data-062: lat/lon for geographic aggregation in /score-trend
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
     ON score_history (address, scored_at DESC);
+CREATE INDEX IF NOT EXISTS score_history_latlon_idx
+    ON score_history (latitude, longitude)
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 COMMENT ON TABLE score_history IS
     'Saved score snapshots per address (data-025). Each row is a /score response '
     'stored so the frontend can render a sparkline trend over time. '
     'Only live-mode scores are written.';
+
+
+-- ---------------------------------------------------------------------------
+-- Amenity richness cache  (data-064)
+--
+-- Caches OSM Overpass API results keyed on a 0.01° lat/lon bucket
+-- (~800 m grid square at Chicago's latitude).  TTL = 7 days.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS amenity_cache (
+    id            BIGSERIAL   PRIMARY KEY,
+    lat_bucket    NUMERIC(6,2) NOT NULL,   -- round(lat, 2)
+    lon_bucket    NUMERIC(6,2) NOT NULL,   -- round(lon, 2)
+    amenities     JSONB        NOT NULL DEFAULT '[]',
+    amenity_score INT          NOT NULL DEFAULT 0,
+    fetched_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS amenity_cache_bucket_idx
+    ON amenity_cache (lat_bucket, lon_bucket);
+
+COMMENT ON TABLE amenity_cache IS
+    'Cached OSM Overpass amenity results per 0.01° grid cell (data-064). '
+    'Rows older than 7 days are treated as stale and re-fetched on next request.';
 
 
 -- ---------------------------------------------------------------------------
