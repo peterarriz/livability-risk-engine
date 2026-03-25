@@ -695,11 +695,59 @@ export async function fetchAddressSuggestions(
       debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, status: resp.status, query: q });
       return [];
     }
-    const data = (await resp.json()) as { suggestions?: AddressSuggestion[] };
-    const suggestions = (data.suggestions ?? []).filter(
-      (s) => Boolean(s?.canonical_id) && Boolean(s?.display_address),
-    );
-    const deduped = Array.from(new Map(suggestions.map((s) => [s.canonical_id, s])).values()).slice(0, limit);
+    const data = (await resp.json()) as {
+      suggestions?: Array<
+        | string
+        | {
+          canonical_id?: string | number | null;
+          id?: string | number | null;
+          display_address?: string | null;
+          display?: string | null;
+          label?: string | null;
+          address?: string | null;
+          city?: string | null;
+          state?: string | null;
+          zip?: string | null;
+          lat?: number | null;
+          lon?: number | null;
+        }
+      >;
+    };
+    const rawSuggestions = data.suggestions ?? [];
+    const mapped = rawSuggestions.map((item): AddressSuggestion | null => {
+      if (typeof item === "string") {
+        const display = item.trim();
+        if (!display) return null;
+        return { canonical_id: null, display_address: display };
+      }
+      const display = (item.display_address ?? item.display ?? item.label ?? item.address ?? "").trim();
+      if (!display) return null;
+      const canonicalRaw = item.canonical_id ?? item.id ?? null;
+      const canonical_id = canonicalRaw == null ? null : String(canonicalRaw);
+      return {
+        canonical_id,
+        display_address: display,
+        city: item.city ?? null,
+        state: item.state ?? null,
+        zip: item.zip ?? null,
+        lat: typeof item.lat === "number" ? item.lat : null,
+        lon: typeof item.lon === "number" ? item.lon : null,
+      };
+    }).filter((s): s is AddressSuggestion => Boolean(s?.display_address));
+    const deduped = Array.from(
+      new Map(
+        mapped.map((s) => [s.canonical_id ? `id:${s.canonical_id}` : `display:${normalizeAddressQuery(s.display_address)}`, s]),
+      ).values(),
+    ).slice(0, limit);
+    debugSearchFlow("SEARCH_MAPPING", {
+      source: "backend_suggest",
+      endpoint: "/suggest",
+      query: q,
+      raw_count: rawSuggestions.length,
+      mapped_count: mapped.length,
+      missing_canonical_count: mapped.filter((s) => !s.canonical_id).length,
+      dropped_count: Math.max(0, rawSuggestions.length - mapped.length),
+    });
     debugSearchFlow("SEARCH_RESPONSE", {
       source: "backend_suggest",
       endpoint: "/suggest",

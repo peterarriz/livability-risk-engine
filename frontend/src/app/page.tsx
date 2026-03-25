@@ -21,7 +21,6 @@ import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
-import { normalizeAddressQuery } from "@/lib/address-utils";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -384,11 +383,21 @@ export default function HomePage() {
     });
   }, [dashboardHydrationStatus, dashboardUnavailableReason, result, scoreHistory.length]);
 
+  useEffect(() => {
+    debugSearchFlow("DROPDOWN_RENDER", {
+      input: address,
+      show_suggestions: showSuggestions,
+      suggestion_count: suggestions.length,
+      loading: suggestionsLoading,
+      error: suggestionsError,
+      has_panel: hasSuggestionPanel,
+      has_suggestions: hasSuggestions,
+    });
+  }, [address, hasSuggestionPanel, hasSuggestions, showSuggestions, suggestions.length, suggestionsError, suggestionsLoading]);
+
   function toManualSuggestion(displayAddress: string): AddressSuggestion {
-    const normalized = normalizeAddressQuery(displayAddress);
-    const canonicalId = `manual_${normalized.replace(/[^a-z0-9]+/g, "_")}`;
     return {
-      canonical_id: canonicalId,
+      canonical_id: null,
       display_address: displayAddress,
       lat: null,
       lon: null,
@@ -710,10 +719,10 @@ export default function HomePage() {
                           const addr = getSuggestionAddressParts(suggestion);
                           const locality = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ").replace(", ,", ",");
                           const isActive = index === activeSuggestionIndex;
-                          const isSelected = selectedAddress?.id === suggestion.canonical_id;
+                          const isSelected = Boolean(selectedAddress?.id) && selectedAddress?.id === suggestion.canonical_id;
                           return (
                         <li
-                          key={suggestion.canonical_id}
+                          key={suggestion.canonical_id ?? `${suggestion.display_address}-${index}`}
                           id={`address-suggestion-${index}`}
                           role="option"
                           aria-selected={isActive}

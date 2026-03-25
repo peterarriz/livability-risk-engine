@@ -1,5 +1,5 @@
 export type AddressSuggestion = {
-  canonical_id: string;
+  canonical_id?: string | null;
   display_address: string;
   city?: string | null;
   state?: string | null;
@@ -9,7 +9,7 @@ export type AddressSuggestion = {
 };
 
 export type SelectedAddress = {
-  id: string;
+  id: string | null;
   label: string;
   lat: number | null;
   lon: number | null;
