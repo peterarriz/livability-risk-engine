@@ -408,7 +408,7 @@ export default function HomePage() {
   function handleSuggestionSelect(suggestion: AddressSuggestion, options: { submit?: boolean } = { submit: true }) {
     const parts = getSuggestionAddressParts(suggestion);
     const selected: SelectedAddress = {
-      id: suggestion.canonical_id,
+      id: suggestion.canonical_id ?? null,
       label: suggestion.display_address,
       lat: suggestion.lat ?? null,
       lon: suggestion.lon ?? null,
