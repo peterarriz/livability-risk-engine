@@ -10,7 +10,7 @@ Source:
   ArcGIS FeatureServer — COJ.net open data portal
   Service: JSO Crime Incidents
 
-  MUST VERIFY service URL before production:
+  not live-verified service URL before production:
     python backend/ingest/jacksonville_crime_trends.py --discover
     Or visit: https://www.coj.net/departments/information-technology/gis.aspx
     Or search: https://geo.coj.net

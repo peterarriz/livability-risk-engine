@@ -277,7 +277,7 @@ CITY_CONFIGS: list[dict] = [
         # Portal: https://data.sfgov.org
         # Dataset: "Building Permits" (i98e-djp9)
         # Verified pattern: data.sfgov.org uses Socrata.
-        # MUST VERIFY dataset_id and field names before production:
+        # Dataset ID and field names researched, not live-verified before production:
         #   curl "https://data.sfgov.org/api/catalog/v1?q=building+permits&limit=5"
         #   curl "https://data.sfgov.org/resource/i98e-djp9.json?$limit=1"
         # Note: No top-level lat/lon fields — coordinates are in "location"
@@ -310,7 +310,7 @@ CITY_CONFIGS: list[dict] = [
         # Washington DC — Building Permits.
         # Portal: https://opendata.dc.gov
         # Dataset: "Building Permits" (addl-w6ut or similar)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://opendata.dc.gov/api/catalog/v1?q=building+permits&limit=5"
         "city_name":        "Washington DC",
         "source_key":       "dc",
@@ -331,7 +331,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Oklahoma City — Building Permits.
         # Portal: https://data.okc.gov
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.okc.gov/api/catalog/v1?q=building+permits&limit=5"
         "city_name":        "Oklahoma City",
         "source_key":       "oklahoma_city",
@@ -352,7 +352,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Louisville — Building Permits.
         # Portal: https://data.louisvilleky.gov
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.louisvilleky.gov/api/catalog/v1?q=building+permits&limit=5"
         "city_name":        "Louisville",
         "source_key":       "louisville",
@@ -373,7 +373,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Fresno — Building Permits.
         # Portal: https://data.fresno.gov
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.fresno.gov/api/catalog/v1?q=building+permits&limit=5"
         "city_name":        "Fresno",
         "source_key":       "fresno",
@@ -394,7 +394,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Sacramento — Building Permits.
         # Portal: https://data.cityofsacramento.org
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.cityofsacramento.org/api/catalog/v1?q=building+permits&limit=5"
         "city_name":        "Sacramento",
         "source_key":       "sacramento",
@@ -429,7 +429,7 @@ CITY_CONFIGS: list[dict] = [
         # New Orleans — Building Permits.
         # Portal: https://data.nola.gov (Socrata)
         # Dataset: "Permits" (rcm3-fn58)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.nola.gov/api/catalog/v1?q=permits&limit=5"
         # data-056: added 2026-03-24
         "city_name":        "New Orleans",
@@ -452,7 +452,7 @@ CITY_CONFIGS: list[dict] = [
         # Cincinnati — Building Permits.
         # Portal: https://data.cincinnati-oh.gov (Socrata)
         # Dataset: "Permits" (uhjb-xac9)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.cincinnati-oh.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-056: added 2026-03-24
         "city_name":        "Cincinnati",
@@ -475,7 +475,7 @@ CITY_CONFIGS: list[dict] = [
         # Buffalo — Building Permits.
         # Portal: https://data.buffalony.gov (Socrata)
         # Dataset: "Building Permits" (9p2d-f3yt)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.buffalony.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-056: added 2026-03-24
         "city_name":        "Buffalo",
@@ -498,7 +498,7 @@ CITY_CONFIGS: list[dict] = [
         # Raleigh, NC — Building Permits.
         # Portal: https://data.raleighnc.gov (Socrata)
         # Dataset: Building Permits (NIBRS/development permits)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.raleighnc.gov/api/catalog/v1?q=building+permits&limit=5"
         #   curl "https://data.raleighnc.gov/resource/k4n2-jcgh.json?$limit=1"
         # data-050: added 2026-03-23
@@ -521,7 +521,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tampa, FL — Building Permits.
         # Portal: https://opendata.tampa.gov (Socrata)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://opendata.tampa.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-057: added 2026-03-24
         "city_name":        "Tampa",
@@ -543,7 +543,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Miami-Dade, FL — Building Permits.
         # Portal: https://opendata.miamidade.gov (Socrata)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://opendata.miamidade.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-057: added 2026-03-24
         "city_name":        "Miami-Dade",
@@ -565,7 +565,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # St. Louis, MO — Building Permits.
         # Portal: https://data.stlouis-mo.gov (Socrata)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.stlouis-mo.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-057: added 2026-03-24
         "city_name":        "St. Louis",
@@ -587,7 +587,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Baton Rouge, LA — Building and Trade Permits.
         # Portal: https://data.brla.gov (Socrata — CONFIRMED)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.brla.gov/api/catalog/v1?q=building+permits&limit=5"
         # data-057: added 2026-03-24
         "city_name":        "Baton Rouge",
@@ -608,8 +608,8 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Lexington, KY — Building Permits.
-        # Portal: https://data.lexingtonky.gov (Socrata — MUST VERIFY)
-        # MUST VERIFY portal type and dataset_id:
+        # Portal: https://data.lexingtonky.gov (Socrata — not live-verified)
+        # not live-verified portal type and dataset_id:
         #   curl "https://data.lexingtonky.gov/api/catalog/v1?q=building+permits&limit=5"
         #   If that returns 404/HTML, the portal may be ArcGIS Hub not Socrata.
         # data-057: added 2026-03-24
@@ -635,14 +635,14 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tallahassee, FL — Building Permits.
         # Portal: https://data.talgov.com (Socrata — City of Tallahassee Open Data)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.talgov.com/api/catalog/v1?q=building+permits&limit=10"
         #   curl "https://data.talgov.com/resource/<id>.json?$limit=1"
         # data-068: added 2026-03-25
         "city_name":        "Tallahassee",
         "source_key":       "tallahassee",
         "domain":           "data.talgov.com",
-        "dataset_id":       "ax5x-ixcm",  # MUST VERIFY
+        "dataset_id":       "ax5x-ixcm",  # not live-verified
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -663,14 +663,14 @@ CITY_CONFIGS: list[dict] = [
     {
         # Dayton, OH — Building Permits.
         # Portal: https://data.dayton.gov (Socrata — City of Dayton Open Data)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.dayton.gov/api/catalog/v1?q=building+permits&limit=10"
         #   curl "https://data.dayton.gov/resource/<id>.json?$limit=1"
         # data-070: added 2026-03-25
         "city_name":        "Dayton",
         "source_key":       "dayton",
         "domain":           "data.dayton.gov",
-        "dataset_id":       "kpz4-qmte",  # MUST VERIFY
+        "dataset_id":       "kpz4-qmte",  # not live-verified
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -691,14 +691,14 @@ CITY_CONFIGS: list[dict] = [
     {
         # Honolulu, HI — Building Permits.
         # Portal: https://data.honolulu.gov (Socrata — City and County of Honolulu)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
         #   curl "https://data.honolulu.gov/resource/<id>.json?$limit=1"
         # data-071: added 2026-03-25
         "city_name":        "Honolulu",
         "source_key":       "honolulu",
         "domain":           "data.honolulu.gov",
-        "dataset_id":       "msx3-yfxc",  # MUST VERIFY
+        "dataset_id":       "msx3-yfxc",  # not live-verified
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -719,7 +719,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Anchorage, AK — Building Permits.
         # Portal: https://data.muni.org (Socrata — Municipality of Anchorage)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.muni.org/api/catalog/v1?q=building+permits&limit=5"
         #   curl "https://data.muni.org/resource/73xi-i4bq.json?$limit=1"
         # data-058: added 2026-03-24
@@ -742,7 +742,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Madison, WI — Building Permits.
         # Portal: https://data.cityofmadison.com (Socrata)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.cityofmadison.com/api/catalog/v1?q=building+permits&limit=5"
         # data-058: added 2026-03-24
         "city_name":        "Madison",
@@ -764,7 +764,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Spokane, WA — Building Permits.
         # Portal: https://data.spokanecity.org (Socrata)
-        # MUST VERIFY dataset_id and field names:
+        # Dataset ID and field names researched, not live-verified:
         #   curl "https://data.spokanecity.org/api/catalog/v1?q=building+permits&limit=5"
         # data-058: added 2026-03-24
         "city_name":        "Spokane",

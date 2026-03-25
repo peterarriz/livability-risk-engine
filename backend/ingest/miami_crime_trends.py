@@ -9,10 +9,10 @@ trends by district.
 Source:
   Socrata — opendata.miamidade.gov
   Dataset: Miami-Dade Police Department Crime Statistics
-  Dataset ID: kp8e-sznm (MUST VERIFY via catalog API)
+  Dataset ID: kp8e-sznm (not live-verified via catalog API)
   Verify: curl "https://opendata.miamidade.gov/api/catalog/v1?q=crime+police&limit=5"
 
-  Key fields (MUST VERIFY field names via --dry-run):
+  Key fields (not live-verified field names via --dry-run):
     occurred_date — date of incident
     district      — police district
     latitude      — incident latitude
@@ -47,14 +47,14 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "opendata.miamidade.gov"
-# MUST VERIFY dataset ID via: curl "https://opendata.miamidade.gov/api/catalog/v1?q=crime+police&limit=5"
+# not live-verified dataset ID via: curl "https://opendata.miamidade.gov/api/catalog/v1?q=crime+police&limit=5"
 DATASET_ID = "kp8e-sznm"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/miami_crime_trends.json")
 
-DATE_FIELD = "occurred_date"   # MUST VERIFY
-DISTRICT_FIELD = "district"    # MUST VERIFY — may be "region", "zone", or "area"
+DATE_FIELD = "occurred_date"   # not live-verified
+DISTRICT_FIELD = "district"    # not live-verified — may be "region", "zone", or "area"
 LAT_FIELD = "latitude"
 LON_FIELD = "longitude"
 

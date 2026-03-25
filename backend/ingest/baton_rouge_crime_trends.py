@@ -9,13 +9,13 @@ crime trends by district/zone.
 Source:
   Socrata — data.brla.gov (CONFIRMED Socrata instance)
   Dataset: BRPD Calls for Service / Crime Incidents
-  Dataset ID: fabb-cnnu (MUST VERIFY via catalog API)
-  Verify: curl "https://data.brla.gov/api/catalog/v1?q=crime+police&limit=5"
+  Dataset ID: fabb-cnnu (researched 2026-03-24, not live-verified)
+  To verify: curl "https://data.brla.gov/api/catalog/v1?q=crime+police&limit=5"
 
-  Key fields (MUST VERIFY field names via --dry-run):
+  Key fields (not live-verified — run --dry-run to confirm field names):
     create_dt     — date of incident/call
     site_address  — address of incident (may not have district field)
-    district      — patrol district (MUST VERIFY — may not exist)
+    district      — patrol district (may not exist in this dataset)
     latitude      — incident latitude
     longitude     — incident longitude
 
@@ -49,7 +49,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "data.brla.gov"
-# MUST VERIFY dataset ID via: curl "https://data.brla.gov/api/catalog/v1?q=crime&limit=5"
+# Dataset ID researched 2026-03-24: curl "https://data.brla.gov/api/catalog/v1?q=crime&limit=5"
 DATASET_ID = "pbin-pcm7"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 

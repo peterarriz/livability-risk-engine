@@ -8,16 +8,16 @@ crime trends by district.
 
 Source:
   ArcGIS FeatureServer — opendata.lincoln.ne.gov (City of Lincoln Open Data)
-  Estimated org: services.arcgis.com/ZPeUDkbFEf7WXNID (MUST VERIFY)
-  Service: LPD_Crime_Incidents/FeatureServer/0 (MUST VERIFY)
+  Estimated org: services.arcgis.com/ZPeUDkbFEf7WXNID (researched 2026-03-25, not live-verified)
+  Service: LPD_Crime_Incidents/FeatureServer/0 (researched 2026-03-25, not live-verified)
 
-  To verify:
+  To verify or fix:
     1. Visit https://opendata.lincoln.ne.gov
     2. Search "police incidents" or "crime"
     3. Click "I want to use this" → "API Explorer" to get FeatureServer URL
     4. Or run: --discover flag
 
-  Key fields (MUST VERIFY):
+  Key fields (not live-verified — run --dry-run to confirm):
     IncidentDate  — date of incident
     ReportDistrict — patrol district/beat
 
@@ -43,7 +43,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://opendata.lincoln.ne.gov and find the correct
+# Endpoint researched 2026-03-25, not live-verified: visit https://opendata.lincoln.ne.gov and find the correct
 # FeatureServer URL for Lincoln PD crime incidents.
 FEATURESERVER_URL = (
     "https://services.arcgis.com/ZPeUDkbFEf7WXNID/arcgis/rest/services"
@@ -52,7 +52,7 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/lincoln_crime_trends.json")
 
-# MUST VERIFY field names match the actual dataset schema.
+# Endpoint researched 2026-03-25, not live-verified field names match the actual dataset schema.
 DATE_FIELD = "IncidentDate"
 GROUP_FIELD = "ReportDistrict"
 
@@ -174,7 +174,7 @@ def main() -> None:
     args = parse_args()
 
     print(f"Lincoln crime trends ingest — source: {FEATURESERVER_URL}")
-    print("NOTE: Service URL is MUST VERIFY — run --dry-run with network access to confirm.")
+    print("NOTE: Service URL is Endpoint researched 2026-03-25, not live-verified — run --dry-run with network access to confirm.")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)

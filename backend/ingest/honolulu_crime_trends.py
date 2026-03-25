@@ -8,14 +8,14 @@ crime trends by district.
 
 Source:
   Socrata — data.honolulu.gov (City and County of Honolulu Open Data)
-  Dataset: HPD Incident Reports (MUST VERIFY dataset ID)
-  Estimated dataset ID: kfre-e9j5 (MUST VERIFY)
+  Dataset: HPD Incident Reports
+  Dataset ID: kfre-e9j5 (researched 2026-03-25, not live-verified)
 
-  To verify:
+  To verify or fix:
     curl "https://data.honolulu.gov/api/catalog/v1?q=crime+incidents&limit=10"
     curl "https://data.honolulu.gov/resource/kfre-e9j5.json?$limit=1"
 
-  Key fields (MUST VERIFY):
+  Key fields (not live-verified — run --dry-run to confirm):
     incident_date — date of incident
     district      — police district
 
@@ -44,13 +44,12 @@ import requests
 
 SOCRATA_DOMAIN = "data.honolulu.gov"
 
-# MUST VERIFY: run --discover or visit https://data.honolulu.gov to find
-# the correct dataset ID for HPD incident reports.
-DATASET_ID = "kfre-e9j5"  # MUST VERIFY
+# Dataset ID researched 2026-03-25; run --discover to confirm.
+DATASET_ID = "kfre-e9j5"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/honolulu_crime_trends.json")
 
-# MUST VERIFY field names match the actual dataset schema.
+# Field names researched 2026-03-25; run --dry-run to confirm schema.
 DATE_FIELD = "incident_date"
 GROUP_FIELD = "district"
 
@@ -183,7 +182,7 @@ def main() -> None:
         return
 
     print(f"Honolulu crime trends ingest — {SOCRATA_DOMAIN} / {DATASET_ID}")
-    print("NOTE: Dataset ID is MUST VERIFY — run --discover with network access to confirm.")
+    print("NOTE: Dataset ID not live-verified — run --discover with network access to confirm.")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
