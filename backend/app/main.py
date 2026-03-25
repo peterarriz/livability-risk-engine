@@ -64,6 +64,17 @@ def _debug_search_flow(stage: str, **payload) -> None:
 
 app = FastAPI(title="Livability Risk Engine")
 
+# Log env var configuration state at startup so Railway logs surface
+# missing-variable problems immediately (values are never logged).
+logging.basicConfig(level=logging.INFO)
+log.info(
+    "startup config: DATABASE_URL=%s CLERK_SECRET_KEY=%s REQUIRE_API_KEY=%s FRONTEND_ORIGIN=%s",
+    "set" if os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST") else "MISSING",
+    "set" if os.environ.get("CLERK_SECRET_KEY") else "MISSING",
+    os.environ.get("REQUIRE_API_KEY", "false"),
+    os.environ.get("FRONTEND_ORIGIN", "(not set — using hardcoded default)"),
+)
+
 # ---------------------------------------------------------------------------
 # CORS middleware
 # Allows the Next.js dev server (localhost:3000) to call the API directly.
