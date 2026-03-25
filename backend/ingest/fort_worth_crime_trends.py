@@ -14,17 +14,17 @@ Source:
     python backend/ingest/fort_worth_crime_trends.py --discover
     Or visit: https://data.fortworthtexas.gov and search "crime" or "police"
 
-  Estimated service URL:
-    https://services.arcgis.com/AHCzmZstRKFEQEqv/arcgis/rest/services
-    /FWPD_Crime/FeatureServer/0
+  Verified service URL:
+    https://services5.arcgis.com/3ddLCBXe1bRt7mzj/arcgis/rest/services
+    /CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0
 
   Verify sample record:
     curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
 
-  Key fields (MUST VERIFY via sample query):
-    FromDate      — date of incident
-    Division      — FWPD division
-    Latitude, Longitude — coordinates
+  Key fields (verified via sample query):
+    From_Date     — date of incident (string, ISO 8601)
+    Division      — FWPD division (Central, East, North, Northwest, South, West)
+    Reported_Date — report date (string, ISO 8601)
 
 Output:
   data/raw/fort_worth_crime_trends.json — division crime trend records
@@ -49,19 +49,17 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://data.fortworthtexas.gov, search "crime" or
-# "police incidents", open the dataset, click "API" → copy FeatureServer URL.
+# Verified: Fort Worth Open Data Police Crime Data on ArcGIS Online (services5)
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/AHCzmZstRKFEQEqv/arcgis/rest/services"
-    "/FWPD_Crime/FeatureServer/0"
+    "https://services5.arcgis.com/3ddLCBXe1bRt7mzj/arcgis/rest/services"
+    "/CFW_Open_Data_Police_Crime_Data_Table_view/FeatureServer/0"
 )
-PORTAL_ORG_ID = "AHCzmZstRKFEQEqv"
+PORTAL_ORG_ID = "3ddLCBXe1bRt7mzj"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/fort_worth_crime_trends.json")
 
-# MUST VERIFY field names via sample query:
-#   curl "{FEATURESERVER_URL}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "FromDate"
+# Verified field names — From_Date is a STRING field (ISO 8601), not a date type
+DATE_FIELD = "From_Date"
 GROUP_FIELD = "Division"
 
 FORT_WORTH_LAT = 32.7555
@@ -71,7 +69,8 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
+    # From_Date is a string field (ISO 8601), so use string comparison
+    return f"'{dt.strftime('%Y-%m-%dT%H:%M:%S')}'"
 
 
 def fetch_crime_counts(

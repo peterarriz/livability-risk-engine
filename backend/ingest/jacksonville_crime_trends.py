@@ -15,21 +15,17 @@ Source:
     Or visit: https://www.coj.net/departments/information-technology/gis.aspx
     Or search: https://geo.coj.net
 
-  Estimated service URL (JSO is on geo.coj.net ArcGIS Server):
-    https://geo.coj.net/arcgis/rest/services/PublicSafety
-    /JSO_Crime/MapServer/0
-
-  Alternative: ArcGIS Online hosted service
-    https://services.arcgis.com/Dv0qhb5jJMSEEVJL/arcgis/rest/services
-    /JSO_Crime_Incidents/FeatureServer/0
+  Verified service URL (ArcGIS Online, services3):
+    https://services3.arcgis.com/7C7xW0yv6W8spzhp/arcgis/rest/services
+    /Public_Transparency_Data_View/FeatureServer/0
 
   Verify sample record:
     curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
 
-  Key fields (MUST VERIFY via sample query):
-    IncidentDate  — date of incident
-    Zone          — JSO patrol zone
-    Latitude, Longitude — coordinates
+  Key fields (verified via sample query):
+    IncidentDateTime  — date of incident
+    ZipCode           — zip code (no Zone field in data)
+    nibrsDescription  — NIBRS crime description
 
 Output:
   data/raw/jacksonville_crime_trends.json — zone crime trend records
@@ -54,20 +50,18 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://geo.coj.net or https://www.coj.net open data,
-# search "crime" or "JSO incidents", and copy the FeatureServer/MapServer URL.
+# Verified: JSO Transparency Data on ArcGIS Online (services3)
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/Dv0qhb5jJMSEEVJL/arcgis/rest/services"
-    "/JSO_Crime_Incidents/FeatureServer/0"
+    "https://services3.arcgis.com/7C7xW0yv6W8spzhp/arcgis/rest/services"
+    "/Public_Transparency_Data_View/FeatureServer/0"
 )
-PORTAL_ORG_ID = "Dv0qhb5jJMSEEVJL"
+PORTAL_ORG_ID = "7C7xW0yv6W8spzhp"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/jacksonville_crime_trends.json")
 
-# MUST VERIFY field names via sample query:
-#   curl "{FEATURESERVER_URL}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "IncidentDate"
-GROUP_FIELD = "Zone"
+# Verified field names via sample query
+DATE_FIELD = "IncidentDateTime"
+GROUP_FIELD = "ZipCode"
 
 JACKSONVILLE_LAT = 30.3322
 JACKSONVILLE_LON = -81.6557
@@ -112,11 +106,11 @@ def fetch_crime_counts(
     results: dict[str, int] = {}
     for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        zone = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not zone:
+        zipcode = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not zipcode:
             continue
         count = int(attrs.get("crime_count", 0) or attrs.get("CRIME_COUNT", 0))
-        results[zone] = results.get(zone, 0) + count
+        results[zipcode] = results.get(zipcode, 0) + count
     return results
 
 
@@ -137,18 +131,17 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_zones = set(current_data.keys()) | set(prior_data.keys())
+    all_zips = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for zone in sorted(all_zones):
-        current_count = current_data.get(zone, 0)
-        prior_count = prior_data.get(zone, 0)
+    for zipcode in sorted(all_zips):
+        current_count = current_data.get(zipcode, 0)
+        prior_count = prior_data.get(zipcode, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = zone.lower().replace(" ", "_")
         records.append({
-            "region_type": "zone",
-            "region_id": f"jacksonville_zone_{slug}",
-            "district_id": zone,
-            "district_name": f"Jacksonville JSO Zone {zone}",
+            "region_type": "zipcode",
+            "region_id": f"jacksonville_zip_{zipcode}",
+            "district_id": zipcode,
+            "district_name": f"Jacksonville ZIP {zipcode}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -226,7 +219,7 @@ def main() -> None:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_current = sum(current_data.values())
-    print(f"  {len(current_data)} zones, {total_current:,} total crimes.")
+    print(f"  {len(current_data)} zip codes, {total_current:,} total crimes.")
 
     print(f"\nFetching prior 12-month Jacksonville crime counts "
           f"({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
@@ -236,7 +229,7 @@ def main() -> None:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_prior = sum(prior_data.values())
-    print(f"  {len(prior_data)} zones, {total_prior:,} total crimes.")
+    print(f"  {len(prior_data)} zip codes, {total_prior:,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
     print(f"\nBuilt {len(records)} zone trend records.")
@@ -246,7 +239,7 @@ def main() -> None:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} zones")
+        print(f"  {trend}: {count} zip codes")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")
