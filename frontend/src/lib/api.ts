@@ -1535,3 +1535,69 @@ export async function fetchAuthMe(backendToken: string): Promise<AuthUser | null
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// API key management  (app-025)
+// All functions require a Clerk session token from useAuth().getToken().
+// ---------------------------------------------------------------------------
+
+export type ApiKeyRecord = {
+  id: number;
+  prefix: string;
+  masked_key: string;
+  label: string;
+  is_active: boolean;
+  call_count: number;
+  last_called_at: string | null;
+  created_at: string | null;
+};
+
+export type CreateKeyResponse = {
+  key: string;       // plaintext — shown once, never stored
+  prefix: string;
+  id: number;
+  label: string;
+};
+
+function clerkAuthHeaders(token: string): HeadersInit {
+  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+}
+
+/** Generate a new API key for the signed-in user. */
+export async function createApiKey(
+  token: string,
+  label = "",
+): Promise<CreateKeyResponse> {
+  const resp = await fetch(buildApiUrl("/keys").toString(), {
+    method: "POST",
+    headers: clerkAuthHeaders(token),
+    body: JSON.stringify({ label }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Failed to create API key");
+  }
+  return (await resp.json()) as CreateKeyResponse;
+}
+
+/** List the signed-in user's API keys (masked). */
+export async function listApiKeys(token: string): Promise<ApiKeyRecord[]> {
+  const resp = await fetch(buildApiUrl("/keys").toString(), {
+    headers: clerkAuthHeaders(token),
+    cache: "no-store",
+  });
+  if (!resp.ok) throw new Error("Failed to load API keys");
+  return (await resp.json()) as ApiKeyRecord[];
+}
+
+/** Revoke an API key by id. */
+export async function revokeApiKey(keyId: number, token: string): Promise<void> {
+  const resp = await fetch(buildApiUrl(`/keys/${keyId}`).toString(), {
+    method: "DELETE",
+    headers: clerkAuthHeaders(token),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Failed to revoke API key");
+  }
+}

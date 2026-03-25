@@ -84,3 +84,28 @@ Use the task-ops workflow to keep Product, Data, and App queues stocked with sma
 2. Update `ops/lane_state.yaml` whenever your lane focus, blockers, or ready-queue target changes.
 3. Run `python ops/generate_tasks.py` to top up any lane that has dropped below its actionable queue target.
 4. Run `python ops/review_tasks.py` before committing so obvious task hygiene issues are caught early.
+
+
+## Deployment — Railway environment variables (app-025)
+
+### Enable API key enforcement
+
+Set the following in the Railway backend service **Variables** tab:
+
+| Variable | Value | Notes |
+|---|---|---|
+| `REQUIRE_API_KEY` | `true` | Enables X-API-Key enforcement on `/score` and other authenticated endpoints. Off by default so local dev works without a key. |
+| `CLERK_SECRET_KEY` | `sk_live_...` | From Clerk dashboard → API Keys. Required for `/keys` endpoint JWT verification. |
+
+When `REQUIRE_API_KEY=true` is set:
+- `/score` requires a valid `X-API-Key: lre_<...>` header (unless DB is not configured, in which case demo mode passes through unauthenticated).
+- `/health` always remains unauthenticated.
+- Users generate keys via the `/account` page in the frontend (requires Clerk sign-in).
+
+### Vercel environment variables (frontend)
+
+| Variable | Notes |
+|---|---|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | From Clerk dashboard |
+| `CLERK_SECRET_KEY` | From Clerk dashboard (also set on Railway) |
+| `NEXT_PUBLIC_API_URL` | Railway backend URL |
