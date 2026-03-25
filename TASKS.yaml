@@ -11,10 +11,35 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-068 (tier-11 city expansion — Tallahassee/Fort Wayne/Boise/Cape Coral)
-# Next task to create: data-069
+# Last completed task: data-070 (tier-12 city expansion — Dayton/Eugene/Springfield MO/Sioux Falls)
+# Next task to create: data-071
 
 tasks:
+  - id: data-070
+    title: Expand to next 30 cities — permits and crime (tier-12)
+    status: done
+    priority: high
+    github_issue: 210
+    notes_for_next_agent: >
+      Implemented tier-12 city expansion (data-070).
+      New crime scripts (Socrata, MUST VERIFY): dayton_crime_trends.py
+        Data domain: data.dayton.gov, estimated dataset ID b4z3-ppnd.
+        Verify: curl "https://data.dayton.gov/api/catalog/v1?q=crime&limit=10"
+      New crime scripts (ArcGIS, MUST VERIFY): eugene_crime_trends.py,
+        springfield_mo_crime_trends.py, sioux_falls_crime_trends.py.
+        All use estimated org IDs and service names.
+      New permit configs in us_city_permits.py: dayton (MUST VERIFY id kpz4-qmte).
+      New permit configs in us_city_permits_arcgis.py: eugene, springfield_mo,
+        sioux_falls (all MUST VERIFY).
+      All 4 wired into load_neighborhood_quality.py (STAGING_FILES + --source choices).
+      Skipped (researched fresh, no public API confirmed 2026-03-25):
+        Overland Park KS, Amarillo TX, Oxnard CA, Salinas CA, Fayetteville AR.
+        Also re-confirmed 21 cities from data-068 still have no API.
+      All documented in SKILL.md under "data-070 skipped cities".
+      Next agent: run data-071 to live-verify all 4 new city endpoints.
+      City coordinates: Dayton OH (39.7589, -84.1917), Eugene OR (44.0521, -123.0868),
+        Springfield MO (37.2153, -93.2982), Sioux Falls SD (43.5460, -96.7313).
+
   - id: data-069
     title: Live-verify tier-11 city endpoints (Tallahassee, Fort Wayne, Boise, Cape Coral)
     status: backlog

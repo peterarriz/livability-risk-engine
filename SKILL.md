@@ -27,6 +27,7 @@ failure mode, and agent rule in the LRE data pipeline.
 | Anchorage | `anchorage_crime_trends.py` | data.muni.org | `cizs-bvns` (MUST VERIFY) | `date_reported` | `reporting_area` | `anchorage_crime_trends.json` |
 | Madison | `madison_crime_trends.py` | data.cityofmadison.com | `68yf-zu8t` (MUST VERIFY) | `incident_date` | `sector` | `madison_crime_trends.json` |
 | Spokane | `spokane_crime_trends.py` | data.spokanecity.org | `4gj6-ujfi` (MUST VERIFY) | `reported_date` | `precinct` | `spokane_crime_trends.json` |
+| Dayton OH | `dayton_crime_trends.py` | data.dayton.gov | `b4z3-ppnd` (MUST VERIFY) | `date_reported` (MUST VERIFY) | `district` (MUST VERIFY) | `dayton_crime_trends.json` |
 
 **Kansas City** uses per-year datasets on `data.kcmo.org`:
 
@@ -91,6 +92,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Fort Wayne IN | `fort_wayne_crime_trends.py` | `services.arcgis.com/8Wez4BJD3neYYnDt/.../FWPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `DateOccurred` | `District` | `fort_wayne_crime_trends.json` |
 | Boise ID | `boise_crime_trends.py` | `services.arcgis.com/r1QnEiQlTiHHMlou/.../BPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `OccurrenceDate` | `District` | `boise_crime_trends.json` |
 | Cape Coral FL | `cape_coral_crime_trends.py` | `services.arcgis.com/qJBnRfhGOvGVBnaX/.../CCPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `cape_coral_crime_trends.json` |
+| Eugene OR | `eugene_crime_trends.py` | `services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../EPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `eugene_crime_trends.json` |
+| Springfield MO | `springfield_mo_crime_trends.py` | `services6.arcgis.com/bdLPgVQpKkp3xrEm/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `springfield_mo_crime_trends.json` |
+| Sioux Falls SD | `sioux_falls_crime_trends.py` | `services.arcgis.com/Nf5qHqEDvuX5aNFd/.../SFPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `ReportedDate` | `Sector` | `sioux_falls_crime_trends.json` |
 
 ### OpenDataSoft-Based
 
@@ -160,6 +164,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Madison | `madison` | data.cityofmadison.com | `ekdx-6fbt` (MUST VERIFY) | `permit_id` | `issued_date` |
 | Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
+| Dayton OH | `dayton` | data.dayton.gov | `kpz4-qmte` (MUST VERIFY) | `permit_number` | `issue_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -204,6 +209,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Fort Wayne IN | `fort_wayne` | services.arcgis.com/8Wez4BJD3neYYnDt/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Boise ID | `boise` | services.arcgis.com/r1QnEiQlTiHHMlou/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Cape Coral FL | `cape_coral` | services.arcgis.com/qJBnRfhGOvGVBnaX/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Eugene OR | `eugene` | services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Springfield MO | `springfield_mo` | services6.arcgis.com/bdLPgVQpKkp3xrEm/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Sioux Falls SD | `sioux_falls` | services.arcgis.com/Nf5qHqEDvuX5aNFd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -300,6 +308,16 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
   portal found for Spokane Valley Police Department as of 2026-03-24.
 - Bakersfield, CA — previously skipped in data-057 (Accela/CrimeMapping only).
 - Elk Grove, CA — Sacramento County suburb; no independent open data portal found.
+
+**data-070 skipped cities (no public API, researched 2026-03-25):**
+- Overland Park, KS — opkansas.org is infrastructure/GIS data only; OPPD uses Motorola
+  PremierOne for dispatch; no public crime incident or permit API found.
+- Amarillo, TX — APD no public open data crime API; CrimeMapping.com view-only;
+  no ArcGIS Hub or Socrata portal with permit data confirmed.
+- Oxnard, CA — OPD no public crime API; no Socrata/ArcGIS/CKAN portal found.
+- Salinas, CA — SPD no public crime API; no open data portal found.
+- Fayetteville, AR — data.fayetteville-ar.gov has limited datasets; no crime incident
+  API or queryable permit data confirmed as of 2026-03-25.
 
 **data-068 skipped cities (no public API, re-researched 2026-03-25):**
 - Akron, OH — re-checked data.akronohio.gov; no crime incident REST API confirmed.

@@ -658,6 +658,34 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     # -----------------------------------------------------------------
+    # data-070: tier-12 city permits (Socrata portals)
+    # -----------------------------------------------------------------
+    {
+        # Dayton, OH — Building Permits.
+        # Portal: https://data.dayton.gov (Socrata — City of Dayton Open Data)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.dayton.gov/api/catalog/v1?q=building+permits&limit=10"
+        #   curl "https://data.dayton.gov/resource/<id>.json?$limit=1"
+        # data-070: added 2026-03-25
+        "city_name":        "Dayton",
+        "source_key":       "dayton",
+        "domain":           "data.dayton.gov",
+        "dataset_id":       "kpz4-qmte",  # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "skip_date_filter": False,
+        "max_records":      None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Dayton, OH",
+        "where_clause":     None,
+    },
+    # -----------------------------------------------------------------
     # data-058: tier-8 city permits (Socrata portals)
     # -----------------------------------------------------------------
     {

@@ -1068,6 +1068,81 @@ CITY_CONFIGS: list[dict] = [
         "max_records":      None,
     },
     # -----------------------------------------------------------------
+    # data-070: tier-12 city permits (ArcGIS portals)
+    # -----------------------------------------------------------------
+    {
+        # Eugene, OR — Building Permits.
+        # Portal: https://data.eugene-or.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city eugene --discover
+        #   Or visit: https://data.eugene-or.gov and search "building permits"
+        # data-070: added 2026-03-25
+        "city_name":        "Eugene",
+        "source_key":       "eugene",
+        "service_url":      (
+            "https://services1.arcgis.com/VZLb8iHnAWdlSeZ3/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.eugene-or.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Eugene, OR",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Springfield, MO — Building Permits.
+        # Portal: https://data.springfieldmo.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city springfield_mo --discover
+        #   Or visit: https://data.springfieldmo.gov and search "building permits"
+        # data-070: added 2026-03-25
+        "city_name":        "Springfield MO",
+        "source_key":       "springfield_mo",
+        "service_url":      (
+            "https://services6.arcgis.com/bdLPgVQpKkp3xrEm/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.springfieldmo.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Springfield, MO",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Sioux Falls, SD — Building Permits.
+        # Portal: ArcGIS Hub (search "Sioux Falls building permits")
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city sioux_falls --discover
+        #   Or search ArcGIS Hub for "Sioux Falls building permits"
+        # data-070: added 2026-03-25
+        "city_name":        "Sioux Falls",
+        "source_key":       "sioux_falls",
+        "service_url":      (
+            "https://services.arcgis.com/Nf5qHqEDvuX5aNFd/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://www.siouxfalls.org/departments/information-technology/gis",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Sioux Falls, SD",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-068):
     #   Akron, OH — data.akronohio.gov exists but no crime incident API;
     #     APD uses web-only portal for public reports. Re-checked 2026-03-25.
@@ -1095,6 +1170,15 @@ CITY_CONFIGS: list[dict] = [
     #   Irvine, CA — uses OCSD coverage; no city-level incident API.
     #   Elk Grove, CA — Sacramento County suburb; no independent portal found.
     #   Spokane Valley, WA — SVPD standalone; no public open data portal.
+    # SKIPPED — No public open data portal found (data-070, 2026-03-25):
+    #   Overland Park, KS — opkansas.org is infrastructure/GIS data only;
+    #     OPPD uses Motorola PremierOne, no public crime or permit API found.
+    #   Amarillo, TX — APD no public open data crime API; CrimeMapping.com
+    #     view-only; no ArcGIS Hub or Socrata portal for permits found.
+    #   Oxnard, CA — OPD no public crime API; no Socrata/ArcGIS portal found.
+    #   Salinas, CA — SPD no public crime API; no open data portal found.
+    #   Fayetteville, AR — data.fayetteville-ar.gov limited; no crime
+    #     incident API or queryable permit data confirmed as of 2026-03-25.
     # -----------------------------------------------------------------
 ]
 
