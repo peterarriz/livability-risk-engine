@@ -80,11 +80,6 @@ export type NearbySchool = {
   distance_m: number;
 };
 
-export type NearbyAmenity = {
-  name?: string | null;
-  category?: string | null;
-  distance_m?: number | null;
-};
 
 export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
 
@@ -160,12 +155,12 @@ export type ScoreResponse = {
   nearby_signals?: NearbySignal[];
   // Nearby schools for the school quality map layer (data-061).
   nearby_schools?: NearbySchool[];
-  // Optional nearby amenities payload (backend enrichment; optional for compatibility).
-  amenities?: NearbyAmenity[];
+  // Optional nearby amenities payload keyed by category (data-064).
+  amenities?: Record<string, NearbyAmenity[]>;
   neighborhood_context?: {
     flood_risk?: string | null;
     fema_flood_zone?: string | null;
-    amenities?: NearbyAmenity[] | null;
+    amenities?: Record<string, NearbyAmenity[]> | null;
   } | null;
 };
 

@@ -183,7 +183,7 @@ export default function HomePage() {
     return latest - oldest;
   }, [scoreHistory]);
   const amenities = useMemo(
-    () => result?.amenities ?? result?.neighborhood_context?.amenities ?? [],
+    () => result?.amenities ?? result?.neighborhood_context?.amenities ?? {},
     [result],
   );
 
