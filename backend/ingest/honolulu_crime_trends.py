@@ -4,20 +4,21 @@ task: data-071
 lane: data
 
 Ingests Honolulu Police Department crime data and calculates 12-month
-crime trends by district.
+crime trends by crime type.
 
 Source:
   Socrata — data.honolulu.gov (City and County of Honolulu Open Data)
-  Dataset: HPD Incident Reports
-  Dataset ID: kfre-e9j5 (researched 2026-03-25, not live-verified)
+  Dataset: HPD Crime Incidents
+  Dataset ID: vg88-5rn5 (verified 2026-03-25)
+  Permalink: https://data.honolulu.gov/d/vg88-5rn5
 
-  To verify or fix:
-    curl "https://data.honolulu.gov/api/catalog/v1?q=crime+incidents&limit=10"
-    curl "https://data.honolulu.gov/resource/kfre-e9j5.json?$limit=1"
+  Key fields (verified 2026-03-25):
+    date  — date of incident (calendar date)
+    type  — crime type (e.g. ASSAULT, BURGLARY, THEFT/LARCENY)
 
-  Key fields (not live-verified — run --dry-run to confirm):
-    incident_date — date of incident
-    district      — police district
+  Note: No district/area field exists in this dataset. Trends are
+  grouped by crime type instead. Dataset holds ~6 months of rolling
+  data, so prior-year window may return zero.
 
 Output:
   data/raw/honolulu_crime_trends.json
@@ -44,14 +45,14 @@ import requests
 
 SOCRATA_DOMAIN = "data.honolulu.gov"
 
-# Dataset ID researched 2026-03-25; run --discover to confirm.
-DATASET_ID = "kfre-e9j5"
+# Verified 2026-03-25: HPD Crime Incidents dataset.
+DATASET_ID = "vg88-5rn5"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/honolulu_crime_trends.json")
 
-# Field names researched 2026-03-25; run --dry-run to confirm schema.
-DATE_FIELD = "incident_date"
-GROUP_FIELD = "district"
+# Verified 2026-03-25: "date" is calendar date, "type" is crime category.
+DATE_FIELD = "date"
+GROUP_FIELD = "type"
 
 HONOLULU_LAT = 21.3069
 HONOLULU_LON = -157.8583
@@ -126,18 +127,18 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    all_types = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for district in sorted(all_districts):
-        current_count = current_data.get(district, 0)
-        prior_count = prior_data.get(district, 0)
+    for crime_type in sorted(all_types):
+        current_count = current_data.get(crime_type, 0)
+        prior_count = prior_data.get(crime_type, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = district.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
+        slug = crime_type.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
         records.append({
-            "region_type": "district",
-            "region_id": f"honolulu_district_{slug}",
-            "district_id": district,
-            "district_name": f"Honolulu District {district}",
+            "region_type": "category",
+            "region_id": f"honolulu_category_{slug}",
+            "district_id": crime_type,
+            "district_name": f"Honolulu {crime_type}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -182,7 +183,6 @@ def main() -> None:
         return
 
     print(f"Honolulu crime trends ingest — {SOCRATA_DOMAIN} / {DATASET_ID}")
-    print("NOTE: Dataset ID not live-verified — run --discover with network access to confirm.")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
@@ -195,7 +195,7 @@ def main() -> None:
     except Exception as exc:
         print(f"ERROR: failed to fetch current counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(current_data)} districts, {sum(current_data.values()):,} total crimes.")
+    print(f"  {len(current_data)} categories, {sum(current_data.values()):,} total crimes.")
 
     print(f"\nFetching prior 12-month counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
@@ -203,7 +203,7 @@ def main() -> None:
     except Exception as exc:
         print(f"ERROR: failed to fetch prior counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(prior_data)} districts, {sum(prior_data.values()):,} total crimes.")
+    print(f"  {len(prior_data)} categories, {sum(prior_data.values()):,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
     print(f"\nBuilt {len(records)} district trend records.")
@@ -213,7 +213,7 @@ def main() -> None:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} districts")
+        print(f"  {trend}: {count} categories")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

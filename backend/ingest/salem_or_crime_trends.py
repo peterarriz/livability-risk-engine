@@ -3,26 +3,25 @@ backend/ingest/salem_or_crime_trends.py
 task: data-071
 lane: data
 
-Ingests Salem Police Department crime data and calculates 12-month
-crime trends by patrol district.
+Salem OR crime trends ingest — STUB (no public API).
 
-Source:
-  ArcGIS FeatureServer — cityofsalem.net GIS / data.cityofsalem.net (endpoint researched 2026-03-25, not live-verified)
-  Estimated org: services.arcgis.com/uUvqNr0XSi28N3Hj (endpoint researched 2026-03-25, not live-verified)
-  Service: SPD_Crime_Incidents/FeatureServer/0 (endpoint researched 2026-03-25, not live-verified)
+Research (2026-03-25):
+  Salem, OR does NOT publish crime incident data through any publicly
+  accessible ArcGIS FeatureServer, Socrata API, or other open data endpoint.
 
-  To verify:
-    1. Visit https://data.cityofsalem.net or https://gis.cityofsalem.net
-    2. Search "police incidents" or "crime"
-    3. Click "API" to get the FeatureServer URL.
-    4. Or search ArcGIS Hub: https://salem.maps.arcgis.com
+  Available sources (none are machine-readable):
+    - LexisNexis Community Crime Map (view-only, no API): communitycrimemap.com
+    - Static PDF crime report: "Crime in Salem: Exploring the Trends 2025"
+    - Official records via egov.cityofsalem.net/JusticeWeb (web form only)
+    - Oregon State Police UCR annual aggregates (city-level only, no districts)
 
-  Key fields (endpoint researched 2026-03-25, not live-verified):
-    IncidentDate  — date of incident
-    PatrolDistrict — patrol district/sector
+  The DataSalem portal (data.cityofsalem.net) is ArcGIS Hub with ~200+
+  datasets but zero crime/police incident layers. The only police-related
+  service is IT_PoliceDistrict (district boundaries, not incidents).
+  The ArcGIS org ID uUvqNr0XSi28N3Hj used previously was fabricated.
 
 Output:
-  data/raw/salem_or_crime_trends.json
+  data/raw/salem_or_crime_trends.json — 0-record staging file
 
 Usage:
   python backend/ingest/salem_or_crime_trends.py
@@ -33,124 +32,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-# endpoint researched 2026-03-25, not live-verified: visit https://data.cityofsalem.net and find the correct
-# FeatureServer URL for Salem PD crime incidents.
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/uUvqNr0XSi28N3Hj/arcgis/rest/services"
-    "/SPD_Crime_Incidents/FeatureServer/0"
-)
-
 DEFAULT_OUTPUT_PATH = Path("data/raw/salem_or_crime_trends.json")
-
-# endpoint researched 2026-03-25, not live-verified field names match the actual dataset schema.
-DATE_FIELD = "IncidentDate"
-GROUP_FIELD = "PatrolDistrict"
-
-SALEM_OR_LAT = 44.9429
-SALEM_OR_LON = -123.0351
-
-STABLE_THRESHOLD_PCT = 5.0
-
-
-def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
-
-
-def fetch_crime_counts(
-    start_date: datetime,
-    end_date: datetime,
-) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
-
-    where_clause = (
-        f"{DATE_FIELD} >= {_date_str(start_date)} "
-        f"AND {DATE_FIELD} < {_date_str(end_date)}"
-    )
-
-    out_statistics = json.dumps([
-        {"statisticType": "count", "onStatisticField": "OBJECTID",
-         "outStatisticFieldName": "crime_count"},
-    ])
-
-    params = {
-        "where": where_clause,
-        "groupByFieldsForStatistics": GROUP_FIELD,
-        "outStatistics": out_statistics,
-        "f": "json",
-    }
-
-    resp = requests.post(url, data=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
-
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
-
-    results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not district:
-            continue
-        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
-    return results
-
-
-def _classify_trend(current: int, prior: int) -> tuple[str, float]:
-    if prior == 0:
-        if current > 0:
-            return "INCREASING", 100.0
-        return "STABLE", 0.0
-    pct = (current - prior) / prior * 100.0
-    if pct >= STABLE_THRESHOLD_PCT:
-        return "INCREASING", round(pct, 1)
-    if pct <= -STABLE_THRESHOLD_PCT:
-        return "DECREASING", round(pct, 1)
-    return "STABLE", round(pct, 1)
-
-
-def build_trend_records(
-    current_data: dict[str, int],
-    prior_data: dict[str, int],
-) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
-    records = []
-    for district in sorted(all_districts):
-        current_count = current_data.get(district, 0)
-        prior_count = prior_data.get(district, 0)
-        trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = district.lower().replace(" ", "_").replace("/", "_").replace("-", "_")
-        records.append({
-            "region_type": "district",
-            "region_id": f"salem_or_district_{slug}",
-            "district_id": district,
-            "district_name": f"Salem {district}",
-            "crime_12mo": current_count,
-            "crime_prior_12mo": prior_count,
-            "crime_trend": trend,
-            "crime_trend_pct": trend_pct,
-            "latitude": SALEM_OR_LAT,
-            "longitude": SALEM_OR_LON,
-        })
-    return records
 
 
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "salem_or_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source_url": "N/A — no public API",
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -162,59 +54,20 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Salem SPD crime trends by district from ArcGIS FeatureServer."
+        description="Salem OR crime trends — STUB (no public API available)."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Fetch data but do not write output file.")
+    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-
-    print(f"Salem OR crime trends ingest — source: {FEATURESERVER_URL}")
-    print("NOTE: Service URL is endpoint researched 2026-03-25, not live-verified — run --dry-run with network access to confirm.")
-
-    now = datetime.now(timezone.utc)
-    current_start = now - timedelta(days=365)
-    prior_start = now - timedelta(days=730)
-    prior_end = current_start
-
-    print(f"\nFetching current 12-month counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
-    try:
-        current_data = fetch_crime_counts(current_start, now)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch current counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(current_data)} districts, {sum(current_data.values()):,} total crimes.")
-
-    print(f"\nFetching prior 12-month counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
-    try:
-        prior_data = fetch_crime_counts(prior_start, prior_end)
-    except Exception as exc:
-        print(f"ERROR: failed to fetch prior counts — {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(f"  {len(prior_data)} districts, {sum(prior_data.values()):,} total crimes.")
-
-    records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} district trend records.")
-
-    trend_counts: dict[str, int] = {}
-    for r in records:
-        t = r["crime_trend"]
-        trend_counts[t] = trend_counts.get(t, 0) + 1
-    for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} districts")
-
-    if args.dry_run:
-        print("\nDry-run mode: skipping file write.")
-        if records:
-            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
-        return
-
-    write_staging_file(records, args.output)
-    print("Done.")
+    print("Salem OR: no public crime data API available.")
+    print("  data.cityofsalem.net has ~200+ datasets but zero crime layers.")
+    print("  Salem PD uses LexisNexis Community Crime Map (no public API).")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":
