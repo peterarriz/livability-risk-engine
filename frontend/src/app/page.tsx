@@ -175,6 +175,13 @@ export default function HomePage() {
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [isDemoResult, result, scoredAt]);
+  const scoreTrend = useMemo<number | null>(() => {
+    if (scoreHistory.length < 2) return null;
+    const latest = scoreHistory[0]?.disruption_score;
+    const oldest = scoreHistory[scoreHistory.length - 1]?.disruption_score;
+    if (typeof latest !== "number" || typeof oldest !== "number") return null;
+    return latest - oldest;
+  }, [scoreHistory]);
 
   // Hydrate address history from localStorage on mount
   useEffect(() => {

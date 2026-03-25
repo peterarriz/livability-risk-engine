@@ -1181,7 +1181,7 @@ function AreaTrendSparkline({ trend }: { trend: TrendDay[] }) {
 type NeighborhoodContextCardProps = {
   result: ScoreResponse;
   scoreHistory: ScoreHistoryEntry[];
-  scoreTrend?: TrendDay[];
+  scoreTrend?: number | null;
   lat?: number | null;
   lon?: number | null;
 };
