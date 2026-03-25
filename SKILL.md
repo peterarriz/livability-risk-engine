@@ -1,6 +1,6 @@
 ---
 title: Livability Risk Engine — Data Ingest Reference
-version: "2026-03-23"
+version: "2026-03-25"
 scope: dataset-ids, portal-types, common-failures, agent-rules
 maintainer: "@claude"
 ---
@@ -100,6 +100,11 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Salem OR | `salem_or_crime_trends.py` | `services.arcgis.com/uUvqNr0XSi28N3Hj/.../SPD_Crime_Incidents/FeatureServer/0` (not live-verified) | `IncidentDate` | `PatrolDistrict` | `salem_or_crime_trends.json` |
 | Dayton OH | `dayton_crime_trends.py` | `maps.daytonohio.gov/gisservices/rest/services/Police/Crimes_Last_Two_Years/MapServer/0` (not live-verified) | `reportdate` | `district` | `dayton_crime_trends.json` |
 | Tallahassee FL | `tallahassee_crime_trends.py` | `cotinter.leoncountyfl.gov/cotinter/rest/services/Vector/COT_InterTOPS_D_WM/MapServer/2` (Layer 2, verified in script; ~365-day rolling window) | `INCIDENT_TIME_ADJ` | `BEAT` | `tallahassee_crime_trends.json` |
+| Knoxville TN | `knoxville_crime_trends.py` | **STUB — no public API** (KPD data by-request-only; $10/report fee) | — | — | `knoxville_crime_trends.json` (0 records) |
+| Akron OH | `akron_crime_trends.py` | **STUB — no public API** (APD web-only portal; no REST endpoint) | — | — | `akron_crime_trends.json` (0 records) |
+| Winston-Salem NC | `winston_salem_crime_trends.py` | **STUB — no public API** (WSPD no ArcGIS/Socrata crime service) | — | — | `winston_salem_crime_trends.json` (0 records) |
+| Shreveport LA | `shreveport_crime_trends.py` | **STUB — no public API** (SPD publishes aggregate counts only) | — | — | `shreveport_crime_trends.json` (0 records) |
+| Huntsville AL | `huntsville_crime_trends.py` | **STUB — no public API** (HPD via JustFOIA only) | — | — | `huntsville_crime_trends.json` (0 records) |
 
 ### OpenDataSoft-Based
 
@@ -362,6 +367,13 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Springfield, OR — small city (~60k) adjacent to Eugene (also stub); no open data
   portal found; Lane County GIS has no Springfield PD crime incident data.
 
+**data-074 added stubs (no public API, re-researched 2026-03-25):**
+- Knoxville, TN — KPD data by-request-only ($10/report fee). Stub created.
+- Akron, OH — APD web-only portal; no REST endpoint. Stub created.
+- Winston-Salem, NC — WSPD no ArcGIS/Socrata crime service. Stub created.
+- Shreveport, LA — SPD aggregate counts only; no incident-level API. Stub created.
+- Huntsville, AL — HPD via JustFOIA only; no REST endpoint. Stub created.
+
 **data-068 skipped cities (no public API, re-researched 2026-03-25):**
 - Akron, OH — re-checked data.akronohio.gov; no crime incident REST API confirmed.
 - Knoxville, TN — re-checked knoxvilletn.gov; crime data still by-request-only.
@@ -400,6 +412,18 @@ invalid since it was introduced in data-058. To fix:
 
 **Fix:** Monitor the city's open-data portal for future dataset publication.
 Leave as non-fatal pipeline step.
+
+**data-074: All 40 unverified permit configs disabled (2026-03-25):**
+39 ArcGIS configs added to `DISABLED_SOURCE_KEYS` in `us_city_permits_arcgis.py`.
+Honolulu Socrata config flagged `disabled=True` in `us_city_permits.py`.
+All were returning HTTP 400 "Invalid URL" on every pipeline run.
+To re-enable: run `--city <key> --discover` or visit the portal_url for that city,
+find the correct FeatureServer URL, update `service_url`, remove from `DISABLED_SOURCE_KEYS`.
+Disabled cities: denver, portland, las_vegas, el_paso, tucson, san_jose, fort_worth,
+albuquerque, orlando, richmond, des_moines, tulsa, wichita, colorado_springs, arlington_tx,
+virginia_beach, mesa, aurora, corpus_christi, greensboro, durham, chandler, scottsdale,
+gilbert, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az, fort_wayne,
+boise, cape_coral, eugene, springfield_mo, sioux_falls, omaha, lincoln, salem_or, honolulu.
 
 ### Stale / Frozen Datasets
 

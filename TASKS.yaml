@@ -11,10 +11,54 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-072 (audit and fix all MUST VERIFY city endpoints)
-# Next task to create: data-073
+# Last completed task: data-074 (fix broken permit configs + add crime stubs for 5 cities)
+# Next task to create: data-075
 
 tasks:
+  - id: data-074
+    title: Fix broken permit configs + add crime stubs for 5 new cities
+    status: done
+    priority: high
+    github_issue: 228
+    files:
+      - backend/ingest/us_city_permits_arcgis.py
+      - backend/ingest/us_city_permits.py
+      - backend/ingest/knoxville_crime_trends.py
+      - backend/ingest/akron_crime_trends.py
+      - backend/ingest/winston_salem_crime_trends.py
+      - backend/ingest/shreveport_crime_trends.py
+      - backend/ingest/huntsville_crime_trends.py
+      - backend/ingest/load_neighborhood_quality.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-074 complete (issue #228).
+      PART 1 — Permit configs: All 40 broken permit configs (39 ArcGIS + 1 Socrata)
+        were disabled via DISABLED_SOURCE_KEYS in us_city_permits_arcgis.py and
+        disabled=True flag on Honolulu in us_city_permits.py.
+        These were all "not live-verified" org IDs returning HTTP 400.
+        The ingest scripts now print SKIP for disabled cities and return 0.
+        Discovery mode (--city <key> --discover) still works on disabled cities.
+        TO RE-ENABLE: run --city <key> --discover OR visit the city portal_url,
+        find correct FeatureServer URL, update service_url in CITY_CONFIGS,
+        then remove the source_key from DISABLED_SOURCE_KEYS.
+        Gilbert AZ explicitly marked: org K1VMQDQNLVxLvLqs CONFIRMED INVALID.
+      PART 2 — Crime stubs (5 new cities, all confirmed no public API):
+        knoxville_crime_trends.py — KPD data by-request-only ($10/report)
+        akron_crime_trends.py — APD web-only portal, no REST API
+        winston_salem_crime_trends.py — WSPD no ArcGIS/Socrata crime service
+        shreveport_crime_trends.py — SPD aggregate counts only, no incident API
+        huntsville_crime_trends.py — HPD via JustFOIA only, no REST endpoint
+        All 5 wired into load_neighborhood_quality.py (STAGING_FILES + --source choices).
+      Next: data-075 should live-verify the disabled permit configs with network access.
+        Priority order: Denver, Portland, Las Vegas, San Jose, Fort Worth, Albuquerque
+        (largest cities first). Run --discover on each and update service_url.
+      City coords for new stubs:
+        Knoxville TN (35.9606, -83.9207), Akron OH (41.0814, -81.5190),
+        Winston-Salem NC (36.0999, -80.2442), Shreveport LA (32.5252, -93.7502),
+        Huntsville AL (34.7304, -86.5861).
+
+
   - id: app-025
     title: Enable API key creation and enforcement
     status: done

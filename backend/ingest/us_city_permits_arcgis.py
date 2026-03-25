@@ -1269,6 +1269,50 @@ CITY_CONFIGS: list[dict] = [
 # Index by source_key for fast lookup.
 CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 
+# ---------------------------------------------------------------------------
+# Disabled source keys (pending URL verification) — data-074
+# ---------------------------------------------------------------------------
+# All entries below returned HTTP 400 "Invalid URL" in every pipeline run.
+# Their org IDs were estimated and have NOT been live-verified.
+#
+# To re-enable a city:
+#   1. python backend/ingest/us_city_permits_arcgis.py --city <key> --discover
+#      OR visit the city's portal_url and search "building permits"
+#   2. Copy the FeatureServer/0 URL from the dataset API explorer
+#   3. Update service_url in CITY_CONFIGS for that entry
+#   4. Remove source_key from DISABLED_SOURCE_KEYS below
+#   5. Re-run --city <key> --dry-run to confirm records are returned
+DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
+    # data-047: unverified org IDs
+    "denver", "portland",
+    # data-050: unverified org IDs
+    "las_vegas", "el_paso", "tucson", "san_jose", "fort_worth", "albuquerque",
+    # data-057: unverified org IDs
+    "orlando", "richmond", "des_moines", "tulsa", "wichita",
+    "colorado_springs", "arlington_tx", "virginia_beach",
+    "mesa", "aurora", "corpus_christi", "greensboro",
+    # data-058: unverified or confirmed invalid org IDs
+    "durham", "chandler", "scottsdale",
+    "gilbert",       # CONFIRMED INVALID: org K1VMQDQNLVxLvLqs returns 400
+    "glendale_az", "henderson",
+    # data-065: unverified org IDs
+    "tempe", "peoria_az", "surprise_az", "goodyear_az",
+    # data-068: unverified org IDs
+    "fort_wayne", "boise", "cape_coral",
+    # data-070: unverified org IDs
+    "eugene", "springfield_mo", "sioux_falls",
+    # data-071: unverified org IDs
+    "omaha", "lincoln", "salem_or",
+})
+
+# Special notes for specific disabled cities (shown in log output).
+DISABLED_NOTES: dict[str, str] = {
+    "gilbert": (
+        "org ID K1VMQDQNLVxLvLqs is CONFIRMED INVALID (HTTP 400). "
+        "Visit https://data.gilbertaz.gov to find the correct FeatureServer URL."
+    ),
+}
+
 # Records per page (ArcGIS default max varies by server; 1000 is safe).
 PAGE_SIZE = 1000
 
@@ -1710,6 +1754,17 @@ def ingest_city(
     """
     if discover:
         discover_service(config)
+        return 0
+
+    # Skip configs whose org IDs have not been live-verified (data-074).
+    if config["source_key"] in DISABLED_SOURCE_KEYS:
+        note = DISABLED_NOTES.get(
+            config["source_key"],
+            f"unverified org ID — returns HTTP 400. "
+            f"Fix: run --city {config['source_key']} --discover "
+            f"or visit {config['portal_url']}",
+        )
+        print(f"  SKIP [{config['city_name']}]: {note}", file=sys.stderr)
         return 0
 
     raw_records = fetch_city_permits(config, days_back, dry_run)
