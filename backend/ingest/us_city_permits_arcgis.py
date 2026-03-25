@@ -986,12 +986,115 @@ CITY_CONFIGS: list[dict] = [
     #   Columbus, GA (Muscogee County) — consolidated govt; no open data API.
     #   Savannah, GA — no public crime incident API found.
     #   Augusta, GA (Richmond County) — consolidated govt; no open data API.
-    #   Cape Coral, FL — city has data.capecoral.gov but no verified crime API.
     #   Kansas City, KS — Unified Government of Wyandotte County/KCK;
     #     no separate open data from UG (distinct from Kansas City, MO).
     #   Spokane Valley, WA — SVPD standalone; no public open data portal.
     #   Bakersfield, CA — already skipped in data-057; Accela/CrimeMapping only.
     #   Elk Grove, CA — Sacramento suburb; no open data portal found.
+    # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # data-068: tier-11 city permits (ArcGIS Hub) — new cities
+    # -----------------------------------------------------------------
+    {
+        # Fort Wayne, IN — Building Permits.
+        # Portal: https://data.fortwayne.com (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city fort_wayne --discover
+        #   Or visit: https://data.fortwayne.com and search "building permits"
+        # data-068: added 2026-03-25
+        "city_name":        "Fort Wayne",
+        "source_key":       "fort_wayne",
+        "service_url":      (
+            "https://services.arcgis.com/8Wez4BJD3neYYnDt/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.fortwayne.com",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Fort Wayne, IN",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Boise, ID — Building Permits.
+        # Portal: https://opendata.cityofboise.org (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city boise --discover
+        #   Or visit: https://opendata.cityofboise.org and search "building permits"
+        # data-068: added 2026-03-25
+        "city_name":        "Boise",
+        "source_key":       "boise",
+        "service_url":      (
+            "https://services.arcgis.com/r1QnEiQlTiHHMlou/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://opendata.cityofboise.org",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Boise, ID",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Cape Coral, FL — Building Permits.
+        # Portal: https://data.capecoral.gov (ArcGIS Hub — confirmed to exist; data-065)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city cape_coral --discover
+        #   Or visit: https://data.capecoral.gov and search "building permits"
+        # data-068: added 2026-03-25
+        "city_name":        "Cape Coral",
+        "source_key":       "cape_coral",
+        "service_url":      (
+            "https://services.arcgis.com/qJBnRfhGOvGVBnaX/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.capecoral.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Cape Coral, FL",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
+    # SKIPPED — No public open data portal found (data-068):
+    #   Akron, OH — data.akronohio.gov exists but no crime incident API;
+    #     APD uses web-only portal for public reports. Re-checked 2026-03-25.
+    #   Knoxville, TN — knoxvilletn.gov open data portal exists but KPD
+    #     crime incident data is request-only ($10/report). Re-checked 2026-03-25.
+    #   Shreveport, LA — data.shreveportla.gov exists but SPD provides only
+    #     aggregate street-level offense counts; no incident-level API.
+    #   Huntsville, AL — hsvcity.com has limited open data; HPD crime data
+    #     via JustFOIA portal only; no queryable REST API found.
+    #   Winston-Salem, NC — data.cityofws.org exists but WSPD has no public
+    #     crime data services on ArcGIS or Socrata. Re-checked 2026-03-25.
+    #   Montgomery, AL — MPDAL no open data portal; re-confirmed 2026-03-25.
+    #   Little Rock, AR — LRPD no public incident API; re-confirmed 2026-03-25.
+    #   Jackson, MS — JPD no open data portal; re-confirmed 2026-03-25.
+    #   Columbus, GA (Muscogee County) — consolidated govt; re-confirmed 2026-03-25.
+    #   Savannah, GA — SCMPD no public crime incident API; re-confirmed 2026-03-25.
+    #   Augusta, GA (Richmond County) — consolidated govt; re-confirmed 2026-03-25.
+    #   Kansas City, KS — UG of Wyandotte County/KCK; re-confirmed 2026-03-25.
+    #   Laredo, TX — LPD PDF reports only; re-confirmed 2026-03-25.
+    #   Garland, TX — GPD no public incident-level API; re-confirmed 2026-03-25.
+    #   Lubbock, TX — LPD quarterly PDF stats only; re-confirmed 2026-03-25.
+    #   Chesapeake, VA — CPD no public incident-level API; re-confirmed 2026-03-25.
+    #   North Las Vegas, NV — NLVPD separate from LVMPD; no public API found.
+    #   Fremont, CA — FPD no public crime API; no Socrata/ArcGIS portal found.
+    #   Irvine, CA — uses OCSD coverage; no city-level incident API.
+    #   Elk Grove, CA — Sacramento County suburb; no independent portal found.
+    #   Spokane Valley, WA — SVPD standalone; no public open data portal.
     # -----------------------------------------------------------------
 ]
 

@@ -11,10 +11,68 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-066 (AZ endpoint verification — CI network blocked; added verify script)
-# Next task to create: data-067
+# Last completed task: data-068 (tier-11 city expansion — Tallahassee/Fort Wayne/Boise/Cape Coral)
+# Next task to create: data-069
 
 tasks:
+  - id: data-069
+    title: Live-verify tier-11 city endpoints (Tallahassee, Fort Wayne, Boise, Cape Coral)
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-068 added crime scripts and permit configs for 4 new cities (all MUST VERIFY).
+      All service URLs and dataset IDs are estimates and have NOT been live-tested.
+      Must run with network access:
+      Step 1: Crime script dry-runs:
+        python backend/ingest/tallahassee_crime_trends.py --discover
+        python backend/ingest/tallahassee_crime_trends.py --dry-run
+        python backend/ingest/fort_wayne_crime_trends.py --dry-run
+        python backend/ingest/boise_crime_trends.py --dry-run
+        python backend/ingest/cape_coral_crime_trends.py --dry-run
+      Step 2: Permit script dry-runs:
+        python backend/ingest/us_city_permits.py --city tallahassee --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city fort_wayne --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city boise --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city cape_coral --dry-run
+      Step 3: For each failure, visit the city portal and find the correct service URL:
+        Tallahassee crime: run --discover; find correct dataset ID on data.talgov.com
+        Tallahassee permits: curl "https://data.talgov.com/api/catalog/v1?q=permits&limit=10"
+        Fort Wayne: visit https://data.fortwayne.com for correct org ID + service name
+        Boise: visit https://opendata.cityofboise.org for correct org ID + service name
+        Cape Coral: visit https://data.capecoral.gov for correct org ID + service name
+      Step 4: Update SKILL.md table entries (remove MUST VERIFY markers once confirmed).
+      Step 5: Remove MUST VERIFY notes from script docstrings once verified.
+      City coordinates: Tallahassee (30.4518, -84.2807), Fort Wayne (41.0793, -85.1394),
+        Boise (43.6150, -116.2023), Cape Coral (26.5629, -81.9495).
+
+  - id: data-068
+    title: Expand crime and permits to next 25 cities (tier-11)
+    status: done
+    priority: high
+    github_issue: 204
+    notes_for_next_agent: >
+      Implemented tier-11 city expansion (data-068).
+      New crime scripts (Socrata, MUST VERIFY): tallahassee_crime_trends.py
+        Data domain: data.talgov.com, estimated dataset ID f476-psrc.
+        Run --discover to find correct dataset ID.
+      New crime scripts (ArcGIS, MUST VERIFY): fort_wayne_crime_trends.py,
+        boise_crime_trends.py, cape_coral_crime_trends.py.
+        All use estimated org IDs and service names.
+      New permit configs in us_city_permits.py: tallahassee (MUST VERIFY).
+      New permit configs in us_city_permits_arcgis.py: fort_wayne, boise, cape_coral
+        (all MUST VERIFY).
+      All 4 wired into load_neighborhood_quality.py (STAGING_FILES + --source choices).
+      Skipped (re-researched fresh, no public API confirmed 2026-03-25):
+        Akron OH, Knoxville TN, Shreveport LA, Huntsville AL, Winston-Salem NC,
+        Montgomery AL, Little Rock AR, Jackson MS, Columbus GA, Savannah GA,
+        Augusta GA, Kansas City KS, Laredo TX, Garland TX, Lubbock TX,
+        Chesapeake VA, North Las Vegas NV, Fremont CA, Irvine CA, Elk Grove CA,
+        Spokane Valley WA.
+      All documented in SKILL.md under "data-068 skipped cities".
+      Next agent: run data-069 to live-verify all 4 new city endpoints.
+
+
   - id: data-067
     title: Live-verify AZ city ArcGIS endpoints (Gilbert fix + Tempe/Peoria/Surprise/Goodyear)
     status: backlog

@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -185,6 +185,11 @@ STAGING_FILES = {
     "crime_peoria_az":            Path("data/raw/peoria_az_crime_trends.json"),
     "crime_surprise_az":          Path("data/raw/surprise_az_crime_trends.json"),
     "crime_goodyear_az":          Path("data/raw/goodyear_az_crime_trends.json"),
+    # data-068: tier-11 city crime trends
+    "crime_tallahassee":          Path("data/raw/tallahassee_crime_trends.json"),
+    "crime_fort_wayne":           Path("data/raw/fort_wayne_crime_trends.json"),
+    "crime_boise":                Path("data/raw/boise_crime_trends.json"),
+    "crime_cape_coral":           Path("data/raw/cape_coral_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -388,6 +393,8 @@ def parse_args() -> argparse.Namespace:
             "crime_fayetteville_nc", "crime_cary",
             # data-065: tier-10 cities (Maricopa County AZ)
             "crime_tempe", "crime_peoria_az", "crime_surprise_az", "crime_goodyear_az",
+            # data-068: tier-11 cities
+            "crime_tallahassee", "crime_fort_wayne", "crime_boise", "crime_cape_coral",
             "schools", "schools_national", "all",
         ],
         default="all",
