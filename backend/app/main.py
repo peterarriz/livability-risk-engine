@@ -23,7 +23,7 @@ import csv
 import hashlib
 import io
 import json
-import jwt as _pyjwt
+
 import math
 import logging
 import math
@@ -85,6 +85,45 @@ log.info(
     os.environ.get("REQUIRE_API_KEY", "false"),
     os.environ.get("FRONTEND_ORIGIN", "(not set — using hardcoded default)"),
 )
+
+
+def _run_startup_migrations() -> None:
+    """Idempotently create tables/columns that may be missing from the live DB."""
+    db_url = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST")
+    if not db_url:
+        log.info("startup_migrations: DB not configured, skipping")
+        return
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id                TEXT        PRIMARY KEY,
+                        email             TEXT        NOT NULL,
+                        subscription_tier TEXT        NOT NULL DEFAULT 'free',
+                        created_at        TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS users_email_idx ON users (email)")
+                cur.execute("""
+                    ALTER TABLE api_keys
+                    ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS api_keys_user_id_idx ON api_keys (user_id)
+                    WHERE user_id IS NOT NULL
+                """)
+            conn.commit()
+            log.info("startup_migrations: OK")
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("startup_migrations: failed (non-fatal): %s", exc)
+
+
+_run_startup_migrations()
 
 # ---------------------------------------------------------------------------
 # CORS middleware
@@ -3976,16 +4015,15 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
     except HTTPException:
         raise
 
-    def _find_key(jwks_data: dict) -> object | None:
-        from jwt.algorithms import RSAAlgorithm  # type: ignore[import]
+    def _find_key(jwks_data: dict) -> dict | None:
         for k in jwks_data.get("keys", []):
             if k.get("kid") == kid:
                 log.info("clerk_jwt: found key kid=%s kty=%s", kid, k.get("kty"))
-                return RSAAlgorithm.from_jwk(json.dumps(k))
+                return k
         return None
 
-    public_key = _find_key(jwks)
-    if public_key is None:
+    key_dict = _find_key(jwks)
+    if key_dict is None:
         # kid not in cache — key may have rotated; force re-fetch once
         log.warning("clerk_jwt: kid=%s not in cached JWKS, forcing re-fetch for iss=%s", kid, iss)
         _JWKS_CACHE.pop(iss, None)
@@ -3993,24 +4031,26 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
             jwks = _fetch_jwks(iss)
         except HTTPException:
             raise
-        public_key = _find_key(jwks)
+        key_dict = _find_key(jwks)
 
-    if public_key is None:
+    if key_dict is None:
         log.error("clerk_jwt: kid=%s not found after re-fetch for iss=%s", kid, iss)
         raise HTTPException(status_code=401, detail="JWT signing key not found in JWKS")
 
     # ── Step 4: verify signature + expiry locally (no network call) ───────────
     try:
-        payload = _pyjwt.decode(
+        from jose import jwt as _jose_jwt
+        from jose.exceptions import ExpiredSignatureError as _JoseExpired, JWTError as _JoseJWTError
+        payload = _jose_jwt.decode(
             token,
-            public_key,
+            key_dict,
             algorithms=["RS256"],
             options={"verify_aud": False},  # Clerk JWTs use azp, not aud
         )
-    except _pyjwt.ExpiredSignatureError:
+    except _JoseExpired:
         log.warning("clerk_jwt: token expired for iss=%s", iss)
         raise HTTPException(status_code=401, detail="Token expired")
-    except _pyjwt.InvalidTokenError as exc:
+    except _JoseJWTError as exc:
         log.error("clerk_jwt: signature/claim validation failed: %s", exc)
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
 
