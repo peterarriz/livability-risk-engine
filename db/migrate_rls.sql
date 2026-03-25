@@ -25,7 +25,8 @@ DECLARE
         'alert_log',
         'api_keys',
         'accounts',
-        'signal_display'
+        'signal_display',
+        'neighborhood_quality'
     ];
 BEGIN
     FOREACH t IN ARRAY tables LOOP

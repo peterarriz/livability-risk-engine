@@ -482,3 +482,8 @@ ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts FORCE ROW LEVEL SECURITY;
 CREATE POLICY select_accounts ON accounts
     FOR SELECT USING (true);
+
+ALTER TABLE neighborhood_quality ENABLE ROW LEVEL SECURITY;
+ALTER TABLE neighborhood_quality FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_neighborhood_quality ON neighborhood_quality
+    FOR SELECT USING (true);
