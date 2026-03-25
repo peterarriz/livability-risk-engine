@@ -1586,7 +1586,12 @@ export async function listApiKeys(token: string): Promise<ApiKeyRecord[]> {
     headers: clerkAuthHeaders(token),
     cache: "no-store",
   });
-  if (!resp.ok) throw new Error("Failed to load API keys");
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(
+      (err as { detail?: string }).detail ?? `Failed to load API keys (${resp.status})`,
+    );
+  }
   return (await resp.json()) as ApiKeyRecord[];
 }
 

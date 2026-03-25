@@ -87,7 +87,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_origin_regex=_allow_origin_regex,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -3845,17 +3845,21 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
         parts = token.split(".")
         if len(parts) != 3:
             raise ValueError("not a JWT")
-        padding = 4 - len(parts[1]) % 4
+        # (4 - n % 4) % 4 avoids adding 4 chars when length is already aligned
+        padding = (4 - len(parts[1]) % 4) % 4
         payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * padding))
         session_id = payload.get("sid")
         if not session_id:
             raise ValueError("missing sid claim")
-    except Exception:
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Clerk JWT decode error: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid token format")
 
     clerk_secret = os.environ.get("CLERK_SECRET_KEY", "")
     if not clerk_secret:
-        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured")
+        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured on backend")
 
     try:
         res = _requests.get(
@@ -3865,13 +3869,15 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
         )
     except Exception as exc:
         log.error("Clerk session verify network error: %s", exc)
-        raise HTTPException(status_code=503, detail="Could not verify session") from exc
+        raise HTTPException(status_code=503, detail="Could not reach Clerk API") from exc
 
     if not res.ok:
+        log.error("Clerk session lookup failed: status=%d body=%s", res.status_code, res.text[:200])
         raise HTTPException(status_code=401, detail="Session invalid or expired")
 
     data = res.json()
     if data.get("status") != "active":
+        log.warning("Clerk session status=%r for sid=%s", data.get("status"), session_id)
         raise HTTPException(status_code=401, detail="Session not active")
 
     user_id = data.get("user_id")
