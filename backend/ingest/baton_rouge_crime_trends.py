@@ -8,14 +8,13 @@ crime trends by district/zone.
 
 Source:
   Socrata — data.brla.gov (CONFIRMED Socrata instance)
-  Dataset: BRPD Calls for Service / Crime Incidents
-  Dataset ID: fabb-cnnu (researched 2026-03-24, not live-verified)
-  To verify: curl "https://data.brla.gov/api/catalog/v1?q=crime+police&limit=5"
+  Dataset: BRPD Crime Incidents
+  Dataset ID: pbin-pcm7 (researched 2026-03-24, not live-verified)
+  To verify: curl "https://data.brla.gov/resource/pbin-pcm7.json?$limit=1"
 
   Key fields (not live-verified — run --dry-run to confirm field names):
-    create_dt     — date of incident/call
-    site_address  — address of incident (may not have district field)
-    district      — patrol district (may not exist in this dataset)
+    charge_date   — date of incident/charge
+    district      — patrol district
     latitude      — incident latitude
     longitude     — incident longitude
 
