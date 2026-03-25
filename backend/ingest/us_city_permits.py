@@ -697,8 +697,14 @@ CITY_CONFIGS: list[dict] = [
         # data-071: added 2026-03-25
         "city_name":        "Honolulu",
         "source_key":       "honolulu",
+        "disabled":         True,  # data-074: returns HTTP 400; dataset ID not live-verified
+        "disabled_reason":  (
+            "dataset ID msx3-yfxc not live-verified — returns HTTP 400. "
+            "Fix: curl 'https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10' "
+            "to find the correct dataset ID, then remove disabled=True."
+        ),
         "domain":           "data.honolulu.gov",
-        "dataset_id":       "msx3-yfxc",  # not live-verified
+        "dataset_id":       "msx3-yfxc",  # not live-verified — update before re-enabling
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -1066,6 +1072,12 @@ def ingest_city(
 
     Returns the number of records written (0 on failure or dry-run).
     """
+    # Skip configs marked disabled pending URL/dataset verification (data-074).
+    if config.get("disabled"):
+        reason = config.get("disabled_reason", "not live-verified — verify dataset_id and domain")
+        print(f"  SKIP [{config['city_name']}]: {reason}", file=sys.stderr)
+        return 0
+
     raw_records = fetch_city_permits(config, app_token, days_back, dry_run)
 
     if not raw_records:

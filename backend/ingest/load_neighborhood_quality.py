@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070, data-071
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070, data-071, data-074
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -46,6 +46,11 @@ Reads from staging files written by:
   backend/ingest/providence_crime_trends.py   → data/raw/providence_crime_trends.json
   backend/ingest/omaha_crime_trends.py        → data/raw/omaha_crime_trends.json
   backend/ingest/pittsburgh_crime_trends.py   → data/raw/pittsburgh_crime_trends.json
+  backend/ingest/knoxville_crime_trends.py    → data/raw/knoxville_crime_trends.json
+  backend/ingest/akron_crime_trends.py        → data/raw/akron_crime_trends.json
+  backend/ingest/winston_salem_crime_trends.py → data/raw/winston_salem_crime_trends.json
+  backend/ingest/shreveport_crime_trends.py   → data/raw/shreveport_crime_trends.json
+  backend/ingest/huntsville_crime_trends.py   → data/raw/huntsville_crime_trends.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -210,6 +215,12 @@ STAGING_FILES = {
     "crime_salem_or":             Path("data/raw/salem_or_crime_trends.json"),
     "crime_springfield_or":       Path("data/raw/springfield_or_crime_trends.json"),
     "crime_honolulu":             Path("data/raw/honolulu_crime_trends.json"),
+    # data-074: tier-14 city crime trends (stubs — no public API confirmed)
+    "crime_knoxville":            Path("data/raw/knoxville_crime_trends.json"),
+    "crime_akron":                Path("data/raw/akron_crime_trends.json"),
+    "crime_winston_salem":        Path("data/raw/winston_salem_crime_trends.json"),
+    "crime_shreveport":           Path("data/raw/shreveport_crime_trends.json"),
+    "crime_huntsville":           Path("data/raw/huntsville_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -420,6 +431,9 @@ def parse_args() -> argparse.Namespace:
             # data-071: tier-13 cities
             "crime_lincoln", "crime_green_bay", "crime_rockford",
             "crime_salem_or", "crime_springfield_or", "crime_honolulu",
+            # data-074: tier-14 cities (stubs — no public API)
+            "crime_knoxville", "crime_akron", "crime_winston_salem",
+            "crime_shreveport", "crime_huntsville",
             "schools", "schools_national", "all",
         ],
         default="all",
