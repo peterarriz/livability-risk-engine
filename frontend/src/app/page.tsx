@@ -20,7 +20,9 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
-import { fetchAmenities, fetchHistory, fetchScore, fetchScoreTrend, fetchSuggestions, geocodeForMap, getExportUrl, saveReport, ApiError, NearbyAmenity, ScoreHistoryEntry, ScoreResponse, ScoreSource, TrendDay } from "@/lib/api";
+import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { normalizeAddressQuery } from "@/lib/address-utils";
+import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 
@@ -31,6 +33,58 @@ const EXAMPLE_ADDRESSES = [
   "233 S Wacker Dr, Chicago, IL",
 ];
 
+type SuggestionAddressParts = {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+};
+
+function getSuggestionAddressParts(suggestion: AddressSuggestion): SuggestionAddressParts {
+  const raw = suggestion.display_address ?? "";
+  const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
+  const street = parts[0] ?? raw;
+  const city = suggestion.city ?? parts[1] ?? "";
+  const stateZipRaw = parts[2] ?? "";
+  const state = suggestion.state ?? (stateZipRaw.match(/\b([A-Za-z]{2})\b/)?.[1]?.toUpperCase() ?? "");
+  const zip = suggestion.zip ?? (stateZipRaw.match(/\b(\d{5})\b/)?.[1] ?? "");
+  return { street, city, state, zip };
+}
+
+function highlightMatch(text: string, query: string): React.ReactNode {
+  const q = query.trim().toLowerCase();
+  if (!q) return text;
+  const normalizedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matchIndex = text.toLowerCase().indexOf(q);
+  if (matchIndex >= 0) {
+    return (
+      <>
+        {text.slice(0, matchIndex)}
+        <mark className="suggestion-highlight">{text.slice(matchIndex, matchIndex + q.length)}</mark>
+        {text.slice(matchIndex + q.length)}
+      </>
+    );
+  }
+  const queryTokens = normalizedQuery.split(/\s+/).filter((token) => token.length >= 2);
+  if (queryTokens.length === 0) return text;
+  const tokenRegex = new RegExp(`(${queryTokens.join("|")})`, "ig");
+  const chunks = text.split(tokenRegex);
+  return chunks.map((chunk, index) => (
+    queryTokens.includes(chunk.toLowerCase())
+      ? <mark key={`${chunk}-${index}`} className="suggestion-highlight">{chunk}</mark>
+      : <React.Fragment key={`${chunk}-${index}`}>{chunk}</React.Fragment>
+  ));
+}
+
+function debugSearchFlow(stage: string, payload: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  const enabled =
+    process.env.NEXT_PUBLIC_DEBUG_SEARCH_FLOW === "1" ||
+    window.localStorage.getItem("lre_debug_search_flow") === "1";
+  if (!enabled) return;
+  console.info(`[DBG:${stage}]`, payload);
+}
+
 export default function HomePage() {
   const [address, setAddress] = useState("");
   const [result, setResult] = useState<ScoreResponse | null>(null);
@@ -38,9 +92,12 @@ export default function HomePage() {
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveEmail, setSaveEmail] = useState("");
@@ -51,8 +108,8 @@ export default function HomePage() {
   const [addressHistory, setAddressHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistoryEntry[]>([]);
-  const [scoreTrend, setScoreTrend] = useState<TrendDay[]>([]);
-  const [amenities, setAmenities] = useState<Record<string, NearbyAmenity[]>>({});
+  const [dashboardUnavailableReason, setDashboardUnavailableReason] = useState<string | null>(null);
+  const [dashboardHydrationStatus, setDashboardHydrationStatus] = useState<"full" | "partial" | "unsupported" | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Mobile simplified view — reset to false on each new result so users always
@@ -62,6 +119,8 @@ export default function HomePage() {
   const historyShellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
+  const suggestRequestIdRef = useRef(0);
+  const hydrationRequestIdRef = useRef(0);
   // Only fetch suggestions after the user has actually typed — prevents the
   // dropdown firing on mount or when an address is set programmatically.
   const hasUserTyped = useRef(false);
@@ -83,6 +142,7 @@ export default function HomePage() {
     ? (statusNote ?? "Live permit data may not be available for this address. Score is estimated from nearby signals.")
     : "Live backend scoring is active for this address lookup.";
   const hasSuggestions = showSuggestions && suggestions.length > 0;
+  const hasSuggestionPanel = showSuggestions;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
 
   type DetailItem = { label: string; value: string; isConfidence?: boolean };
@@ -185,13 +245,36 @@ export default function HomePage() {
       return;
     }
     const timer = setTimeout(async () => {
-      const results = await fetchSuggestions(address);
+      const requestId = ++suggestRequestIdRef.current;
+      const queryAtRequest = address.trim();
+      debugSearchFlow("SEARCH_INPUT", {
+        typed_query: address,
+        debounced_query: queryAtRequest,
+        request_fired: true,
+        request_id: requestId,
+      });
+      setSuggestionsLoading(true);
+      setSuggestionsError(null);
+      const results = await fetchAddressSuggestions(address, { limit: 8 });
+      if (requestId !== suggestRequestIdRef.current || queryAtRequest !== address.trim()) {
+        debugSearchFlow("SEARCH_RESPONSE", {
+          source: "frontend.fetchAddressSuggestions",
+          dropped: true,
+          reason: "stale_response",
+          request_id: requestId,
+        });
+        return;
+      }
       // Only update if the input is still focused when results arrive.
       if (isFocused) {
         setSuggestions(results);
-        setShowSuggestions(results.length > 0);
+        setShowSuggestions(true);
         setActiveSuggestionIndex(-1);
       }
+      if (results.length === 0) {
+        setSuggestionsError(null);
+      }
+      setSuggestionsLoading(false);
     }, 300);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,6 +303,53 @@ export default function HomePage() {
   // data-025: fetch score history whenever a new result loads.
   useEffect(() => {
     if (!result) { setScoreHistory([]); return; }
+    if (selectedAddress?.id) {
+      const hydrationId = ++hydrationRequestIdRef.current;
+      fetchAddressDashboard(selectedAddress.id, 30, {
+        lat: selectedAddress.lat,
+        lon: selectedAddress.lon,
+        address: selectedAddress.label,
+      }).then((payload) => {
+        if (!payload) {
+          if (hydrationId !== hydrationRequestIdRef.current) return;
+          setScoreHistory([]);
+          setDashboardHydrationStatus("partial");
+          setDashboardUnavailableReason("Could not load address dashboard data.");
+          return;
+        }
+        if (hydrationId !== hydrationRequestIdRef.current) return;
+        const status = payload.status ?? (payload.available ? "full" : "partial");
+        setDashboardHydrationStatus(status);
+        if (status === "unsupported") {
+          setScoreHistory([]);
+          setDashboardUnavailableReason("This address is currently unsupported for dashboard hydration.");
+          return;
+        }
+        if (!payload.available) {
+          setScoreHistory([]);
+          setDashboardUnavailableReason(
+            payload.reason === "db_not_configured"
+              ? "Partial dashboard only: backend storage is not connected yet."
+              : payload.reason === "no_backend_record"
+                ? `Partial dashboard only: no score history yet${payload.modules_unavailable?.length ? ` (missing: ${payload.modules_unavailable.join(", ")})` : ""}.`
+                : "Partial dashboard only: some modules are unavailable for this address.",
+          );
+          return;
+        }
+        setDashboardUnavailableReason(null);
+        setScoreHistory(
+          payload.history.map((h) => ({
+            disruption_score: h.disruption_score,
+            confidence: h.confidence,
+            mode: h.mode as import("../lib/api").ScoreMode,
+            created_at: h.scored_at,
+          })),
+        );
+      });
+      return;
+    }
+
+    setDashboardHydrationStatus(null);
     fetchHistory(result.address, 30).then((r) =>
       setScoreHistory(
         r
@@ -232,33 +362,56 @@ export default function HomePage() {
           : [],
       ),
     );
-  }, [result]);
+  }, [result, selectedAddress]);
 
-  // data-062: fetch area trend whenever coordinates are available.
   useEffect(() => {
-    const lat = result?.latitude ?? null;
-    const lon = result?.longitude ?? null;
-    if (lat == null || lon == null) { setScoreTrend([]); return; }
-    fetchScoreTrend(lat, lon).then((r) => setScoreTrend(r?.trend ?? []));
-  }, [result?.latitude, result?.longitude]);
+    debugSearchFlow("FINAL_RENDER", {
+      dashboard_status: dashboardHydrationStatus,
+      has_result: Boolean(result),
+      history_count: scoreHistory.length,
+      dashboard_unavailable: Boolean(dashboardUnavailableReason),
+    });
+  }, [dashboardHydrationStatus, dashboardUnavailableReason, result, scoreHistory.length]);
 
-  // data-064: fetch amenity richness whenever coordinates are available.
-  useEffect(() => {
-    const lat = result?.latitude ?? null;
-    const lon = result?.longitude ?? null;
-    if (lat == null || lon == null) { setAmenities({}); return; }
-    fetchAmenities(lat, lon).then((r) => setAmenities(r?.categories ?? {}));
-  }, [result?.latitude, result?.longitude]);
+  function toManualSuggestion(displayAddress: string): AddressSuggestion {
+    const normalized = normalizeAddressQuery(displayAddress);
+    const canonicalId = `manual_${normalized.replace(/[^a-z0-9]+/g, "_")}`;
+    return {
+      canonical_id: canonicalId,
+      display_address: displayAddress,
+      lat: null,
+      lon: null,
+    };
+  }
 
-  function handleSuggestionSelect(suggestion: string) {
-    track("suggestion_selected", { address: suggestion });
+  function handleSuggestionSelect(suggestion: AddressSuggestion, options: { submit?: boolean } = { submit: true }) {
+    const parts = getSuggestionAddressParts(suggestion);
+    const selected: SelectedAddress = {
+      id: suggestion.canonical_id,
+      label: suggestion.display_address,
+      lat: suggestion.lat ?? null,
+      lon: suggestion.lon ?? null,
+      city: parts.city,
+      state: parts.state,
+      zip: parts.zip || undefined,
+    };
+    debugSearchFlow("SELECTION", { ...selected, raw: suggestion });
+    track("suggestion_selected", { address: suggestion.display_address, canonical_id: suggestion.canonical_id });
     skipSuggestRef.current = true;
     hasUserTyped.current = false;   // treat the fill as programmatic
-    setAddress(suggestion);
+    setSelectedAddress(selected);
+    setError(null);
+    setSuggestionsError(null);
+    setDashboardUnavailableReason(null);
+    setDashboardHydrationStatus(null);
+    setAddress(suggestion.display_address);
     setSuggestions([]);
     setShowSuggestions(false);
     setActiveSuggestionIndex(-1);
     inputRef.current?.focus();
+    if (options.submit !== false) {
+      void submitAddress(suggestion.display_address);
+    }
   }
 
   function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -287,12 +440,24 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
+    debugSearchFlow("SEARCH_REQUEST", {
+      request_fired: true,
+      identifier_type: selectedAddress?.id ? "canonical_id" : "address_text",
+      identifier: selectedAddress?.id ?? addr,
+      display_address: selectedAddress?.label ?? addr,
+    });
     track("address_analyzed", { address: addr });
     setIsLoading(true);
     setError(null);
+    setDashboardUnavailableReason(null);
+    setDashboardHydrationStatus(null);
     setMobileShowFull(false);
     try {
-      const scoreResult = await fetchScore(addr);
+      const scoreResult = await fetchScore(addr, {
+        canonicalId: selectedAddress?.id ?? null,
+        lat: selectedAddress?.lat ?? null,
+        lon: selectedAddress?.lon ?? null,
+      });
       setResult(scoreResult.score);
       setScoredAt(new Date());
       setScoreSource(scoreResult.source);
@@ -395,7 +560,7 @@ export default function HomePage() {
                   <ul className="history-dropdown" role="listbox" aria-label="Recent addresses">
                     {addressHistory.slice(1).map((hist: string) => (
                       <li key={hist} role="option" aria-selected={false}>
-                        <button type="button" onClick={() => { handleSuggestionSelect(hist); setShowHistory(false); }}>
+                        <button type="button" onClick={() => { handleSuggestionSelect(toManualSuggestion(hist)); setShowHistory(false); }}>
                           {hist}
                         </button>
                       </li>
@@ -443,9 +608,34 @@ export default function HomePage() {
                     value={address}
                     onChange={(event) => {
                       hasUserTyped.current = true;
+                      setSelectedAddress(null);
+                      setError(null);
+                      setDashboardUnavailableReason(null);
+                      setDashboardHydrationStatus(null);
+                      debugSearchFlow("SEARCH_INPUT", {
+                        typed_query: event.target.value,
+                        debounced_query: null,
+                        request_fired: false,
+                      });
                       setAddress(event.target.value);
                     }}
-                    onFocus={() => setIsFocused(true)}
+                    onFocus={() => {
+                      setIsFocused(true);
+                      if (address.trim().length < 3) {
+                        setSuggestionsLoading(true);
+                        setSuggestionsError(null);
+                        fetchAddressSuggestions("", { popular: true, limit: 5 })
+                          .then((results) => {
+                            setSuggestions(results);
+                            setShowSuggestions(true);
+                            setActiveSuggestionIndex(-1);
+                          })
+                          .catch(() => {
+                            setSuggestionsError("Could not load suggestions.");
+                          })
+                          .finally(() => setSuggestionsLoading(false));
+                      }
+                    }}
                     onBlur={() => {
                       setIsFocused(false);
                       setTimeout(() => setShowSuggestions(false), 150);
@@ -454,7 +644,7 @@ export default function HomePage() {
                     placeholder="Search any US address"
                     autoComplete="off"
                     role="combobox"
-                    aria-expanded={hasSuggestions}
+                    aria-expanded={hasSuggestionPanel}
                     aria-controls="address-suggestions"
                     aria-activedescendant={activeSuggestionId}
                     aria-autocomplete="list"
@@ -470,6 +660,9 @@ export default function HomePage() {
                         setAddress("");
                         setSuggestions([]);
                         setShowSuggestions(false);
+                        setError(null);
+                        setDashboardUnavailableReason(null);
+                        setDashboardHydrationStatus(null);
                         hasUserTyped.current = false;
                         inputRef.current?.focus();
                       }}
@@ -477,21 +670,52 @@ export default function HomePage() {
                       ×
                     </button>
                   )}
-                  {hasSuggestions ? (
+                  {showSuggestions ? (
                     <ul id="address-suggestions" className="suggestion-list" role="listbox" aria-label="Address suggestions">
-                      {suggestions.map((suggestion, index) => (
+                      {suggestionsLoading ? (
+                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
+                          <span className="suggestion-loading-dot" aria-hidden="true" />
+                          <span className="suggestion-item-label">Finding best matches…</span>
+                          <span className="suggestion-item-meta">Searching trusted backend addresses</span>
+                        </li>
+                      ) : suggestionsError ? (
+                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
+                          <span className="suggestion-item-label">{suggestionsError}</span>
+                          <span className="suggestion-item-meta">Try again or continue with full address + ZIP</span>
+                        </li>
+                      ) : suggestions.length === 0 ? (
+                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
+                          <span className="suggestion-item-label">
+                            {address.trim().length < 3 ? "Start typing to search addresses" : "No trusted matches found yet"}
+                          </span>
+                          <span className="suggestion-item-meta">
+                            {address.trim().length < 3
+                              ? "Use street number + street name (for example: 1600 W Chicago Ave)"
+                              : `Try adding city/state or ZIP for “${address.trim()}”`}
+                          </span>
+                        </li>
+                      ) : suggestions.map((suggestion, index) => (
+                        (() => {
+                          const addr = getSuggestionAddressParts(suggestion);
+                          const locality = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ").replace(", ,", ",");
+                          const isActive = index === activeSuggestionIndex;
+                          const isSelected = selectedAddress?.id === suggestion.canonical_id;
+                          return (
                         <li
-                          key={suggestion}
+                          key={suggestion.canonical_id}
                           id={`address-suggestion-${index}`}
                           role="option"
-                          aria-selected={index === activeSuggestionIndex}
-                          className={`suggestion-item ${index === activeSuggestionIndex ? "suggestion-item--active" : ""}`}
+                          aria-selected={isActive}
+                          className={`suggestion-item ${isActive ? "suggestion-item--active" : ""} ${isSelected ? "suggestion-item--selected" : ""}`}
                           onMouseDown={() => handleSuggestionSelect(suggestion)}
                           onMouseEnter={() => setActiveSuggestionIndex(index)}
                         >
-                          <span className="suggestion-item-label">{suggestion}</span>
-                          <span className="suggestion-item-meta">US address</span>
+                          <span className="suggestion-item-label">{highlightMatch(addr.street, address)}</span>
+                          <span className="suggestion-item-subline">{highlightMatch(locality || suggestion.display_address, address)}</span>
+                          <span className="suggestion-item-meta">{isSelected ? "Selected" : "Indexed address"}</span>
                         </li>
+                        );
+                        })()
                       ))}
                     </ul>
                   ) : null}
@@ -516,7 +740,7 @@ export default function HomePage() {
                         key={example}
                         type="button"
                         className="example-chip"
-                        onClick={() => handleSuggestionSelect(example)}
+                        onClick={() => handleSuggestionSelect(toManualSuggestion(example), { submit: true })}
                       >
                         {example}
                       </button>
@@ -549,6 +773,19 @@ export default function HomePage() {
                     ? "We couldn't find that address in Illinois. Try including a ZIP code."
                     : error}
                 </p>
+              </div>
+            ) : null}
+
+            {dashboardUnavailableReason ? (
+              <div className="feedback-banner" role="status" style={{ marginTop: "0.75rem" }}>
+                <p className="feedback-title">
+                  {dashboardHydrationStatus === "partial"
+                    ? "Partial dashboard"
+                    : dashboardHydrationStatus === "unsupported"
+                      ? "Unsupported address"
+                      : "Address dashboard not available"}
+                </p>
+                <p>{dashboardUnavailableReason}</p>
               </div>
             ) : null}
           </Card>
@@ -896,7 +1133,7 @@ export default function HomePage() {
                     type="button"
                     className="example-chip"
                     onClick={() => {
-                      handleSuggestionSelect(example);
+                      handleSuggestionSelect(toManualSuggestion(example));
                       inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
                     }}
                   >

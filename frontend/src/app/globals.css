@@ -368,26 +368,76 @@ button:disabled {
   background: rgba(8, 14, 28, 0.96);
   box-shadow: 0 26px 48px rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(18px);
+  max-height: min(56vh, 420px);
+  overflow-y: auto;
 }
 
 .suggestion-item {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 3px;
+  padding: 12px 14px 11px;
   border-radius: 14px;
   color: rgba(239, 243, 251, 0.96);
   cursor: pointer;
-  transition: background 160ms ease, color 160ms ease;
+  border: 1px solid transparent;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
 .suggestion-item:hover,
 .suggestion-item--active {
   background: linear-gradient(135deg, rgba(95, 124, 255, 0.18), rgba(60, 229, 179, 0.1));
+  border-color: rgba(141, 165, 255, 0.28);
+}
+
+.suggestion-item--selected {
+  border-color: rgba(60, 229, 179, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(60, 229, 179, 0.18);
 }
 
 .suggestion-item-label {
   font-size: 0.95rem;
-  line-height: 1.4;
+  line-height: 1.38;
+  font-weight: 600;
+}
+
+.suggestion-item-subline {
+  color: rgba(214, 224, 242, 0.78);
+  font-size: 0.83rem;
+  line-height: 1.3;
+}
+
+.suggestion-item--status {
+  cursor: default;
+  border-color: rgba(141, 165, 255, 0.16);
+}
+
+.suggestion-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c97ff 0%, #3ce5b3 100%);
+  box-shadow: 0 0 0 6px rgba(124, 151, 255, 0.14);
+  margin: 4px 0 6px;
+  animation: suggestionPulse 1.2s ease-in-out infinite;
+}
+
+.suggestion-highlight {
+  background: rgba(95, 124, 255, 0.26);
+  color: #f4f7ff;
+  border-radius: 6px;
+  padding: 0 2px;
+}
+
+@keyframes suggestionPulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .form-hint {
@@ -2237,6 +2287,14 @@ button:disabled {
 
   .search-shell {
     display: grid;
+  }
+
+  .suggestion-list {
+    max-height: min(48vh, 320px);
+  }
+
+  .suggestion-item {
+    padding: 11px 12px 10px;
   }
 
   .topnav {

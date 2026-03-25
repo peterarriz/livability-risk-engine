@@ -1,3 +1,7 @@
+import { buildAddressSearchTokens, normalizeAddressQuery } from "@/lib/address-utils";
+import type { AddressSuggestion, ScoreRequestInput } from "@/lib/address-types";
+export type { AddressSuggestion, SelectedAddress, ScoreRequestInput } from "@/lib/address-types";
+
 export type SeverityLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ScoreMode = "live" | "demo";
@@ -91,6 +95,45 @@ export type MapNarrationResponse = {
   narration: string | null;
 };
 
+export type AddressDashboardResponse = {
+  status?: "full" | "partial" | "unsupported";
+  available: boolean;
+  canonical_id: string | null;
+  reason: "not_found" | "db_not_configured" | "no_backend_record" | null;
+  address: {
+    display_address: string;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  } | null;
+  location_summary?: {
+    display_address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+    resolution_source?: string | null;
+  } | null;
+  score_summary?: {
+    disruption_score?: number | null;
+    livability_score?: number | null;
+    confidence?: ConfidenceLevel | string | null;
+    mode?: string | null;
+    scored_at?: string | null;
+  } | null;
+  modules_unavailable?: string[];
+  history: Array<{
+    disruption_score: number;
+    livability_score: number;
+    confidence: ConfidenceLevel;
+    mode: string;
+    scored_at: string;
+  }>;
+};
+
 export type ScoreResponse = {
   address: string;
   disruption_score: number;
@@ -149,6 +192,20 @@ type DemoScoreResult = {
 export type ScoreResult = LiveScoreResult | DemoScoreResult;
 
 const LOCAL_API_URL = "http://127.0.0.1:8000";
+
+// Temporary debug instrumentation for search/dashboard pipeline.
+function shouldDebugSearchFlow(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    process.env.NEXT_PUBLIC_DEBUG_SEARCH_FLOW === "1" ||
+    window.localStorage.getItem("lre_debug_search_flow") === "1"
+  );
+}
+
+function debugSearchFlow(stage: string, payload: Record<string, unknown>) {
+  if (!shouldDebugSearchFlow()) return;
+  console.info(`[DBG:${stage}]`, payload);
+}
 
 export class ApiError extends Error {
   constructor(message: string) {
@@ -492,6 +549,8 @@ function _parsePhoton(features: PhotonFeature[], streetFrag?: string | null): st
 export async function fetchSuggestions(query: string): Promise<string[]> {
   const q = query.trim();
   if (q.length < 3) return [];
+  const queryTokens = buildAddressSearchTokens(q);
+  debugSearchFlow("SEARCH_REQUEST", { query: q, source: "frontend.fetchSuggestions" });
 
   // 0. Static Chicago street list — instant, works offline, no geocoder needed.
   //    Geocoders can't do real-time partial-name matching ("Pe" → Peoria), but
@@ -499,7 +558,16 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
   //    network calls are skipped entirely.
   const { suggestFromStaticList } = await import("./chicago-streets");
   const staticHits = suggestFromStaticList(q);
-  if (staticHits.length) return staticHits;
+  if (staticHits.length) {
+    debugSearchFlow("SEARCH_RESPONSE", {
+      source: "static_list",
+      query: q,
+      suggestion_count: staticHits.length,
+      top_suggestions: staticHits.slice(0, 3),
+      canonical_ids: [],
+    });
+    return staticHits;
+  }
 
   // Pre-compute the partial street-name fragment for post-filtering results.
   // e.g. "679 North Pe" → "pe" so only streets starting with "pe" (e.g.
@@ -515,8 +583,26 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
       url.searchParams.set("q", q);
       const resp = await fetch(url.toString(), { cache: "no-store" });
       if (resp.ok) {
-        const data = (await resp.json()) as { suggestions: string[] };
-        if (data.suggestions?.length) return data.suggestions;
+        const data = (await resp.json()) as {
+          suggestions?: Array<string | { canonical_id?: string | number | null; id?: string | number | null; display?: string; label?: string; address?: string }>;
+        };
+        if (data.suggestions?.length) {
+          const asStrings = data.suggestions
+            .map((s) => (typeof s === "string" ? s : s.display ?? s.label ?? s.address ?? ""))
+            .filter((s) => s.length > 0)
+            .filter((s) => queryTokens.every((token) => normalizeAddressQuery(s).includes(token)));
+          const canonicalIds = data.suggestions
+            .map((s) => (typeof s === "string" ? null : (s.canonical_id ?? s.id ?? null)))
+            .filter((id): id is string | number => id !== null);
+          debugSearchFlow("SEARCH_RESPONSE", {
+            source: "backend_suggest",
+            query: q,
+            suggestion_count: asStrings.length,
+            top_suggestions: asStrings.slice(0, 3),
+            canonical_ids: canonicalIds.slice(0, 3),
+          });
+          return asStrings;
+        }
       }
     } catch {
       // Backend unreachable — fall through to browser-side geocoding.
@@ -536,8 +622,18 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
       cache: "no-store",
     });
     if (resp.ok) {
-      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[], streetFrag);
-      if (suggestions.length) return suggestions;
+      const suggestions = _parseNominatim((await resp.json()) as NominatimItem[], streetFrag)
+        .filter((item) => queryTokens.every((token) => normalizeAddressQuery(item).includes(token)));
+      if (suggestions.length) {
+        debugSearchFlow("SEARCH_RESPONSE", {
+          source: "browser_nominatim",
+          query: q,
+          suggestion_count: suggestions.length,
+          top_suggestions: suggestions.slice(0, 3),
+          canonical_ids: [],
+        });
+        return suggestions;
+      }
     }
   } catch { /* fall through */ }
 
@@ -549,11 +645,130 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
     url.searchParams.set("lang", "en");
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (resp.ok) {
-      return _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? [], streetFrag);
+      const suggestions = _parsePhoton(((await resp.json()) as { features: PhotonFeature[] }).features ?? [], streetFrag)
+        .filter((item) => queryTokens.every((token) => normalizeAddressQuery(item).includes(token)));
+      debugSearchFlow("SEARCH_RESPONSE", {
+        source: "browser_photon",
+        query: q,
+        suggestion_count: suggestions.length,
+        top_suggestions: suggestions.slice(0, 3),
+        canonical_ids: [],
+      });
+      return suggestions;
     }
   } catch { /* */ }
 
   return [];
+}
+
+export async function fetchAddressSuggestions(
+  query: string,
+  options?: { popular?: boolean; limit?: number },
+): Promise<AddressSuggestion[]> {
+  const q = query.trim();
+  const popular = Boolean(options?.popular);
+  const limit = Math.min(8, Math.max(1, options?.limit ?? 8));
+  if (!popular && q.length < 3) return [];
+
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return [];
+
+  try {
+    const url = buildApiUrl("/suggest");
+    url.searchParams.set("q", q);
+    url.searchParams.set("limit", String(limit));
+    if (popular && q.length < 3) {
+      // /suggest intentionally avoids low-signal empty queries.
+      return [];
+    }
+    debugSearchFlow("SEARCH_REQUEST", {
+      query: q,
+      source: "frontend.fetchAddressSuggestions",
+      popular,
+      limit,
+      url: url.toString(),
+    });
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) {
+      debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, status: resp.status, query: q });
+      return [];
+    }
+    const data = (await resp.json()) as { suggestions?: AddressSuggestion[] };
+    const suggestions = (data.suggestions ?? []).filter(
+      (s) => Boolean(s?.canonical_id) && Boolean(s?.display_address),
+    );
+    const deduped = Array.from(new Map(suggestions.map((s) => [s.canonical_id, s])).values()).slice(0, limit);
+    debugSearchFlow("SEARCH_RESPONSE", {
+      source: "backend_suggest",
+      endpoint: "/suggest",
+      ok: true,
+      query: q,
+      suggestion_count: deduped.length,
+      top_suggestions: deduped.slice(0, 3).map((s) => s.display_address),
+      canonical_ids: deduped.slice(0, 3).map((s) => s.canonical_id),
+    });
+    return deduped;
+  } catch {
+    debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, error: "fetch_exception", query: q });
+    return [];
+  }
+}
+
+export async function fetchAddressDashboard(
+  canonicalId: string | null,
+  limit = 30,
+  fallback?: { lat?: number | null; lon?: number | null; address?: string | null },
+): Promise<AddressDashboardResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+  try {
+    const url = buildApiUrl("/dashboard/address");
+    if (canonicalId) url.searchParams.set("canonical_id", canonicalId);
+    if (typeof fallback?.lat === "number" && typeof fallback?.lon === "number") {
+      url.searchParams.set("lat", String(fallback.lat));
+      url.searchParams.set("lon", String(fallback.lon));
+    }
+    if (fallback?.address) url.searchParams.set("address", fallback.address);
+    url.searchParams.set("limit", String(limit));
+    debugSearchFlow("DASHBOARD_REQUEST", {
+      source: "frontend.fetchAddressDashboard",
+      url: url.toString(),
+      identifier_type: canonicalId ? "canonical_id" : "lat_lon",
+      identifier: canonicalId ?? `${fallback?.lat ?? "?"},${fallback?.lon ?? "?"}`,
+      lat: fallback?.lat ?? null,
+      lon: fallback?.lon ?? null,
+    });
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) {
+      debugSearchFlow("DASHBOARD_RESPONSE", {
+        source: "frontend.fetchAddressDashboard",
+        ok: false,
+        status: resp.status,
+        identifier: canonicalId ?? null,
+      });
+      return null;
+    }
+    const data = (await resp.json()) as AddressDashboardResponse;
+    debugSearchFlow("DASHBOARD_RESPONSE", {
+      source: "frontend.fetchAddressDashboard",
+      ok: true,
+      identifier: canonicalId ?? null,
+      available: data.available,
+      status: data.status ?? (data.available ? "full" : "partial"),
+      reason: data.reason,
+      modules_unavailable: data.modules_unavailable ?? [],
+      history_count: data.history?.length ?? 0,
+    });
+    return data;
+  } catch {
+    debugSearchFlow("DASHBOARD_RESPONSE", {
+      source: "frontend.fetchAddressDashboard",
+      ok: false,
+      error: "fetch_exception",
+      identifier: canonicalId ?? null,
+    });
+    return null;
+  }
 }
 
 /**
@@ -722,13 +937,29 @@ export type DashboardResponse = {
 
 export async function fetchDashboard(backendToken: string): Promise<DashboardResponse | null> {
   try {
-    const resp = await fetch(buildApiUrl("/dashboard").toString(), {
+    const url = buildApiUrl("/dashboard").toString();
+    debugSearchFlow("DASHBOARD_REQUEST", {
+      url,
+      identifier_type: "backend_token",
+      identifier_present: Boolean(backendToken),
+    });
+    const resp = await fetch(url, {
       headers: getAuthHeaders(backendToken),
       cache: "no-store",
     });
-    if (!resp.ok) return null;
-    return (await resp.json()) as DashboardResponse;
+    if (!resp.ok) {
+      debugSearchFlow("DASHBOARD_RESPONSE", { ok: false, status: resp.status });
+      return null;
+    }
+    const data = (await resp.json()) as DashboardResponse;
+    debugSearchFlow("DASHBOARD_RESPONSE", {
+      ok: true,
+      saved_reports_count: data.saved_reports?.length ?? 0,
+      watchlist_count: data.watchlist?.length ?? 0,
+    });
+    return data;
   } catch {
+    debugSearchFlow("DASHBOARD_RESPONSE", { ok: false, error: "fetch_exception" });
     return null;
   }
 }
@@ -778,10 +1009,27 @@ export async function fetchHistory(
     const url = buildApiUrl("/history");
     url.searchParams.set("address", address);
     url.searchParams.set("limit", String(limit));
+    debugSearchFlow("DASHBOARD_REQUEST", {
+      url: url.toString(),
+      identifier_type: "address_text",
+      identifier: address,
+      limit,
+    });
     const resp = await fetch(url.toString(), { cache: "no-store" });
-    if (!resp.ok) return null;
-    return (await resp.json()) as HistoryResponse;
+    if (!resp.ok) {
+      debugSearchFlow("DASHBOARD_RESPONSE", { ok: false, status: resp.status, identifier: address });
+      return null;
+    }
+    const data = (await resp.json()) as HistoryResponse;
+    debugSearchFlow("DASHBOARD_RESPONSE", {
+      ok: true,
+      identifier_type: "address_text",
+      identifier: address,
+      history_count: data.history?.length ?? 0,
+    });
+    return data;
   } catch {
+    debugSearchFlow("DASHBOARD_RESPONSE", { ok: false, error: "fetch_exception", identifier: address });
     return null;
   }
 }
@@ -1056,7 +1304,10 @@ export async function fetchScoreWithKey(address: string, apiKey: string): Promis
   return (await resp.json()) as ScoreResponse;
 }
 
-export async function fetchScore(address: string): Promise<ScoreResult> {
+export async function fetchScore(
+  address: string,
+  options?: Omit<ScoreRequestInput, "address">,
+): Promise<ScoreResult> {
   const apiBaseUrl = getApiBaseUrl();
 
   // No backend URL — throw so the caller surfaces a clear error rather than
@@ -1070,6 +1321,20 @@ export async function fetchScore(address: string): Promise<ScoreResult> {
 
   const url = buildApiUrl("/score");
   url.searchParams.set("address", address);
+  if (options?.canonicalId) {
+    url.searchParams.set("canonical_id", options.canonicalId);
+  }
+  if (typeof options?.lat === "number" && typeof options?.lon === "number") {
+    url.searchParams.set("lat", String(options.lat));
+    url.searchParams.set("lon", String(options.lon));
+  }
+  debugSearchFlow("DASHBOARD_REQUEST", {
+    url: url.toString(),
+    identifier_type: options?.canonicalId ? "canonical_id" : (typeof options?.lat === "number" ? "lat_lon" : "address_text"),
+    identifier: options?.canonicalId ?? address,
+    lat: options?.lat ?? null,
+    lon: options?.lon ?? null,
+  });
 
   let response: Response;
   try {
