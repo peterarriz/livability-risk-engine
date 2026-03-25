@@ -27,7 +27,7 @@ failure mode, and agent rule in the LRE data pipeline.
 | Anchorage | `anchorage_crime_trends.py` | data.muni.org | `cizs-bvns` (MUST VERIFY) | `date_reported` | `reporting_area` | `anchorage_crime_trends.json` |
 | Madison | `madison_crime_trends.py` | data.cityofmadison.com | `68yf-zu8t` (MUST VERIFY) | `incident_date` | `sector` | `madison_crime_trends.json` |
 | Spokane | `spokane_crime_trends.py` | data.spokanecity.org | `4gj6-ujfi` (MUST VERIFY) | `reported_date` | `precinct` | `spokane_crime_trends.json` |
-| Dayton OH | `dayton_crime_trends.py` | data.dayton.gov | `b4z3-ppnd` (MUST VERIFY) | `date_reported` (MUST VERIFY) | `district` (MUST VERIFY) | `dayton_crime_trends.json` |
+| Dayton OH | `dayton_crime_trends.py` | maps.daytonohio.gov (ArcGIS MapServer — see ArcGIS-Based table) | — | — | — | `dayton_crime_trends.json` |
 | Honolulu HI | `honolulu_crime_trends.py` | data.honolulu.gov | `kfre-e9j5` (MUST VERIFY) | `incident_date` (MUST VERIFY) | `district` (MUST VERIFY) | `honolulu_crime_trends.json` |
 
 **Kansas City** uses per-year datasets on `data.kcmo.org`:
@@ -86,25 +86,27 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Chattanooga TN | `chattanooga_crime_trends.py` | `services2.arcgis.com/OIAIimblRxPs0xxc/.../testingtestingtestingpolicepoints/FeatureServer/0` | `date_incident` | `incident_type` (MUST VERIFY for geographic field) | `chattanooga_crime_trends.json` |
 | Grand Rapids MI | `grand_rapids_crime_trends.py` | `services2.arcgis.com/L81TiOwAPO1ZvU9b/.../incident_reports/FeatureServer/0` | `DATEOFOFFENSE` | `Service_Area` | `grand_rapids_crime_trends.json` |
 | Fayetteville NC | `fayetteville_nc_crime_trends.py` | `gismaps.fayettevillenc.gov/.../Police/IncidentsCrimesAgainst{Persons,Property,Society}/MapServer/0` (3 layers) | `Date_Incident` | `district` | `fayetteville_nc_crime_trends.json` |
-| Tempe AZ | `tempe_crime_trends.py` | `services.arcgis.com/e5BBQV9bLnUqzr4V/.../TPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city tempe`) | `IncidentDate` | `District` | `tempe_crime_trends.json` |
-| Peoria AZ | `peoria_az_crime_trends.py` | `services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../PPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city peoria_az`) | `IncidentDate` | `District` | `peoria_az_crime_trends.json` |
+| Tempe AZ | `tempe_crime_trends.py` | `services.arcgis.com/lQySeXwbBg53XWDi/.../Calls_For_Service/FeatureServer/0` (not live-verified; portal: policedata.tempe.gov) | `OccurrenceDatetime` | `ReportDistrict` | `tempe_crime_trends.json` |
+| Peoria AZ | `peoria_az_crime_trends.py` | `gis.peoriaaz.gov/arcgis/rest/services/PD/PD_Map_Cases/FeatureServer/3` (self-hosted; not live-verified) | `CVFROMDATE` (YYYYMMDD int) | `CRIMEAGAINST` | `peoria_az_crime_trends.json` |
 | Surprise AZ | `surprise_az_crime_trends.py` | `services.arcgis.com/QJfxWS1GiDHgQMwH/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city surprise_az`) | `IncidentDate` | `District` | `surprise_az_crime_trends.json` |
 | Goodyear AZ | `goodyear_az_crime_trends.py` | `services.arcgis.com/aMqXhGKtSoqR5lNw/.../GoPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city goodyear_az`) | `IncidentDate` | `District` | `goodyear_az_crime_trends.json` |
-| Fort Wayne IN | `fort_wayne_crime_trends.py` | `services.arcgis.com/8Wez4BJD3neYYnDt/.../FWPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `DateOccurred` | `District` | `fort_wayne_crime_trends.json` |
+| Fort Wayne IN | `fort_wayne_crime_trends.py` | **STUB — no public API** (no ArcGIS/Socrata crime endpoint; monthly PDFs only at cityoffortwayne.in.gov/699/Crime-Stats) | — | — | `fort_wayne_crime_trends.json` (0 records) |
 | Boise ID | `boise_crime_trends.py` | `services.arcgis.com/r1QnEiQlTiHHMlou/.../BPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `OccurrenceDate` | `District` | `boise_crime_trends.json` |
-| Cape Coral FL | `cape_coral_crime_trends.py` | `services.arcgis.com/qJBnRfhGOvGVBnaX/.../CCPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `cape_coral_crime_trends.json` |
+| Cape Coral FL | `cape_coral_crime_trends.py` | **STUB — no public API** (capecoral-capegis.opendata.arcgis.com has 70+ datasets but no crime layers; GIS org MZl3VrkZJOk1VhY4 has no crime FeatureServer) | — | — | `cape_coral_crime_trends.json` (0 records) |
 | Eugene OR | `eugene_crime_trends.py` | `services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../EPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `eugene_crime_trends.json` |
 | Springfield MO | `springfield_mo_crime_trends.py` | `services6.arcgis.com/bdLPgVQpKkp3xrEm/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `springfield_mo_crime_trends.json` |
-| Sioux Falls SD | `sioux_falls_crime_trends.py` | `services.arcgis.com/Nf5qHqEDvuX5aNFd/.../SFPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `ReportedDate` | `Sector` | `sioux_falls_crime_trends.json` |
-| Lincoln NE | `lincoln_crime_trends.py` | `services.arcgis.com/ZPeUDkbFEf7WXNID/.../LPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `ReportDistrict` | `lincoln_crime_trends.json` |
-| Salem OR | `salem_or_crime_trends.py` | `services.arcgis.com/uUvqNr0XSi28N3Hj/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `PatrolDistrict` | `salem_or_crime_trends.json` |
+| Sioux Falls SD | `sioux_falls_crime_trends.py` | `gis.siouxfalls.gov/arcgis/rest/services/Data/Safety/MapServer/16` (self-hosted; not live-verified) | `Date_Time` | `Category` | `sioux_falls_crime_trends.json` |
+| Lincoln NE | `lincoln_crime_trends.py` | `services.arcgis.com/ZPeUDkbFEf7WXNID/.../LPD_Crime_Incidents/FeatureServer/0` (not live-verified) | `IncidentDate` | `ReportDistrict` | `lincoln_crime_trends.json` |
+| Salem OR | `salem_or_crime_trends.py` | `services.arcgis.com/uUvqNr0XSi28N3Hj/.../SPD_Crime_Incidents/FeatureServer/0` (not live-verified) | `IncidentDate` | `PatrolDistrict` | `salem_or_crime_trends.json` |
+| Dayton OH | `dayton_crime_trends.py` | `maps.daytonohio.gov/gisservices/rest/services/Police/Crimes_Last_Two_Years/MapServer/0` (not live-verified) | `reportdate` | `district` | `dayton_crime_trends.json` |
+| Tallahassee FL | `tallahassee_crime_trends.py` | `cotinter.leoncountyfl.gov/cotinter/rest/services/Vector/COT_InterTOPS_D_WM/MapServer/2` (Layer 2, verified in script; ~365-day rolling window) | `INCIDENT_TIME_ADJ` | `BEAT` | `tallahassee_crime_trends.json` |
 
 ### OpenDataSoft-Based
 
 | City | Script | Portal | Dataset | Date Field | Group Field | Output |
 |------|--------|--------|---------|------------|-------------|--------|
 | Cary NC | `cary_crime_trends.py` | `data.townofcary.org` | `cpd-incidents` | `date_from` | `district` | `cary_crime_trends.json` |
-| Tallahassee FL | `tallahassee_crime_trends.py` | `data.talgov.com` | `f476-psrc` (MUST VERIFY) | `incident_date` (MUST VERIFY) | `zone` (MUST VERIFY) | `tallahassee_crime_trends.json` |
+| Tallahassee FL | `tallahassee_crime_trends.py` | cotinter.leoncountyfl.gov (ArcGIS MapServer — see ArcGIS-Based table) | — | — | — | `tallahassee_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -126,7 +128,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Tampa | `tampa_crime_trends.py` | opendata.tampa.gov | `jcxs-sxan` (MUST VERIFY) | `report_date` | `zone` | `tampa_crime_trends.json` |
 | Miami-Dade | `miami_crime_trends.py` | opendata.miamidade.gov | `kp8e-sznm` (MUST VERIFY) | `occurred_date` | `district` | `miami_crime_trends.json` |
 | St. Louis | `st_louis_crime_trends.py` | data.stlouis-mo.gov | `9hzd-5uqu` (MUST VERIFY) | `date_occur` | `district` | `st_louis_crime_trends.json` |
-| Baton Rouge | `baton_rouge_crime_trends.py` | data.brla.gov | `fabb-cnnu` (MUST VERIFY) | `create_dt` | `district` | `baton_rouge_crime_trends.json` |
+| Baton Rouge | `baton_rouge_crime_trends.py` | data.brla.gov | `pbin-pcm7` (not live-verified) | `charge_date` | `district` | `baton_rouge_crime_trends.json` |
 | Lexington KY | `lexington_crime_trends.py` | data.lexingtonky.gov | `e5v3-4r22` (MUST VERIFY) | `date_reported` | `division` | `lexington_crime_trends.json` |
 
 ### CSV-Based
@@ -210,9 +212,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Peoria AZ | `peoria_az` | services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Surprise AZ | `surprise_az` | services.arcgis.com/QJfxWS1GiDHgQMwH/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Goodyear AZ | `goodyear_az` | services.arcgis.com/aMqXhGKtSoqR5lNw/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Fort Wayne IN | `fort_wayne` | services.arcgis.com/8Wez4BJD3neYYnDt/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Fort Wayne IN | `fort_wayne` | **MUST VERIFY** — crime script is a stub (no public API); permit endpoint status unknown | `PERMIT_NUM` | `ISSUED_DATE` |
 | Boise ID | `boise` | services.arcgis.com/r1QnEiQlTiHHMlou/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Cape Coral FL | `cape_coral` | services.arcgis.com/qJBnRfhGOvGVBnaX/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Cape Coral FL | `cape_coral` | **MUST VERIFY** — crime script is a stub (no crime API); permits endpoint status unknown; org qJBnRfhGOvGVBnaX was invalid | `PERMIT_NUM` | `ISSUED_DATE` |
 | Eugene OR | `eugene` | services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Springfield MO | `springfield_mo` | services6.arcgis.com/bdLPgVQpKkp3xrEm/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Sioux Falls SD | `sioux_falls` | services.arcgis.com/Nf5qHqEDvuX5aNFd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
