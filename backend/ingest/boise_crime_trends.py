@@ -4,26 +4,22 @@ task: data-068
 lane: data
 
 Ingests Boise Police Department crime data and calculates
-12-month crime trends by district.
+12-month crime trends by crime code group.
 
 Source:
-  ArcGIS FeatureServer — opendata.cityofboise.org (ArcGIS Hub)
+  ArcGIS FeatureServer — opendata.cityofboise.org (Boise_GIS)
   Portal: https://opendata.cityofboise.org
 
-  MUST VERIFY service URL before production:
-    1. Visit https://opendata.cityofboise.org
-    2. Search "police incidents" or "crime"
-    3. Click the dataset → "View API" to get the FeatureServer URL
-    4. Update FEATURESERVER_URL below with the correct org ID and service name
+  Verified service URL:
+    https://services1.arcgis.com/WHM6qC35aMtyAAlN/arcgis/rest/services
+    /BPD_Crimes_Public/FeatureServer/0
 
-  Current estimate (MUST VERIFY):
-    Org ID:       r1QnEiQlTiHHMlou  (estimate — must verify)
-    Service name: BPD_Crime_Incidents  (estimate — must verify)
-    Date field:   OccurrenceDate  (MUST VERIFY)
-    Group field:  District  (MUST VERIFY)
+  Key fields (verified via sample query):
+    OccurredDateTime — date of incident (esriFieldTypeDate, epoch ms)
+    CrimeCodeGroup   — crime category (Larceny/Theft Offenses, Assault, etc.)
+    CrimeType        — broad type (Property, Person, Society)
 
-  Verify with:
-    python backend/ingest/boise_crime_trends.py --dry-run
+  Note: geometry is in WKID 102459 (Idaho state plane), not lat/lon.
 
 Output:
   data/raw/boise_crime_trends.json
@@ -43,18 +39,17 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY: visit https://opendata.cityofboise.org and find crime/police incidents dataset.
-# Extract the org ID (16-char alphanumeric) from the FeatureServer URL.
+# Verified: BPD_Crimes_Public on ArcGIS Online (Boise_GIS, services1)
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/r1QnEiQlTiHHMlou/arcgis/rest/services"
-    "/BPD_Crime_Incidents/FeatureServer/0"
+    "https://services1.arcgis.com/WHM6qC35aMtyAAlN/arcgis/rest/services"
+    "/BPD_Crimes_Public/FeatureServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/boise_crime_trends.json")
 
-# MUST VERIFY: actual field names from the FeatureServer layer schema.
-DATE_FIELD = "OccurrenceDate"
-GROUP_FIELD = "District"
+# Verified field names
+DATE_FIELD = "OccurredDateTime"
+GROUP_FIELD = "CrimeCodeGroup"
 
 BOISE_LAT = 43.6150
 BOISE_LON = -116.2023
@@ -99,11 +94,11 @@ def fetch_crime_counts(
     results: dict[str, int] = {}
     for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not district:
+        group = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not group:
             continue
         count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
+        results[group] = results.get(group, 0) + count
     return results
 
 
@@ -124,18 +119,18 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_districts = set(current_data.keys()) | set(prior_data.keys())
+    all_groups = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for district in sorted(all_districts):
-        current_count = current_data.get(district, 0)
-        prior_count = prior_data.get(district, 0)
+    for group in sorted(all_groups):
+        current_count = current_data.get(group, 0)
+        prior_count = prior_data.get(group, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = district.lower().replace(" ", "_").replace("-", "_")
+        slug = group.lower().replace(" ", "_").replace("-", "_").replace("/", "_")
         records.append({
-            "region_type": "district",
-            "region_id": f"boise_district_{slug}",
-            "district_id": district,
-            "district_name": f"Boise District {district}",
+            "region_type": "crime_category",
+            "region_id": f"boise_crime_{slug}",
+            "district_id": group,
+            "district_name": f"Boise — {group.title()}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -173,8 +168,6 @@ def main() -> None:
     args = parse_args()
 
     print(f"Boise crime trends ingest — source: {FEATURESERVER_URL}")
-    print("NOTE: Service URL and field names are MUST VERIFY estimates.")
-    print("      Visit https://opendata.cityofboise.org to find the correct FeatureServer URL.")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
@@ -187,7 +180,7 @@ def main() -> None:
     except Exception as exc:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(current_data)} districts, {sum(current_data.values()):,} total crimes.")
+    print(f"  {len(current_data)} categories, {sum(current_data.values()):,} total crimes.")
 
     print(f"\nFetching prior 12-month counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
@@ -195,17 +188,17 @@ def main() -> None:
     except Exception as exc:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
-    print(f"  {len(prior_data)} districts, {sum(prior_data.values()):,} total crimes.")
+    print(f"  {len(prior_data)} categories, {sum(prior_data.values()):,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
-    print(f"\nBuilt {len(records)} district trend records.")
+    print(f"\nBuilt {len(records)} category trend records.")
 
     trend_counts: dict[str, int] = {}
     for r in records:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} districts")
+        print(f"  {trend}: {count} categories")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")
