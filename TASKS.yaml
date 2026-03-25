@@ -15,6 +15,41 @@
 # Next task to create: data-073
 
 tasks:
+  - id: app-025
+    title: Enable API key creation and enforcement
+    status: done
+    priority: high
+    github_issue: 224
+    files:
+      - db/schema.sql
+      - backend/app/main.py
+      - frontend/middleware.ts
+      - frontend/src/app/page.tsx
+      - frontend/src/app/account/page.tsx
+      - frontend/src/lib/api.ts
+      - frontend/.env.example
+      - README.md
+      - TASKS.yaml
+    notes_for_next_agent: >
+      API key management implemented (app-025, issue #224).
+      Backend: _verify_clerk_jwt() verifies Clerk session tokens via
+        GET /v1/sessions/{sid} using CLERK_SECRET_KEY (no new deps).
+        POST /keys — generate key (returns plaintext once), stored hashed.
+        GET /keys — list user's active keys (masked + call_count + last_called_at).
+        DELETE /keys/{key_id} — revoke key (sets is_active=false, owner-only).
+        api_keys.user_id TEXT FK to users.id added in db/schema.sql.
+      Frontend: /account page shows subscription tier + API key panel.
+        Generate/Revoke wired to POST /keys / DELETE /keys/{id} via
+        useAuth().getToken() for Clerk JWT. POST /auth/sync called on
+        account page mount via useUser() (satisfies app-024 requirement).
+        /account link in top nav for SignedIn users. /account protected
+        in middleware.ts.
+      To enable enforcement: set REQUIRE_API_KEY=true in Railway Variables.
+        CLERK_SECRET_KEY must also be set in Railway (backend).
+        See README.md "Deployment — Railway environment variables" section.
+      Next task: Stripe subscription + tier upgrade (app-026), or build
+        /dashboard page showing saved score history and watchlist.
+
   - id: app-024
     title: Add user authentication via Clerk
     status: done

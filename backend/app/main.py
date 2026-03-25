@@ -18,9 +18,11 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
+import base64
 import csv
 import hashlib
 import io
+import json
 import math
 import logging
 import math
@@ -3817,6 +3819,227 @@ def export_csv(
 #
 # Email+password and Google OAuth account management.
 #
+# ---------------------------------------------------------------------------
+# Clerk JWT verification helper  (app-025)
+#
+# Verifies a Clerk session token from an Authorization: Bearer header.
+# Strategy: base64-decode the JWT payload to extract the session_id (sid),
+# then confirm it is active via GET /v1/sessions/{id} using CLERK_SECRET_KEY.
+# This requires no new dependencies — only stdlib base64/json + requests.
+# ---------------------------------------------------------------------------
+
+def _verify_clerk_jwt(authorization: str | None) -> str:
+    """
+    Verify a Clerk frontend session token and return the Clerk user_id.
+
+    Raises HTTP 401 if the token is missing, malformed, or the session is
+    inactive.  Raises HTTP 503 if CLERK_SECRET_KEY is not configured.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    token = authorization[7:]
+
+    # Decode the JWT payload (middle section) without signature verification.
+    # We only use this to extract the session_id for the authoritative Clerk lookup.
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("not a JWT")
+        padding = 4 - len(parts[1]) % 4
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * padding))
+        session_id = payload.get("sid")
+        if not session_id:
+            raise ValueError("missing sid claim")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    clerk_secret = os.environ.get("CLERK_SECRET_KEY", "")
+    if not clerk_secret:
+        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured")
+
+    try:
+        res = _requests.get(
+            f"https://api.clerk.com/v1/sessions/{session_id}",
+            headers={"Authorization": f"Bearer {clerk_secret}"},
+            timeout=5,
+        )
+    except Exception as exc:
+        log.error("Clerk session verify network error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not verify session") from exc
+
+    if not res.ok:
+        raise HTTPException(status_code=401, detail="Session invalid or expired")
+
+    data = res.json()
+    if data.get("status") != "active":
+        raise HTTPException(status_code=401, detail="Session not active")
+
+    user_id = data.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Could not resolve user from session")
+    return user_id
+
+
+# ---------------------------------------------------------------------------
+# API key management endpoints  (app-025)
+#
+# POST   /keys            — generate a new key for the calling Clerk user
+# GET    /keys            — list the user's keys (masked)
+# DELETE /keys/{key_id}   — revoke a key
+#
+# All three require a valid Clerk session token in Authorization: Bearer.
+# ---------------------------------------------------------------------------
+
+class _CreateKeyBody(BaseModel):
+    label: str = ""
+
+
+@app.post("/keys", status_code=201)
+def create_user_key(
+    body: _CreateKeyBody,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """
+    Generate a new API key for the authenticated Clerk user.
+    task: app-025
+
+    Requires Authorization: Bearer <clerk_session_token>.
+    Returns the plaintext key exactly once — it is never stored.
+    """
+    user_id = _verify_clerk_jwt(authorization)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    full_key, prefix, key_hash = _generate_api_key()
+    label = (body.label or "").strip()
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO api_keys (prefix, key_hash, label, user_id)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (prefix, key_hash, label, user_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("create_user_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not create API key") from exc
+
+    log.info("create_user_key user_id=%r prefix=%s", user_id, prefix)
+    return {"key": full_key, "prefix": prefix, "id": row[0], "label": label}
+
+
+@app.get("/keys")
+def list_user_keys(
+    authorization: str | None = Header(default=None),
+) -> list:
+    """
+    List the authenticated user's API keys (masked).
+    task: app-025
+
+    Requires Authorization: Bearer <clerk_session_token>.
+    Returns prefix, masked_key (lre_<prefix>****), call_count, last_called_at.
+    """
+    user_id = _verify_clerk_jwt(authorization)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, prefix, label, is_active, call_count,
+                           last_called_at, created_at
+                    FROM api_keys
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (user_id,),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("list_user_keys DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Database error") from exc
+
+    return [
+        {
+            "id": r[0],
+            "prefix": r[1],
+            "masked_key": f"lre_{r[1]}{'*' * 16}",
+            "label": r[2],
+            "is_active": r[3],
+            "call_count": r[4],
+            "last_called_at": r[5].isoformat() if r[5] else None,
+            "created_at": r[6].isoformat() if r[6] else None,
+        }
+        for r in rows
+    ]
+
+
+@app.delete("/keys/{key_id}", status_code=200)
+def revoke_user_key(
+    key_id: int,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """
+    Revoke an API key by setting is_active = false.
+    task: app-025
+
+    Requires Authorization: Bearer <clerk_session_token>.
+    Only the key's owner can revoke it.
+    """
+    user_id = _verify_clerk_jwt(authorization)
+
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE api_keys
+                    SET is_active = false
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id
+                    """,
+                    (key_id, user_id),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("revoke_user_key DB error: %s", exc)
+        raise HTTPException(status_code=503, detail="Database error") from exc
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Key not found or not owned by user")
+
+    log.info("revoke_user_key key_id=%d user_id=%r", key_id, user_id)
+    return {"id": key_id, "revoked": True}
+
+
+# ---------------------------------------------------------------------------
+# Legacy user account endpoints  (data-045)
 # POST /auth/register   — create a new account (email + password)
 # POST /auth/login      — sign in with email + password, receive JWT
 # POST /auth/google     — upsert account from Google OAuth profile (called

@@ -372,6 +372,14 @@ COMMENT ON TABLE api_keys IS
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS call_count     INT         NOT NULL DEFAULT 0;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_called_at TIMESTAMPTZ;
 
+-- app-025: link API keys to Clerk users.
+ALTER TABLE api_keys
+    ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS api_keys_user_id_idx
+    ON api_keys (user_id)
+    WHERE user_id IS NOT NULL;
+
 COMMENT ON TABLE signal_display IS
     'Claude API-generated 4-field display cards for each project signal (data-043). '
     'Keyed on project_id. Populated lazily on the first /score request that references '

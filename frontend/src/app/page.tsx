@@ -602,6 +602,7 @@ export default function HomePage() {
               </SignInButton>
             </SignedOut>
             <SignedIn>
+              <a href="/account" className="topnav-aux-link">Account</a>
               <UserButton afterSignOutUrl="/" />
             </SignedIn>
           </nav>
