@@ -15,6 +15,33 @@
 # Next task to create: data-072
 
 tasks:
+  - id: app-024
+    title: Add user authentication via Clerk
+    status: done
+    priority: high
+    github_issue: 218
+    files:
+      - frontend/package.json
+      - frontend/src/app/layout.tsx
+      - frontend/middleware.ts
+      - frontend/src/app/page.tsx
+      - frontend/.env.example
+      - db/schema.sql
+      - backend/app/main.py
+    notes_for_next_agent: >
+      Clerk auth integrated (app-024, issue #218).
+      ClerkProvider wraps app in layout.tsx. middleware.ts protects /dashboard,
+      leaves / and /score public. SignInButton + UserButton added to top nav in
+      page.tsx (SignedOut/SignedIn wrappers). users table added to db/schema.sql
+      (id=Clerk userId TEXT PK, email, subscription_tier DEFAULT 'free',
+      created_at). POST /auth/sync added to backend/app/main.py — upserts
+      clerk_user_id + email into users table, returns id/email/subscription_tier/
+      created_at. frontend/.env.example documents NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      and CLERK_SECRET_KEY. Next agent: wire up a useEffect in page.tsx (or a
+      dedicated hook) that calls POST /auth/sync after Clerk sign-in completes
+      (use useUser() from @clerk/nextjs to detect sign-in and send userId + email
+      to the backend). Then build the /dashboard page (app-025).
+
   - id: data-072
     title: Live-verify tier-13 city endpoints (Lincoln NE, Salem OR, Honolulu HI, Omaha permits)
     status: backlog
