@@ -187,10 +187,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Lexington does not publish crime data through a public API.")
+    args = parse_args()
+    print("Lexington: no public crime data API available.")
     print("  data.lexingtonky.gov is an ArcGIS Hub with no crime incident layers.")
-    print("  Only PDF monthly NIBRS reports are available at lexingtonky.gov.")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":

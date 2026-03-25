@@ -670,14 +670,6 @@ STEPS = [
         "skip_key": "skip_henderson_crime",
         "non_fatal": True,
     },
-    {
-        # St. Louis rewritten to use SLMPD CSV files (slmpd.org/stats/).
-        # Old Socrata stub (data.stlouis-mo.gov) redirects and is not Socrata.
-        "name": "Fetch St. Louis crime trends (SLMPD CSV)",
-        "cmd": [sys.executable, "backend/ingest/st_louis_crime_trends.py"],
-        "skip_key": "skip_st_louis_crime",
-        "non_fatal": True,
-    },
     # -----------------------------------------------------------------
     # data-059: Tier-9 city crime trends (5 new cities)
     # ArcGIS: Tacoma, Chattanooga, Grand Rapids, Fayetteville NC

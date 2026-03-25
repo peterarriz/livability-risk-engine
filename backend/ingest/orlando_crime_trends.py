@@ -162,10 +162,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Orlando does not publish crime incident data through a public API.")
+    args = parse_args()
+    print("Orlando: no public crime data API available.")
     print("  The OPD Crimes dataset on data.cityoforlando.net has been removed or made private.")
-    print("  No ArcGIS FeatureServer for crime data is publicly accessible.")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":

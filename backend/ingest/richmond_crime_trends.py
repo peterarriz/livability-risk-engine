@@ -162,10 +162,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Richmond VA does not publish crime data through a public API.")
-    print("  data.richmondgov.com has no crime datasets. The Crime Incident Information")
-    print("  system at apps.richmondgov.com is a web form only, no API.")
-    print("  Exiting cleanly with 0 records.")
+    args = parse_args()
+    print("Richmond VA: no public crime data API available.")
+    print("  data.richmondgov.com has no crime datasets.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":

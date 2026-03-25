@@ -164,10 +164,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Arlington TX does not publish historical crime data through a public API.")
+    args = parse_args()
+    print("Arlington TX: no public historical crime data API available.")
     print("  gis2.arlingtontx.gov only has active 911 calls, not crime incidents.")
-    print("  The city uses CrimeMapping.com via Tarrant County (no public API).")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":
