@@ -999,7 +999,6 @@ export default function HomePage() {
                 <NeighborhoodContextCard
                   result={result}
                   scoreHistory={scoreHistory}
-                  scoreTrend={scoreTrend}
                   lat={mapCoords?.lat ?? result.latitude}
                   lon={mapCoords?.lon ?? result.longitude}
                 />
