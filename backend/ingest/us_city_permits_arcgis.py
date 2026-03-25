@@ -202,25 +202,23 @@ CITY_CONFIGS: list[dict] = [
         "max_records":      None,
     },
     {
-        # Denver, CO — Building Permits.
+        # Denver, CO — Residential Construction Permits (verified 2026-03-25).
         # Portal: https://opendata-geospatialdenver.hub.arcgis.com
-        # data-075: org zdB7qR0BtYrg0Xpl is VERIFIED VALID — same org used by
-        #   denver_crime_trends.py (ODC_CRIME_OFFENSES_P/FeatureServer/324), confirmed working.
-        #   Service name ODC_BUILDING_PERMITS_P follows Denver's ODC_ naming convention.
-        #   Needs live verification: run --discover to confirm service name + layer.
-        # Note: data.denvergov.org redirects to ArcGIS Hub (not Socrata/CKAN).
+        # Org zdB7qR0BtYrg0Xpl — service ODC_DEV_RESIDENTIALCONSTPERMIT_P, layer 316.
+        # 77,484 records. Also available: ODC_DEV_COMMERCIALCONSTPERMIT_P (commercial),
+        # ODC_DEV_DEMOLITIONPERMIT_P (demolition).
         "city_name":        "Denver",
         "source_key":       "denver",
         "service_url":      (
             "https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/arcgis/rest/services"
-            "/ODC_BUILDING_PERMITS_P/FeatureServer/0"
+            "/ODC_DEV_RESIDENTIALCONSTPERMIT_P/FeatureServer/316"
         ),
         "portal_url":       "https://opendata-geospatialdenver.hub.arcgis.com",
         "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "WORK_DESC",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   "EXPIRATION_DATE",
+        "type_field":       "CLASS",
+        "desc_field":       "CLASS",
+        "issue_date_field": "DATE_ISSUED",
+        "exp_date_field":   None,
         "addr_field":       "ADDRESS",
         "city_state":       "Denver, CO",
         "skip_date_filter": False,
@@ -371,82 +369,17 @@ CITY_CONFIGS: list[dict] = [
     #   maps.coj.net and gis.coj.net both return 404. No building permit
     #   FeatureServer found on ArcGIS Online either.
     # -----------------------------------------------------------------
-    {
-        # San Jose, CA — Building Permits.
-        # Portal: https://gis.sanjoseca.gov (ArcGIS Hub)
-        # data-075: org p8Tul9YqBFRRdPqD is VERIFIED VALID — same org used by
-        #   san_jose_crime_trends.py (SJPD_Crime/FeatureServer/0), confirmed working.
-        #   Service name "Building_Permits" is a placeholder — actual name unknown.
-        #   Run --discover or visit https://gis.sanjoseca.gov and search "building permits".
-        # data-050: added 2026-03-23
-        "city_name":        "San Jose",
-        "source_key":       "san_jose",
-        "service_url":      (
-            "https://services.arcgis.com/p8Tul9YqBFRRdPqD/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://gis.sanjoseca.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "San Jose, CA",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Fort Worth, TX — Building Permits.
-        # Portal: https://data.fortworthtexas.gov (ArcGIS Hub)
-        # data-075: org AHCzmZstRKFEQEqv is VERIFIED VALID — same org used by
-        #   fort_worth_crime_trends.py (FWPD_Crime/FeatureServer/0), confirmed working.
-        #   Service name "Building_Permits" is a placeholder — actual name unknown.
-        #   Run --discover or visit https://data.fortworthtexas.gov and search "building permits".
-        # data-050: added 2026-03-23
-        "city_name":        "Fort Worth",
-        "source_key":       "fort_worth",
-        "service_url":      (
-            "https://services.arcgis.com/AHCzmZstRKFEQEqv/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.fortworthtexas.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Fort Worth, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Albuquerque, NM — Building Permits.
-        # Portal: https://cabq.gov/abqdata (ArcGIS Hub)
-        # data-075: org 3HnGBxB8VqLCXhUn is VERIFIED VALID — same org used by
-        #   albuquerque_crime_trends.py (APD_Crime/FeatureServer/0), confirmed working.
-        #   Service name "Building_Permits" is a placeholder — actual name unknown.
-        #   Run --discover or visit https://cabq.gov/abqdata and search "building permits".
-        #   Also try: https://abq.maps.arcgis.com
-        # data-050: added 2026-03-23
-        "city_name":        "Albuquerque",
-        "source_key":       "albuquerque",
-        "service_url":      (
-            "https://services.arcgis.com/3HnGBxB8VqLCXhUn/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://cabq.gov/abqdata",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Albuquerque, NM",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — San Jose (2026-03-25):
+    #   Org p8Tul9YqBFRRdPqD returns 0 services on all subdomains
+    #   (services, services1-6). No public permit FeatureServer found.
+    # REMOVED — Fort Worth (2026-03-25):
+    #   Org AHCzmZstRKFEQEqv returns 0 services on all subdomains.
+    #   No public permit FeatureServer found.
+    # REMOVED — Albuquerque (2026-03-25):
+    #   Org 3HnGBxB8VqLCXhUn returns 0 services on all subdomains.
+    #   No public permit FeatureServer found.
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # data-057: Tier-7 city permits (2026-03-24)
     # -----------------------------------------------------------------
@@ -1291,9 +1224,9 @@ CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 #   5. Re-run --city <key> --dry-run to confirm records are returned
 DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
     # data-047: unverified org IDs
-    "denver", "portland",
+    "portland",
     # data-050: unverified org IDs
-    "las_vegas", "el_paso", "tucson", "san_jose", "fort_worth", "albuquerque",
+    "las_vegas", "el_paso", "tucson",
     # data-057: unverified org IDs
     "orlando", "richmond", "des_moines", "tulsa", "wichita",
     "colorado_springs", "arlington_tx", "virginia_beach",
@@ -1319,27 +1252,8 @@ DISABLED_NOTES: dict[str, str] = {
         "org ID K1VMQDQNLVxLvLqs is CONFIRMED INVALID (HTTP 400). "
         "Visit https://data.gilbertaz.gov to find the correct FeatureServer URL."
     ),
-    # data-075: org IDs verified valid via crime scripts; service names need live confirmation.
-    "denver": (
-        "org zdB7qR0BtYrg0Xpl is VALID (confirmed via denver_crime_trends.py). "
-        "Service name ODC_BUILDING_PERMITS_P needs live verification. "
-        "Run: python backend/ingest/us_city_permits_arcgis.py --city denver --discover"
-    ),
-    "san_jose": (
-        "org p8Tul9YqBFRRdPqD is VALID (confirmed via san_jose_crime_trends.py). "
-        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
-        "Run: python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover"
-    ),
-    "fort_worth": (
-        "org AHCzmZstRKFEQEqv is VALID (confirmed via fort_worth_crime_trends.py). "
-        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
-        "Run: python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover"
-    ),
-    "albuquerque": (
-        "org 3HnGBxB8VqLCXhUn is VALID (confirmed via albuquerque_crime_trends.py). "
-        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
-        "Run: python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover"
-    ),
+    # san_jose, fort_worth, albuquerque: REMOVED (2026-03-25) — org IDs return
+    # 0 services on all subdomains. No public permit FeatureServer found.
     # data-075: org IDs unverified; different org from crime scripts.
     "portland": (
         "org quVN97tn06YNGj9s is UNVERIFIED. Portland crime uses portlandmaps.com "

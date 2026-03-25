@@ -185,16 +185,16 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Columbus | `columbus` | services1.arcgis.com/.../Building_Permits/FeatureServer/0 | `B1_ALT_ID` | `ISSUED_DT` |
 | Minneapolis | `minneapolis` | services.arcgis.com/.../CCS_Permits/FeatureServer/0 | `permitNumber` | `issueDate` |
 | Charlotte | `charlotte` | meckgis.mecklenburgcountync.gov/.../BuildingPermits/FeatureServer/0 | `permitnum` | `issuedate` |
-| Denver | `denver` | services1.arcgis.com/.../ODC_BUILDING_PERMITS_P/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
+| Denver | `denver` | services1.arcgis.com/.../ODC_DEV_RESIDENTIALCONSTPERMIT_P/FeatureServer/316 (verified) | `PERMIT_NUM` | `DATE_ISSUED` |
 | Portland | `portland` | services.arcgis.com/.../BDS_Permits/FeatureServer/0 | `PERMIT_NBR` | `ISSUED_DATE` |
 | Baltimore | `baltimore` | egisdata.baltimorecity.gov/.../DHCD_Open_Baltimore_Datasets/FeatureServer/3 | `CaseNumber` | `IssuedDate` |
 | Nashville | `nashville` | services2.arcgis.com/.../Building_Permits_Issued_2/FeatureServer/0 | `Permit__` | `Date_Issued` |
 | Las Vegas | `las_vegas` | services.arcgis.com/VIkzGEMZbaSsMGLk/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
 | El Paso | `el_paso` | services.arcgis.com/YGBqHTHNMoJPJOav/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
 | Tucson | `tucson` | gisdata.tucsonaz.gov/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
-| San Jose | `san_jose` | services.arcgis.com/p8Tul9YqBFRRdPqD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Fort Worth | `fort_worth` | services.arcgis.com/AHCzmZstRKFEQEqv/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Albuquerque | `albuquerque` | services.arcgis.com/3HnGBxB8VqLCXhUn/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| San Jose | REMOVED | Org p8Tul9YqBFRRdPqD returns 0 services — no public permit API found (2026-03-25) | — | — |
+| Fort Worth | REMOVED | Org AHCzmZstRKFEQEqv returns 0 services — no public permit API found (2026-03-25) | — | — |
+| Albuquerque | REMOVED | Org 3HnGBxB8VqLCXhUn returns 0 services — no public permit API found (2026-03-25) | — | — |
 | Orlando | `orlando` | services1.arcgis.com/ySBMu4XsNZMHPCce/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Richmond VA | `richmond` | services1.arcgis.com/k3vhq11XkBNeeOfM/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Des Moines | `des_moines` | services.arcgis.com/eSi6C3K7GxWJJFTG/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
@@ -419,8 +419,8 @@ Honolulu Socrata config flagged `disabled=True` in `us_city_permits.py`.
 All were returning HTTP 400 "Invalid URL" on every pipeline run.
 To re-enable: run `--city <key> --discover` or visit the portal_url for that city,
 find the correct FeatureServer URL, update `service_url`, remove from `DISABLED_SOURCE_KEYS`.
-Disabled cities: denver, portland, las_vegas, el_paso, tucson, san_jose, fort_worth,
-albuquerque, orlando, richmond, des_moines, tulsa, wichita, colorado_springs, arlington_tx,
+Disabled cities: portland, las_vegas, el_paso, tucson,
+orlando, richmond, des_moines, tulsa, wichita, colorado_springs, arlington_tx,
 virginia_beach, mesa, aurora, corpus_christi, greensboro, durham, chandler, scottsdale,
 gilbert, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az, fort_wayne,
 boise, cape_coral, eugene, springfield_mo, sioux_falls, omaha, lincoln, salem_or, honolulu.
@@ -430,11 +430,15 @@ Live verification (--discover / --dry-run) requires outbound HTTPS access not av
 Research was done via SKILL.md cross-reference (crime script org IDs) and training knowledge.
 
 *Priority 1 research findings:*
-- **denver** — org `zdB7qR0BtYrg0Xpl` is **VERIFIED VALID** (same org used by denver_crime_trends.py
-  for ODC_CRIME_OFFENSES_P/FeatureServer/324, which is confirmed working). Service name
-  `ODC_BUILDING_PERMITS_P` follows Denver's ODC_ naming convention. Most likely correct;
-  needs `--city denver --dry-run` to confirm layer and field names.
-  Portal: https://opendata-geospatialdenver.hub.arcgis.com — search "building permits".
+- **denver** — **FIXED** (2026-03-25). Real service: `ODC_DEV_RESIDENTIALCONSTPERMIT_P/FeatureServer/316`
+  on org `zdB7qR0BtYrg0Xpl`. 77,484 records. Fields: `PERMIT_NUM`, `DATE_ISSUED`, `CLASS`, `ADDRESS`.
+  Also available: `ODC_DEV_COMMERCIALCONSTPERMIT_P` (commercial), `ODC_DEV_DEMOLITIONPERMIT_P`.
+- **san_jose** — **REMOVED** (2026-03-25). Org `p8Tul9YqBFRRdPqD` returns 0 services on all
+  subdomains (services, services1-6). No public permit FeatureServer found.
+- **fort_worth** — **REMOVED** (2026-03-25). Org `AHCzmZstRKFEQEqv` returns 0 services on all
+  subdomains. No public permit FeatureServer found.
+- **albuquerque** — **REMOVED** (2026-03-25). Org `3HnGBxB8VqLCXhUn` returns 0 services on all
+  subdomains. No public permit FeatureServer found.
 - **portland** — crime script uses portlandmaps.com (self-hosted), not services.arcgis.com.
   Permit org `quVN97tn06YNGj9s` is unverified and may be wrong.
   BDS (Bureau of Development Services) permits may be on portlandmaps.com, not ArcGIS Online.
@@ -448,21 +452,6 @@ Research was done via SKILL.md cross-reference (crime script org IDs) and traini
   Service path `/Building_Permits/FeatureServer/0` is unverified.
   Tucson crime is at `services3.arcgis.com/9coHY2fvuFjG9HQX` (ArcGIS Online), different host.
   Try browsing: https://gisdata.tucsonaz.gov/arcgis/rest/services for available services.
-- **san_jose** — org `p8Tul9YqBFRRdPqD` is **VERIFIED VALID** (same org used by
-  san_jose_crime_trends.py for SJPD_Crime/FeatureServer/0, which is confirmed working).
-  Service name `Building_Permits` is a placeholder — actual service name unknown.
-  Portal: https://gis.sanjoseca.gov — search "building permits".
-  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+San+Jose+California
-- **fort_worth** — org `AHCzmZstRKFEQEqv` is **VERIFIED VALID** (same org used by
-  fort_worth_crime_trends.py for FWPD_Crime/FeatureServer/0, which is confirmed working).
-  Service name `Building_Permits` is a placeholder — actual service name unknown.
-  Portal: https://data.fortworthtexas.gov — search "building permits".
-  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Fort+Worth+Texas
-- **albuquerque** — org `3HnGBxB8VqLCXhUn` is **VERIFIED VALID** (same org used by
-  albuquerque_crime_trends.py for APD_Crime/FeatureServer/0, which is confirmed working).
-  Service name `Building_Permits` is a placeholder — actual service name unknown.
-  Portal: https://cabq.gov/abqdata — search "building permits".
-  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Albuquerque
 - **sacramento** — **NOT IN ARCGIS FILE**. Already configured as Socrata in `us_city_permits.py`
   (domain: data.cityofsacramento.org, dataset: `rent-6pka`). No ArcGIS FeatureServer needed.
 - **jacksonville** — **REMOVED** from CITY_CONFIGS (see comment at ~line 366 in
@@ -498,10 +487,7 @@ Research was done via SKILL.md cross-reference (crime script org IDs) and traini
 
 *Action required for data-076:* Run with network access (outbound HTTPS):
   ```
-  python backend/ingest/us_city_permits_arcgis.py --city denver --discover
-  python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover
-  python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover
-  python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover
+  python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
   # ... etc. for all remaining cities
   ```
   For each city where --discover returns a FeatureServer URL:
