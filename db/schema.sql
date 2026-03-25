@@ -489,6 +489,28 @@ COMMENT ON TABLE neighborhood_quality IS
 
 
 -- ---------------------------------------------------------------------------
+-- Clerk users  (app-024)
+--
+-- Minimal user record created on first Clerk sign-in via POST /auth/sync.
+-- id is the Clerk user_id string (e.g. "user_2abc...").
+-- subscription_tier defaults to 'free'; upgrade logic is a future task.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS users (
+    id                TEXT        PRIMARY KEY,  -- Clerk user_id
+    email             TEXT        NOT NULL,
+    subscription_tier TEXT        NOT NULL DEFAULT 'free',
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS users_email_idx ON users (email);
+
+COMMENT ON TABLE users IS
+    'Clerk-authenticated user records (app-024). One row per user, created on '
+    'first sign-in via POST /auth/sync. id is the Clerk userId string.';
+
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security  (data-067)
 --
 -- Enable RLS on every public table and grant a public SELECT policy so the
@@ -549,4 +571,9 @@ CREATE POLICY select_accounts ON accounts
 ALTER TABLE neighborhood_quality ENABLE ROW LEVEL SECURITY;
 ALTER TABLE neighborhood_quality FORCE ROW LEVEL SECURITY;
 CREATE POLICY select_neighborhood_quality ON neighborhood_quality
+    FOR SELECT USING (true);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_users ON users
     FOR SELECT USING (true);

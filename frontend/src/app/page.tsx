@@ -20,6 +20,7 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import type { SelectedAddress } from "@/lib/address-types";
 
@@ -595,6 +596,14 @@ export default function HomePage() {
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
             <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-access" className="topnav-api-link">API</a>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button type="button" className="topnav-sign-in">Sign In</button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
           </nav>
         </Header>
 
