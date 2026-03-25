@@ -426,6 +426,69 @@ CREATE INDEX IF NOT EXISTS score_history_account_idx ON score_history (account_i
 
 
 -- ---------------------------------------------------------------------------
+-- Neighborhood quality  (data-040)
+--
+-- Stores neighborhood-level context used by the livability scoring engine:
+-- FEMA flood zones, crime trends, Census ACS demographics, and school
+-- ratings.  Each row is keyed on (region_type, region_id).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS neighborhood_quality (
+    id               BIGSERIAL    PRIMARY KEY,
+    region_type      TEXT         NOT NULL,      -- 'flood_zone' | 'community_area' | 'census_tract' | 'school'
+    region_id        TEXT         NOT NULL,
+
+    -- Flood
+    fema_flood_zone  TEXT,
+    flood_risk       TEXT,
+
+    -- Crime
+    crime_12mo       NUMERIC(10,1),
+    crime_prior_12mo NUMERIC(10,1),
+    crime_trend      TEXT,
+    crime_trend_pct  NUMERIC(10,1),
+
+    -- Census ACS demographics
+    median_income    NUMERIC(12,2),
+    population       INT,
+    vacancy_rate     NUMERIC(5,2),
+    housing_age_med  INT,
+
+    -- Schools
+    school_name      TEXT,
+    school_rating    TEXT,
+    school_attainment TEXT,
+    school_growth    TEXT,
+
+    -- Location
+    latitude         DOUBLE PRECISION,
+    longitude        DOUBLE PRECISION,
+    geom             GEOMETRY(Point, 4326),
+
+    data_year        INT,
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT neighborhood_quality_region_unique UNIQUE (region_type, region_id)
+);
+
+CREATE INDEX IF NOT EXISTS neighborhood_quality_region_type_idx
+    ON neighborhood_quality (region_type);
+
+CREATE INDEX IF NOT EXISTS neighborhood_quality_geom_idx
+    ON neighborhood_quality USING GIST (geom)
+    WHERE geom IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS neighborhood_quality_latlon_idx
+    ON neighborhood_quality (latitude, longitude)
+    WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+
+COMMENT ON TABLE neighborhood_quality IS
+    'Neighborhood-level context for livability scoring (data-040). '
+    'Stores FEMA flood zones, crime trends, Census ACS demographics, '
+    'and school ratings keyed on (region_type, region_id).';
+
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security  (data-067)
 --
 -- Enable RLS on every public table and grant a public SELECT policy so the
