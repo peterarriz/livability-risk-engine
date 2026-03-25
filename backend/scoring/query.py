@@ -56,6 +56,7 @@ from backend.models.project import (
     IMPACT_ROAD_CONSTRUCTION,
     IMPACT_SINGLE_LANE,
     IMPACT_UTILITY_OUTAGE,
+    IMPACT_UTILITY_REPAIR,
     Project,
 )
 
