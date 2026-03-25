@@ -14,9 +14,9 @@ type MapViewProps = {
   disruptionScore?: number;
   signals?: NearbySignal[];
   schools?: NearbySchool[];
-  amenities?: Record<string, NearbyAmenity[]>;
+  amenities?: NearbyAmenity[];
   topRiskDetails?: TopRiskDetail[];
-  // Flood risk layer (data-063)
+  nearbySchools?: NearbySchool[];
   floodRisk?: string | null;
   femaZone?: string | null;
   isPro?: boolean;

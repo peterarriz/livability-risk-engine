@@ -182,6 +182,10 @@ export default function HomePage() {
     if (typeof latest !== "number" || typeof oldest !== "number") return null;
     return latest - oldest;
   }, [scoreHistory]);
+  const amenities = useMemo(
+    () => result?.amenities ?? result?.neighborhood_context?.amenities ?? [],
+    [result],
+  );
 
   // Hydrate address history from localStorage on mount
   useEffect(() => {
@@ -1002,6 +1006,7 @@ export default function HomePage() {
                     schools={result.nearby_schools ?? []}
                     amenities={amenities}
                     topRiskDetails={result.top_risk_details ?? []}
+                    nearbySchools={result.nearby_schools ?? []}
                     floodRisk={result.neighborhood_context?.flood_risk ?? null}
                     femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
                     isPro={false}

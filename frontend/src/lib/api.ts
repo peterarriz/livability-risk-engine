@@ -80,13 +80,10 @@ export type NearbySchool = {
   distance_m: number;
 };
 
-// Neighborhood quality context returned by /score (data-063).
-export type NeighborhoodContext = {
-  flood_risk: string | null;
-  fema_flood_zone: string | null;
-  crime_trend?: string | null;
-  crime_trend_pct?: number | null;
-  crime_12mo?: number | null;
+export type NearbyAmenity = {
+  name?: string | null;
+  category?: string | null;
+  distance_m?: number | null;
 };
 
 export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -163,8 +160,13 @@ export type ScoreResponse = {
   nearby_signals?: NearbySignal[];
   // Nearby schools for the school quality map layer (data-061).
   nearby_schools?: NearbySchool[];
-  // Neighborhood quality context: flood risk, crime trend, etc. (data-063).
-  neighborhood_context?: NeighborhoodContext | null;
+  // Optional nearby amenities payload (backend enrichment; optional for compatibility).
+  amenities?: NearbyAmenity[];
+  neighborhood_context?: {
+    flood_risk?: string | null;
+    fema_flood_zone?: string | null;
+    amenities?: NearbyAmenity[] | null;
+  } | null;
 };
 
 export type ScoreSource = ScoreMode;
