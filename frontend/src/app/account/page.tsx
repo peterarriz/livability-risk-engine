@@ -20,7 +20,8 @@ import {
   revokeApiKey,
 } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Use the Vercel proxy so /auth/sync is same-origin (no CORS with Railway).
+const API_BASE = "/api/backend";
 
 export default function AccountPage() {
   const { user, isLoaded } = useUser();

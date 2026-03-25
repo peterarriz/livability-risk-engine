@@ -212,21 +212,23 @@ export class ApiError extends Error {
 }
 
 function getApiBaseUrl(): string {
-  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-
-  if (configuredApiUrl) {
-    return configuredApiUrl;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    return LOCAL_API_URL;
-  }
-
-  return "";
+  // Always route through the Vercel proxy so the browser makes same-origin
+  // requests — eliminates all Railway CORS issues.
+  // The proxy (src/app/api/backend/[...path]/route.ts) reads NEXT_PUBLIC_API_URL
+  // server-side and forwards to Railway.
+  return "/api/backend";
 }
 
 function buildApiUrl(pathname: string): URL {
-  return new URL(pathname, getApiBaseUrl());
+  // Build an absolute URL pointing at the Vercel proxy path so callers can
+  // use .searchParams freely.  In the browser, window.location.origin gives
+  // the correct Vercel domain.  During SSR/build the placeholder is never
+  // actually fetched — api.ts functions are called only from client components.
+  const proxyPath =
+    "/api/backend" + (pathname.startsWith("/") ? pathname : `/${pathname}`);
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  return new URL(proxyPath, origin);
 }
 
 function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
@@ -377,11 +379,8 @@ export async function fetchMapNarration(payload: {
   current_lat?: number;
   current_lon?: number;
 }): Promise<MapNarrationResponse> {
-  const apiBase = getApiBaseUrl();
-  if (!apiBase) return { narration: null };
-
   try {
-    const response = await fetch(new URL("/map/narrate", apiBase), {
+    const response = await fetch(buildApiUrl("/map/narrate"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
