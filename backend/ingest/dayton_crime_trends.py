@@ -4,26 +4,21 @@ task: data-070
 lane: data
 
 Ingests Dayton Police Department crime data and calculates 12-month
-crime trends by district/reporting area.
+crime trends by district.
 
 Source:
-  Socrata — data.dayton.gov (City of Dayton Open Data)
-  Dataset: DPD Crime Incidents (MUST VERIFY dataset ID)
-  Dataset ID: b4z3-ppnd (MUST VERIFY)
-  Verify: curl "https://data.dayton.gov/api/catalog/v1?q=crime+police&limit=10"
-          curl "https://data.dayton.gov/resource/b4z3-ppnd.json?$limit=1"
+  ArcGIS MapServer — maps.daytonohio.gov (City of Dayton GIS)
+  Service: Police/Crimes_Last_Two_Years/MapServer/0
+  URL: https://maps.daytonohio.gov/gisservices/rest/services/Police/Crimes_Last_Two_Years/MapServer/0
 
-  Key fields (MUST VERIFY field names via --dry-run):
-    date_reported  — date of incident
-    district       — patrol district/area (MUST VERIFY field name)
-    latitude       — incident latitude
-    longitude      — incident longitude
+  Key fields (verified 2026-03-25):
+    reportdate  — date of incident (esriFieldTypeDate, epoch ms)
+    district    — patrol district (e.g. "East District", "West District")
+    x           — longitude
+    y           — latitude
 
-  If dataset ID or field names are wrong:
-    1. curl "https://data.dayton.gov/api/catalog/v1?q=crime+incidents&limit=10"
-    2. Find the active crime/incident dataset and update DATASET_ID below.
-    3. curl "https://data.dayton.gov/resource/<new_id>.json?$limit=1" to see fields.
-    4. Run: python backend/ingest/dayton_crime_trends.py --dry-run
+  Alternative (all data since 2016):
+    .../Police/Crimes_Greater2016/MapServer/0
 
 Output:
   data/raw/dayton_crime_trends.json
@@ -37,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -48,18 +42,17 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_DOMAIN = "data.dayton.gov"
-# MUST VERIFY dataset ID via: curl "https://data.dayton.gov/api/catalog/v1?q=crime&limit=10"
-DATASET_ID = "b4z3-ppnd"
-CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
+MAPSERVER_URL = (
+    "https://maps.daytonohio.gov/gisservices/rest/services"
+    "/Police/Crimes_Last_Two_Years/MapServer/0"
+)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/dayton_crime_trends.json")
 
-# MUST VERIFY field names via: curl "https://data.dayton.gov/resource/b4z3-ppnd.json?$limit=1"
-DATE_FIELD = "date_reported"
+DATE_FIELD = "reportdate"
 DISTRICT_FIELD = "district"
-LAT_FIELD = "latitude"
-LON_FIELD = "longitude"
+LAT_FIELD = "y"
+LON_FIELD = "x"
 
 DAYTON_LAT = 39.7589
 DAYTON_LON = -84.1917
@@ -68,51 +61,59 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT00:00:00")
+    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
 
 
 def fetch_crime_counts_with_centroids(
-    app_token: str | None,
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, dict]:
-    where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
-    )
-    params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            f"avg({LAT_FIELD} :: number) as avg_lat, "
-            f"avg({LON_FIELD} :: number) as avg_lon"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 100,
-    }
-    if app_token:
-        params["$$app_token"] = app_token
+    url = f"{MAPSERVER_URL}/query"
 
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
+    where_clause = (
+        f"{DATE_FIELD} >= {_date_str(start_date)} "
+        f"AND {DATE_FIELD} < {_date_str(end_date)}"
+    )
+
+    out_statistics = json.dumps([
+        {"statisticType": "count", "onStatisticField": "OBJECTID",
+         "outStatisticFieldName": "crime_count"},
+        {"statisticType": "avg", "onStatisticField": LAT_FIELD,
+         "outStatisticFieldName": "avg_lat"},
+        {"statisticType": "avg", "onStatisticField": LON_FIELD,
+         "outStatisticFieldName": "avg_lon"},
+    ])
+
+    params = {
+        "where": where_clause,
+        "groupByFieldsForStatistics": DISTRICT_FIELD,
+        "outStatistics": out_statistics,
+        "f": "json",
+    }
+
+    resp = requests.post(url, data=params, timeout=60)
     resp.raise_for_status()
-    rows = resp.json()
+    payload = resp.json()
+
+    if "error" in payload:
+        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
 
     results: dict[str, dict] = {}
-    for row in rows:
-        district = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
+    for feature in payload.get("features", []):
+        attrs = feature["attributes"]
+        district = str(attrs.get(DISTRICT_FIELD) or "").strip().upper()
         if not district:
             continue
         try:
-            count = int(row.get("crime_count", 0))
+            count = int(attrs.get("crime_count") or 0)
         except (TypeError, ValueError):
             count = 0
         try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
+            avg_lat = float(attrs.get("avg_lat") or 0) or None
         except (TypeError, ValueError):
             avg_lat = None
         try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
+            avg_lon = float(attrs.get("avg_lon") or 0) or None
         except (TypeError, ValueError):
             avg_lon = None
         results[district] = {"count": count, "lat": avg_lat, "lon": avg_lon}
@@ -149,9 +150,9 @@ def build_trend_records(
         lon = curr["lon"] or prev["lon"]
         records.append({
             "region_type": "district",
-            "region_id": f"dayton_district_{district.lower()}",
+            "region_id": f"dayton_district_{district.lower().replace(' ', '_')}",
             "district_id": district,
-            "district_name": f"Dayton District {district}",
+            "district_name": f"Dayton {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -166,7 +167,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "dayton_crime_trends",
-        "source_url": CRIMES_URL,
+        "source_url": MAPSERVER_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -178,7 +179,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Dayton DPD crime trends by district from Socrata."
+        description="Ingest Dayton DPD crime trends by district from ArcGIS MapServer."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true",
@@ -188,20 +189,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    app_token = os.environ.get("SOCRATA_APP_TOKEN")
+
+    print(f"Dayton crime trends ingest — source: {MAPSERVER_URL}")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Dayton crime trends ingest — source: {CRIMES_URL}")
-    print("NOTE: Dataset ID and field names are MUST VERIFY estimates.")
-    print(f"Verify via: curl 'https://{SOCRATA_DOMAIN}/api/catalog/v1?q=crime&limit=10'")
-
     print(f"\nFetching current 12-month counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
     try:
-        current_data = fetch_crime_counts_with_centroids(app_token, current_start, now)
+        current_data = fetch_crime_counts_with_centroids(current_start, now)
     except Exception as exc:
         print(f"ERROR: failed to fetch current counts — {exc}", file=sys.stderr)
         sys.exit(1)
@@ -209,7 +207,7 @@ def main() -> None:
 
     print(f"\nFetching prior 12-month counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
-        prior_data = fetch_crime_counts_with_centroids(app_token, prior_start, prior_end)
+        prior_data = fetch_crime_counts_with_centroids(prior_start, prior_end)
     except Exception as exc:
         print(f"ERROR: failed to fetch prior counts — {exc}", file=sys.stderr)
         sys.exit(1)
