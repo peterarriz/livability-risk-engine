@@ -3970,12 +3970,12 @@ def list_user_keys(
     Requires Authorization: Bearer <clerk_session_token>.
     Returns prefix, masked_key (lre_<prefix>****), call_count, last_called_at.
     """
-    user_id = _verify_clerk_jwt(authorization)
-
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured")
-
     try:
+        user_id = _verify_clerk_jwt(authorization)
+
+        if not _is_db_configured():
+            raise HTTPException(status_code=503, detail="Database not configured")
+
         from backend.scoring.query import get_db_connection
         conn = get_db_connection()
         try:
@@ -3993,23 +3993,25 @@ def list_user_keys(
                 rows = cur.fetchall()
         finally:
             conn.close()
-    except Exception as exc:
-        log.error("list_user_keys DB error: %s", exc)
-        raise HTTPException(status_code=503, detail="Database error") from exc
 
-    return [
-        {
-            "id": r[0],
-            "prefix": r[1],
-            "masked_key": f"lre_{r[1]}{'*' * 16}",
-            "label": r[2],
-            "is_active": r[3],
-            "call_count": r[4],
-            "last_called_at": r[5].isoformat() if r[5] else None,
-            "created_at": r[6].isoformat() if r[6] else None,
-        }
-        for r in rows
-    ]
+        return [
+            {
+                "id": r[0],
+                "prefix": r[1],
+                "masked_key": f"lre_{r[1]}{'*' * 16}",
+                "label": r[2],
+                "is_active": r[3],
+                "call_count": r[4],
+                "last_called_at": r[5].isoformat() if r[5] else None,
+                "created_at": r[6].isoformat() if r[6] else None,
+            }
+            for r in rows
+        ]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("list_user_keys unhandled error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"list_user_keys failed: {exc}") from exc
 
 
 @app.delete("/keys/{key_id}", status_code=200)
@@ -4271,10 +4273,10 @@ def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
     Request body: { clerk_user_id, email }
     Response:     { id, email, subscription_tier, created_at }
     """
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="DB not configured")
-
     try:
+        if not _is_db_configured():
+            raise HTTPException(status_code=503, detail="DB not configured")
+
         from backend.scoring.query import get_db_connection
         conn = get_db_connection()
         try:
@@ -4292,16 +4294,21 @@ def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
             conn.commit()
         finally:
             conn.close()
-    except Exception as exc:
-        log.error("auth_clerk_sync error: %s", exc)
-        raise HTTPException(status_code=500, detail="Failed to sync user") from exc
 
-    return {
-        "id": row[0],
-        "email": row[1],
-        "subscription_tier": row[2],
-        "created_at": row[3].isoformat() if row[3] else None,
-    }
+        if row is None:
+            raise HTTPException(status_code=500, detail="User upsert returned no row")
+
+        return {
+            "id": row[0],
+            "email": row[1],
+            "subscription_tier": row[2],
+            "created_at": row[3].isoformat() if row[3] else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("auth_clerk_sync unhandled error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"auth_clerk_sync failed: {exc}") from exc
 
 
 @app.get("/auth/me")

@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 
 import { Card, Section } from "@/components/shell";
-import { fetchDashboard, type DashboardResponse } from "@/lib/api";
+import { type DashboardResponse } from "@/lib/api";
 
 type LocalSavedReport = {
   report_id: string;
@@ -16,33 +15,26 @@ type LocalSavedReport = {
 };
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (status === "loading") return;
-      if (session?.user?.backend_token) {
-        const live = await fetchDashboard(session.user.backend_token);
-        if (!cancelled) setData(live);
-      } else {
-        // Anonymous fallback: localStorage-only list of saved report IDs.
-        const raw = window.localStorage.getItem("lre_saved_reports");
-        const localReports: LocalSavedReport[] = raw ? JSON.parse(raw) : [];
-        if (!cancelled) {
-          setData({
-            saved_reports: localReports.slice(0, 10),
-            watchlist: [],
-          });
-        }
+      // Load from localStorage (Clerk session token support can be wired here later).
+      const raw = window.localStorage.getItem("lre_saved_reports");
+      const localReports: LocalSavedReport[] = raw ? JSON.parse(raw) : [];
+      if (!cancelled) {
+        setData({
+          saved_reports: localReports.slice(0, 10),
+          watchlist: [],
+        });
+        setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     }
     load();
     return () => { cancelled = true; };
-  }, [session?.user?.backend_token, status]);
+  }, []);
 
   const watchChanged = useMemo(
     () => (data?.watchlist ?? []).filter((w) => w.score_changed),

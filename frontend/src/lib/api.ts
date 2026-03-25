@@ -1495,13 +1495,8 @@ export function getAuthHeaders(backendToken?: string | null): Record<string, str
 }
 
 async function getSessionAuthHeaders(): Promise<Record<string, string>> {
-  try {
-    const { getSession } = await import("next-auth/react");
-    const session = await getSession();
-    return getAuthHeaders(session?.user?.backend_token ?? null);
-  } catch {
-    return {};
-  }
+  // Auth is now handled by Clerk; no next-auth session to read.
+  return {};
 }
 
 // Shape returned by /auth/register, /auth/login, /auth/google
