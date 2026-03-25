@@ -997,7 +997,7 @@ tasks:
       - Debounced autocomplete dropdown wired to address input in page.tsx
       - Suggestions filtered to Chicago addresses only
       - Graceful fallback to empty list on error
-    notes_for_next_agent: "Nominatim is queried with a Chicago bounding box (bounded=1) to keep results in city. Suggestions are formatted as '{house} {road}, Chicago, IL'. Debounce is 300ms. onMouseDown is used instead of onClick so the input blur does not dismiss the suggestion before selection registers. Next step is data-015 to complete the full live-data path."
+    notes_for_next_agent: "Follow-up hardening completed: backend /addresses/search and /suggest now build from a canonical in-memory index sourced from reports/watchlist/score_history with normalized_full, street_number, street_name, city/state, and zip fields. Normalization standardizes case/punctuation plus common direction/street suffix abbreviations; ranking prioritizes exact/prefix full-address and number+street matches before city/state/zip alignment, adds optional geo-distance penalty for resolvable queries, and filters weak token-only matches. /suggest may append geocoder-backed rows only when backend candidates are insufficient, then re-ranks + dedupes by normalized key."
   - id: data-018
     lane: data
     type: ops
@@ -1059,7 +1059,7 @@ tasks:
       - Driver cards are more compact and less repetitive while preserving strongest evidence
       - Live state reads as production-ready while demo fallback remains explicit but subordinate
       - Frontend production build passes
-    notes_for_next_agent: "Completed production-hardening pass across the score workflow. Search suggestions now use a premium dark dropdown with keyboard navigation. Results flow is reorganized into score → interpretation → confidence/severity → drivers → map/timeline/supporting context. Demo language was reduced in the primary flow while fallback labeling remains explicit. Verified with 'cd frontend && npm run build'."
+    notes_for_next_agent: "Completed production-hardening pass across the score workflow. Follow-up search/hydration hardening shipped: /suggest uses canonical backend ranking with optional geocoder supplementation; combobox selection stores a typed selected-address object ({id,label,lat,lon,city,state,zip}); /score requests forward canonical_id and lat/lon from selection. Dashboard hydration uses graded fallback states (full/partial/unsupported) with lat/lon fallback resolution and structured partial payloads (location_summary, score_summary, modules_unavailable). Shared normalization helpers are centralized in backend/app/address_normalization.py and frontend/src/lib/address-utils.ts; shared TS contracts are in frontend/src/lib/address-types.ts. Added backend/scripts/search_quality_harness.py for repeatable /suggest relevance QA; restored scoreTrend typing compatibility in page/NeighborhoodContextCard; and added safe optional amenities/flood typing + defaults so page.tsx cannot reference an undeclared amenities value during map prop wiring."
   - id: app-026
     lane: app
     type: feature

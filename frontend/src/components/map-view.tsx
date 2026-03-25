@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchMapNarration, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
+import { fetchMapNarration, type NearbyAmenity, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
 
 type MapMode = "signals" | "heatmap";
 type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -14,8 +14,11 @@ type MapViewProps = {
   disruptionScore?: number;
   signals?: NearbySignal[];
   schools?: NearbySchool[];
+  amenities?: NearbyAmenity[];
   topRiskDetails?: TopRiskDetail[];
   nearbySchools?: NearbySchool[];
+  floodRisk?: string | null;
+  femaZone?: string | null;
   isPro?: boolean;
 };
 
@@ -452,7 +455,7 @@ export function MapView({
     schoolGroup.clearLayers();
 
     for (const school of schools) {
-      const hex = SCHOOL_COLOR[school.color] ?? SCHOOL_COLOR.gray;
+      const hex = schoolRatingColor(school.rating);
       const rating = school.rating ?? "Unknown";
       const distFt = metersToFeet(school.distance_m);
       const popup = `
