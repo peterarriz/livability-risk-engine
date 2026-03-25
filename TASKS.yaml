@@ -15,6 +15,36 @@
 # Next task to create: data-073
 
 tasks:
+  - id: data-073
+    title: Live-verify remaining unverified city endpoints
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-072 fixed confirmed-broken scripts but could not live-test (no network in CI).
+      Run --dry-run with network access for each of these:
+      Crime scripts:
+        python backend/ingest/tempe_crime_trends.py --dry-run
+        python backend/ingest/peoria_az_crime_trends.py --dry-run
+        python backend/ingest/baton_rouge_crime_trends.py --dry-run
+        python backend/ingest/honolulu_crime_trends.py --discover
+        python backend/ingest/honolulu_crime_trends.py --dry-run
+        python backend/ingest/lincoln_crime_trends.py --dry-run
+        python backend/ingest/salem_or_crime_trends.py --dry-run
+      Permit scripts:
+        python backend/ingest/us_city_permits_arcgis.py --city tempe --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city peoria_az --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city lincoln --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city salem_or --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city omaha --dry-run
+        python backend/ingest/us_city_permits.py --city honolulu --dry-run
+        python backend/ingest/us_city_permits.py --city baton_rouge --dry-run
+      For each failure, visit the portal in the script docstring and update the URL/ID.
+      Gilbert AZ priority fix: org K1VMQDQNLVxLvLqs is confirmed invalid.
+        Visit https://data.gilbertaz.gov, find Police Incidents dataset,
+        restore gilbert_crime_trends.py from stub to a real ArcGIS script,
+        and update the gilbert entry in us_city_permits_arcgis.py.
+
   - id: data-072
     title: Audit and fix all MUST VERIFY city endpoints
     status: done
