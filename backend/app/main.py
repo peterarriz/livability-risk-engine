@@ -74,9 +74,12 @@ app = FastAPI(title="Livability Risk Engine")
 _allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Hardcoded production Vercel URL as a fallback so CORS works even when
+    # FRONTEND_ORIGIN is not set in Railway.
+    "https://livability-risk-engine.vercel.app",
 ]
 _frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").strip()
-if _frontend_origin:
+if _frontend_origin and _frontend_origin not in _allowed_origins:
     _allowed_origins.append(_frontend_origin)
 
 # Allow all Vercel preview/production deployments automatically so the
