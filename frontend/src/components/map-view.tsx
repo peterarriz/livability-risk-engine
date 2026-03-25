@@ -14,7 +14,7 @@ type MapViewProps = {
   disruptionScore?: number;
   signals?: NearbySignal[];
   schools?: NearbySchool[];
-  amenities?: NearbyAmenity[];
+  amenities?: Record<string, NearbyAmenity[]>;
   topRiskDetails?: TopRiskDetail[];
   nearbySchools?: NearbySchool[];
   floodRisk?: string | null;
@@ -236,7 +236,7 @@ export function MapView({
   disruptionScore,
   signals = [],
   schools = [],
-  amenities = [],
+  amenities = {},
   topRiskDetails: _topRiskDetails = [],
   floodRisk = null,
   femaZone = null,

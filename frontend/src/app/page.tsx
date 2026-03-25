@@ -183,7 +183,7 @@ export default function HomePage() {
     return latest - oldest;
   }, [scoreHistory]);
   const amenities = useMemo(
-    () => result?.amenities ?? result?.neighborhood_context?.amenities ?? [],
+    () => result?.amenities ?? result?.neighborhood_context?.amenities ?? {},
     [result],
   );
 
@@ -408,7 +408,7 @@ export default function HomePage() {
   function handleSuggestionSelect(suggestion: AddressSuggestion, options: { submit?: boolean } = { submit: true }) {
     const parts = getSuggestionAddressParts(suggestion);
     const selected: SelectedAddress = {
-      id: suggestion.canonical_id,
+      id: suggestion.canonical_id ?? null,
       label: suggestion.display_address,
       lat: suggestion.lat ?? null,
       lon: suggestion.lon ?? null,
@@ -999,7 +999,6 @@ export default function HomePage() {
                 <NeighborhoodContextCard
                   result={result}
                   scoreHistory={scoreHistory}
-                  scoreTrend={scoreTrend}
                   lat={mapCoords?.lat ?? result.latitude}
                   lon={mapCoords?.lon ?? result.longitude}
                 />
