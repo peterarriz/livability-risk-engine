@@ -7,13 +7,13 @@ Ingests Tempe Police Department (TPD) crime data and calculates
 12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Tempe AZ Open Data
-  Portal: https://data.tempe.gov
-  Service: TPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
+  ArcGIS FeatureServer — Tempe AZ Open Data (Calls for Service, NIBRS 2022+)
+  Portal: https://policedata.tempe.gov
+  Service: Calls_For_Service FeatureServer/0
 
   Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+    OccurrenceDatetime — date of incident
+    ReportDistrict     — geographic grouping
 
 Output:
   data/raw/tempe_crime_trends.json
@@ -34,14 +34,14 @@ from pathlib import Path
 import requests
 
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/e5BBQV9bLnUqzr4V/arcgis/rest/services"
-    "/TPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
+    "https://services.arcgis.com/lQySeXwbBg53XWDi/ArcGIS/rest/services"
+    "/Calls_For_Service/FeatureServer/0"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/tempe_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = "OccurrenceDatetime"
+GROUP_FIELD = "ReportDistrict"
 
 TEMPE_LAT = 33.4255
 TEMPE_LON = -111.9400

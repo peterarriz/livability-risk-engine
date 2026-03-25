@@ -7,13 +7,12 @@ Ingests Surprise, AZ Police Department crime data and calculates
 12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Surprise AZ Open Data
-  Portal: https://data.surpriseaz.gov
-  Service: SPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
-
-  Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+  NO PUBLIC ARCGIS ENDPOINT — as of 2026-03, Surprise PD does not publish
+  crime incident data via ArcGIS FeatureServer. They use CrimeMapping.com
+  (LexisNexis, closed platform) and adopted Mark43 RMS in late 2025.
+  The Surprise open data hub (data-surprise.opendata.arcgis.com) notes
+  "Available layers are outdated. Look for revised layers to be shared soon."
+  Re-check periodically for a public endpoint.
 
 Output:
   data/raw/surprise_az_crime_trends.json
@@ -33,15 +32,12 @@ from pathlib import Path
 
 import requests
 
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/QJfxWS1GiDHgQMwH/arcgis/rest/services"
-    "/SPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
-)
+FEATURESERVER_URL = None  # No public ArcGIS endpoint available (see docstring)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/surprise_az_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = None
+GROUP_FIELD = None
 
 SURPRISE_AZ_LAT = 33.6292
 SURPRISE_AZ_LON = -112.3679
@@ -158,6 +154,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    if FEATURESERVER_URL is None:
+        print(
+            "ERROR: Surprise AZ crime ingest is disabled — no public ArcGIS\n"
+            "endpoint available. Surprise PD uses CrimeMapping.com (closed).\n"
+            "Re-check https://data-surprise.opendata.arcgis.com for updates.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     print(f"Source: {FEATURESERVER_URL}")
 
