@@ -7,13 +7,13 @@ Ingests Goodyear, AZ Police Department crime data and calculates
 12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Goodyear AZ Open Data
-  Portal: https://data.goodyearaz.gov
-  Service: GoPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
-
-  Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+  NO PUBLIC ARCGIS ENDPOINT — as of 2026-03, Goodyear PD does not publish
+  crime incident data via ArcGIS FeatureServer. They use LexisNexis
+  Community Crime Map (communitycrimemap.com, closed platform).
+  The Goodyear ArcGIS hub publishes parks/boundaries only, no PD data.
+  Alternative: Arizona DPS TOPS (azcrimestatistics.azdps.gov) has annual
+  UCR/NIBRS stats by agency but no FeatureServer API.
+  Re-check periodically for a public endpoint.
 
 Output:
   data/raw/goodyear_az_crime_trends.json
@@ -33,15 +33,12 @@ from pathlib import Path
 
 import requests
 
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/aMqXhGKtSoqR5lNw/arcgis/rest/services"
-    "/GoPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
-)
+FEATURESERVER_URL = None  # No public ArcGIS endpoint available (see docstring)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/goodyear_az_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = None
+GROUP_FIELD = None
 
 GOODYEAR_AZ_LAT = 33.4353
 GOODYEAR_AZ_LON = -112.3576
@@ -158,6 +155,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    if FEATURESERVER_URL is None:
+        print(
+            "ERROR: Goodyear AZ crime ingest is disabled — no public ArcGIS\n"
+            "endpoint available. Goodyear PD uses LexisNexis Community Crime\n"
+            "Map (closed). Check azcrimestatistics.azdps.gov for annual stats.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     print(f"Source: {FEATURESERVER_URL}")
 

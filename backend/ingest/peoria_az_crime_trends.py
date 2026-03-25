@@ -9,13 +9,13 @@ Ingests Peoria, AZ Police Department crime data and calculates
 NOTE: This is Peoria, AZ (Maricopa County), not Peoria, IL.
 
 Source:
-  ArcGIS FeatureServer — Peoria AZ Open Data
-  Portal: https://data.peoriaaz.gov
-  Service: PPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
+  ArcGIS FeatureServer — Peoria AZ GIS (PD Cases All 2008–Present)
+  Portal: https://geospatial-peoriaazgis.hub.arcgis.com
+  Service: PD_Map_Cases FeatureServer/3
 
   Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+    CVFROMDATE   — date of incident (integer, YYYYMMDD format)
+    CRIMEAGAINST — crime category grouping (PROPERTY, PERSON, SOCIETY, etc.)
 
 Output:
   data/raw/peoria_az_crime_trends.json
@@ -36,14 +36,14 @@ from pathlib import Path
 import requests
 
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/ZNh2Q3xZvn5AJFGZ/arcgis/rest/services"
-    "/PPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
+    "https://gis.peoriaaz.gov/arcgis/rest/services"
+    "/PD/PD_Map_Cases/FeatureServer/3"
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/peoria_az_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = "CVFROMDATE"
+GROUP_FIELD = "CRIMEAGAINST"
 
 PEORIA_AZ_LAT = 33.5806
 PEORIA_AZ_LON = -112.2374
@@ -52,7 +52,8 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
+    """CVFROMDATE is an integer field in YYYYMMDD format."""
+    return dt.strftime("%Y%m%d")
 
 
 def fetch_crime_counts(
@@ -121,8 +122,8 @@ def build_trend_records(
         trend, trend_pct = _classify_trend(current_count, prior_count)
         slug = district.lower().replace(" ", "_")
         records.append({
-            "region_type": "district",
-            "region_id": f"peoria_az_district_{slug}",
+            "region_type": "crime_category",
+            "region_id": f"peoria_az_cat_{slug}",
             "district_id": district,
             "district_name": f"Peoria AZ {district}",
             "crime_12mo": current_count,
