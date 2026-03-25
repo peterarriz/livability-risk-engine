@@ -80,6 +80,15 @@ export type NearbySchool = {
   distance_m: number;
 };
 
+// Neighborhood quality context returned by /score (data-063).
+export type NeighborhoodContext = {
+  flood_risk: string | null;
+  fema_flood_zone: string | null;
+  crime_trend?: string | null;
+  crime_trend_pct?: number | null;
+  crime_12mo?: number | null;
+};
+
 export type MapNarrationInteraction = "default_load" | "signal_click" | "map_pan";
 
 export type MapNarrationResponse = {
@@ -154,6 +163,8 @@ export type ScoreResponse = {
   nearby_signals?: NearbySignal[];
   // Nearby schools for the school quality map layer (data-061).
   nearby_schools?: NearbySchool[];
+  // Neighborhood quality context: flood risk, crime trend, etc. (data-063).
+  neighborhood_context?: NeighborhoodContext | null;
 };
 
 export type ScoreSource = ScoreMode;
@@ -1030,6 +1041,87 @@ export type ScoreHistoryEntry = {
   mode: ScoreMode;
   created_at: string | null;
 };
+
+// Area-level score trend (data-062).
+export type TrendDay = {
+  day: string;            // ISO date "YYYY-MM-DD"
+  avg_disruption: number;
+  avg_livability: number;
+  sample_count: number;
+};
+
+export type ScoreTrendResponse = {
+  lat: number;
+  lon: number;
+  radius_m: number;
+  days: number;
+  trend: TrendDay[];
+};
+
+/**
+ * Fetch daily avg disruption/livability for all addresses within radiusM
+ * metres of (lat, lon) over the past `days` days.
+ * Returns null when the backend is unreachable; empty trend[] in demo mode.
+ */
+export async function fetchScoreTrend(
+  lat: number,
+  lon: number,
+  radiusM = 1000,
+  days = 30,
+): Promise<ScoreTrendResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/score-trend");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    url.searchParams.set("radius_m", String(radiusM));
+    url.searchParams.set("days", String(days));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as ScoreTrendResponse;
+  } catch {
+    return null;
+  }
+}
+
+// Amenity richness types (data-064).
+export type NearbyAmenity = {
+  name: string;
+  lat: number;
+  lon: number;
+  distance_m: number;
+  category: string;
+};
+
+export type AmenitiesResponse = {
+  amenity_score: number | null;
+  categories: Record<string, NearbyAmenity[]>;
+};
+
+/**
+ * Fetch walkable amenity data near (lat, lon) from the /nearby-amenities endpoint.
+ * Results are cached on the backend for 7 days. Returns null on network failure.
+ */
+export async function fetchAmenities(
+  lat: number,
+  lon: number,
+): Promise<AmenitiesResponse | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) return null;
+
+  try {
+    const url = buildApiUrl("/nearby-amenities");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    const resp = await fetch(url.toString(), { cache: "no-store" });
+    if (!resp.ok) return null;
+    return (await resp.json()) as AmenitiesResponse;
+  } catch {
+    return null;
+  }
+}
 
 // Neighborhood page types (data-026).
 export type NeighborhoodProject = {

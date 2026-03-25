@@ -80,6 +80,16 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Gilbert AZ | `gilbert_crime_trends.py` | `services.arcgis.com/K1VMQDQNLVxLvLqs/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `gilbert_crime_trends.json` |
 | Glendale AZ | `glendale_az_crime_trends.py` | `services.arcgis.com/s0YYoMkpLLkb2IPC/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `glendale_az_crime_trends.json` |
 | Henderson NV | `henderson_crime_trends.py` | `services.arcgis.com/pGfbNXXgj2WN9j5V/.../HPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Area` | `henderson_crime_trends.json` |
+| Tacoma WA | `tacoma_crime_trends.py` | `services3.arcgis.com/SCwJH1pD8WSn5T5y/.../TPD_RMS_Crime/FeatureServer/0` | `DateOccurred` | `Sector` | `tacoma_crime_trends.json` |
+| Chattanooga TN | `chattanooga_crime_trends.py` | `services2.arcgis.com/OIAIimblRxPs0xxc/.../testingtestingtestingpolicepoints/FeatureServer/0` | `date_incident` | `incident_type` (MUST VERIFY for geographic field) | `chattanooga_crime_trends.json` |
+| Grand Rapids MI | `grand_rapids_crime_trends.py` | `services2.arcgis.com/L81TiOwAPO1ZvU9b/.../incident_reports/FeatureServer/0` | `DATEOFOFFENSE` | `Service_Area` | `grand_rapids_crime_trends.json` |
+| Fayetteville NC | `fayetteville_nc_crime_trends.py` | `gismaps.fayettevillenc.gov/.../Police/IncidentsCrimesAgainst{Persons,Property,Society}/MapServer/0` (3 layers) | `Date_Incident` | `district` | `fayetteville_nc_crime_trends.json` |
+
+### OpenDataSoft-Based
+
+| City | Script | Portal | Dataset | Date Field | Group Field | Output |
+|------|--------|--------|---------|------------|-------------|--------|
+| Cary NC | `cary_crime_trends.py` | `data.townofcary.org` | `cpd-incidents` | `date_from` | `district` | `cary_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -247,6 +257,15 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Lubbock, TX — LPD publishes quarterly PDF stats only; no API.
 - Garland, TX — GPD no public incident-level API found.
 - Chesapeake, VA — CPD no public incident-level API found.
+
+**data-059 skipped cities (no public API, researched 2026-03-24):**
+- Akron, OH — APD uses web-only report portal; no Socrata/ArcGIS incident API.
+- Knoxville, TN — KPD dashboard only; incident data by request ($10/report).
+- Fort Wayne, IN — ArcGIS org has no crime services; no Socrata portal found.
+- Shreveport, LA — SPD publishes only aggregate street-level offense counts; no incident API.
+- Tallahassee, FL — TOPS web interface only; no documented REST API.
+- Huntsville, AL — JustFOIA portal for records requests; no open data API.
+- Winston-Salem, NC — WSPD has no public crime data services on ArcGIS or Socrata.
 
 **Symptom:** ArcGIS returns `{"error": {"code": 400, "message": "Invalid URL"}}`.
 
