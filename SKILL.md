@@ -28,6 +28,7 @@ failure mode, and agent rule in the LRE data pipeline.
 | Madison | `madison_crime_trends.py` | data.cityofmadison.com | `68yf-zu8t` (MUST VERIFY) | `incident_date` | `sector` | `madison_crime_trends.json` |
 | Spokane | `spokane_crime_trends.py` | data.spokanecity.org | `4gj6-ujfi` (MUST VERIFY) | `reported_date` | `precinct` | `spokane_crime_trends.json` |
 | Dayton OH | `dayton_crime_trends.py` | data.dayton.gov | `b4z3-ppnd` (MUST VERIFY) | `date_reported` (MUST VERIFY) | `district` (MUST VERIFY) | `dayton_crime_trends.json` |
+| Honolulu HI | `honolulu_crime_trends.py` | data.honolulu.gov | `kfre-e9j5` (MUST VERIFY) | `incident_date` (MUST VERIFY) | `district` (MUST VERIFY) | `honolulu_crime_trends.json` |
 
 **Kansas City** uses per-year datasets on `data.kcmo.org`:
 
@@ -95,6 +96,8 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Eugene OR | `eugene_crime_trends.py` | `services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../EPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `eugene_crime_trends.json` |
 | Springfield MO | `springfield_mo_crime_trends.py` | `services6.arcgis.com/bdLPgVQpKkp3xrEm/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `springfield_mo_crime_trends.json` |
 | Sioux Falls SD | `sioux_falls_crime_trends.py` | `services.arcgis.com/Nf5qHqEDvuX5aNFd/.../SFPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `ReportedDate` | `Sector` | `sioux_falls_crime_trends.json` |
+| Lincoln NE | `lincoln_crime_trends.py` | `services.arcgis.com/ZPeUDkbFEf7WXNID/.../LPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `ReportDistrict` | `lincoln_crime_trends.json` |
+| Salem OR | `salem_or_crime_trends.py` | `services.arcgis.com/uUvqNr0XSi28N3Hj/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `PatrolDistrict` | `salem_or_crime_trends.json` |
 
 ### OpenDataSoft-Based
 
@@ -165,6 +168,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
 | Dayton OH | `dayton` | data.dayton.gov | `kpz4-qmte` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Honolulu HI | `honolulu` | data.honolulu.gov | `msx3-yfxc` (MUST VERIFY) | `permit_number` | `issue_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -212,6 +216,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Eugene OR | `eugene` | services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Springfield MO | `springfield_mo` | services6.arcgis.com/bdLPgVQpKkp3xrEm/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Sioux Falls SD | `sioux_falls` | services.arcgis.com/Nf5qHqEDvuX5aNFd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Omaha NE | `omaha` | services.arcgis.com/q4kU3NFQX1XtcMeJ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Lincoln NE | `lincoln` | services.arcgis.com/ZPeUDkbFEf7WXNID/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Salem OR | `salem_or` | services.arcgis.com/uUvqNr0XSi28N3Hj/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -318,6 +325,40 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Salinas, CA — SPD no public crime API; no open data portal found.
 - Fayetteville, AR — data.fayetteville-ar.gov has limited datasets; no crime incident
   API or queryable permit data confirmed as of 2026-03-25.
+
+**data-071 skipped cities (no public API, researched 2026-03-25):**
+- Savannah, GA — re-confirmed SCMPD no public crime incident API (3rd check).
+- Augusta, GA (Richmond County) — re-confirmed RCSO consolidated govt; no open data API.
+- Columbus, GA (Muscogee County) — re-confirmed MCSO consolidated govt; no open data API.
+- Montgomery, AL — re-confirmed MPDAL no open data portal; no API.
+- Huntsville, AL — re-confirmed HPD JustFOIA portal only; no queryable REST API.
+- Little Rock, AR — re-confirmed LRPD no public incident API.
+- Jackson, MS — re-confirmed JPD no open data portal.
+- Knoxville, TN — re-confirmed KPD crime data by-request-only ($10/report).
+- Shreveport, LA — re-confirmed SPD aggregate-only counts; no incident API.
+- Akron, OH — re-confirmed APD web-only portal; no crime incident REST API.
+- Winston-Salem, NC — re-confirmed WSPD no public crime API on ArcGIS or Socrata.
+- Kansas City, KS — re-confirmed UG of Wyandotte County/KCK; no separate public API.
+- Overland Park, KS — re-confirmed (from data-070); no public crime or permit API.
+- Lubbock, TX — re-confirmed LPD quarterly PDF stats only; no API.
+- Garland, TX — re-confirmed GPD no public incident-level API.
+- Laredo, TX — re-confirmed LPD PDF reports only; no queryable API.
+- Amarillo, TX — re-confirmed (from data-070); no public open data crime API.
+- Chesapeake, VA — re-confirmed CPD no public incident-level API.
+- North Las Vegas, NV — re-confirmed NLVPD no public incident-level API.
+- Paradise, NV — unincorporated Clark County; LVMPD covers area; use las_vegas_crime_trends.py.
+- Fremont, CA — re-confirmed FPD no public crime API.
+- Irvine, CA — re-confirmed uses OCSD coverage; no city-level incident API.
+- Elk Grove, CA — re-confirmed Sacramento County suburb; no independent portal.
+- Oxnard, CA — re-confirmed (from data-070) OPD no public crime API.
+- Salinas, CA — re-confirmed (from data-070) SPD no public crime API.
+- Spokane Valley, WA — re-confirmed SVPD no public open data portal.
+- Green Bay, WI — data.greenbaywi.gov does not resolve to an open data portal;
+  GBPD publishes only PDF reports; no ArcGIS Hub or Socrata presence confirmed.
+- Rockford, IL — cityofrockford.org no open data API; data.illinois.gov has no
+  RPD crime dataset; no queryable permit data confirmed as of 2026-03-25.
+- Springfield, OR — small city (~60k) adjacent to Eugene (also stub); no open data
+  portal found; Lane County GIS has no Springfield PD crime incident data.
 
 **data-068 skipped cities (no public API, re-researched 2026-03-25):**
 - Akron, OH — re-checked data.akronohio.gov; no crime incident REST API confirmed.

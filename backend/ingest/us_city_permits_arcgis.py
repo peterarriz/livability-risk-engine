@@ -1143,6 +1143,90 @@ CITY_CONFIGS: list[dict] = [
         "max_records":      None,
     },
     # -----------------------------------------------------------------
+    # data-071: tier-13 city permits (ArcGIS Hub)
+    # -----------------------------------------------------------------
+    {
+        # Omaha, NE — Building Permits.
+        # Portal: https://opendata.cityofomaha.org (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city omaha --discover
+        #   Or visit: https://opendata.cityofomaha.org and search "building permits"
+        # data-071: added 2026-03-25
+        "city_name":        "Omaha",
+        "source_key":       "omaha",
+        "service_url":      (
+            "https://services.arcgis.com/q4kU3NFQX1XtcMeJ/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://opendata.cityofomaha.org",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Omaha, NE",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Lincoln, NE — Building Permits.
+        # Portal: https://opendata.lincoln.ne.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city lincoln --discover
+        #   Or visit: https://opendata.lincoln.ne.gov and search "building permits"
+        # data-071: added 2026-03-25
+        "city_name":        "Lincoln",
+        "source_key":       "lincoln",
+        "service_url":      (
+            "https://services.arcgis.com/ZPeUDkbFEf7WXNID/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://opendata.lincoln.ne.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Lincoln, NE",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Salem, OR — Building Permits.
+        # Portal: https://data.cityofsalem.net or https://gis.cityofsalem.net (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city salem_or --discover
+        #   Or visit: https://salem.maps.arcgis.com and search "building permits"
+        # data-071: added 2026-03-25
+        "city_name":        "Salem OR",
+        "source_key":       "salem_or",
+        "service_url":      (
+            "https://services.arcgis.com/uUvqNr0XSi28N3Hj/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.cityofsalem.net",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Salem, OR",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
+    # SKIPPED — No public open data portal found (data-071):
+    #   Green Bay, WI — data.greenbaywi.gov does not resolve to open data portal;
+    #     GBPD publishes PDF reports only; no ArcGIS/Socrata crime or permit API.
+    #   Rockford, IL — cityofrockford.org no open data API; data.illinois.gov
+    #     has no RPD crime data; no queryable permit data confirmed.
+    #   Springfield, OR — small city (~60k); no open data portal found;
+    #     adjacent Eugene also has no confirmed API (stub).
+    # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-068):
     #   Akron, OH — data.akronohio.gov exists but no crime incident API;
     #     APD uses web-only portal for public reports. Re-checked 2026-03-25.

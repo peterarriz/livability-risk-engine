@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070, data-071
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -203,6 +203,13 @@ STAGING_FILES = {
     "crime_eugene":               Path("data/raw/eugene_crime_trends.json"),
     "crime_springfield_mo":       Path("data/raw/springfield_mo_crime_trends.json"),
     "crime_sioux_falls":          Path("data/raw/sioux_falls_crime_trends.json"),
+    # data-071: tier-13 city crime trends
+    "crime_lincoln":              Path("data/raw/lincoln_crime_trends.json"),
+    "crime_green_bay":            Path("data/raw/green_bay_crime_trends.json"),
+    "crime_rockford":             Path("data/raw/rockford_crime_trends.json"),
+    "crime_salem_or":             Path("data/raw/salem_or_crime_trends.json"),
+    "crime_springfield_or":       Path("data/raw/springfield_or_crime_trends.json"),
+    "crime_honolulu":             Path("data/raw/honolulu_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -410,6 +417,9 @@ def parse_args() -> argparse.Namespace:
             "crime_tallahassee", "crime_fort_wayne", "crime_boise", "crime_cape_coral",
             # data-070: tier-12 cities
             "crime_dayton", "crime_eugene", "crime_springfield_mo", "crime_sioux_falls",
+            # data-071: tier-13 cities
+            "crime_lincoln", "crime_green_bay", "crime_rockford",
+            "crime_salem_or", "crime_springfield_or", "crime_honolulu",
             "schools", "schools_national", "all",
         ],
         default="all",
