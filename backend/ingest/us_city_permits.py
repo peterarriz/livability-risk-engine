@@ -686,6 +686,34 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     # -----------------------------------------------------------------
+    # data-071: tier-13 city permits (Socrata portals)
+    # -----------------------------------------------------------------
+    {
+        # Honolulu, HI — Building Permits.
+        # Portal: https://data.honolulu.gov (Socrata — City and County of Honolulu)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
+        #   curl "https://data.honolulu.gov/resource/<id>.json?$limit=1"
+        # data-071: added 2026-03-25
+        "city_name":        "Honolulu",
+        "source_key":       "honolulu",
+        "domain":           "data.honolulu.gov",
+        "dataset_id":       "msx3-yfxc",  # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "skip_date_filter": False,
+        "max_records":      None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Honolulu, HI",
+        "where_clause":     None,
+    },
+    # -----------------------------------------------------------------
     # data-058: tier-8 city permits (Socrata portals)
     # -----------------------------------------------------------------
     {
