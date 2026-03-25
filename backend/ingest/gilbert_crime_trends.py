@@ -1,6 +1,6 @@
 """
 backend/ingest/gilbert_crime_trends.py
-task: data-058, data-059
+task: data-058, data-059, data-066
 lane: data
 
 Ingests Gilbert Police Department (GPD) crime data and calculates
@@ -9,11 +9,28 @@ Ingests Gilbert Police Department (GPD) crime data and calculates
 Source:
   ArcGIS FeatureServer — Gilbert AZ Open Data
   Portal: https://data.gilbertaz.gov
-  Service: GPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
+  Service: GPD_Crime_Incidents FeatureServer/0 (ENDPOINT BLOCKED — see below)
 
   Key fields:
     IncidentDate — date of incident (MUST VERIFY)
     District     — geographic grouping (MUST VERIFY)
+
+BLOCKED (data-066, 2026-03-25):
+  Org ID K1VMQDQNLVxLvLqs is confirmed INVALID (returns HTTP 400 "Invalid URL").
+  FEATURESERVER_URL below is a placeholder that will not work.
+
+  To fix:
+    1. Visit https://data.gilbertaz.gov
+    2. Search for "Police Incidents" or "Crime" dataset
+    3. Click "I want to use this" → "API" to get the FeatureServer URL
+    4. Extract the org ID (alphanumeric segment after services.arcgis.com/)
+    5. Update FEATURESERVER_URL below
+    6. Verify DATE_FIELD and GROUP_FIELD match actual layer fields
+    7. Re-run: python backend/ingest/gilbert_crime_trends.py --dry-run
+    8. Update SKILL.md ArcGIS-Based table row for Gilbert AZ
+    9. Update us_city_permits_arcgis.py gilbert service_url with same org ID
+
+  Helper: python backend/ingest/verify_arcgis_endpoints.py --city gilbert --discover
 
 Output:
   data/raw/gilbert_crime_trends.json
@@ -35,13 +52,13 @@ import requests
 
 FEATURESERVER_URL = (
     "https://services.arcgis.com/K1VMQDQNLVxLvLqs/ArcGIS/rest/services"
-    "/GPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
+    "/GPD_Crime_Incidents/FeatureServer/0"  # INVALID — org ID K1VMQDQNLVxLvLqs returns 400; see docstring
 )
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/gilbert_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DATE_FIELD = "IncidentDate"  # MUST VERIFY — endpoint is blocked; verify after org ID is fixed
+GROUP_FIELD = "District"  # MUST VERIFY — endpoint is blocked; verify after org ID is fixed
 
 GILBERT_LAT = 33.3528
 GILBERT_LON = -111.7890

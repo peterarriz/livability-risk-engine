@@ -11,24 +11,48 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-065 (overnight expansion — AZ cities + school API research)
-# Next task to create: data-066
+# Last completed task: data-066 (AZ endpoint verification — CI network blocked; added verify script)
+# Next task to create: data-067
 
 tasks:
-  - id: data-066
-    title: Verify and fix AZ city ArcGIS endpoints (Tempe, Peoria AZ, Surprise AZ, Goodyear AZ) + Gilbert AZ
+  - id: data-067
+    title: Live-verify AZ city ArcGIS endpoints (Gilbert fix + Tempe/Peoria/Surprise/Goodyear)
     status: backlog
     priority: high
     github_issue: ~
     notes_for_next_agent: >
-      All AZ city scripts from data-065 use MUST VERIFY org IDs that need live web
-      verification. See data-065 notes_for_next_agent for dry-run commands.
-      Gilbert AZ: org ID K1VMQDQNLVxLvLqs returns "Invalid URL". Fix via
-      data.gilbertaz.gov portal lookup (see SKILL.md for step-by-step).
-      Tempe portal: https://data.tempe.gov
-      Peoria AZ portal: https://data.peoriaaz.gov
-      Surprise AZ portal: https://data.surpriseaz.gov
-      Goodyear AZ portal: https://data.goodyearaz.gov
+      data-066 added verify_arcgis_endpoints.py helper but CI network was blocked
+      so no live verification was possible. Next agent must run with network access.
+      Step 1: python backend/ingest/verify_arcgis_endpoints.py
+        This tests all 5 AZ org IDs and reports FAIL/OK for each.
+      Step 2: For FAIL results, visit the portal URL listed in the output and
+        find the correct FeatureServer URL for the crime and permit datasets.
+      Step 3: Update FEATURESERVER_URL in affected crime scripts.
+      Step 4: Update service_url in us_city_permits_arcgis.py for affected cities.
+      Step 5: Re-run each script with --dry-run to confirm fields work.
+      Step 6: Update SKILL.md ArcGIS-Based table (remove MUST VERIFY markers).
+      Gilbert AZ status: org K1VMQDQNLVxLvLqs CONFIRMED INVALID.
+        Portal: https://data.gilbertaz.gov — must find correct org ID manually.
+      Tempe org e5BBQV9bLnUqzr4V — unverified; portal: https://data.tempe.gov
+      Peoria AZ org ZNh2Q3xZvn5AJFGZ — unverified; portal: https://data.peoriaaz.gov
+      Surprise AZ org QJfxWS1GiDHgQMwH — unverified; portal: https://data.surpriseaz.gov
+      Goodyear AZ org aMqXhGKtSoqR5lNw — unverified; portal: https://data.goodyearaz.gov
+
+  - id: data-066
+    title: Verify and fix AZ city ArcGIS endpoints (Tempe, Peoria AZ, Surprise AZ, Goodyear AZ) + Gilbert AZ
+    status: done
+    priority: high
+    github_issue: 200
+    notes_for_next_agent: >
+      CI network access was blocked — all Bash/Python HTTP and WebFetch calls
+      required approval that couldn't be granted in automated mode.
+      Added backend/ingest/verify_arcgis_endpoints.py helper script for local use.
+      Updated docstrings in all 5 AZ crime scripts with BLOCKED/MUST VERIFY notes.
+      Updated gilbert entry in us_city_permits_arcgis.py with BLOCKED note.
+      Updated SKILL.md with verify_arcgis_endpoints.py instructions.
+      Gilbert org K1VMQDQNLVxLvLqs CONFIRMED INVALID (has been since data-058).
+      No org IDs were changed — all await live verification in data-067.
+      Run: python backend/ingest/verify_arcgis_endpoints.py to see full status.
 
   - id: data-065
     title: Overnight expansion — next 30 cities permits+crime + Gilbert fix + school API research

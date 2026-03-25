@@ -1,6 +1,6 @@
 """
 backend/ingest/goodyear_az_crime_trends.py
-task: data-065
+task: data-065, data-066
 lane: data
 
 Ingests Goodyear, AZ Police Department crime data and calculates
@@ -14,6 +14,11 @@ Source:
   Alternative: Arizona DPS TOPS (azcrimestatistics.azdps.gov) has annual
   UCR/NIBRS stats by agency but no FeatureServer API.
   Re-check periodically for a public endpoint.
+
+MUST VERIFY (data-066, 2026-03-25):
+  Org ID aMqXhGKtSoqR5lNw was not live-verified in data-065.
+  Run: python backend/ingest/verify_arcgis_endpoints.py --city goodyear_az --discover
+  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
 
 Output:
   data/raw/goodyear_az_crime_trends.json

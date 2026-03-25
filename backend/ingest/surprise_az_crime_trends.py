@@ -1,6 +1,6 @@
 """
 backend/ingest/surprise_az_crime_trends.py
-task: data-065
+task: data-065, data-066
 lane: data
 
 Ingests Surprise, AZ Police Department crime data and calculates
@@ -13,6 +13,11 @@ Source:
   The Surprise open data hub (data-surprise.opendata.arcgis.com) notes
   "Available layers are outdated. Look for revised layers to be shared soon."
   Re-check periodically for a public endpoint.
+
+MUST VERIFY (data-066, 2026-03-25):
+  Org ID QJfxWS1GiDHgQMwH was not live-verified in data-065.
+  Run: python backend/ingest/verify_arcgis_endpoints.py --city surprise_az --discover
+  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
 
 Output:
   data/raw/surprise_az_crime_trends.json
