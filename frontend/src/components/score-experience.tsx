@@ -1125,6 +1125,7 @@ function ScoreBarRow({ label, score, color, rangeMin, rangeMax, dimLabel }: Scor
 type NeighborhoodContextCardProps = {
   result: ScoreResponse;
   scoreHistory: ScoreHistoryEntry[];
+  scoreTrend?: number | null;
   lat?: number | null;
   lon?: number | null;
 };
