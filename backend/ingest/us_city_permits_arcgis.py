@@ -793,14 +793,16 @@ CITY_CONFIGS: list[dict] = [
     {
         # Gilbert, AZ — Building Permits.
         # Portal: https://data.gilbertaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
-        #   python backend/ingest/us_city_permits_arcgis.py --city gilbert --discover
-        # data-058: added 2026-03-24
+        # BLOCKED: org ID K1VMQDQNLVxLvLqs is INVALID (returns 400 "Invalid URL").
+        # Fix: visit https://data.gilbertaz.gov, find Building Permits dataset,
+        #      extract org ID from FeatureServer URL, update service_url below.
+        # Helper: python backend/ingest/verify_arcgis_endpoints.py --city gilbert --discover
+        # data-058: added 2026-03-24; data-066: blocked — needs org ID fix
         "city_name":        "Gilbert",
         "source_key":       "gilbert",
         "service_url":      (
             "https://services.arcgis.com/K1VMQDQNLVxLvLqs/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
+            "/Building_Permits/FeatureServer/0"  # INVALID — see comment above
         ),
         "portal_url":       "https://data.gilbertaz.gov",
         "id_field":         "PERMIT_NUM",

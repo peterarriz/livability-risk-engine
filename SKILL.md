@@ -84,10 +84,10 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Chattanooga TN | `chattanooga_crime_trends.py` | `services2.arcgis.com/OIAIimblRxPs0xxc/.../testingtestingtestingpolicepoints/FeatureServer/0` | `date_incident` | `incident_type` (MUST VERIFY for geographic field) | `chattanooga_crime_trends.json` |
 | Grand Rapids MI | `grand_rapids_crime_trends.py` | `services2.arcgis.com/L81TiOwAPO1ZvU9b/.../incident_reports/FeatureServer/0` | `DATEOFOFFENSE` | `Service_Area` | `grand_rapids_crime_trends.json` |
 | Fayetteville NC | `fayetteville_nc_crime_trends.py` | `gismaps.fayettevillenc.gov/.../Police/IncidentsCrimesAgainst{Persons,Property,Society}/MapServer/0` (3 layers) | `Date_Incident` | `district` | `fayetteville_nc_crime_trends.json` |
-| Tempe AZ | `tempe_crime_trends.py` | `services.arcgis.com/e5BBQV9bLnUqzr4V/.../TPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `tempe_crime_trends.json` |
-| Peoria AZ | `peoria_az_crime_trends.py` | `services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../PPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `peoria_az_crime_trends.json` |
-| Surprise AZ | `surprise_az_crime_trends.py` | `services.arcgis.com/QJfxWS1GiDHgQMwH/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `surprise_az_crime_trends.json` |
-| Goodyear AZ | `goodyear_az_crime_trends.py` | `services.arcgis.com/aMqXhGKtSoqR5lNw/.../GoPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `goodyear_az_crime_trends.json` |
+| Tempe AZ | `tempe_crime_trends.py` | `services.arcgis.com/e5BBQV9bLnUqzr4V/.../TPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city tempe`) | `IncidentDate` | `District` | `tempe_crime_trends.json` |
+| Peoria AZ | `peoria_az_crime_trends.py` | `services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../PPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city peoria_az`) | `IncidentDate` | `District` | `peoria_az_crime_trends.json` |
+| Surprise AZ | `surprise_az_crime_trends.py` | `services.arcgis.com/QJfxWS1GiDHgQMwH/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city surprise_az`) | `IncidentDate` | `District` | `surprise_az_crime_trends.json` |
+| Goodyear AZ | `goodyear_az_crime_trends.py` | `services.arcgis.com/aMqXhGKtSoqR5lNw/.../GoPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city goodyear_az`) | `IncidentDate` | `District` | `goodyear_az_crime_trends.json` |
 
 ### OpenDataSoft-Based
 

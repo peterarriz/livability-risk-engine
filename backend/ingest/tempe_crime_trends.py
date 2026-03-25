@@ -1,6 +1,6 @@
 """
 backend/ingest/tempe_crime_trends.py
-task: data-065
+task: data-065, data-066
 lane: data
 
 Ingests Tempe Police Department (TPD) crime data and calculates
@@ -14,6 +14,11 @@ Source:
   Key fields:
     IncidentDate — date of incident (MUST VERIFY)
     District     — geographic grouping (MUST VERIFY)
+
+MUST VERIFY (data-066, 2026-03-25):
+  Org ID e5BBQV9bLnUqzr4V was not live-verified in data-065.
+  Run: python backend/ingest/verify_arcgis_endpoints.py --city tempe --discover
+  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
 
 Output:
   data/raw/tempe_crime_trends.json
