@@ -45,17 +45,23 @@ export default function AccountPage() {
   useEffect(() => {
     if (!isLoaded || !user || syncAttempted.current) return;
     syncAttempted.current = true;
-    fetch(`${API_BASE}/auth/sync`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clerk_user_id: user.id,
-        email: user.primaryEmailAddress?.emailAddress ?? "",
-      }),
-    })
-      .then(() => setSyncDone(true))
-      .catch(() => setSyncDone(true)); // non-fatal — proceed regardless
-  }, [isLoaded, user]);
+    (async () => {
+      const token = await getToken();
+      fetch(`${API_BASE}/auth/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          clerk_user_id: user.id,
+          email: user.primaryEmailAddress?.emailAddress ?? "",
+        }),
+      })
+        .then(() => setSyncDone(true))
+        .catch(() => setSyncDone(true)); // non-fatal — proceed regardless
+    })();
+  }, [isLoaded, user, getToken]);
 
   // ── Load API keys ─────────────────────────────────────────────────────────
   const loadKeys = useCallback(async () => {
@@ -63,7 +69,7 @@ export default function AccountPage() {
       setKeysLoading(true);
       setKeysError(null);
       const token = await getToken();
-      if (!token) return;
+      if (!token) throw new Error("Clerk session token unavailable — try refreshing");
       const data = await listApiKeys(token);
       setKeys(data.filter((k) => k.is_active));
     } catch (e) {
@@ -84,7 +90,7 @@ export default function AccountPage() {
       setGenerateError(null);
       setNewKey(null);
       const token = await getToken();
-      if (!token) throw new Error("Not signed in");
+      if (!token) throw new Error("Clerk session token unavailable — try refreshing");
       const result: CreateKeyResponse = await createApiKey(token);
       setNewKey(result.key);
       await loadKeys();
@@ -101,7 +107,7 @@ export default function AccountPage() {
       setRevoking(keyId);
       setRevokeError(null);
       const token = await getToken();
-      if (!token) throw new Error("Not signed in");
+      if (!token) throw new Error("Clerk session token unavailable — try refreshing");
       await revokeApiKey(keyId, token);
       setKeys((prev) => prev.filter((k) => k.id !== keyId));
       if (newKey) setNewKey(null); // if the just-generated key was revoked, clear it
