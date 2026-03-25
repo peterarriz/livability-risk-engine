@@ -204,11 +204,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # Denver, CO — Building Permits.
         # Portal: https://opendata-geospatialdenver.hub.arcgis.com
-        # ArcGIS Hub org: services1.arcgis.com/zdB7qR0BtYrg0Xpl (Denver's org ID)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city denver --discover
-        #   Or visit: https://opendata-geospatialdenver.hub.arcgis.com
-        #   Search "building permits" and copy the FeatureServer/0 URL.
+        # data-075: org zdB7qR0BtYrg0Xpl is VERIFIED VALID — same org used by
+        #   denver_crime_trends.py (ODC_CRIME_OFFENSES_P/FeatureServer/324), confirmed working.
+        #   Service name ODC_BUILDING_PERMITS_P follows Denver's ODC_ naming convention.
+        #   Needs live verification: run --discover to confirm service name + layer.
         # Note: data.denvergov.org redirects to ArcGIS Hub (not Socrata/CKAN).
         "city_name":        "Denver",
         "source_key":       "denver",
@@ -230,10 +229,11 @@ CITY_CONFIGS: list[dict] = [
     {
         # Portland, OR — Building Permits.
         # Portal: https://gis.portlandoregon.gov  (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city portland --discover
-        #   Or visit: https://gis.portlandoregon.gov
-        #   Search "building permits" and copy the FeatureServer/0 URL.
+        # data-075: org quVN97tn06YNGj9s is UNVERIFIED.
+        #   Portland crime script uses portlandmaps.com (self-hosted), not services.arcgis.com.
+        #   BDS (Bureau of Development Services) permits may be on portlandmaps.com, not
+        #   ArcGIS Online. URL may need complete replacement.
+        #   Try: https://gis.portlandoregon.gov → search "building permits" or "BDS"
         "city_name":        "Portland",
         "source_key":       "portland",
         "service_url":      (
@@ -299,8 +299,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # Las Vegas, NV — Building Permits.
         # Portal: https://opendataportal-lasvegas.opendata.arcgis.com
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city las_vegas --discover
+        # data-075: org VIkzGEMZbaSsMGLk is UNVERIFIED.
+        #   Las Vegas crime script uses org jjSk6t82vIntwDbs (LVMPD, county-level) — different org.
+        #   City of Las Vegas permits would be under a city-specific org, not LVMPD.
+        #   Run --discover or visit portal to find the correct city org ID.
         "city_name":        "Las Vegas",
         "source_key":       "las_vegas",
         "service_url":      (
@@ -343,8 +345,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tucson, AZ — Building Permits.
         # Portal: https://gisdata.tucsonaz.gov
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city tucson --discover
+        # data-075: self-hosted ArcGIS Server (not services.arcgis.com).
+        #   Tucson crime uses services3.arcgis.com/9coHY2fvuFjG9HQX (ArcGIS Online, different host).
+        #   Path /Building_Permits/FeatureServer/0 on gisdata.tucsonaz.gov is unverified.
+        #   Browse https://gisdata.tucsonaz.gov/arcgis/rest/services to find correct service.
         "city_name":        "Tucson",
         "source_key":       "tucson",
         "service_url":      (
@@ -370,9 +374,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # San Jose, CA — Building Permits.
         # Portal: https://gis.sanjoseca.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover
-        #   Or visit: https://gis.sanjoseca.gov and search "building permits"
+        # data-075: org p8Tul9YqBFRRdPqD is VERIFIED VALID — same org used by
+        #   san_jose_crime_trends.py (SJPD_Crime/FeatureServer/0), confirmed working.
+        #   Service name "Building_Permits" is a placeholder — actual name unknown.
+        #   Run --discover or visit https://gis.sanjoseca.gov and search "building permits".
         # data-050: added 2026-03-23
         "city_name":        "San Jose",
         "source_key":       "san_jose",
@@ -394,9 +399,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # Fort Worth, TX — Building Permits.
         # Portal: https://data.fortworthtexas.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover
-        #   Or visit: https://data.fortworthtexas.gov and search "building permits"
+        # data-075: org AHCzmZstRKFEQEqv is VERIFIED VALID — same org used by
+        #   fort_worth_crime_trends.py (FWPD_Crime/FeatureServer/0), confirmed working.
+        #   Service name "Building_Permits" is a placeholder — actual name unknown.
+        #   Run --discover or visit https://data.fortworthtexas.gov and search "building permits".
         # data-050: added 2026-03-23
         "city_name":        "Fort Worth",
         "source_key":       "fort_worth",
@@ -418,10 +424,11 @@ CITY_CONFIGS: list[dict] = [
     {
         # Albuquerque, NM — Building Permits.
         # Portal: https://cabq.gov/abqdata (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover
-        #   Or visit: https://cabq.gov/abqdata and search "building permits"
-        #   Or search: https://abq.maps.arcgis.com
+        # data-075: org 3HnGBxB8VqLCXhUn is VERIFIED VALID — same org used by
+        #   albuquerque_crime_trends.py (APD_Crime/FeatureServer/0), confirmed working.
+        #   Service name "Building_Permits" is a placeholder — actual name unknown.
+        #   Run --discover or visit https://cabq.gov/abqdata and search "building permits".
+        #   Also try: https://abq.maps.arcgis.com
         # data-050: added 2026-03-23
         "city_name":        "Albuquerque",
         "source_key":       "albuquerque",
@@ -1306,10 +1313,48 @@ DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
 })
 
 # Special notes for specific disabled cities (shown in log output).
+# data-075: added notes for priority cities to guide re-enablement.
 DISABLED_NOTES: dict[str, str] = {
     "gilbert": (
         "org ID K1VMQDQNLVxLvLqs is CONFIRMED INVALID (HTTP 400). "
         "Visit https://data.gilbertaz.gov to find the correct FeatureServer URL."
+    ),
+    # data-075: org IDs verified valid via crime scripts; service names need live confirmation.
+    "denver": (
+        "org zdB7qR0BtYrg0Xpl is VALID (confirmed via denver_crime_trends.py). "
+        "Service name ODC_BUILDING_PERMITS_P needs live verification. "
+        "Run: python backend/ingest/us_city_permits_arcgis.py --city denver --discover"
+    ),
+    "san_jose": (
+        "org p8Tul9YqBFRRdPqD is VALID (confirmed via san_jose_crime_trends.py). "
+        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
+        "Run: python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover"
+    ),
+    "fort_worth": (
+        "org AHCzmZstRKFEQEqv is VALID (confirmed via fort_worth_crime_trends.py). "
+        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
+        "Run: python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover"
+    ),
+    "albuquerque": (
+        "org 3HnGBxB8VqLCXhUn is VALID (confirmed via albuquerque_crime_trends.py). "
+        "Service name 'Building_Permits' is a placeholder — actual name unknown. "
+        "Run: python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover"
+    ),
+    # data-075: org IDs unverified; different org from crime scripts.
+    "portland": (
+        "org quVN97tn06YNGj9s is UNVERIFIED. Portland crime uses portlandmaps.com "
+        "(self-hosted), BDS permits may need a different URL. "
+        "Visit https://gis.portlandoregon.gov and search 'building permits' or 'BDS'."
+    ),
+    "las_vegas": (
+        "org VIkzGEMZbaSsMGLk is UNVERIFIED. Las Vegas crime uses org jjSk6t82vIntwDbs "
+        "(LVMPD, county-level) — different org. "
+        "Visit https://opendataportal-lasvegas.opendata.arcgis.com and search 'building permits'."
+    ),
+    "tucson": (
+        "Self-hosted at gisdata.tucsonaz.gov. Service path /Building_Permits/FeatureServer/0 "
+        "is unverified. Browse https://gisdata.tucsonaz.gov/arcgis/rest/services to find "
+        "the correct permit service path."
     ),
 }
 

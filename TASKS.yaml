@@ -11,10 +11,81 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-074 (fix broken permit configs + add crime stubs for 5 cities)
-# Next task to create: data-075
+# Last completed task: data-075 (research permit URLs for 20 high-value disabled cities)
+# Next task to create: data-076
 
 tasks:
+  - id: data-075
+    title: Research and fix permit URLs for high-value disabled cities
+    status: done
+    priority: high
+    github_issue: 230
+    files:
+      - backend/ingest/us_city_permits_arcgis.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-075 complete (issue #230).
+      RESEARCH FINDINGS — 20 priority cities investigated for correct ArcGIS FeatureServer URLs.
+      Network access (WebFetch/Bash) was not available in CI; live --discover could not be run.
+      VERIFIED ORG IDs (same org confirmed working in crime scripts):
+        denver: org zdB7qR0BtYrg0Xpl VALID; service ODC_BUILDING_PERMITS_P needs name verification.
+        san_jose: org p8Tul9YqBFRRdPqD VALID; service "Building_Permits" is placeholder.
+        fort_worth: org AHCzmZstRKFEQEqv VALID; service "Building_Permits" is placeholder.
+        albuquerque: org 3HnGBxB8VqLCXhUn VALID; service "Building_Permits" is placeholder.
+      NOT IN ARCGIS FILE (already handled elsewhere):
+        sacramento: Socrata in us_city_permits.py (data.cityofsacramento.org / rent-6pka).
+        raleigh: Socrata in us_city_permits.py (data.raleighnc.gov / k4n2-jcgh).
+        jacksonville: REMOVED from CITY_CONFIGS — no building permit API found (maps.coj.net 404).
+        indianapolis: No public building permit dataset on data.indy.gov (ordinance PDFs only).
+      UNVERIFIED (different org from crime scripts or different host):
+        portland: org quVN97tn06YNGj9s unverified; crime uses portlandmaps.com (different server).
+        las_vegas: org VIkzGEMZbaSsMGLk unverified; crime uses jjSk6t82vIntwDbs (LVMPD, different org).
+        tucson: self-hosted gisdata.tucsonaz.gov; service path needs verification.
+      MUST VERIFY (all unverified in both crime and permit scripts):
+        virginia_beach, colorado_springs, aurora, corpus_christi, greensboro,
+        durham, chandler, scottsdale, glendale_az.
+      All 20 cities remain in DISABLED_SOURCE_KEYS.
+      DISABLED_NOTES updated with specific fix guidance for denver, san_jose, fort_worth,
+        albuquerque, portland, las_vegas, tucson.
+      SKILL.md updated with full data-075 research section.
+      Next: data-076 should run --discover with network access for all enabled-org cities.
+        Priority order: denver, san_jose, fort_worth, albuquerque (verified orgs first).
+        Command: python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+        Then for each city that returns a FeatureServer URL:
+          1. Update service_url in CITY_CONFIGS with correct service name
+          2. Remove from DISABLED_SOURCE_KEYS
+          3. Run --dry-run to verify fields and record count
+
+  - id: data-076
+    title: Live-verify and re-enable permit configs for verified-org cities
+    status: backlog
+    priority: high
+    github_issue: null
+    files:
+      - backend/ingest/us_city_permits_arcgis.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-076 is the follow-on to data-075.
+      REQUIRES NETWORK ACCESS (outbound HTTPS) to run --discover and --dry-run.
+      Priority order (verified orgs first, most likely to succeed):
+        1. denver  — org zdB7qR0BtYrg0Xpl VALID; run --discover to find correct service name
+        2. san_jose — org p8Tul9YqBFRRdPqD VALID; run --discover to find correct service name
+        3. fort_worth — org AHCzmZstRKFEQEqv VALID; run --discover to find correct service name
+        4. albuquerque — org 3HnGBxB8VqLCXhUn VALID; run --discover to find correct service name
+        5. portland — org quVN97tn06YNGj9s UNVERIFIED; may need different URL format
+        6. las_vegas — org VIkzGEMZbaSsMGLk UNVERIFIED; different org from crime script
+        7. tucson — self-hosted gisdata.tucsonaz.gov; browse REST services catalog
+        Then: virginia_beach, colorado_springs, aurora, corpus_christi, greensboro,
+              durham, chandler, scottsdale, glendale_az (all orgs unverified)
+      For each city:
+        python backend/ingest/us_city_permits_arcgis.py --city <key> --discover
+        → If FeatureServer URL found: update service_url, remove from DISABLED_SOURCE_KEYS
+        → Run --dry-run to confirm fields and record count
+        → Update SKILL.md ArcGIS Permits table with verified URL
+      See SKILL.md data-075 section for portal URLs and research context per city.
+
   - id: data-074
     title: Fix broken permit configs + add crime stubs for 5 new cities
     status: done
