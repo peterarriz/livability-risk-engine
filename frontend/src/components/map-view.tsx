@@ -236,7 +236,7 @@ export function MapView({
   disruptionScore,
   signals = [],
   schools = [],
-  amenities = {},
+  amenities: _amenities = [],
   topRiskDetails: _topRiskDetails = [],
   floodRisk = null,
   femaZone = null,
