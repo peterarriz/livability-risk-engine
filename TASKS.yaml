@@ -15,50 +15,35 @@
 # Next task to create: data-073
 
 tasks:
-  - id: data-073
-    title: Live-verify remaining unverified city endpoints
+  - id: app-024
+    title: Add user authentication via Clerk
     status: done
     priority: high
-    github_issue: 221
+    github_issue: 218
+    files:
+      - frontend/package.json
+      - frontend/src/app/layout.tsx
+      - frontend/middleware.ts
+      - frontend/src/app/page.tsx
+      - frontend/.env.example
+      - db/schema.sql
+      - backend/app/main.py
     notes_for_next_agent: >
-      CI network access blocked again (same constraint as data-066, data-072).
-      Changes made without live testing:
-        1. fort_wayne_crime_trends.py: Converted to proper stub (now writes 0-record JSON
-           on non-dry-run; was using sys.exit(0) without writing any file).
-        2. cape_coral_crime_trends.py: Same fix as fort_wayne.
-        3. baton_rouge_crime_trends.py: Fixed docstring to match code — pbin-pcm7 /
-           charge_date (was incorrectly showing fabb-cnnu / create_dt in docstring).
-        4. SKILL.md: Synced to match actual script state:
-           - Dayton: moved from Socrata to ArcGIS (maps.daytonohio.gov MapServer)
-           - Tallahassee: moved from OpenDataSoft to ArcGIS (Leon County TOPS MapServer,
-             script says "Verified service URL")
-           - Sioux Falls: updated URL to gis.siouxfalls.gov (was wrong org)
-           - Tempe: updated org lQySeXwbBg53XWDi and fields OccurrenceDatetime/ReportDistrict
-           - Peoria AZ: updated to self-hosted gis.peoriaaz.gov/PD_Map_Cases/FeatureServer/3
-           - Fort Wayne/Cape Coral: updated to STUB notation
-           - Baton Rouge: updated to pbin-pcm7/charge_date
-      Scripts still needing live verification (run --dry-run with network access):
-        - tempe_crime_trends.py (org lQySeXwbBg53XWDi / policedata.tempe.gov)
-        - peoria_az_crime_trends.py (self-hosted gis.peoriaaz.gov)
-        - baton_rouge_crime_trends.py (pbin-pcm7 / data.brla.gov)
-        - honolulu_crime_trends.py (kfre-e9j5 / data.honolulu.gov — run --discover)
-        - lincoln_crime_trends.py (org ZPeUDkbFEf7WXNID)
-        - salem_or_crime_trends.py (org uUvqNr0XSi28N3Hj)
-        - dayton_crime_trends.py (maps.daytonohio.gov MapServer)
-        - sioux_falls_crime_trends.py (gis.siouxfalls.gov MapServer)
-        - tallahassee_crime_trends.py (Leon County TOPS MapServer — script says verified)
-      Permit scripts still needing live verification:
-        python backend/ingest/us_city_permits_arcgis.py --city lincoln --dry-run
-        python backend/ingest/us_city_permits_arcgis.py --city salem_or --dry-run
-        python backend/ingest/us_city_permits_arcgis.py --city omaha --dry-run
-        python backend/ingest/us_city_permits.py --city honolulu --dry-run
-      Gilbert AZ priority fix: org K1VMQDQNLVxLvLqs is confirmed invalid.
-        Visit https://data.gilbertaz.gov, find Police Incidents dataset,
-        restore gilbert_crime_trends.py from stub to a real ArcGIS script,
-        and update the gilbert entry in us_city_permits_arcgis.py.
+      Clerk auth integrated (app-024, issue #218).
+      ClerkProvider wraps app in layout.tsx. middleware.ts protects /dashboard,
+      leaves / and /score public. SignInButton + UserButton added to top nav in
+      page.tsx (SignedOut/SignedIn wrappers). users table added to db/schema.sql
+      (id=Clerk userId TEXT PK, email, subscription_tier DEFAULT 'free',
+      created_at). POST /auth/sync added to backend/app/main.py — upserts
+      clerk_user_id + email into users table, returns id/email/subscription_tier/
+      created_at. frontend/.env.example documents NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      and CLERK_SECRET_KEY. Next agent: wire up a useEffect in page.tsx (or a
+      dedicated hook) that calls POST /auth/sync after Clerk sign-in completes
+      (use useUser() from @clerk/nextjs to detect sign-in and send userId + email
+      to the backend). Then build the /dashboard page (app-025).
 
-  - id: data-074
-    title: Live-verify all remaining unverified endpoints with network access
+  - id: data-072
+    title: Live-verify tier-13 city endpoints (Lincoln NE, Salem OR, Honolulu HI, Omaha permits)
     status: backlog
     priority: high
     github_issue: ~

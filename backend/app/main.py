@@ -4011,6 +4011,56 @@ def auth_google(body: _GoogleBody) -> dict:
         conn.close()
 
 
+class _ClerkSyncBody(BaseModel):
+    clerk_user_id: str
+    email: str
+
+
+@app.post("/auth/sync", status_code=200)
+def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
+    """
+    Upsert a Clerk user record into the users table.
+    task: app-024
+
+    Called from the frontend after first Clerk sign-in to ensure a minimal
+    user row exists in Postgres. Idempotent — safe to call on every sign-in.
+
+    Request body: { clerk_user_id, email }
+    Response:     { id, email, subscription_tier, created_at }
+    """
+    if not _is_db_configured():
+        raise HTTPException(status_code=503, detail="DB not configured")
+
+    try:
+        from backend.scoring.query import get_db_connection
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (id, email)
+                    VALUES (%s, %s)
+                    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email
+                    RETURNING id, email, subscription_tier, created_at
+                    """,
+                    (body.clerk_user_id, body.email),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        log.error("auth_clerk_sync error: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to sync user") from exc
+
+    return {
+        "id": row[0],
+        "email": row[1],
+        "subscription_tier": row[2],
+        "created_at": row[3].isoformat() if row[3] else None,
+    }
+
+
 @app.get("/auth/me")
 def auth_me(authorization: str = Header(default=None)) -> dict:
     """
