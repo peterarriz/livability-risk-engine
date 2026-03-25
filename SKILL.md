@@ -88,12 +88,16 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Peoria AZ | `peoria_az_crime_trends.py` | `services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../PPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city peoria_az`) | `IncidentDate` | `District` | `peoria_az_crime_trends.json` |
 | Surprise AZ | `surprise_az_crime_trends.py` | `services.arcgis.com/QJfxWS1GiDHgQMwH/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city surprise_az`) | `IncidentDate` | `District` | `surprise_az_crime_trends.json` |
 | Goodyear AZ | `goodyear_az_crime_trends.py` | `services.arcgis.com/aMqXhGKtSoqR5lNw/.../GoPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY — not live-tested; run `verify_arcgis_endpoints.py --city goodyear_az`) | `IncidentDate` | `District` | `goodyear_az_crime_trends.json` |
+| Fort Wayne IN | `fort_wayne_crime_trends.py` | `services.arcgis.com/8Wez4BJD3neYYnDt/.../FWPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `DateOccurred` | `District` | `fort_wayne_crime_trends.json` |
+| Boise ID | `boise_crime_trends.py` | `services.arcgis.com/r1QnEiQlTiHHMlou/.../BPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `OccurrenceDate` | `District` | `boise_crime_trends.json` |
+| Cape Coral FL | `cape_coral_crime_trends.py` | `services.arcgis.com/qJBnRfhGOvGVBnaX/.../CCPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Zone` | `cape_coral_crime_trends.json` |
 
 ### OpenDataSoft-Based
 
 | City | Script | Portal | Dataset | Date Field | Group Field | Output |
 |------|--------|--------|---------|------------|-------------|--------|
 | Cary NC | `cary_crime_trends.py` | `data.townofcary.org` | `cpd-incidents` | `date_from` | `district` | `cary_crime_trends.json` |
+| Tallahassee FL | `tallahassee_crime_trends.py` | `data.talgov.com` | `f476-psrc` (MUST VERIFY) | `incident_date` (MUST VERIFY) | `zone` (MUST VERIFY) | `tallahassee_crime_trends.json` |
 
 **DC yearly layer mapping:**
 
@@ -155,6 +159,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Anchorage | `anchorage` | data.muni.org | `73xi-i4bq` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Madison | `madison` | data.cityofmadison.com | `ekdx-6fbt` (MUST VERIFY) | `permit_id` | `issued_date` |
 | Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -196,6 +201,9 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Peoria AZ | `peoria_az` | services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Surprise AZ | `surprise_az` | services.arcgis.com/QJfxWS1GiDHgQMwH/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Goodyear AZ | `goodyear_az` | services.arcgis.com/aMqXhGKtSoqR5lNw/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Fort Wayne IN | `fort_wayne` | services.arcgis.com/8Wez4BJD3neYYnDt/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Boise ID | `boise` | services.arcgis.com/r1QnEiQlTiHHMlou/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Cape Coral FL | `cape_coral` | services.arcgis.com/qJBnRfhGOvGVBnaX/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -270,8 +278,10 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Akron, OH — APD uses web-only report portal; no Socrata/ArcGIS incident API.
 - Knoxville, TN — KPD dashboard only; incident data by request ($10/report).
 - Fort Wayne, IN — ArcGIS org has no crime services; no Socrata portal found.
+  *(data-068 update: crime script added as MUST VERIFY — see fort_wayne_crime_trends.py)*
 - Shreveport, LA — SPD publishes only aggregate street-level offense counts; no incident API.
-- Tallahassee, FL — TOPS web interface only; no documented REST API.
+- Tallahassee, FL — TOPS web interface only for crime; no documented REST crime API.
+  *(data-068 update: data.talgov.com is Socrata; crime + permit scripts added as MUST VERIFY)*
 - Huntsville, AL — JustFOIA portal for records requests; no open data API.
 - Winston-Salem, NC — WSPD has no public crime data services on ArcGIS or Socrata.
 
@@ -282,13 +292,37 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Columbus, GA (Muscogee County) — MCSO consolidated govt; no open data API found.
 - Savannah, GA — SCMPD no public crime incident API; no Socrata/ArcGIS portal.
 - Augusta, GA (Richmond County) — RCSO consolidated govt; no open data API found.
-- Cape Coral, FL — CCPD: data.capecoral.gov exists but no verified crime incident API.
+- Cape Coral, FL — CCPD: data.capecoral.gov exists; crime + permit scripts added in
+  data-068 as MUST VERIFY (see cape_coral_crime_trends.py).
 - Kansas City, KS — Unified Government of Wyandotte County/KCK; no public crime API
   distinct from Kansas City, MO (already covered by `kansas_city_crime_trends.py`).
 - Spokane Valley, WA — SVPD operates independently of Spokane PD; no public open data
   portal found for Spokane Valley Police Department as of 2026-03-24.
 - Bakersfield, CA — previously skipped in data-057 (Accela/CrimeMapping only).
 - Elk Grove, CA — Sacramento County suburb; no independent open data portal found.
+
+**data-068 skipped cities (no public API, re-researched 2026-03-25):**
+- Akron, OH — re-checked data.akronohio.gov; no crime incident REST API confirmed.
+- Knoxville, TN — re-checked knoxvilletn.gov; crime data still by-request-only.
+- Shreveport, LA — re-checked data.shreveportla.gov; crime data remains aggregate-only.
+- Huntsville, AL — re-checked hsvcity.com open data; HPD crime data still JustFOIA only.
+- Winston-Salem, NC — re-checked data.cityofws.org; WSPD crime API not available.
+- Montgomery, AL — re-confirmed no open data portal; no API found.
+- Little Rock, AR — re-confirmed LRPD no public incident API.
+- Jackson, MS — re-confirmed JPD no open data portal.
+- Columbus, GA — re-confirmed MCSO consolidated govt; no open data API.
+- Savannah, GA — re-confirmed SCMPD no public crime incident API.
+- Augusta, GA — re-confirmed RCSO consolidated govt; no open data API.
+- Kansas City, KS — re-confirmed UG of Wyandotte County/KCK; no separate public crime API.
+- Laredo, TX — re-confirmed LPD publishes PDF reports only; no queryable API.
+- Garland, TX — re-confirmed GPD no public incident-level API.
+- Lubbock, TX — re-confirmed LPD quarterly PDF stats only; no API.
+- Chesapeake, VA — re-confirmed CPD no public incident-level API.
+- North Las Vegas, NV — re-confirmed NLVPD no public incident-level API.
+- Fremont, CA — re-confirmed FPD no public crime API.
+- Irvine, CA — re-confirmed uses OCSD; no city-level incident API.
+- Elk Grove, CA — re-confirmed Sacramento County suburb; no independent portal.
+- Spokane Valley, WA — re-confirmed SVPD no public open data portal.
 
 **Gilbert AZ org ID invalid (data-065, 2026-03-24):**
 `gilbert_crime_trends.py` and `gilbert` permit config both use org ID `K1VMQDQNLVxLvLqs`

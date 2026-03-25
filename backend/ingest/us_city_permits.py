@@ -630,6 +630,34 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     # -----------------------------------------------------------------
+    # data-068: tier-11 city permits (Socrata portals)
+    # -----------------------------------------------------------------
+    {
+        # Tallahassee, FL — Building Permits.
+        # Portal: https://data.talgov.com (Socrata — City of Tallahassee Open Data)
+        # MUST VERIFY dataset_id and field names:
+        #   curl "https://data.talgov.com/api/catalog/v1?q=building+permits&limit=10"
+        #   curl "https://data.talgov.com/resource/<id>.json?$limit=1"
+        # data-068: added 2026-03-25
+        "city_name":        "Tallahassee",
+        "source_key":       "tallahassee",
+        "domain":           "data.talgov.com",
+        "dataset_id":       "ax5x-ixcm",  # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "skip_date_filter": False,
+        "max_records":      None,
+        "lat_field":        None,
+        "lon_field":        None,
+        "loc_field":        "location",
+        "addr_field":       "address",
+        "city_state":       "Tallahassee, FL",
+        "where_clause":     None,
+    },
+    # -----------------------------------------------------------------
     # data-058: tier-8 city permits (Socrata portals)
     # -----------------------------------------------------------------
     {
