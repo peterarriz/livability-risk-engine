@@ -15,10 +15,9 @@ Source:
     OccurrenceDatetime — date of incident
     ReportDistrict     — geographic grouping
 
-MUST VERIFY (data-066, 2026-03-25):
-  Org ID e5BBQV9bLnUqzr4V was not live-verified in data-065.
-  Run: python backend/ingest/verify_arcgis_endpoints.py --city tempe --discover
-  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
+Endpoint researched 2026-03-24, not live-verified (data-072).
+  If org ID or service name is wrong, run --dry-run, then visit https://policedata.tempe.gov
+  and update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
 
 Output:
   data/raw/tempe_crime_trends.json

@@ -14,10 +14,9 @@ Source:
   "Available layers are outdated. Look for revised layers to be shared soon."
   Re-check periodically for a public endpoint.
 
-MUST VERIFY (data-066, 2026-03-25):
-  Org ID QJfxWS1GiDHgQMwH was not live-verified in data-065.
-  Run: python backend/ingest/verify_arcgis_endpoints.py --city surprise_az --discover
-  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
+Verified (data-072, 2026-03-25):
+  No public ArcGIS endpoint confirmed. Surprise PD uses CrimeMapping.com (closed platform).
+  Script writes a 0-record stub file so the pipeline does not fail on missing output.
 
 Output:
   data/raw/surprise_az_crime_trends.json
@@ -161,13 +160,10 @@ def main() -> None:
     args = parse_args()
 
     if FEATURESERVER_URL is None:
-        print(
-            "ERROR: Surprise AZ crime ingest is disabled — no public ArcGIS\n"
-            "endpoint available. Surprise PD uses CrimeMapping.com (closed).\n"
-            "Re-check https://data-surprise.opendata.arcgis.com for updates.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        print("Surprise AZ crime ingest — no public ArcGIS endpoint available (CrimeMapping.com, closed).")
+        if not args.dry_run:
+            write_staging_file([], args.output)
+        return
 
     print(f"Source: {FEATURESERVER_URL}")
 

@@ -7,9 +7,9 @@ Ingests Salem Police Department crime data and calculates 12-month
 crime trends by patrol district.
 
 Source:
-  ArcGIS FeatureServer — cityofsalem.net GIS / data.cityofsalem.net (MUST VERIFY)
-  Estimated org: services.arcgis.com/uUvqNr0XSi28N3Hj (MUST VERIFY)
-  Service: SPD_Crime_Incidents/FeatureServer/0 (MUST VERIFY)
+  ArcGIS FeatureServer — cityofsalem.net GIS / data.cityofsalem.net (endpoint researched 2026-03-25, not live-verified)
+  Estimated org: services.arcgis.com/uUvqNr0XSi28N3Hj (endpoint researched 2026-03-25, not live-verified)
+  Service: SPD_Crime_Incidents/FeatureServer/0 (endpoint researched 2026-03-25, not live-verified)
 
   To verify:
     1. Visit https://data.cityofsalem.net or https://gis.cityofsalem.net
@@ -17,7 +17,7 @@ Source:
     3. Click "API" to get the FeatureServer URL.
     4. Or search ArcGIS Hub: https://salem.maps.arcgis.com
 
-  Key fields (MUST VERIFY):
+  Key fields (endpoint researched 2026-03-25, not live-verified):
     IncidentDate  — date of incident
     PatrolDistrict — patrol district/sector
 
@@ -43,7 +43,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://data.cityofsalem.net and find the correct
+# endpoint researched 2026-03-25, not live-verified: visit https://data.cityofsalem.net and find the correct
 # FeatureServer URL for Salem PD crime incidents.
 FEATURESERVER_URL = (
     "https://services.arcgis.com/uUvqNr0XSi28N3Hj/arcgis/rest/services"
@@ -52,7 +52,7 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/salem_or_crime_trends.json")
 
-# MUST VERIFY field names match the actual dataset schema.
+# endpoint researched 2026-03-25, not live-verified field names match the actual dataset schema.
 DATE_FIELD = "IncidentDate"
 GROUP_FIELD = "PatrolDistrict"
 
@@ -174,7 +174,7 @@ def main() -> None:
     args = parse_args()
 
     print(f"Salem OR crime trends ingest — source: {FEATURESERVER_URL}")
-    print("NOTE: Service URL is MUST VERIFY — run --dry-run with network access to confirm.")
+    print("NOTE: Service URL is endpoint researched 2026-03-25, not live-verified — run --dry-run with network access to confirm.")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)

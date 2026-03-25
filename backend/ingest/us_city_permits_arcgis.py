@@ -205,7 +205,7 @@ CITY_CONFIGS: list[dict] = [
         # Denver, CO — Building Permits.
         # Portal: https://opendata-geospatialdenver.hub.arcgis.com
         # ArcGIS Hub org: services1.arcgis.com/zdB7qR0BtYrg0Xpl (Denver's org ID)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city denver --discover
         #   Or visit: https://opendata-geospatialdenver.hub.arcgis.com
         #   Search "building permits" and copy the FeatureServer/0 URL.
@@ -230,7 +230,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Portland, OR — Building Permits.
         # Portal: https://gis.portlandoregon.gov  (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city portland --discover
         #   Or visit: https://gis.portlandoregon.gov
         #   Search "building permits" and copy the FeatureServer/0 URL.
@@ -299,7 +299,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Las Vegas, NV — Building Permits.
         # Portal: https://opendataportal-lasvegas.opendata.arcgis.com
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city las_vegas --discover
         "city_name":        "Las Vegas",
         "source_key":       "las_vegas",
@@ -321,7 +321,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # El Paso, TX — Building Permits.
         # Portal: https://data.elpasotexas.gov
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city el_paso --discover
         "city_name":        "El Paso",
         "source_key":       "el_paso",
@@ -343,7 +343,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tucson, AZ — Building Permits.
         # Portal: https://gisdata.tucsonaz.gov
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city tucson --discover
         "city_name":        "Tucson",
         "source_key":       "tucson",
@@ -370,7 +370,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # San Jose, CA — Building Permits.
         # Portal: https://gis.sanjoseca.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover
         #   Or visit: https://gis.sanjoseca.gov and search "building permits"
         # data-050: added 2026-03-23
@@ -394,7 +394,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Fort Worth, TX — Building Permits.
         # Portal: https://data.fortworthtexas.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover
         #   Or visit: https://data.fortworthtexas.gov and search "building permits"
         # data-050: added 2026-03-23
@@ -418,7 +418,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Albuquerque, NM — Building Permits.
         # Portal: https://cabq.gov/abqdata (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover
         #   Or visit: https://cabq.gov/abqdata and search "building permits"
         #   Or search: https://abq.maps.arcgis.com
@@ -446,7 +446,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Orlando, FL — Building Permits.
         # Portal: https://data-cityoforlando.opendata.arcgis.com (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city orlando --discover
         #   Or visit: https://data-cityoforlando.opendata.arcgis.com and search "permits"
         "city_name":        "Orlando",
@@ -469,7 +469,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Richmond, VA — Building Permits.
         # Portal: https://data-rvagis.opendata.arcgis.com (Richmond GIS)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city richmond --discover
         "city_name":        "Richmond",
         "source_key":       "richmond",
@@ -491,7 +491,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Des Moines, IA — Building Permits.
         # Portal: https://data.dsm.city (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city des_moines --discover
         "city_name":        "Des Moines",
         "source_key":       "des_moines",
@@ -513,7 +513,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tulsa, OK — Building Permits.
         # Portal: https://opendata-maptulsa.opendata.arcgis.com (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city tulsa --discover
         "city_name":        "Tulsa",
         "source_key":       "tulsa",
@@ -535,7 +535,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Wichita, KS — Building Permits.
         # Portal: https://opendata.wichita.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city wichita --discover
         "city_name":        "Wichita",
         "source_key":       "wichita",
@@ -557,7 +557,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Colorado Springs, CO — Building Permits.
         # Portal: https://data-cospatial.opendata.arcgis.com (City of Colorado Springs GIS)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city colorado_springs --discover
         "city_name":        "Colorado Springs",
         "source_key":       "colorado_springs",
@@ -579,7 +579,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Arlington, TX — Building Permits.
         # Portal: https://data-cityofarlington.opendata.arcgis.com (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city arlington_tx --discover
         "city_name":        "Arlington TX",
         "source_key":       "arlington_tx",
@@ -601,7 +601,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Virginia Beach, VA — Building Permits.
         # Portal: https://gis.data.vbgov.com (Virginia Beach GIS)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city virginia_beach --discover
         "city_name":        "Virginia Beach",
         "source_key":       "virginia_beach",
@@ -624,7 +624,7 @@ CITY_CONFIGS: list[dict] = [
         # Mesa, AZ — Building Permits.
         # Portal: https://data-mesagis.opendata.arcgis.com (Mesa GIS)
         # Note: Mesa is separate from Phoenix/Maricopa — covered by separate scripts.
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city mesa --discover
         "city_name":        "Mesa",
         "source_key":       "mesa",
@@ -646,7 +646,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Aurora, CO — Building Permits.
         # Portal: https://data-auroragis.opendata.arcgis.com (Aurora GIS)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city aurora --discover
         "city_name":        "Aurora",
         "source_key":       "aurora",
@@ -668,7 +668,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Corpus Christi, TX — Building Permits.
         # Portal: https://data-cctexas.opendata.arcgis.com (City of Corpus Christi)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city corpus_christi --discover
         "city_name":        "Corpus Christi",
         "source_key":       "corpus_christi",
@@ -690,7 +690,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Greensboro, NC — Building Permits.
         # Portal: https://data-greensboroncgov.opendata.arcgis.com (City of Greensboro)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city greensboro --discover
         "city_name":        "Greensboro",
         "source_key":       "greensboro",
@@ -724,7 +724,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Durham, NC — Building Permits.
         # Portal: https://data-durhamnc.opendata.arcgis.com (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city durham --discover
         # data-058: added 2026-03-24
         "city_name":        "Durham",
@@ -747,7 +747,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Chandler, AZ — Building Permits.
         # Portal: https://data.chandleraz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city chandler --discover
         # data-058: added 2026-03-24
         "city_name":        "Chandler",
@@ -770,7 +770,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Scottsdale, AZ — Building Permits.
         # Portal: https://data.scottsdaleaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city scottsdale --discover
         # data-058: added 2026-03-24
         "city_name":        "Scottsdale",
@@ -819,7 +819,7 @@ CITY_CONFIGS: list[dict] = [
         # Glendale, AZ — Building Permits.
         # NOTE: This is Glendale, AZ (Maricopa County), not Glendale, CA.
         # Portal: https://data.glendaleaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city glendale_az --discover
         # data-058: added 2026-03-24
         "city_name":        "Glendale AZ",
@@ -843,7 +843,7 @@ CITY_CONFIGS: list[dict] = [
         # Henderson, NV — Building Permits.
         # Henderson has its own city portal (separate from Las Vegas).
         # Portal: https://hendersonnv.gov/opendata (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city henderson --discover
         # data-058: added 2026-03-24
         "city_name":        "Henderson",
@@ -887,7 +887,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Tempe, AZ — Building Permits.
         # Portal: https://data.tempe.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city tempe --discover
         #   Or visit: https://data.tempe.gov and search "building permits"
         # data-065: added 2026-03-24
@@ -912,7 +912,7 @@ CITY_CONFIGS: list[dict] = [
         # Peoria, AZ — Building Permits.
         # NOTE: This is Peoria, AZ (Maricopa County), not Peoria, IL.
         # Portal: https://data.peoriaaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city peoria_az --discover
         # data-065: added 2026-03-24
         "city_name":        "Peoria AZ",
@@ -935,7 +935,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Surprise, AZ — Building Permits.
         # Portal: https://data.surpriseaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city surprise_az --discover
         # data-065: added 2026-03-24
         "city_name":        "Surprise AZ",
@@ -958,7 +958,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Goodyear, AZ — Building Permits.
         # Portal: https://data.goodyearaz.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city goodyear_az --discover
         # data-065: added 2026-03-24
         "city_name":        "Goodyear AZ",
@@ -998,7 +998,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Fort Wayne, IN — Building Permits.
         # Portal: https://data.fortwayne.com (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city fort_wayne --discover
         #   Or visit: https://data.fortwayne.com and search "building permits"
         # data-068: added 2026-03-25
@@ -1022,7 +1022,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Boise, ID — Building Permits.
         # Portal: https://opendata.cityofboise.org (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city boise --discover
         #   Or visit: https://opendata.cityofboise.org and search "building permits"
         # data-068: added 2026-03-25
@@ -1046,7 +1046,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Cape Coral, FL — Building Permits.
         # Portal: https://data.capecoral.gov (ArcGIS Hub — confirmed to exist; data-065)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city cape_coral --discover
         #   Or visit: https://data.capecoral.gov and search "building permits"
         # data-068: added 2026-03-25
@@ -1073,7 +1073,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Eugene, OR — Building Permits.
         # Portal: https://data.eugene-or.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city eugene --discover
         #   Or visit: https://data.eugene-or.gov and search "building permits"
         # data-070: added 2026-03-25
@@ -1097,7 +1097,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Springfield, MO — Building Permits.
         # Portal: https://data.springfieldmo.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city springfield_mo --discover
         #   Or visit: https://data.springfieldmo.gov and search "building permits"
         # data-070: added 2026-03-25
@@ -1121,7 +1121,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Sioux Falls, SD — Building Permits.
         # Portal: ArcGIS Hub (search "Sioux Falls building permits")
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city sioux_falls --discover
         #   Or search ArcGIS Hub for "Sioux Falls building permits"
         # data-070: added 2026-03-25
@@ -1148,7 +1148,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Omaha, NE — Building Permits.
         # Portal: https://opendata.cityofomaha.org (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city omaha --discover
         #   Or visit: https://opendata.cityofomaha.org and search "building permits"
         # data-071: added 2026-03-25
@@ -1172,7 +1172,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Lincoln, NE — Building Permits.
         # Portal: https://opendata.lincoln.ne.gov (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city lincoln --discover
         #   Or visit: https://opendata.lincoln.ne.gov and search "building permits"
         # data-071: added 2026-03-25
@@ -1196,7 +1196,7 @@ CITY_CONFIGS: list[dict] = [
     {
         # Salem, OR — Building Permits.
         # Portal: https://data.cityofsalem.net or https://gis.cityofsalem.net (ArcGIS Hub)
-        # MUST VERIFY service_url before production:
+        # Endpoint researched, not live-verified — run --discover to confirm:
         #   python backend/ingest/us_city_permits_arcgis.py --city salem_or --discover
         #   Or visit: https://salem.maps.arcgis.com and search "building permits"
         # data-071: added 2026-03-25

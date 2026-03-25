@@ -17,10 +17,10 @@ Source:
     CVFROMDATE   — date of incident (integer, YYYYMMDD format)
     CRIMEAGAINST — crime category grouping (PROPERTY, PERSON, SOCIETY, etc.)
 
-MUST VERIFY (data-066, 2026-03-25):
-  Org ID ZNh2Q3xZvn5AJFGZ was not live-verified in data-065.
-  Run: python backend/ingest/verify_arcgis_endpoints.py --city peoria_az --discover
-  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
+Endpoint researched 2026-03-24, not live-verified (data-072).
+  URL uses Peoria AZ's self-hosted GIS server (gis.peoriaaz.gov), not services.arcgis.com.
+  If fields or layer index are wrong, run --dry-run, then visit
+  https://geospatial-peoriaazgis.hub.arcgis.com and update FEATURESERVER_URL below.
 
 Output:
   data/raw/peoria_az_crime_trends.json

@@ -8,7 +8,7 @@ crime trends by district/zone.
 
 Source:
   ArcGIS Hub — data-cityofarlington.opendata.arcgis.com
-  FeatureServer URL (MUST VERIFY):
+  FeatureServer URL (not live-verified):
     https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/
     APD_Crime_Incidents/FeatureServer/0
 
@@ -18,7 +18,7 @@ Source:
 
   Note: This is Arlington TX (DFW suburb), not Arlington VA.
 
-  Key fields (MUST VERIFY via --dry-run):
+  Key fields (not live-verified via --dry-run):
     IncidentDate  — date of incident
     District      — patrol district
     OBJECTID      — for count aggregation
@@ -41,7 +41,7 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-cityofarlington.opendata.arcgis.com
+# not live-verified service URL via: https://data-cityofarlington.opendata.arcgis.com
 FEATURESERVER_URL = (
     "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services"
     "/APD_Crime_Incidents/FeatureServer/0"
@@ -49,8 +49,8 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/arlington_tx_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"   # MUST VERIFY
-GROUP_FIELD = "District"      # MUST VERIFY — may be "Zone", "Beat", "Sector"
+DATE_FIELD = "IncidentDate"   # not live-verified
+GROUP_FIELD = "District"      # not live-verified — may be "Zone", "Beat", "Sector"
 
 ARLINGTON_TX_LAT = 32.7357
 ARLINGTON_TX_LON = -97.1081

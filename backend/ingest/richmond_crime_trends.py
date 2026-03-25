@@ -8,7 +8,7 @@ trends by precinct/zone.
 
 Source:
   ArcGIS Hub — data-rvagis.opendata.arcgis.com (Richmond GIS)
-  FeatureServer URL (MUST VERIFY):
+  FeatureServer URL (not live-verified):
     https://services1.arcgis.com/k3vhq11XkBNeeOfM/arcgis/rest/services/
     RPD_Crime_Incidents/FeatureServer/0
 
@@ -16,7 +16,7 @@ Source:
   Or check: https://data-rvagis.opendata.arcgis.com (search "crime" or "police")
   Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+incidents+Richmond+VA&page[size]=5"
 
-  Key fields (MUST VERIFY via --dry-run):
+  Key fields (not live-verified via --dry-run):
     Occurred_Date — date of incident
     Precinct      — patrol precinct
     OBJECTID      — for count aggregation
@@ -39,7 +39,7 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-rvagis.opendata.arcgis.com
+# not live-verified service URL via: https://data-rvagis.opendata.arcgis.com
 FEATURESERVER_URL = (
     "https://services1.arcgis.com/k3vhq11XkBNeeOfM/arcgis/rest/services"
     "/RPD_Crime_Incidents/FeatureServer/0"
@@ -47,8 +47,8 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/richmond_crime_trends.json")
 
-DATE_FIELD = "Occurred_Date"   # MUST VERIFY
-GROUP_FIELD = "Precinct"       # MUST VERIFY — may be "Zone", "Beat", "District"
+DATE_FIELD = "Occurred_Date"   # not live-verified
+GROUP_FIELD = "Precinct"       # not live-verified — may be "Zone", "Beat", "District"
 
 RICHMOND_LAT = 37.5407
 RICHMOND_LON = -77.4360

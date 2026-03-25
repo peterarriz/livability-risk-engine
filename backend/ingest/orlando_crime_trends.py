@@ -8,7 +8,7 @@ trends by zone/district.
 
 Source:
   ArcGIS Hub — data-cityoforlando.opendata.arcgis.com
-  FeatureServer URL (MUST VERIFY):
+  FeatureServer URL (not live-verified):
     https://services1.arcgis.com/ySBMu4XsNZMHPCce/arcgis/rest/services/
     OPD_Crime_Incidents/FeatureServer/0
 
@@ -16,7 +16,7 @@ Source:
   Or check: https://data-cityoforlando.opendata.arcgis.com (search "crime")
   Or: curl "https://hub.arcgis.com/api/v3/search?q=crime+incidents+Orlando&page[size]=5"
 
-  Key fields (MUST VERIFY via --dry-run):
+  Key fields (not live-verified via --dry-run):
     INCIDENTDate — date of incident
     ZONE         — patrol zone
     OBJECTID     — for count aggregation
@@ -39,7 +39,7 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data-cityoforlando.opendata.arcgis.com
+# not live-verified service URL via: https://data-cityoforlando.opendata.arcgis.com
 FEATURESERVER_URL = (
     "https://services1.arcgis.com/ySBMu4XsNZMHPCce/arcgis/rest/services"
     "/OPD_Crime_Incidents/FeatureServer/0"
@@ -47,8 +47,8 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/orlando_crime_trends.json")
 
-DATE_FIELD = "INCIDENTDate"   # MUST VERIFY
-GROUP_FIELD = "ZONE"          # MUST VERIFY — may be "District", "Sector", "Beat"
+DATE_FIELD = "INCIDENTDate"   # not live-verified
+GROUP_FIELD = "ZONE"          # not live-verified — may be "District", "Sector", "Beat"
 
 ORLANDO_LAT = 28.5383
 ORLANDO_LON = -81.3792

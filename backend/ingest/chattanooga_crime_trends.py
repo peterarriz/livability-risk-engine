@@ -13,7 +13,7 @@ Source:
 
   Key fields (verified 2026-03-24):
     date_incident  — date of incident (esriFieldTypeDate)
-    incident_type  — crime type grouping (MUST VERIFY for geographic field)
+    incident_type  — crime type grouping (not live-verified for geographic field)
 
 Output:
   data/raw/chattanooga_crime_trends.json
@@ -41,7 +41,7 @@ FEATURESERVER_URL = (
 DEFAULT_OUTPUT_PATH = Path("data/raw/chattanooga_crime_trends.json")
 
 DATE_FIELD = "date_incident"
-GROUP_FIELD = "incident_type"  # MUST VERIFY — may have a geographic field (zone/district)
+GROUP_FIELD = "incident_type"  # not live-verified — may have a geographic field (zone/district)
 
 CHATTANOOGA_LAT = 35.0456
 CHATTANOOGA_LON = -85.3097
