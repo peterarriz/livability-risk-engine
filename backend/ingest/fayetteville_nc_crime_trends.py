@@ -1,26 +1,29 @@
 """
-backend/ingest/gilbert_crime_trends.py
-task: data-058, data-059
+backend/ingest/fayetteville_nc_crime_trends.py
+task: data-059
 lane: data
 
-Ingests Gilbert Police Department (GPD) crime data and calculates
+Ingests Fayetteville NC Police Department crime data and calculates
 12-month crime trends by district.
 
 Source:
-  ArcGIS FeatureServer — Gilbert AZ Open Data
-  Portal: https://data.gilbertaz.gov
-  Service: GPD_Crime_Incidents FeatureServer/0 (MUST VERIFY)
+  ArcGIS MapServer — City of Fayetteville Open Data GIS
+  Portal: https://data.fayettevillenc.gov
+  Services (3 layers, combined):
+    Police/IncidentsCrimesAgainstPersons/MapServer/0   (66K records)
+    Police/IncidentsCrimesAgainstProperty/MapServer/0  (237K records)
+    Police/IncidentsCrimesAgainstSociety/MapServer/0   (32K records)
 
-  Key fields:
-    IncidentDate — date of incident (MUST VERIFY)
-    District     — geographic grouping (MUST VERIFY)
+  Key fields (verified 2026-03-24):
+    Date_Incident — date of incident (esriFieldTypeDate)
+    district      — police district
 
 Output:
-  data/raw/gilbert_crime_trends.json
+  data/raw/fayetteville_nc_crime_trends.json
 
 Usage:
-  python backend/ingest/gilbert_crime_trends.py
-  python backend/ingest/gilbert_crime_trends.py --dry-run
+  python backend/ingest/fayetteville_nc_crime_trends.py
+  python backend/ingest/fayetteville_nc_crime_trends.py --dry-run
 """
 
 from __future__ import annotations
@@ -33,18 +36,23 @@ from pathlib import Path
 
 import requests
 
-FEATURESERVER_URL = (
-    "https://services.arcgis.com/K1VMQDQNLVxLvLqs/ArcGIS/rest/services"
-    "/GPD_Crime_Incidents/FeatureServer/0"  # MUST VERIFY
+MAPSERVER_BASE = (
+    "https://gismaps.fayettevillenc.gov/cofopendatagis/rest/services/Police"
 )
 
-DEFAULT_OUTPUT_PATH = Path("data/raw/gilbert_crime_trends.json")
+LAYER_URLS = [
+    f"{MAPSERVER_BASE}/IncidentsCrimesAgainstPersons/MapServer/0",
+    f"{MAPSERVER_BASE}/IncidentsCrimesAgainstProperty/MapServer/0",
+    f"{MAPSERVER_BASE}/IncidentsCrimesAgainstSociety/MapServer/0",
+]
 
-DATE_FIELD = "IncidentDate"  # MUST VERIFY
-GROUP_FIELD = "District"  # MUST VERIFY
+DEFAULT_OUTPUT_PATH = Path("data/raw/fayetteville_nc_crime_trends.json")
 
-GILBERT_LAT = 33.3528
-GILBERT_LON = -111.7890
+DATE_FIELD = "Date_Incident"
+GROUP_FIELD = "district"
+
+FAYETTEVILLE_LAT = 35.0527
+FAYETTEVILLE_LON = -78.8784
 
 STABLE_THRESHOLD_PCT = 5.0
 
@@ -57,8 +65,6 @@ def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
 ) -> dict[str, int]:
-    url = f"{FEATURESERVER_URL}/query"
-
     where_clause = (
         f"{DATE_FIELD} >= {_date_str(start_date)} "
         f"AND {DATE_FIELD} < {_date_str(end_date)}"
@@ -76,22 +82,25 @@ def fetch_crime_counts(
         "f": "json",
     }
 
-    resp = requests.post(url, data=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
+    combined: dict[str, int] = {}
+    for layer_url in LAYER_URLS:
+        url = f"{layer_url}/query"
+        resp = requests.post(url, data=params, timeout=60)
+        resp.raise_for_status()
+        payload = resp.json()
 
-    if "error" in payload:
-        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+        if "error" in payload:
+            raise RuntimeError(f"ArcGIS query error ({layer_url}): {payload['error']}")
 
-    results: dict[str, int] = {}
-    for feature in payload.get("features", []):
-        attrs = feature["attributes"]
-        district = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not district:
-            continue
-        count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
-        results[district] = results.get(district, 0) + count
-    return results
+        for feature in payload.get("features", []):
+            attrs = feature["attributes"]
+            district = str(attrs.get(GROUP_FIELD) or "").strip()
+            if not district:
+                continue
+            count = int(attrs.get("crime_count") or attrs.get("CRIME_COUNT") or 0)
+            combined[district] = combined.get(district, 0) + count
+
+    return combined
 
 
 def _classify_trend(current: int, prior: int) -> tuple[str, float]:
@@ -120,15 +129,15 @@ def build_trend_records(
         slug = district.lower().replace(" ", "_")
         records.append({
             "region_type": "district",
-            "region_id": f"gilbert_district_{slug}",
+            "region_id": f"fayetteville_nc_district_{slug}",
             "district_id": district,
-            "district_name": f"Gilbert {district}",
+            "district_name": f"Fayetteville NC District {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": GILBERT_LAT,
-            "longitude": GILBERT_LON,
+            "latitude": FAYETTEVILLE_LAT,
+            "longitude": FAYETTEVILLE_LON,
         })
     return records
 
@@ -136,8 +145,8 @@ def build_trend_records(
 def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
-        "source": "gilbert_crime_trends",
-        "source_url": FEATURESERVER_URL,
+        "source": "fayetteville_nc_crime_trends",
+        "source_url": MAPSERVER_BASE,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -149,7 +158,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Gilbert GPD crime trends by district from ArcGIS FeatureServer."
+        description="Ingest Fayetteville NC crime trends by district from ArcGIS MapServer."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true")
@@ -159,14 +168,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"Source: {FEATURESERVER_URL}")
+    print(f"Fayetteville NC crime trends ingest — source: {MAPSERVER_BASE}")
 
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(days=365)
     prior_start = now - timedelta(days=730)
     prior_end = current_start
 
-    print(f"Fetching current 12-month Gilbert crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    print(f"Fetching current 12-month Fayetteville NC crime counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
     try:
         current_data = fetch_crime_counts(current_start, now)
     except Exception as exc:
@@ -175,7 +184,7 @@ def main() -> None:
     total_current = sum(current_data.values())
     print(f"  {len(current_data)} districts, {total_current:,} total crimes.")
 
-    print(f"\nFetching prior 12-month Gilbert crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    print(f"\nFetching prior 12-month Fayetteville NC crime counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
     try:
         prior_data = fetch_crime_counts(prior_start, prior_end)
     except Exception as exc:

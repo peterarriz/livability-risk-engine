@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -174,6 +174,12 @@ STAGING_FILES = {
     "crime_gilbert":              Path("data/raw/gilbert_crime_trends.json"),
     "crime_glendale_az":          Path("data/raw/glendale_az_crime_trends.json"),
     "crime_henderson":            Path("data/raw/henderson_crime_trends.json"),
+    # data-059: tier-9 city crime trends
+    "crime_tacoma":               Path("data/raw/tacoma_crime_trends.json"),
+    "crime_chattanooga":          Path("data/raw/chattanooga_crime_trends.json"),
+    "crime_grand_rapids":         Path("data/raw/grand_rapids_crime_trends.json"),
+    "crime_fayetteville_nc":      Path("data/raw/fayetteville_nc_crime_trends.json"),
+    "crime_cary":                 Path("data/raw/cary_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -372,6 +378,9 @@ def parse_args() -> argparse.Namespace:
             "crime_anchorage", "crime_madison", "crime_spokane",
             "crime_durham", "crime_chandler", "crime_scottsdale",
             "crime_gilbert", "crime_glendale_az", "crime_henderson",
+            # data-059: tier-9 cities
+            "crime_tacoma", "crime_chattanooga", "crime_grand_rapids",
+            "crime_fayetteville_nc", "crime_cary",
             "schools", "schools_national", "all",
         ],
         default="all",
