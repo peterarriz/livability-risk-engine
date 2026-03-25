@@ -423,3 +423,62 @@ ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS score_history_account_idx ON score_history (account_id) WHERE account_id IS NOT NULL;
+
+
+-- ---------------------------------------------------------------------------
+-- Row Level Security  (data-067)
+--
+-- Enable RLS on every public table and grant a public SELECT policy so the
+-- existing API (which connects as the table owner) keeps working.
+-- FORCE is used so the policy applies even when connected as the table owner.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE raw_building_permits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE raw_building_permits FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_raw_building_permits ON raw_building_permits
+    FOR SELECT USING (true);
+
+ALTER TABLE raw_street_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE raw_street_closures FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_raw_street_closures ON raw_street_closures
+    FOR SELECT USING (true);
+
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_projects ON projects
+    FOR SELECT USING (true);
+
+ALTER TABLE ingest_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingest_runs FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_ingest_runs ON ingest_runs
+    FOR SELECT USING (true);
+
+ALTER TABLE score_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE score_history FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_score_history ON score_history
+    FOR SELECT USING (true);
+
+ALTER TABLE amenity_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE amenity_cache FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_amenity_cache ON amenity_cache
+    FOR SELECT USING (true);
+
+ALTER TABLE watchlist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE watchlist FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_watchlist ON watchlist
+    FOR SELECT USING (true);
+
+ALTER TABLE alert_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_log FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_alert_log ON alert_log
+    FOR SELECT USING (true);
+
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_api_keys ON api_keys
+    FOR SELECT USING (true);
+
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE accounts FORCE ROW LEVEL SECURITY;
+CREATE POLICY select_accounts ON accounts
+    FOR SELECT USING (true);
