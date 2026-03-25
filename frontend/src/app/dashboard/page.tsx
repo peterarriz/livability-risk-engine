@@ -49,6 +49,22 @@ export default function DashboardPage() {
     [data?.watchlist],
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const enabled =
+      process.env.NEXT_PUBLIC_DEBUG_SEARCH_FLOW === "1" ||
+      window.localStorage.getItem("lre_debug_search_flow") === "1";
+    if (!enabled) return;
+    console.info("[DBG:FINAL_RENDER]", {
+      view: "dashboard",
+      loading,
+      has_data: Boolean(data),
+      saved_reports_count: data?.saved_reports?.length ?? 0,
+      watchlist_count: data?.watchlist?.length ?? 0,
+      fallback_error_state: !loading && data === null,
+    });
+  }, [data, loading]);
+
   if (loading) {
     return (
       <main className="page">
