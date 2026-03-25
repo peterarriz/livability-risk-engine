@@ -165,10 +165,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Tulsa's public crime FeatureServer data ends January 2019 (stale).")
+    args = parse_args()
+    print("Tulsa: no publicly accessible current crime data API.")
     print("  The live crime dashboard at maps.cityoftulsa.org requires org auth.")
-    print("  No publicly accessible current crime data API exists.")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":

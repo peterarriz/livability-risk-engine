@@ -181,10 +181,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Mesa's Socrata crime dataset (37q9-d27y) ends at 2020-12-31.")
+    args = parse_args()
+    print("Mesa: no current crime data API available.")
     print("  data.mesaaz.gov has Part 1 offense data only through 2020.")
-    print("  No current crime data is available via this API.")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":

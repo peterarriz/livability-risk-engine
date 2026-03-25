@@ -166,10 +166,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Des Moines does not publish crime data through a public API.")
+    args = parse_args()
+    print("Des Moines: no public crime data API available.")
     print("  data.dsm.city has no crime incident datasets with API endpoints.")
-    print("  The LERM interactive map is consumer-facing only, no public API.")
-    print("  Exiting cleanly with 0 records.")
+    print("  Writing 0-record staging file.")
+    write_staging_file([], args.output)
 
 
 if __name__ == "__main__":
