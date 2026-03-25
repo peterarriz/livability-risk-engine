@@ -452,7 +452,7 @@ export function MapView({
     schoolGroup.clearLayers();
 
     for (const school of schools) {
-      const hex = SCHOOL_COLOR[school.color] ?? SCHOOL_COLOR.gray;
+      const hex = schoolRatingColor(school.rating);
       const rating = school.rating ?? "Unknown";
       const distFt = metersToFeet(school.distance_m);
       const popup = `
