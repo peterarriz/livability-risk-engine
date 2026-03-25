@@ -425,6 +425,90 @@ virginia_beach, mesa, aurora, corpus_christi, greensboro, durham, chandler, scot
 gilbert, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az, fort_wayne,
 boise, cape_coral, eugene, springfield_mo, sioux_falls, omaha, lincoln, salem_or, honolulu.
 
+**data-075: Research findings for 20 high-value disabled cities (2026-03-25):**
+Live verification (--discover / --dry-run) requires outbound HTTPS access not available in CI.
+Research was done via SKILL.md cross-reference (crime script org IDs) and training knowledge.
+
+*Priority 1 research findings:*
+- **denver** — org `zdB7qR0BtYrg0Xpl` is **VERIFIED VALID** (same org used by denver_crime_trends.py
+  for ODC_CRIME_OFFENSES_P/FeatureServer/324, which is confirmed working). Service name
+  `ODC_BUILDING_PERMITS_P` follows Denver's ODC_ naming convention. Most likely correct;
+  needs `--city denver --dry-run` to confirm layer and field names.
+  Portal: https://opendata-geospatialdenver.hub.arcgis.com — search "building permits".
+- **portland** — crime script uses portlandmaps.com (self-hosted), not services.arcgis.com.
+  Permit org `quVN97tn06YNGj9s` is unverified and may be wrong.
+  BDS (Bureau of Development Services) permits may be on portlandmaps.com, not ArcGIS Online.
+  Try: https://gis.portlandoregon.gov → search "building permits" or "BDS".
+  Also try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Portland+Oregon
+- **las_vegas** — crime script uses org `jjSk6t82vIntwDbs` (LVMPD, county-level).
+  Permit org `VIkzGEMZbaSsMGLk` is a DIFFERENT org — city-level (not LVMPD).
+  Portal: https://opendataportal-lasvegas.opendata.arcgis.com — search "building permits".
+  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Las+Vegas
+- **tucson** — uses self-hosted `gisdata.tucsonaz.gov` (not services.arcgis.com).
+  Service path `/Building_Permits/FeatureServer/0` is unverified.
+  Tucson crime is at `services3.arcgis.com/9coHY2fvuFjG9HQX` (ArcGIS Online), different host.
+  Try browsing: https://gisdata.tucsonaz.gov/arcgis/rest/services for available services.
+- **san_jose** — org `p8Tul9YqBFRRdPqD` is **VERIFIED VALID** (same org used by
+  san_jose_crime_trends.py for SJPD_Crime/FeatureServer/0, which is confirmed working).
+  Service name `Building_Permits` is a placeholder — actual service name unknown.
+  Portal: https://gis.sanjoseca.gov — search "building permits".
+  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+San+Jose+California
+- **fort_worth** — org `AHCzmZstRKFEQEqv` is **VERIFIED VALID** (same org used by
+  fort_worth_crime_trends.py for FWPD_Crime/FeatureServer/0, which is confirmed working).
+  Service name `Building_Permits` is a placeholder — actual service name unknown.
+  Portal: https://data.fortworthtexas.gov — search "building permits".
+  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Fort+Worth+Texas
+- **albuquerque** — org `3HnGBxB8VqLCXhUn` is **VERIFIED VALID** (same org used by
+  albuquerque_crime_trends.py for APD_Crime/FeatureServer/0, which is confirmed working).
+  Service name `Building_Permits` is a placeholder — actual service name unknown.
+  Portal: https://cabq.gov/abqdata — search "building permits".
+  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Albuquerque
+- **sacramento** — **NOT IN ARCGIS FILE**. Already configured as Socrata in `us_city_permits.py`
+  (domain: data.cityofsacramento.org, dataset: `rent-6pka`). No ArcGIS FeatureServer needed.
+- **jacksonville** — **REMOVED** from CITY_CONFIGS (see comment at ~line 366 in
+  us_city_permits_arcgis.py). Researched 2026-03-22: maps.coj.net and gis.coj.net return 404.
+  No building permit FeatureServer found on ArcGIS Online.
+  JSO crime IS available at services.arcgis.com/Dv0qhb5jJMSEEVJL but no permit layer found.
+- **indianapolis** — **NO PUBLIC BUILDING PERMIT DATASET**. data.indy.gov uses ArcGIS Hub
+  but publishes only ordinance PDFs; no building permit FeatureServer. Verified 2026-03-22.
+  IMPD crime IS available at services.arcgis.com/ghDnFwW5bG9Ljzwi but no permit layer found.
+
+*Priority 2 research findings:*
+- **virginia_beach** — org `DqA6wR9XSVCoCbVN` is unverified (MUST VERIFY in crime script too).
+  Portal: https://gis.data.vbgov.com — search "building permits".
+- **colorado_springs** — org `oR4yfmG5eJFhSqy7` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data-cospatial.opendata.arcgis.com — search "building permits".
+- **aurora** — org `IJdEUGKefCEk4KsP` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data-auroragis.opendata.arcgis.com — search "building permits".
+- **corpus_christi** — org `5eqOE8IxIoFkEeGd` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data-cctexas.opendata.arcgis.com — search "building permits".
+- **greensboro** — org `CZ8GsPy9zJAnUBMD` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data-greensboroncgov.opendata.arcgis.com — search "building permits".
+- **durham** — org `QLwOtBvdB5bFqPNF` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data-durhamnc.opendata.arcgis.com — search "building permits".
+- **raleigh** — **NOT IN ARCGIS FILE**. Already configured as Socrata in `us_city_permits.py`
+  (domain: data.raleighnc.gov, dataset: `k4n2-jcgh`). ArcGIS Hub may also have permits but
+  Socrata is confirmed — no additional ArcGIS config needed unless Socrata dataset is invalid.
+- **chandler** — org `SVsGn6WnqbDYPUgf` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data.chandleraz.gov — search "building permits".
+- **scottsdale** — org `4sF4h3aBrdOGHDuF` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data.scottsdaleaz.gov — search "building permits".
+- **glendale_az** — org `s0YYoMkpLLkb2IPC` is unverified (MUST VERIFY in crime script too).
+  Portal: https://data.glendaleaz.gov — search "building permits".
+
+*Action required for data-076:* Run with network access (outbound HTTPS):
+  ```
+  python backend/ingest/us_city_permits_arcgis.py --city denver --discover
+  python backend/ingest/us_city_permits_arcgis.py --city san_jose --discover
+  python backend/ingest/us_city_permits_arcgis.py --city fort_worth --discover
+  python backend/ingest/us_city_permits_arcgis.py --city albuquerque --discover
+  # ... etc. for all remaining cities
+  ```
+  For each city where --discover returns a FeatureServer URL:
+  1. Update service_url in CITY_CONFIGS
+  2. Remove from DISABLED_SOURCE_KEYS
+  3. Run --city <key> --dry-run to confirm fields and record count
+
 ### Stale / Frozen Datasets
 
 Some ArcGIS datasets stop receiving updates but remain accessible.
