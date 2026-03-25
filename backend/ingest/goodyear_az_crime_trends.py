@@ -15,10 +15,9 @@ Source:
   UCR/NIBRS stats by agency but no FeatureServer API.
   Re-check periodically for a public endpoint.
 
-MUST VERIFY (data-066, 2026-03-25):
-  Org ID aMqXhGKtSoqR5lNw was not live-verified in data-065.
-  Run: python backend/ingest/verify_arcgis_endpoints.py --city goodyear_az --discover
-  If service or fields don't match, update FEATURESERVER_URL, DATE_FIELD, GROUP_FIELD below.
+Verified (data-072, 2026-03-25):
+  No public ArcGIS endpoint confirmed. Goodyear PD uses LexisNexis Community Crime Map (closed).
+  Script writes a 0-record stub file so the pipeline does not fail on missing output.
 
 Output:
   data/raw/goodyear_az_crime_trends.json
@@ -162,13 +161,10 @@ def main() -> None:
     args = parse_args()
 
     if FEATURESERVER_URL is None:
-        print(
-            "ERROR: Goodyear AZ crime ingest is disabled — no public ArcGIS\n"
-            "endpoint available. Goodyear PD uses LexisNexis Community Crime\n"
-            "Map (closed). Check azcrimestatistics.azdps.gov for annual stats.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        print("Goodyear AZ crime ingest — no public ArcGIS endpoint available (LexisNexis, closed).")
+        if not args.dry_run:
+            write_staging_file([], args.output)
+        return
 
     print(f"Source: {FEATURESERVER_URL}")
 

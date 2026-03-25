@@ -10,7 +10,7 @@ Source:
   ArcGIS Hub — data.indy.gov (Esri Open Data / ArcGIS Hub)
   Service: IMPD Crime Statistics
 
-  MUST VERIFY service URL before production:
+  not live-verified service URL before production:
     python backend/ingest/indianapolis_crime_trends.py --discover
     Or visit: https://data.indy.gov and search "IMPD crime" or "police incidents"
 

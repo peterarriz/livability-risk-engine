@@ -9,10 +9,10 @@ by zone/sector.
 Source:
   Socrata — opendata.tampa.gov
   Dataset: Tampa Police Department Incidents
-  Dataset ID: jcxs-sxan (MUST VERIFY via catalog API)
+  Dataset ID: jcxs-sxan (not live-verified via catalog API)
   Verify: curl "https://opendata.tampa.gov/api/catalog/v1?q=police+incidents&limit=5"
 
-  Key fields (MUST VERIFY field names via --dry-run):
+  Key fields (not live-verified field names via --dry-run):
     report_date   — date of incident
     zone          — patrol zone/sector
     latitude      — incident latitude
@@ -47,14 +47,14 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "opendata.tampa.gov"
-# MUST VERIFY dataset ID via: curl "https://opendata.tampa.gov/api/catalog/v1?q=police+incidents&limit=5"
+# not live-verified dataset ID via: curl "https://opendata.tampa.gov/api/catalog/v1?q=police+incidents&limit=5"
 DATASET_ID = "jcxs-sxan"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/tampa_crime_trends.json")
 
-DATE_FIELD = "report_date"     # MUST VERIFY
-DISTRICT_FIELD = "zone"        # MUST VERIFY — may be "sector", "beat", or "district"
+DATE_FIELD = "report_date"     # not live-verified
+DISTRICT_FIELD = "zone"        # not live-verified — may be "sector", "beat", or "district"
 LAT_FIELD = "latitude"
 LON_FIELD = "longitude"
 

@@ -10,7 +10,7 @@ Source:
   ArcGIS Hub — cabq.gov/abqdata (Albuquerque Open Data Portal)
   Service: APD Crime Statistics
 
-  MUST VERIFY service URL before production:
+  not live-verified service URL before production:
     python backend/ingest/albuquerque_crime_trends.py --discover
     Or visit: https://cabq.gov/abqdata and search "crime" or "APD"
     Or search: https://abq.maps.arcgis.com

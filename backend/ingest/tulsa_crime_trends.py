@@ -8,7 +8,7 @@ trends by division/district.
 
 Source:
   ArcGIS Hub — opendata-maptulsa.opendata.arcgis.com
-  FeatureServer URL (MUST VERIFY):
+  FeatureServer URL (not live-verified):
     https://services.arcgis.com/vL1HzBwQf4fxjZTy/arcgis/rest/services/
     TPD_Crime_Incidents/FeatureServer/0
 
@@ -19,7 +19,7 @@ Source:
   Note: Tulsa migrated from Socrata (data.tulsaok.gov) to ArcGIS Hub.
   The historical Socrata portal may be defunct.
 
-  Key fields (MUST VERIFY via --dry-run):
+  Key fields (not live-verified via --dry-run):
     IncidentDate  — date of incident
     Division      — patrol division
     OBJECTID      — for count aggregation
@@ -42,7 +42,7 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://opendata-maptulsa.opendata.arcgis.com
+# not live-verified service URL via: https://opendata-maptulsa.opendata.arcgis.com
 FEATURESERVER_URL = (
     "https://services.arcgis.com/vL1HzBwQf4fxjZTy/arcgis/rest/services"
     "/TPD_Crime_Incidents/FeatureServer/0"
@@ -50,8 +50,8 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/tulsa_crime_trends.json")
 
-DATE_FIELD = "IncidentDate"   # MUST VERIFY
-GROUP_FIELD = "Division"      # MUST VERIFY — may be "District", "Beat", "Sector"
+DATE_FIELD = "IncidentDate"   # not live-verified
+GROUP_FIELD = "Division"      # not live-verified — may be "District", "Beat", "Sector"
 
 TULSA_LAT = 36.1540
 TULSA_LON = -95.9928

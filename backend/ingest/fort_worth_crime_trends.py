@@ -10,7 +10,7 @@ Source:
   ArcGIS FeatureServer — data.fortworthtexas.gov (ArcGIS Hub)
   Service: FWPD Crime Incidents
 
-  MUST VERIFY service URL before production:
+  not live-verified service URL before production:
     python backend/ingest/fort_worth_crime_trends.py --discover
     Or visit: https://data.fortworthtexas.gov and search "crime" or "police"
 

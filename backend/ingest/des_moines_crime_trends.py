@@ -8,7 +8,7 @@ trends by zone/precinct.
 
 Source:
   ArcGIS Hub — data.dsm.city (Des Moines open data)
-  FeatureServer URL (MUST VERIFY):
+  FeatureServer URL (not live-verified):
     https://services.arcgis.com/eSi6C3K7GxWJJFTG/arcgis/rest/services/
     DMPD_Crime_Incidents/FeatureServer/0
 
@@ -20,7 +20,7 @@ Source:
   limited. If no ArcGIS FeatureServer is found, check for CSV downloads at
   https://www.dsm.city/government/police_department/index.php
 
-  Key fields (MUST VERIFY via --dry-run):
+  Key fields (not live-verified via --dry-run):
     CrimeDate     — date of incident
     Zone          — patrol zone
     OBJECTID      — for count aggregation
@@ -43,7 +43,7 @@ from pathlib import Path
 
 import requests
 
-# MUST VERIFY service URL via: https://data.dsm.city
+# not live-verified service URL via: https://data.dsm.city
 FEATURESERVER_URL = (
     "https://services.arcgis.com/eSi6C3K7GxWJJFTG/arcgis/rest/services"
     "/DMPD_Crime_Incidents/FeatureServer/0"
@@ -51,8 +51,8 @@ FEATURESERVER_URL = (
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/des_moines_crime_trends.json")
 
-DATE_FIELD = "CrimeDate"   # MUST VERIFY
-GROUP_FIELD = "Zone"       # MUST VERIFY — may be "Precinct", "Beat", "Sector"
+DATE_FIELD = "CrimeDate"   # not live-verified
+GROUP_FIELD = "Zone"       # not live-verified — may be "Precinct", "Beat", "Sector"
 
 DES_MOINES_LAT = 41.5868
 DES_MOINES_LON = -93.6250

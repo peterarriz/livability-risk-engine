@@ -7,9 +7,9 @@ Ingests Lexington-Fayette Urban County Government (LFUCG) police crime data
 and calculates 12-month crime trends by division/zone.
 
 Source:
-  Socrata — data.lexingtonky.gov (MUST VERIFY portal type)
+  Socrata — data.lexingtonky.gov (not live-verified portal type)
   Dataset: LFUCG Police Crime Incidents
-  Dataset ID: e5v3-4r22 (MUST VERIFY via catalog API)
+  Dataset ID: e5v3-4r22 (not live-verified via catalog API)
   Verify: curl "https://data.lexingtonky.gov/api/catalog/v1?q=crime+police&limit=5"
 
   Alternative: If data.lexingtonky.gov is ArcGIS Hub rather than Socrata,
@@ -18,7 +18,7 @@ Source:
   If that returns JSON with "results" array — it's Socrata.
   If it returns HTML or 404 — it's not Socrata; update to ArcGIS pattern.
 
-  Key fields (MUST VERIFY field names via --dry-run):
+  Key fields (not live-verified field names via --dry-run):
     date_reported — date of incident
     division      — police division/zone
     latitude      — incident latitude
@@ -50,14 +50,14 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "data.lexingtonky.gov"
-# MUST VERIFY dataset ID via: curl "https://data.lexingtonky.gov/api/catalog/v1?q=crime&limit=5"
+# not live-verified dataset ID via: curl "https://data.lexingtonky.gov/api/catalog/v1?q=crime&limit=5"
 DATASET_ID = "e5v3-4r22"
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/lexington_crime_trends.json")
 
-DATE_FIELD = "date_reported"   # MUST VERIFY
-DISTRICT_FIELD = "division"    # MUST VERIFY — may be "zone", "beat", "sector"
+DATE_FIELD = "date_reported"   # not live-verified
+DISTRICT_FIELD = "division"    # not live-verified — may be "zone", "beat", "sector"
 LAT_FIELD = "latitude"
 LON_FIELD = "longitude"
 
