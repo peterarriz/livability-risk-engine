@@ -47,9 +47,9 @@ from backend.app.address_normalization import (
 )
 
 import requests as _requests
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -101,9 +101,34 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_origin_regex=_allow_origin_regex,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Explicit CORS preflight handler
+#
+# Railway's proxy sometimes returns 503 on OPTIONS requests before they reach
+# FastAPI's CORSMiddleware (e.g. during cold starts or health-check windows).
+# This route handler catches all OPTIONS preflights at the application layer
+# and responds immediately with the correct CORS headers, bypassing any
+# proxy-level interference.  It must be registered as a route (not middleware)
+# so FastAPI handles it before the request reaches the proxy error path.
+# ---------------------------------------------------------------------------
+
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str, request: Request) -> JSONResponse:
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, X-API-Key",
+            "Access-Control-Max-Age": "86400",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
