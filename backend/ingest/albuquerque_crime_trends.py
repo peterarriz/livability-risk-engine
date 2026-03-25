@@ -15,17 +15,17 @@ Source:
     Or visit: https://cabq.gov/abqdata and search "crime" or "APD"
     Or search: https://abq.maps.arcgis.com
 
-  Estimated service URL:
-    https://services.arcgis.com/3HnGBxB8VqLCXhUn/arcgis/rest/services
-    /APD_Crime/FeatureServer/0
+  Verified service URL:
+    https://services.arcgis.com/CWv1abTnC3urn4bV/arcgis/rest/services
+    /Incidents/FeatureServer/0
 
   Verify sample record:
     curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
 
-  Key fields (MUST VERIFY via sample query):
-    OCCURRED_DT   — date of incident
-    AREA_COMMAND  — APD area command (Foothills, Northeast, Northwest, etc.)
-    Latitude, Longitude — coordinates
+  Key fields (verified via sample query):
+    ReportDateTime — date of incident report
+    CMLegend       — crime category (ASSAULT, BURGLARY, ROBBERY, etc.)
+    BlockAddress   — 100-block level address (no lat/lon or area command)
 
 Output:
   data/raw/albuquerque_crime_trends.json — area command crime trend records
@@ -50,21 +50,20 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://cabq.gov/abqdata or https://abq.maps.arcgis.com,
-# search "crime" or "APD incidents", open the dataset,
-# click "I want to use this" → "API Explorer" → copy FeatureServer URL.
+# Verified: ABQ Incidents on ArcGIS Online
+# Note: only ~6 months of rolling data available; no AREA_COMMAND field,
+# grouping by CMLegend (crime category) instead.
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/3HnGBxB8VqLCXhUn/arcgis/rest/services"
-    "/APD_Crime/FeatureServer/0"
+    "https://services.arcgis.com/CWv1abTnC3urn4bV/arcgis/rest/services"
+    "/Incidents/FeatureServer/0"
 )
-PORTAL_ORG_ID = "3HnGBxB8VqLCXhUn"
+PORTAL_ORG_ID = "CWv1abTnC3urn4bV"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/albuquerque_crime_trends.json")
 
-# MUST VERIFY field names via sample query:
-#   curl "{FEATURESERVER_URL}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "OCCURRED_DT"
-GROUP_FIELD = "AREA_COMMAND"
+# Verified field names — no AREA_COMMAND in data, using CMLegend (crime category)
+DATE_FIELD = "ReportDateTime"
+GROUP_FIELD = "CMLegend"
 
 ALBUQUERQUE_LAT = 35.0844
 ALBUQUERQUE_LON = -106.6504
@@ -109,11 +108,11 @@ def fetch_crime_counts(
     results: dict[str, int] = {}
     for feature in payload.get("features", []):
         attrs = feature["attributes"]
-        area = str(attrs.get(GROUP_FIELD) or "").strip()
-        if not area:
+        category = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not category:
             continue
         count = int(attrs.get("crime_count", 0) or attrs.get("CRIME_COUNT", 0))
-        results[area] = results.get(area, 0) + count
+        results[category] = results.get(category, 0) + count
     return results
 
 
@@ -134,18 +133,18 @@ def build_trend_records(
     current_data: dict[str, int],
     prior_data: dict[str, int],
 ) -> list[dict]:
-    all_areas = set(current_data.keys()) | set(prior_data.keys())
+    all_categories = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for area in sorted(all_areas):
-        current_count = current_data.get(area, 0)
-        prior_count = prior_data.get(area, 0)
+    for category in sorted(all_categories):
+        current_count = current_data.get(category, 0)
+        prior_count = prior_data.get(category, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        slug = area.lower().replace(" ", "_")
+        slug = category.lower().replace(" ", "_").replace("/", "_")
         records.append({
-            "region_type": "area_command",
-            "region_id": f"albuquerque_area_{slug}",
-            "district_id": area,
-            "district_name": f"Albuquerque APD {area} Area Command",
+            "region_type": "crime_category",
+            "region_id": f"albuquerque_crime_{slug}",
+            "district_id": category,
+            "district_name": f"Albuquerque — {category.title()}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
@@ -224,7 +223,7 @@ def main() -> None:
         print(f"ERROR: failed to fetch current crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_current = sum(current_data.values())
-    print(f"  {len(current_data)} area commands, {total_current:,} total crimes.")
+    print(f"  {len(current_data)} categories, {total_current:,} total crimes.")
 
     print(f"\nFetching prior 12-month Albuquerque crime counts "
           f"({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
@@ -234,7 +233,7 @@ def main() -> None:
         print(f"ERROR: failed to fetch prior crime counts — {exc}", file=sys.stderr)
         sys.exit(1)
     total_prior = sum(prior_data.values())
-    print(f"  {len(prior_data)} area commands, {total_prior:,} total crimes.")
+    print(f"  {len(prior_data)} categories, {total_prior:,} total crimes.")
 
     records = build_trend_records(current_data, prior_data)
     print(f"\nBuilt {len(records)} area command trend records.")
@@ -244,7 +243,7 @@ def main() -> None:
         t = r["crime_trend"]
         trend_counts[t] = trend_counts.get(t, 0) + 1
     for trend, count in sorted(trend_counts.items()):
-        print(f"  {trend}: {count} area commands")
+        print(f"  {trend}: {count} categories")
 
     if args.dry_run:
         print("\nDry-run mode: skipping file write.")

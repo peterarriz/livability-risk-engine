@@ -14,17 +14,17 @@ Source:
     python backend/ingest/indianapolis_crime_trends.py --discover
     Or visit: https://data.indy.gov and search "IMPD crime" or "police incidents"
 
-  Estimated service URL:
-    https://services.arcgis.com/ghDnFwW5bG9Ljzwi/arcgis/rest/services
-    /IMPD_Crime_Statistics/FeatureServer/0
+  Verified service URL (MapServer on gis.indy.gov):
+    https://gis.indy.gov/server/rest/services/IMPD
+    /IMPD_Public_Data/MapServer/1
 
   Verify sample record:
     curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
 
-  Key fields (MUST VERIFY via sample query):
-    occurred_dt   — date of incident
-    district      — IMPD district
-    latitude, longitude — coordinates
+  Key fields (verified via sample query):
+    OccurredFrom    — date of incident
+    Geo_Districts   — IMPD district (Downtown, East, North, etc.)
+    Latitude, Longitude — coordinates
 
 Output:
   data/raw/indianapolis_crime_trends.json — district crime trend records
@@ -49,20 +49,18 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# MUST VERIFY: visit https://data.indy.gov, search "crime" or "IMPD incidents",
-# open the dataset, click "API" → copy FeatureServer URL.
+# Verified: IMPD Public Data on gis.indy.gov (MapServer, supports query API)
 FEATURESERVER_URL = (
-    "https://services.arcgis.com/ghDnFwW5bG9Ljzwi/arcgis/rest/services"
-    "/IMPD_Crime_Statistics/FeatureServer/0"
+    "https://gis.indy.gov/server/rest/services/IMPD"
+    "/IMPD_Public_Data/MapServer/1"
 )
-PORTAL_ORG_ID = "ghDnFwW5bG9Ljzwi"
+PORTAL_ORG_ID = ""  # hosted on gis.indy.gov, not ArcGIS Online
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/indianapolis_crime_trends.json")
 
-# MUST VERIFY field names via sample query:
-#   curl "{FEATURESERVER_URL}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
-DATE_FIELD = "occurred_dt"
-GROUP_FIELD = "district"
+# Verified field names via sample query
+DATE_FIELD = "OccurredFrom"
+GROUP_FIELD = "Geo_Districts"
 
 INDIANAPOLIS_LAT = 39.7684
 INDIANAPOLIS_LON = -86.1581
