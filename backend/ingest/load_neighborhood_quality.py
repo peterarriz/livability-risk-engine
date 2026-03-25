@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -30,6 +30,10 @@ Reads from staging files written by:
   backend/ingest/indianapolis_crime_trends.py  → data/raw/indianapolis_crime_trends.json
   backend/ingest/albuquerque_crime_trends.py   → data/raw/albuquerque_crime_trends.json
   backend/ingest/raleigh_crime_trends.py       → data/raw/raleigh_crime_trends.json
+  backend/ingest/dayton_crime_trends.py        → data/raw/dayton_crime_trends.json
+  backend/ingest/eugene_crime_trends.py        → data/raw/eugene_crime_trends.json
+  backend/ingest/springfield_mo_crime_trends.py → data/raw/springfield_mo_crime_trends.json
+  backend/ingest/sioux_falls_crime_trends.py   → data/raw/sioux_falls_crime_trends.json
   backend/ingest/il_school_ratings.py          → data/raw/il_school_ratings.json
   backend/ingest/national_school_ratings.py   → data/raw/national_school_ratings.json
   backend/ingest/philadelphia_crime_trends.py → data/raw/philadelphia_crime_trends.json
@@ -62,6 +66,10 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --source crime_nashville
   python backend/ingest/load_neighborhood_quality.py --source crime_portland
   python backend/ingest/load_neighborhood_quality.py --source census
+  python backend/ingest/load_neighborhood_quality.py --source crime_dayton
+  python backend/ingest/load_neighborhood_quality.py --source crime_eugene
+  python backend/ingest/load_neighborhood_quality.py --source crime_springfield_mo
+  python backend/ingest/load_neighborhood_quality.py --source crime_sioux_falls
   python backend/ingest/load_neighborhood_quality.py --source schools
   python backend/ingest/load_neighborhood_quality.py --source schools_national
 
@@ -190,6 +198,11 @@ STAGING_FILES = {
     "crime_fort_wayne":           Path("data/raw/fort_wayne_crime_trends.json"),
     "crime_boise":                Path("data/raw/boise_crime_trends.json"),
     "crime_cape_coral":           Path("data/raw/cape_coral_crime_trends.json"),
+    # data-070: tier-12 city crime trends
+    "crime_dayton":               Path("data/raw/dayton_crime_trends.json"),
+    "crime_eugene":               Path("data/raw/eugene_crime_trends.json"),
+    "crime_springfield_mo":       Path("data/raw/springfield_mo_crime_trends.json"),
+    "crime_sioux_falls":          Path("data/raw/sioux_falls_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
@@ -395,6 +408,8 @@ def parse_args() -> argparse.Namespace:
             "crime_tempe", "crime_peoria_az", "crime_surprise_az", "crime_goodyear_az",
             # data-068: tier-11 cities
             "crime_tallahassee", "crime_fort_wayne", "crime_boise", "crime_cape_coral",
+            # data-070: tier-12 cities
+            "crime_dayton", "crime_eugene", "crime_springfield_mo", "crime_sioux_falls",
             "schools", "schools_national", "all",
         ],
         default="all",

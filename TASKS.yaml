@@ -11,10 +11,63 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-068 (tier-11 city expansion — Tallahassee/Fort Wayne/Boise/Cape Coral)
-# Next task to create: data-069
+# Last completed task: data-070 (tier-12 city expansion — Dayton/Eugene/Springfield MO/Sioux Falls)
+# Next task to create: data-071
 
 tasks:
+  - id: data-071
+    title: Live-verify tier-12 city endpoints (Dayton, Eugene, Springfield MO, Sioux Falls)
+    status: backlog
+    priority: high
+    github_issue: ~
+    notes_for_next_agent: >
+      data-070 added crime scripts and permit configs for 4 new cities (all MUST VERIFY).
+      All service URLs and dataset IDs are estimates and have NOT been live-tested.
+      Must run with network access:
+      Step 1: Crime script dry-runs:
+        python backend/ingest/dayton_crime_trends.py --dry-run
+        python backend/ingest/eugene_crime_trends.py --dry-run
+        python backend/ingest/springfield_mo_crime_trends.py --dry-run
+        python backend/ingest/sioux_falls_crime_trends.py --dry-run
+      Step 2: Permit script dry-runs:
+        python backend/ingest/us_city_permits.py --city dayton --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city eugene --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city springfield_mo --dry-run
+        python backend/ingest/us_city_permits_arcgis.py --city sioux_falls --dry-run
+      Step 3: For each failure, visit the city portal and find the correct service URL.
+        Dayton crime: curl "https://data.dayton.gov/api/catalog/v1?q=crime&limit=10"
+        Eugene: visit https://data.eugene-or.gov
+        Springfield MO: visit https://data.springfieldmo.gov
+        Sioux Falls: search ArcGIS Hub for "Sioux Falls crime incidents"
+      Step 4: Update SKILL.md entries (remove MUST VERIFY markers once confirmed).
+      City coordinates: Dayton (39.7589, -84.1917), Eugene (44.0521, -123.0868),
+        Springfield MO (37.2153, -93.2982), Sioux Falls (43.5460, -96.7313).
+
+  - id: data-070
+    title: Expand to next 30 cities — permits and crime (tier-12)
+    status: done
+    priority: high
+    github_issue: 210
+    notes_for_next_agent: >
+      Implemented tier-12 city expansion (data-070).
+      New crime scripts (Socrata, MUST VERIFY): dayton_crime_trends.py
+        Data domain: data.dayton.gov, estimated dataset ID b4z3-ppnd.
+        Verify: curl "https://data.dayton.gov/api/catalog/v1?q=crime&limit=10"
+      New crime scripts (ArcGIS, MUST VERIFY): eugene_crime_trends.py,
+        springfield_mo_crime_trends.py, sioux_falls_crime_trends.py.
+        All use estimated org IDs and service names.
+      New permit configs in us_city_permits.py: dayton (MUST VERIFY id kpz4-qmte).
+      New permit configs in us_city_permits_arcgis.py: eugene, springfield_mo,
+        sioux_falls (all MUST VERIFY).
+      All 4 wired into load_neighborhood_quality.py (STAGING_FILES + --source choices).
+      Skipped (researched fresh, no public API confirmed 2026-03-25):
+        Overland Park KS, Amarillo TX, Oxnard CA, Salinas CA, Fayetteville AR.
+        Also re-confirmed 21 cities from data-068 still have no API.
+      All documented in SKILL.md under "data-070 skipped cities".
+      Next agent: run data-071 to live-verify all 4 new city endpoints.
+      City coordinates: Dayton OH (39.7589, -84.1917), Eugene OR (44.0521, -123.0868),
+        Springfield MO (37.2153, -93.2982), Sioux Falls SD (43.5460, -96.7313).
+
   - id: data-069
     title: Live-verify tier-11 city endpoints (Tallahassee, Fort Wayne, Boise, Cape Coral)
     status: backlog
