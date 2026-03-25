@@ -23,7 +23,8 @@ import csv
 import hashlib
 import io
 import json
-
+from jose import jwt as _jose_jwt
+from jose.exceptions import ExpiredSignatureError as _JoseExpired, JWTError as _JoseJWTError
 import math
 import logging
 import math
@@ -4039,8 +4040,6 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
 
     # ── Step 4: verify signature + expiry locally (no network call) ───────────
     try:
-        from jose import jwt as _jose_jwt
-        from jose.exceptions import ExpiredSignatureError as _JoseExpired, JWTError as _JoseJWTError
         payload = _jose_jwt.decode(
             token,
             key_dict,
