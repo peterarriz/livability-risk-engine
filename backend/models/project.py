@@ -72,6 +72,7 @@ IMPACT_CONSTRUCTION     = "construction"
 IMPACT_ROAD_CONSTRUCTION = "road_construction"
 IMPACT_LIGHT_PERMIT     = "light_permit"
 IMPACT_UTILITY_OUTAGE   = "utility_outage"   # data-046: active infrastructure emergency
+IMPACT_UTILITY_REPAIR   = "utility_repair"
 
 # Base weights per docs/03_scoring_model.md
 BASE_WEIGHTS: dict[str, int] = {
