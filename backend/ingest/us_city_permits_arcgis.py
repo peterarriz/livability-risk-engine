@@ -226,27 +226,24 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Portland, OR — Building Permits.
-        # Portal: https://gis.portlandoregon.gov  (ArcGIS Hub)
-        # data-075: org quVN97tn06YNGj9s is UNVERIFIED.
-        #   Portland crime script uses portlandmaps.com (self-hosted), not services.arcgis.com.
-        #   BDS (Bureau of Development Services) permits may be on portlandmaps.com, not
-        #   ArcGIS Online. URL may need complete replacement.
-        #   Try: https://gis.portlandoregon.gov → search "building permits" or "BDS"
+        # Portland, OR — BDS Construction Permit Metrics (verified 2026-03-25).
+        # Org quVN97tn06YNGj9s — service BDS_Construction_Permit_Metric, layer 0.
+        # 49,091 records. Note: no street address field — PORTLAND_MAPS_URL used as placeholder.
         "city_name":        "Portland",
         "source_key":       "portland",
         "service_url":      (
             "https://services.arcgis.com/quVN97tn06YNGj9s/arcgis/rest/services"
-            "/BDS_Permits/FeatureServer/0"
+            "/BDS_Construction_Permit_Metric/FeatureServer/0"
         ),
         "portal_url":       "https://gis.portlandoregon.gov",
-        "id_field":         "PERMIT_NBR",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "WORK_DESC",
-        "issue_date_field": "ISSUED_DATE",
+        "id_field":         "FOLDER_RSN",
+        "type_field":       "FOLDER_TYPE",
+        "desc_field":       "WORK_TYPE",
+        "issue_date_field": "APPROVED_TO_ISSUE_DATE",
         "exp_date_field":   None,
-        "addr_field":       "SITE_ADDRESS",
+        "addr_field":       "PORTLAND_MAPS_URL",
         "city_state":       "Portland, OR",
-        "skip_date_filter": False,
+        "skip_date_filter": True,  # date fields return 0 with TIMESTAMP filter
         "max_records":      None,
     },
     {
@@ -341,27 +338,25 @@ CITY_CONFIGS: list[dict] = [
         "max_records":      None,
     },
     {
-        # Tucson, AZ — Building Permits.
-        # Portal: https://gisdata.tucsonaz.gov
-        # data-075: self-hosted ArcGIS Server (not services.arcgis.com).
-        #   Tucson crime uses services3.arcgis.com/9coHY2fvuFjG9HQX (ArcGIS Online, different host).
-        #   Path /Building_Permits/FeatureServer/0 on gisdata.tucsonaz.gov is unverified.
-        #   Browse https://gisdata.tucsonaz.gov/arcgis/rest/services to find correct service.
+        # Tucson, AZ — Residential Permits (verified 2026-03-25).
+        # Self-hosted ArcGIS Server at gis.tucsonaz.gov (NOT gisdata.tucsonaz.gov which is Hub).
+        # Service: PDSD/pdsdMain_General5/MapServer, layer 49 (Residential Permits).
+        # 1,003 records. Also available: layer 48 (Commercial), layer 58 (Demolition).
         "city_name":        "Tucson",
         "source_key":       "tucson",
         "service_url":      (
-            "https://gisdata.tucsonaz.gov/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
+            "https://gis.tucsonaz.gov/arcgis/rest/services"
+            "/PDSD/pdsdMain_General5/MapServer/49"
         ),
         "portal_url":       "https://gisdata.tucsonaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
+        "id_field":         "NUMBER",
+        "type_field":       "TYPE",
         "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
+        "issue_date_field": "DATEISSUED",
+        "exp_date_field":   "DATEEXPIRED",
+        "addr_field":       "ADDRESSFULL",
         "city_state":       "Tucson, AZ",
-        "skip_date_filter": False,
+        "skip_date_filter": True,  # MapServer date fields return 0 with TIMESTAMP filter
         "max_records":      None,
     },
     # -----------------------------------------------------------------
@@ -1223,10 +1218,8 @@ CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 #   4. Remove source_key from DISABLED_SOURCE_KEYS below
 #   5. Re-run --city <key> --dry-run to confirm records are returned
 DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
-    # data-047: unverified org IDs
-    "portland",
     # data-050: unverified org IDs
-    "las_vegas", "el_paso", "tucson",
+    "las_vegas", "el_paso",
     # data-057: unverified org IDs
     "orlando", "richmond", "des_moines", "tulsa", "wichita",
     "colorado_springs", "arlington_tx", "virginia_beach",
@@ -1255,20 +1248,10 @@ DISABLED_NOTES: dict[str, str] = {
     # san_jose, fort_worth, albuquerque: REMOVED (2026-03-25) — org IDs return
     # 0 services on all subdomains. No public permit FeatureServer found.
     # data-075: org IDs unverified; different org from crime scripts.
-    "portland": (
-        "org quVN97tn06YNGj9s is UNVERIFIED. Portland crime uses portlandmaps.com "
-        "(self-hosted), BDS permits may need a different URL. "
-        "Visit https://gis.portlandoregon.gov and search 'building permits' or 'BDS'."
-    ),
     "las_vegas": (
         "org VIkzGEMZbaSsMGLk is UNVERIFIED. Las Vegas crime uses org jjSk6t82vIntwDbs "
         "(LVMPD, county-level) — different org. "
         "Visit https://opendataportal-lasvegas.opendata.arcgis.com and search 'building permits'."
-    ),
-    "tucson": (
-        "Self-hosted at gisdata.tucsonaz.gov. Service path /Building_Permits/FeatureServer/0 "
-        "is unverified. Browse https://gisdata.tucsonaz.gov/arcgis/rest/services to find "
-        "the correct permit service path."
     ),
 }
 
