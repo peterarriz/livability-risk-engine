@@ -879,6 +879,118 @@ CITY_CONFIGS: list[dict] = [
     #   Garland, TX — GPD no public incident-level API found.
     #   Chesapeake, VA — CPD no public incident-level API found.
     # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # data-065: tier-10 city permits (ArcGIS Hub) — Maricopa County AZ
+    # -----------------------------------------------------------------
+    {
+        # Tempe, AZ — Building Permits.
+        # Portal: https://data.tempe.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city tempe --discover
+        #   Or visit: https://data.tempe.gov and search "building permits"
+        # data-065: added 2026-03-24
+        "city_name":        "Tempe",
+        "source_key":       "tempe",
+        "service_url":      (
+            "https://services.arcgis.com/e5BBQV9bLnUqzr4V/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.tempe.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Tempe, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Peoria, AZ — Building Permits.
+        # NOTE: This is Peoria, AZ (Maricopa County), not Peoria, IL.
+        # Portal: https://data.peoriaaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city peoria_az --discover
+        # data-065: added 2026-03-24
+        "city_name":        "Peoria AZ",
+        "source_key":       "peoria_az",
+        "service_url":      (
+            "https://services.arcgis.com/ZNh2Q3xZvn5AJFGZ/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.peoriaaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Peoria, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Surprise, AZ — Building Permits.
+        # Portal: https://data.surpriseaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city surprise_az --discover
+        # data-065: added 2026-03-24
+        "city_name":        "Surprise AZ",
+        "source_key":       "surprise_az",
+        "service_url":      (
+            "https://services.arcgis.com/QJfxWS1GiDHgQMwH/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.surpriseaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Surprise, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    {
+        # Goodyear, AZ — Building Permits.
+        # Portal: https://data.goodyearaz.gov (ArcGIS Hub)
+        # MUST VERIFY service_url before production:
+        #   python backend/ingest/us_city_permits_arcgis.py --city goodyear_az --discover
+        # data-065: added 2026-03-24
+        "city_name":        "Goodyear AZ",
+        "source_key":       "goodyear_az",
+        "service_url":      (
+            "https://services.arcgis.com/aMqXhGKtSoqR5lNw/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.goodyearaz.gov",
+        "id_field":         "PERMIT_NUM",
+        "type_field":       "PERMIT_TYPE",
+        "desc_field":       "DESCRIPTION",
+        "issue_date_field": "ISSUED_DATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Goodyear, AZ",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
+    # SKIPPED — No public open data portal found (data-065):
+    #   Montgomery, AL — no Socrata/ArcGIS/CKAN open data portal.
+    #   Little Rock, AR — no public crime or permit API found.
+    #   Jackson, MS — no open data portal.
+    #   Columbus, GA (Muscogee County) — consolidated govt; no open data API.
+    #   Savannah, GA — no public crime incident API found.
+    #   Augusta, GA (Richmond County) — consolidated govt; no open data API.
+    #   Cape Coral, FL — city has data.capecoral.gov but no verified crime API.
+    #   Kansas City, KS — Unified Government of Wyandotte County/KCK;
+    #     no separate open data from UG (distinct from Kansas City, MO).
+    #   Spokane Valley, WA — SVPD standalone; no public open data portal.
+    #   Bakersfield, CA — already skipped in data-057; Accela/CrimeMapping only.
+    #   Elk Grove, CA — Sacramento suburb; no open data portal found.
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.

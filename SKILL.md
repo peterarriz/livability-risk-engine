@@ -77,13 +77,17 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Durham NC | `durham_crime_trends.py` | `services.arcgis.com/QLwOtBvdB5bFqPNF/.../DPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `DateOccur` | `District` | `durham_crime_trends.json` |
 | Chandler AZ | `chandler_crime_trends.py` | `services.arcgis.com/SVsGn6WnqbDYPUgf/.../CPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `chandler_crime_trends.json` |
 | Scottsdale AZ | `scottsdale_crime_trends.py` | `services.arcgis.com/4sF4h3aBrdOGHDuF/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `scottsdale_crime_trends.json` |
-| Gilbert AZ | `gilbert_crime_trends.py` | `services.arcgis.com/K1VMQDQNLVxLvLqs/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `gilbert_crime_trends.json` |
+| Gilbert AZ | `gilbert_crime_trends.py` | `services.arcgis.com/K1VMQDQNLVxLvLqs/.../GPD_Crime_Incidents/FeatureServer/0` (**INVALID — org ID K1VMQDQNLVxLvLqs returns 400 Invalid URL; see Common Failures**) | `IncidentDate` | `District` | `gilbert_crime_trends.json` |
 | Glendale AZ | `glendale_az_crime_trends.py` | `services.arcgis.com/s0YYoMkpLLkb2IPC/.../GPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `glendale_az_crime_trends.json` |
 | Henderson NV | `henderson_crime_trends.py` | `services.arcgis.com/pGfbNXXgj2WN9j5V/.../HPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `Area` | `henderson_crime_trends.json` |
 | Tacoma WA | `tacoma_crime_trends.py` | `services3.arcgis.com/SCwJH1pD8WSn5T5y/.../TPD_RMS_Crime/FeatureServer/0` | `DateOccurred` | `Sector` | `tacoma_crime_trends.json` |
 | Chattanooga TN | `chattanooga_crime_trends.py` | `services2.arcgis.com/OIAIimblRxPs0xxc/.../testingtestingtestingpolicepoints/FeatureServer/0` | `date_incident` | `incident_type` (MUST VERIFY for geographic field) | `chattanooga_crime_trends.json` |
 | Grand Rapids MI | `grand_rapids_crime_trends.py` | `services2.arcgis.com/L81TiOwAPO1ZvU9b/.../incident_reports/FeatureServer/0` | `DATEOFOFFENSE` | `Service_Area` | `grand_rapids_crime_trends.json` |
 | Fayetteville NC | `fayetteville_nc_crime_trends.py` | `gismaps.fayettevillenc.gov/.../Police/IncidentsCrimesAgainst{Persons,Property,Society}/MapServer/0` (3 layers) | `Date_Incident` | `district` | `fayetteville_nc_crime_trends.json` |
+| Tempe AZ | `tempe_crime_trends.py` | `services.arcgis.com/e5BBQV9bLnUqzr4V/.../TPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `tempe_crime_trends.json` |
+| Peoria AZ | `peoria_az_crime_trends.py` | `services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../PPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `peoria_az_crime_trends.json` |
+| Surprise AZ | `surprise_az_crime_trends.py` | `services.arcgis.com/QJfxWS1GiDHgQMwH/.../SPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `surprise_az_crime_trends.json` |
+| Goodyear AZ | `goodyear_az_crime_trends.py` | `services.arcgis.com/aMqXhGKtSoqR5lNw/.../GoPD_Crime_Incidents/FeatureServer/0` (MUST VERIFY) | `IncidentDate` | `District` | `goodyear_az_crime_trends.json` |
 
 ### OpenDataSoft-Based
 
@@ -185,9 +189,13 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Durham NC | `durham` | services.arcgis.com/QLwOtBvdB5bFqPNF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Chandler AZ | `chandler` | services.arcgis.com/SVsGn6WnqbDYPUgf/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Scottsdale AZ | `scottsdale` | services.arcgis.com/4sF4h3aBrdOGHDuF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Gilbert AZ | `gilbert` | services.arcgis.com/K1VMQDQNLVxLvLqs/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Gilbert AZ | `gilbert` | services.arcgis.com/K1VMQDQNLVxLvLqs/.../Building_Permits/FeatureServer/0 (**MUST VERIFY — same invalid org as crime script**) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Glendale AZ | `glendale_az` | services.arcgis.com/s0YYoMkpLLkb2IPC/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 | Henderson NV | `henderson` | services.arcgis.com/pGfbNXXgj2WN9j5V/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Tempe AZ | `tempe` | services.arcgis.com/e5BBQV9bLnUqzr4V/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Peoria AZ | `peoria_az` | services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Surprise AZ | `surprise_az` | services.arcgis.com/QJfxWS1GiDHgQMwH/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Goodyear AZ | `goodyear_az` | services.arcgis.com/aMqXhGKtSoqR5lNw/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -266,6 +274,32 @@ queryable API. No Socrata, ArcGIS Hub, or CKAN portal found as of 2026-03-24.
 - Tallahassee, FL — TOPS web interface only; no documented REST API.
 - Huntsville, AL — JustFOIA portal for records requests; no open data API.
 - Winston-Salem, NC — WSPD has no public crime data services on ArcGIS or Socrata.
+
+**data-065 skipped cities (no public API, researched 2026-03-24):**
+- Montgomery, AL — MPDAL no open data portal; no Socrata, ArcGIS Hub, or CKAN found.
+- Little Rock, AR — LRPD no public incident API; no open data portal found.
+- Jackson, MS — JPD no open data portal; no public crime API.
+- Columbus, GA (Muscogee County) — MCSO consolidated govt; no open data API found.
+- Savannah, GA — SCMPD no public crime incident API; no Socrata/ArcGIS portal.
+- Augusta, GA (Richmond County) — RCSO consolidated govt; no open data API found.
+- Cape Coral, FL — CCPD: data.capecoral.gov exists but no verified crime incident API.
+- Kansas City, KS — Unified Government of Wyandotte County/KCK; no public crime API
+  distinct from Kansas City, MO (already covered by `kansas_city_crime_trends.py`).
+- Spokane Valley, WA — SVPD operates independently of Spokane PD; no public open data
+  portal found for Spokane Valley Police Department as of 2026-03-24.
+- Bakersfield, CA — previously skipped in data-057 (Accela/CrimeMapping only).
+- Elk Grove, CA — Sacramento County suburb; no independent open data portal found.
+
+**Gilbert AZ org ID invalid (data-065, 2026-03-24):**
+`gilbert_crime_trends.py` and `gilbert` permit config both use org ID `K1VMQDQNLVxLvLqs`
+which returns `{"error": {"code": 400, "message": "Invalid URL"}}`. This org ID has been
+invalid since it was introduced in data-058. To fix:
+1. Visit `https://data.gilbertaz.gov` and find the Police Incidents/Crime dataset.
+2. Click "I want to use this" → "API" to get the FeatureServer URL.
+3. Extract the org ID (the alphanumeric segment after `services.arcgis.com/`).
+4. Update `FEATURESERVER_URL` in `gilbert_crime_trends.py` and `service_url` in
+   `us_city_permits_arcgis.py` for the `gilbert` entry.
+5. Re-run `python backend/ingest/gilbert_crime_trends.py --dry-run` to verify.
 
 **Symptom:** ArcGIS returns `{"error": {"code": 400, "message": "Invalid URL"}}`.
 
@@ -444,3 +478,100 @@ When a script starts returning 0 records or HTTP 404:
 2. Update the constant in the script
 3. Add a comment with the verification date
 4. Re-run `--dry-run` to confirm
+
+---
+
+## State School Performance Report Card APIs
+
+Research conducted 2026-03-24 (data-065). None of these states expose a proper
+REST API — all use file downloads or web-only interfaces.
+
+### California — CAASPP (caaspp.org / cas.cde.ca.gov)
+
+**Access:** File downloads only at https://caaspp-elpac.ets.org/caaspp/research
+**Format:** Fixed-width text (`.txt`) and CSV zip archives
+**Key files:**
+- `sb_ca{YEAR}_all_{TYPE}_{GRADE}.txt` — Smarter Balanced scores by school
+**School identifier:** 14-digit CDS code (`{county}{district}{school}`)
+**Available fields:** `MeanScaleScore`, `PercentStandardMet`, `PercentStandardExceeded`
+**No REST API.** Download, parse, and join on CDS code (matches NCES CCD `ncessch` mapping).
+**Key limitation:** Data published annually ~August; current year is typically unavailable.
+
+### Texas — TEA Accountability Ratings (tea.texas.gov)
+
+**Access:** File downloads at https://tea.texas.gov/texas-schools/accountability
+**Format:** Excel/CSV zip archives
+**Key files:** `acctratings_{YEAR}.zip` — district and campus accountability ratings
+**School identifier:** 9-digit campus number (`{district}{campus}`)
+**Available fields:** `CAMPUS_RATING` (A/B/C/D/F), `DOMAIN1_SCORE` through `DOMAIN4_SCORE`
+**No public REST API.** TEA's TSDS (Texas Student Data System) requires authorized
+agency login. Public accountability ratings are file-download-only.
+
+### Washington — OSPI Report Cards (reportcard.ospi.k12.wa.us)
+
+**Access:** Socrata dataset on `data.wa.gov` and file downloads at OSPI
+**Socrata domain:** `data.wa.gov`
+**Relevant datasets (search "school report card" on data.wa.gov):**
+  - Report card data published annually by OSPI under "Education" category
+**School identifier:** 10-digit NCES `ncessch` code or WA state school code
+**Available fields:** Proficiency rates, graduation rates; no single "overall rating"
+  (WA eliminated A–F ratings in 2015)
+**Note:** WA uses "EveryStudent Succeeds Act" descriptors (e.g. "Level 1"–"Level 4")
+rather than letter grades. Fetch from `data.wa.gov` Socrata API.
+
+### North Carolina — NCDPI Report Cards (ncreportcards.ncdpi.gov)
+
+**Access:** File downloads and limited web API
+**Download base:** https://www.dpi.nc.gov/data-reports/school-report-cards
+**Format:** Excel/CSV
+**School identifier:** 6-digit school code (`{LEA}{school}`)
+**Available fields:** `SPG Score` (0–100), `SPG Grade` (A/B/C/D/F)
+**No documented public REST API.** `ncreportcards.ncdpi.gov` is web-only.
+Downloads published annually ~September.
+
+### Ohio — ODE Report Cards (reportcard.education.ohio.gov)
+
+**Access:** File downloads at https://reportcard.education.ohio.gov
+**Format:** Excel/CSV zip archives
+**Download base:** https://reportcard.education.ohio.gov/download
+**School identifier:** 9-digit IRN (Information Retrieval Number)
+**Available fields:** `OVERALL_GRADE` (A–F), `ACHIEVEMENT_GRADE`, `PROGRESS_GRADE`,
+  `GAP_CLOSING_GRADE`
+**No REST API.** `data.education.ohio.gov` (Socrata) does NOT contain report card grades —
+only enrollment/staff data. Report card grades are file-download-only.
+
+### Arizona — ADE Report Cards (azreportcards.azed.gov)
+
+**Access:** File downloads and web UI at https://azreportcards.azed.gov
+**Format:** CSV and Excel
+**Download base:** https://www.azed.gov/accountability/data
+**School identifier:** 9-digit entity ID or CTDS code
+**Available fields:** `Letter_Grade` (A–F), `Points_Earned`, individual domain scores
+**No REST API.** `azreportcards.azed.gov` is web-only. ADE publishes downloadable
+accountability data files annually in October.
+
+### Implementation Notes (do not implement yet — research only)
+
+When implementing state school ratings, use the existing `school_rating` field in
+`neighborhood_quality` (values: `"Excellent"`, `"Strong"`, `"Average"`, `"Weak"`,
+`"Very Weak"`, or `null`). Map state-specific grades as follows:
+
+| State Grade | LRE Rating |
+|-------------|------------|
+| A (TX/NC/OH/AZ) | `Excellent` |
+| B | `Strong` |
+| C | `Average` |
+| D | `Weak` |
+| F | `Very Weak` |
+| CA (CAASPP ≥75% met standard) | `Excellent` |
+| CA (60–74%) | `Strong` |
+| CA (45–59%) | `Average` |
+| CA (30–44%) | `Weak` |
+| CA (<30%) | `Very Weak` |
+
+Join on NCES `ncessch` code (already present in `national_school_ratings.json` from
+`national_school_ratings.py`). WA state uses OSPI school codes — cross-reference via
+NCES CCD.
+
+Priority order for implementation: TX → OH → AZ → NC → CA → WA
+(TX/OH/AZ are straightforward A–F; CA/WA are more complex mappings).
