@@ -170,6 +170,7 @@ def fill_staging_file(
     address_fn,
     dry_run: bool,
     max_fill: int | None,
+    allow_national: bool = False,
 ) -> dict:
     """
     Read a staging JSON file, geocode records missing coordinates,
@@ -228,7 +229,7 @@ def fill_staging_file(
         print(f"  Limiting to {max_fill} geocode calls (--max-fill).")
 
     for i, (record, addr) in enumerate(to_fill):
-        result = geocode_address(addr)
+        result = geocode_address(addr, allow_national=allow_national)
         if result:
             lat, lon = result
             record["latitude"] = str(lat)
@@ -382,6 +383,7 @@ def main() -> None:
                 _us_city_permit_address,
                 args.dry_run,
                 args.max_fill,
+                allow_national=True,
             )
             all_stats.append((label, stats))
 

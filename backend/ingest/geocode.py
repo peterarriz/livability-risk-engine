@@ -199,10 +199,16 @@ def _is_in_illinois(lat: float, lon: float) -> bool:
 # Public geocoding interface
 # ---------------------------------------------------------------------------
 
+def _is_in_conus(lat: float, lon: float) -> bool:
+    """Continental US + Hawaii/Alaska broad bounding box check."""
+    return 18.0 <= lat <= 72.0 and -180.0 <= lon <= -66.0
+
+
 def geocode_address(
     address: str,
     session: Optional[requests.Session] = None,
     statewide: bool = False,
+    allow_national: bool = False,
 ) -> Optional[tuple[float, float]]:
     """
     Geocode an address string to (latitude, longitude).
@@ -218,6 +224,8 @@ def geocode_address(
         statewide: If True, accept any Illinois coordinate (not just Chicago).
                    Automatically set to True when the address contains ", IL"
                    but not ", Chicago".
+        allow_national: If True, accept any US coordinate (skip IL/Chicago
+                        bounding box checks). Use for non-Illinois addresses.
 
     Returns:
         (latitude, longitude) tuple or None.
@@ -230,13 +238,16 @@ def geocode_address(
     if local:
         return local
 
-    # Auto-detect statewide: IL address but not explicitly Chicago.
-    addr_upper = address.upper()
-    if not statewide and ", IL" in addr_upper and "CHICAGO" not in addr_upper:
-        statewide = True
+    if allow_national:
+        validator = _is_in_conus
+    else:
+        # Auto-detect statewide: IL address but not explicitly Chicago.
+        addr_upper = address.upper()
+        if not statewide and ", IL" in addr_upper and "CHICAGO" not in addr_upper:
+            statewide = True
 
-    # Choose validator: statewide uses Illinois bbox; Chicago-only uses tighter bbox.
-    validator = _is_in_illinois if statewide else _is_in_chicago
+        # Choose validator: statewide uses Illinois bbox; Chicago-only uses tighter bbox.
+        validator = _is_in_illinois if statewide else _is_in_chicago
 
     _session = session or requests.Session()
 
