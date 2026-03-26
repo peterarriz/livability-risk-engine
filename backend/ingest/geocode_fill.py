@@ -64,6 +64,7 @@ DEFAULT_CLOSURES_FILE   = Path("data/raw/street_closures.json")
 DEFAULT_CTA_ALERTS_FILE = Path("data/raw/cta_alerts.json")
 DEFAULT_IL_CITIES_DIR   = Path("data/raw")
 IL_CITIES_FILE_GLOB     = "il_city_permits_*.json"
+US_CITIES_FILE_GLOB     = "us_city_permits_*.json"
 
 # Seconds to sleep between geocoding requests to respect rate limits.
 GEOCODE_SLEEP_S = 0.25
@@ -128,6 +129,21 @@ def _il_city_permit_address(record: dict) -> str | None:
     city_il = (record.get("city_il") or "").strip()
     if city_il:
         return f"{addr}, {city_il}"
+    return addr
+
+
+def _us_city_permit_address(record: dict) -> str | None:
+    """
+    Build an address string from a US city permit record.
+    These records use 'address' and 'city_state' fields set by
+    us_city_permits.py / us_city_permits_ckan.py / us_city_permits_arcgis.py.
+    """
+    addr = (record.get("address") or "").strip()
+    if not addr:
+        return None
+    city_state = (record.get("city_state") or "").strip()
+    if city_state:
+        return f"{addr}, {city_state}"
     return addr
 
 
@@ -294,7 +310,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        choices=["permits", "closures", "cta_alerts", "il_cities", "all"],
+        choices=["permits", "closures", "cta_alerts", "il_cities", "us_cities", "all"],
         default="all",
         help="Which staging file(s) to fill (default: all).",
     )
@@ -349,6 +365,21 @@ def main() -> None:
             stats = fill_staging_file(
                 sf,
                 _il_city_permit_address,
+                args.dry_run,
+                args.max_fill,
+            )
+            all_stats.append((label, stats))
+
+    if args.source in ("us_cities", "all"):
+        staging_files = sorted(args.il_cities_dir.glob(US_CITIES_FILE_GLOB))
+        if not staging_files:
+            print(f"\nNo US city permit staging files in {args.il_cities_dir}. Skipping.")
+        for sf in staging_files:
+            label = sf.stem  # e.g. "us_city_permits_new_orleans"
+            print(f"\nFilling {label}: {sf}")
+            stats = fill_staging_file(
+                sf,
+                _us_city_permit_address,
                 args.dry_run,
                 args.max_fill,
             )
