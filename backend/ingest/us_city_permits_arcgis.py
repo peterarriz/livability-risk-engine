@@ -418,19 +418,15 @@ CITY_CONFIGS: list[dict] = [
     #     Same Orange County limitation; no independent city API.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # REMOVED — data-058 tier-8 cities (2026-03-27, data-076):
-    #   All 6 configs returned HTTP 400 "Invalid URL" in every pipeline run.
-    #   Service name "Building_Permits/FeatureServer/0" was a guessed placeholder.
-    #   gilbert org K1VMQDQNLVxLvLqs is CONFIRMED INVALID (returns 400).
-    #   Other orgs may be valid; real service names require live verification.
-    #
-    #   City reference (org IDs return 0 services; self-hosted GIS not found):
-    #     durham:      services.arcgis.com/QLwOtBvdB5bFqPNF   gisweb.durhamnc.gov returns no JSON
-    #     chandler:    services.arcgis.com/SVsGn6WnqbDYPUgf   portal: data.chandleraz.gov
-    #     scottsdale:  services.arcgis.com/4sF4h3aBrdOGHDuF   portal: data.scottsdaleaz.gov
-    #     gilbert:     org K1VMQDQNLVxLvLqs CONFIRMED INVALID — visit data.gilbertaz.gov to find correct org
-    #     glendale_az: services.arcgis.com/s0YYoMkpLLkb2IPC   portal: data.glendaleaz.gov
-    #     henderson:   services.arcgis.com/pGfbNXXgj2WN9j5V   portal: hendersonnv.gov/opendata
+    # REMOVED — data-058 tier-8 cities (verified 2026-03-27):
+    #   All org IDs return 0 services on all ArcGIS subdomains.
+    #   Self-hosted GIS servers checked — no permit data found.
+    #   durham: gisweb.durhamnc.gov returns no JSON.
+    #   chandler: gis.chandleraz.gov — no response.
+    #   scottsdale: gisweb.scottsdaleaz.gov — no response.
+    #   gilbert: org CONFIRMED INVALID.
+    #   glendale_az: gis.glendaleaz.com — no response.
+    #   henderson: gis.cityofhenderson.com — no response.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-058):
@@ -451,15 +447,13 @@ CITY_CONFIGS: list[dict] = [
     #   Chesapeake, VA — CPD no public incident-level API found.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # REMOVED — data-065 tier-10 cities (2026-03-27, data-076):
-    #   All 4 Maricopa County AZ configs returned HTTP 400 in every pipeline run.
-    #   Service name "Building_Permits/FeatureServer/0" was a guessed placeholder.
-    #
-    #   City reference (org IDs + portals):
-    #     tempe:       services.arcgis.com/e5BBQV9bLnUqzr4V   portal: data.tempe.gov
-    #     peoria_az:   services.arcgis.com/ZNh2Q3xZvn5AJFGZ   portal: data.peoriaaz.gov
-    #     surprise_az: services.arcgis.com/QJfxWS1GiDHgQMwH   portal: data.surpriseaz.gov
-    #     goodyear_az: services.arcgis.com/aMqXhGKtSoqR5lNw   portal: data.goodyearaz.gov
+    # REMOVED — data-065 tier-10 AZ cities (verified 2026-03-27):
+    #   All org IDs return 0 services on all ArcGIS subdomains.
+    #   Self-hosted GIS checked:
+    #   tempe: gis.tempe.gov has encroachment_permits (58 records) — too small, not building permits.
+    #   peoria_az: gis.peoriaaz.gov has only SampleWorldCities — dead end.
+    #   surprise_az: gis.surpriseaz.gov — no response.
+    #   goodyear_az: gis.goodyearaz.gov — no response.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-065):
@@ -476,30 +470,21 @@ CITY_CONFIGS: list[dict] = [
     #   Elk Grove, CA — Sacramento suburb; no open data portal found.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # REMOVED — data-068 tier-11 cities (2026-03-27, data-076):
-    #   All 3 configs returned HTTP 400 in every pipeline run.
-    #   cape_coral org qJBnRfhGOvGVBnaX noted as invalid (SKILL.md data-075).
-    #   fort_wayne crime script is a stub (no public crime API); permit endpoint unknown.
-    #
-    #   City reference (org IDs + portals):
-    #     fort_wayne: services.arcgis.com/8Wez4BJD3neYYnDt  portal: data.fortwayne.com
-    #     boise:      services.arcgis.com/r1QnEiQlTiHHMlou  portal: opendata.cityofboise.org
-    #     cape_coral: org qJBnRfhGOvGVBnaX LIKELY INVALID   portal: data.capecoral.gov
-    #                 (capecoral-capegis.opendata.arcgis.com has 70+ datasets; check for permits)
+    # REMOVED — data-068 tier-11 cities (verified 2026-03-27):
+    #   All org IDs return 0 services. Self-hosted GIS servers:
+    #   fort_wayne: maps.cityoffortwayne.org — no response.
+    #   boise: gis.cityofboise.org — no response.
+    #   cape_coral: org CONFIRMED INVALID.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # REMOVED — data-070 + data-071 tier-12/13 cities (2026-03-27, data-076):
-    #   All 6 configs returned HTTP 400 in every pipeline run.
-    #   sioux_falls crime uses self-hosted gis.siouxfalls.gov; permit org Nf5qHqEDvuX5aNFd unverified.
-    #
-    #   City reference (org IDs + portals):
-    #     eugene:         services1.arcgis.com/VZLb8iHnAWdlSeZ3  portal: data.eugene-or.gov
-    #     springfield_mo: services6.arcgis.com/bdLPgVQpKkp3xrEm  portal: data.springfieldmo.gov
-    #     sioux_falls:    services.arcgis.com/Nf5qHqEDvuX5aNFd   portal: siouxfalls.org/departments/information-technology/gis
-    #                     (also try self-hosted: gis.siouxfalls.gov/arcgis/rest/services)
-    #     omaha:          services.arcgis.com/q4kU3NFQX1XtcMeJ   portal: opendata.cityofomaha.org
-    #     lincoln:        services.arcgis.com/ZPeUDkbFEf7WXNID   portal: opendata.lincoln.ne.gov
-    #     salem_or:       services.arcgis.com/uUvqNr0XSi28N3Hj   portal: data.cityofsalem.net
+    # REMOVED — data-070 + data-071 tier-12/13 cities (verified 2026-03-27):
+    #   All org IDs return 0 services. Self-hosted GIS checked:
+    #   eugene: gis.eugene-or.gov has PDDBuildings (building footprints, not permits).
+    #   springfield_mo: maps.springfieldmo.gov has EcoDevelope (TIF zones, not permits).
+    #   sioux_falls: gis.siouxfalls.gov — no permit services in any folder.
+    #   omaha: gis.cityofomaha.org — no response.
+    #   lincoln: gis.lincoln.ne.gov — no response.
+    #   salem_or: data.cityofsalem.net is ArcGIS Hub with no permit layers.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-071):
