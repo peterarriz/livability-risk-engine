@@ -11,6 +11,13 @@ Source:
   Resource: Police Incident Blotter (30-day)
   Resource ID: 1797ead8-8262-41cc-9099-cbc8a161924b
 
+  WARNING: Both datasets are frozen/stale as of 2026-03-27:
+  - 30-day blotter (1797ead8): 1 record only (2023-11-19)
+  - Archive (044f2016): 340,996 records ending 2023-11-19
+  Pittsburgh stopped publishing incident blotter data to WPRDC after
+  Nov 2023. Returns 0 records for any window after that date.
+  No newer crime data source found on WPRDC.
+
   Key fields: INCIDENTTIME, INCIDENTZONE, INCIDENTHIERARCHYDESC
 
   Archived data (2016-2023): 044f2016-1dfd-4ab0-bc1e-065da05fca2e

@@ -11,6 +11,10 @@ Source:
   Dataset: "Wibr" or "Police Incidents" (MPS)
   Resource ID: 87843297-a6fa-46d4-ba5d-cb342fb2d3bb
 
+  WARNING: Dataset is a rolling ~3 month window (2026-01-01 to present as
+  of 2026-03-27). Prior-year comparison will always return 0 because the
+  data doesn't go back 12+ months. Trend data only reflects current window.
+
   Verify resource_id:
     python backend/ingest/milwaukee_crime_trends.py --discover
     # or:
