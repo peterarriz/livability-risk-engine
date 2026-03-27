@@ -720,8 +720,11 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # Cap at 50 records per run to avoid pipeline timeouts (30-min cron).
+        # Bulk geocoding (e.g. New Orleans 3,968 records) should be done
+        # manually: python backend/ingest/geocode_fill.py --source us_cities
         "name": "Fill missing geocoordinates",
-        "cmd": [sys.executable, "backend/ingest/geocode_fill.py"],
+        "cmd": [sys.executable, "backend/ingest/geocode_fill.py", "--max-fill", "50"],
         "skip_key": "skip_geocode",
     },
     {
