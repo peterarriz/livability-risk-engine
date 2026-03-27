@@ -400,6 +400,29 @@ CITY_CONFIGS: list[dict] = [
         "skip_date_filter": False,
         "max_records":      None,
     },
+    {
+        # Philadelphia, PA — Active Building Permits (verified 2026-03-27).
+        # Org fLeGjb7u4uXqeF9q on services.arcgis.com.
+        # Service: ActivePermitOverview/FeatureServer/1 (ACTIVE_BUILDING).
+        # 15,294 records with point geometry (GEOCODE_X/Y).
+        # Moved from us_city_permits_ckan.py (data.phila.gov CKAN returns 403).
+        "city_name":        "Philadelphia",
+        "source_key":       "philadelphia",
+        "service_url":      (
+            "https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services"
+            "/ActivePermitOverview/FeatureServer/1"
+        ),
+        "portal_url":       "https://data.phila.gov",
+        "id_field":         "PERMITNUMBER",
+        "type_field":       "TYPEOFWORK",
+        "desc_field":       "DESCRIPTIONOFWORK",
+        "issue_date_field": "PERMITISSUEDATE",
+        "exp_date_field":   None,
+        "addr_field":       "ADDRESS",
+        "city_state":       "Philadelphia, PA",
+        "skip_date_filter": True,  # active permits only, no date-range filter needed
+        "max_records":      None,
+    },
     #   REMOVED — data-057 tier-7 cities (2026-03-27):
     #   Org IDs return 0 services on all ArcGIS subdomains, and self-hosted
     #   GIS servers either don't exist or have no permit data:

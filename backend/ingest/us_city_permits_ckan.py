@@ -113,93 +113,43 @@ import requests
 #   discover_query  : Query string for package_search when using --discover
 
 CITY_CONFIGS: list[dict] = [
+    # -----------------------------------------------------------------
+    # REMOVED — Houston (verified 2026-03-27):
+    #   data.houstontx.gov CKAN has only monthly aggregate counts
+    #   (residential-building-permits, resource c9cef716): Year, Month,
+    #   Single Family, Multi-Family totals. No individual permit records.
+    #   Original resource_id a67a8bcd was fabricated (404).
+    # REMOVED — Philadelphia (verified 2026-03-27):
+    #   data.phila.gov CKAN API returns 403. Philadelphia permits are
+    #   available on ArcGIS: services.arcgis.com/fLeGjb7u4uXqeF9q
+    #   ActivePermitOverview/FeatureServer/1 (ACTIVE_BUILDING, 15,294 records).
+    #   Moved to us_city_permits_arcgis.py.
+    # -----------------------------------------------------------------
     {
-        # Houston — Building Permits.
-        # Portal: https://data.houstontx.gov
-        # Package: search "building permit" via --discover to confirm resource_id.
-        # Fields verified from CKAN datastore_search sample (2026-03-21):
-        #   The Houston CKAN portal uses standard CKAN column names.
-        # Verify resource_id:
-        #   curl "https://data.houstontx.gov/api/3/action/package_search?q=building+permit&rows=5"
-        "city_name":        "Houston",
-        "source_key":       "houston",
-        "domain":           "data.houstontx.gov",
-        "resource_id":      "a67a8bcd-d7a7-493b-98f6-a7dfbc6e84a5",  # verify via --discover
-        "id_field":         "permit_nbr",
-        "type_field":       "permit_type_desc",
-        "desc_field":       "work_desc",
-        "issue_date_field": "permit_issued",
-        "exp_date_field":   "permit_expiry",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "addr_field":       "address",
-        "city_state":       "Houston, TX",
-        "discover_query":   "building permit",
-    },
-    {
-        # Philadelphia — Licenses & Inspections Building Permits.
-        # Portal: https://data.phila.gov
-        # Package: "Licenses and Inspections Building Permits"
-        #          package name: li-permits or licenses_and_inspections_building_permits
-        # Verify resource_id:
-        #   curl "https://data.phila.gov/api/3/action/package_search?q=permits&rows=5"
-        "city_name":        "Philadelphia",
-        "source_key":       "philadelphia",
-        "domain":           "data.phila.gov",
-        "resource_id":      "2a8b059a-cf28-4fa1-a67e-c90c5c05fc8a",  # verify via --discover
-        "id_field":         "permitnumber",
-        "type_field":       "typeofwork",
-        "desc_field":       "permitdescription",
-        "issue_date_field": "permitissuedate",
-        "exp_date_field":   None,
-        "lat_field":        "lat",
-        "lon_field":        "lng",
-        "addr_field":       "address",
-        "city_state":       "Philadelphia, PA",
-        "discover_query":   "permits",
-    },
-    {
-        # San Antonio — Development Services Permits.
+        # San Antonio — Building Permits (verified 2026-03-27).
         # Portal: https://data.sanantonio.gov
-        # Package: search "building permit" via --discover to confirm resource_id.
-        # Verify resource_id:
-        #   curl "https://data.sanantonio.gov/api/3/action/package_search?q=building+permit&rows=5"
+        # Package: building-permits, resource: PERMITS ISSUED (101,274 records).
         "city_name":        "San Antonio",
         "source_key":       "san_antonio",
         "domain":           "data.sanantonio.gov",
-        "resource_id":      "e7ac61e9-d8a1-4d48-a3a5-6c432a8fa5f3",  # verify via --discover
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "addr_field":       "address",
+        "resource_id":      "c21106f9-3ef5-4f3a-8604-f992b4db7512",
+        "id_field":         "PERMIT #",
+        "type_field":       "PERMIT TYPE",
+        "desc_field":       "WORK TYPE",
+        "issue_date_field": "DATE ISSUED",
+        "exp_date_field":   None,
+        "lat_field":        "Y_COORD",
+        "lon_field":        "X_COORD",
+        "addr_field":       "ADDRESS",
         "city_state":       "San Antonio, TX",
         "discover_query":   "building permit",
     },
-    {
-        # San Diego — Building Permits.
-        # Portal: https://data.sandiego.gov
-        # Package: search "building permit" via --discover to confirm resource_id.
-        # Verify resource_id:
-        #   curl "https://data.sandiego.gov/api/3/action/package_search?q=building+permit&rows=5"
-        "city_name":        "San Diego",
-        "source_key":       "san_diego",
-        "domain":           "data.sandiego.gov",
-        "resource_id":      "7e82b527-5f2e-4e7c-a5c0-acbf59be0a74",  # verify via --discover
-        "id_field":         "apn",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "lat",
-        "lon_field":        "lng",
-        "addr_field":       "address",
-        "city_state":       "San Diego, CA",
-        "discover_query":   "building permit",
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — San Diego (verified 2026-03-27):
+    #   data.sandiego.gov is NOT CKAN — it's a custom static HTML portal.
+    #   CKAN datastore_search returns no JSON. Not on Socrata either.
+    #   Original resource_id 7e82b527 was fabricated (no response).
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # REMOVED — Denver (verified 2026-03-22):
     #   data.denvergov.org is NOT CKAN — it redirects (301) to ArcGIS Hub
