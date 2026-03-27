@@ -10,6 +10,10 @@ Source:
   Socrata — data.providenceri.gov
   Dataset: Crime Incidents (rz3y-pz8v)
 
+  WARNING: Dataset is a rolling ~6 month window (2025-09-28 to present as
+  of 2026-03-27). Prior-year comparison will always return 0 because the
+  data doesn't go back 12+ months. Trend data only reflects current window.
+
   Key fields: reported_date, reporting_officer (station name), offense_desc
 
 Output:
