@@ -189,8 +189,8 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Portland | `portland` | services.arcgis.com/.../BDS_Permits/FeatureServer/0 | `PERMIT_NBR` | `ISSUED_DATE` |
 | Baltimore | `baltimore` | egisdata.baltimorecity.gov/.../DHCD_Open_Baltimore_Datasets/FeatureServer/3 | `CaseNumber` | `IssuedDate` |
 | Nashville | `nashville` | services2.arcgis.com/.../Building_Permits_Issued_2/FeatureServer/0 | `Permit__` | `Date_Issued` |
-| Las Vegas | `las_vegas` | services.arcgis.com/VIkzGEMZbaSsMGLk/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
-| El Paso | `el_paso` | services.arcgis.com/YGBqHTHNMoJPJOav/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
+| Las Vegas | REMOVED | Org VIkzGEMZbaSsMGLk returns 0 services, gis.lasvegasnevada.gov unreachable (2026-03-27) | — | — |
+| El Paso | REMOVED | Real data at gis.elpasotexas.gov but server blocks python-requests with 403/WAF (2026-03-27) | — | — |
 | Tucson | `tucson` | gisdata.tucsonaz.gov/.../Building_Permits/FeatureServer/0 | `PERMIT_NUM` | `ISSUED_DATE` |
 | San Jose | REMOVED | Org p8Tul9YqBFRRdPqD returns 0 services — no public permit API found (2026-03-25) | — | — |
 | Fort Worth | REMOVED | Org AHCzmZstRKFEQEqv returns 0 services — no public permit API found (2026-03-25) | — | — |
@@ -419,7 +419,7 @@ Honolulu Socrata config flagged `disabled=True` in `us_city_permits.py`.
 All were returning HTTP 400 "Invalid URL" on every pipeline run.
 To re-enable: run `--city <key> --discover` or visit the portal_url for that city,
 find the correct FeatureServer URL, update `service_url`, remove from `DISABLED_SOURCE_KEYS`.
-Disabled cities: portland, las_vegas, el_paso, tucson,
+Disabled cities:
 orlando, richmond, des_moines, tulsa, wichita, colorado_springs, arlington_tx,
 virginia_beach, mesa, aurora, corpus_christi, greensboro, durham, chandler, scottsdale,
 gilbert, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az, fort_wayne,
@@ -439,15 +439,13 @@ Research was done via SKILL.md cross-reference (crime script org IDs) and traini
   subdomains. No public permit FeatureServer found.
 - **albuquerque** — **REMOVED** (2026-03-25). Org `3HnGBxB8VqLCXhUn` returns 0 services on all
   subdomains. No public permit FeatureServer found.
-- **portland** — crime script uses portlandmaps.com (self-hosted), not services.arcgis.com.
-  Permit org `quVN97tn06YNGj9s` is unverified and may be wrong.
-  BDS (Bureau of Development Services) permits may be on portlandmaps.com, not ArcGIS Online.
-  Try: https://gis.portlandoregon.gov → search "building permits" or "BDS".
-  Also try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Portland+Oregon
-- **las_vegas** — crime script uses org `jjSk6t82vIntwDbs` (LVMPD, county-level).
-  Permit org `VIkzGEMZbaSsMGLk` is a DIFFERENT org — city-level (not LVMPD).
-  Portal: https://opendataportal-lasvegas.opendata.arcgis.com — search "building permits".
-  Try: https://hub.arcgis.com/api/v3/datasets?q=building+permits+Las+Vegas
+- **portland** — **FIXED** (2026-03-25). Real service: `BDS_Construction_Permit_Metric/FeatureServer/0`
+  on org `quVN97tn06YNGj9s`. 49,091 records. No street address field (uses PORTLAND_MAPS_URL).
+- **las_vegas** — **REMOVED** (2026-03-27). Org `VIkzGEMZbaSsMGLk` returns 0 services on all
+  subdomains. `gis.lasvegasnevada.gov` does not resolve. ArcGIS Hub search returns no permit data.
+- **el_paso** — **REMOVED** (2026-03-27). Real data exists at `gis.elpasotexas.gov`
+  (`Planning/NewResidential/MapServer/1`, 42,472 records) but server blocks python-requests
+  with HTTP 403 (Cloudflare/WAF). FeatureServer endpoint also returns 403.
 - **tucson** — uses self-hosted `gisdata.tucsonaz.gov` (not services.arcgis.com).
   Service path `/Building_Permits/FeatureServer/0` is unverified.
   Tucson crime is at `services3.arcgis.com/9coHY2fvuFjG9HQX` (ArcGIS Online), different host.
