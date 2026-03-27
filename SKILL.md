@@ -175,7 +175,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
 | Dayton OH | `dayton` | data.dayton.gov | `kpz4-qmte` (MUST VERIFY) | `permit_number` | `issue_date` |
-| Honolulu HI | `honolulu` | data.honolulu.gov | `msx3-yfxc` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Honolulu HI | REMOVED (data-076) | data.honolulu.gov | dataset ID `msx3-yfxc` unverified — returned HTTP 400. Run: `curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"` to find correct ID | — | — |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -195,37 +195,37 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | San Jose | REMOVED | Org p8Tul9YqBFRRdPqD returns 0 services — no public permit API found (2026-03-25) | — | — |
 | Fort Worth | REMOVED | Org AHCzmZstRKFEQEqv returns 0 services — no public permit API found (2026-03-25) | — | — |
 | Albuquerque | REMOVED | Org 3HnGBxB8VqLCXhUn returns 0 services — no public permit API found (2026-03-25) | — | — |
-| Orlando | `orlando` | services1.arcgis.com/ySBMu4XsNZMHPCce/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Richmond VA | `richmond` | services1.arcgis.com/k3vhq11XkBNeeOfM/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Des Moines | `des_moines` | services.arcgis.com/eSi6C3K7GxWJJFTG/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Tulsa | `tulsa` | services.arcgis.com/vL1HzBwQf4fxjZTy/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Wichita | `wichita` | services.arcgis.com/sJ7GWBy3GCkiIsY7/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Colorado Springs | `colorado_springs` | services3.arcgis.com/oR4yfmG5eJFhSqy7/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Arlington TX | `arlington_tx` | services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Virginia Beach | `virginia_beach` | services1.arcgis.com/DqA6wR9XSVCoCbVN/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Mesa AZ | `mesa` | services2.arcgis.com/T3Rrfm3Dqq8Eepqn/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Aurora CO | `aurora` | services1.arcgis.com/IJdEUGKefCEk4KsP/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Corpus Christi | `corpus_christi` | services.arcgis.com/5eqOE8IxIoFkEeGd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Greensboro NC | `greensboro` | services.arcgis.com/CZ8GsPy9zJAnUBMD/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Durham NC | `durham` | services.arcgis.com/QLwOtBvdB5bFqPNF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Chandler AZ | `chandler` | services.arcgis.com/SVsGn6WnqbDYPUgf/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Scottsdale AZ | `scottsdale` | services.arcgis.com/4sF4h3aBrdOGHDuF/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Gilbert AZ | `gilbert` | services.arcgis.com/K1VMQDQNLVxLvLqs/.../Building_Permits/FeatureServer/0 (**MUST VERIFY — same invalid org as crime script**) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Glendale AZ | `glendale_az` | services.arcgis.com/s0YYoMkpLLkb2IPC/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Henderson NV | `henderson` | services.arcgis.com/pGfbNXXgj2WN9j5V/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Tempe AZ | `tempe` | services.arcgis.com/e5BBQV9bLnUqzr4V/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Peoria AZ | `peoria_az` | services.arcgis.com/ZNh2Q3xZvn5AJFGZ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Surprise AZ | `surprise_az` | services.arcgis.com/QJfxWS1GiDHgQMwH/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Goodyear AZ | `goodyear_az` | services.arcgis.com/aMqXhGKtSoqR5lNw/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Fort Wayne IN | `fort_wayne` | **MUST VERIFY** — crime script is a stub (no public API); permit endpoint status unknown | `PERMIT_NUM` | `ISSUED_DATE` |
-| Boise ID | `boise` | services.arcgis.com/r1QnEiQlTiHHMlou/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Cape Coral FL | `cape_coral` | **MUST VERIFY** — crime script is a stub (no crime API); permits endpoint status unknown; org qJBnRfhGOvGVBnaX was invalid | `PERMIT_NUM` | `ISSUED_DATE` |
-| Eugene OR | `eugene` | services1.arcgis.com/VZLb8iHnAWdlSeZ3/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Springfield MO | `springfield_mo` | services6.arcgis.com/bdLPgVQpKkp3xrEm/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Sioux Falls SD | `sioux_falls` | services.arcgis.com/Nf5qHqEDvuX5aNFd/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Omaha NE | `omaha` | services.arcgis.com/q4kU3NFQX1XtcMeJ/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Lincoln NE | `lincoln` | services.arcgis.com/ZPeUDkbFEf7WXNID/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
-| Salem OR | `salem_or` | services.arcgis.com/uUvqNr0XSi28N3Hj/.../Building_Permits/FeatureServer/0 (MUST VERIFY) | `PERMIT_NUM` | `ISSUED_DATE` |
+| Orlando | REMOVED (data-076) | Org ySBMu4XsNZMHPCce (services1) — service name unverified; portal: data-cityoforlando.opendata.arcgis.com | — | — |
+| Richmond VA | REMOVED (data-076) | Org k3vhq11XkBNeeOfM (services1) — service name unverified; portal: data-rvagis.opendata.arcgis.com | — | — |
+| Des Moines | REMOVED (data-076) | Org eSi6C3K7GxWJJFTG — service name unverified; portal: data.dsm.city | — | — |
+| Tulsa | REMOVED (data-076) | Org vL1HzBwQf4fxjZTy — service name unverified; portal: opendata-maptulsa.opendata.arcgis.com | — | — |
+| Wichita | REMOVED (data-076) | Org sJ7GWBy3GCkiIsY7 — service name unverified; portal: opendata.wichita.gov | — | — |
+| Colorado Springs | REMOVED (data-076) | Org oR4yfmG5eJFhSqy7 (services3) — service name unverified; portal: data-cospatial.opendata.arcgis.com | — | — |
+| Arlington TX | REMOVED (data-076) | Org v400IkDOw1ad7Yad — service name unverified; portal: data-cityofarlington.opendata.arcgis.com | — | — |
+| Virginia Beach | REMOVED (data-076) | Org DqA6wR9XSVCoCbVN (services1) — service name unverified; portal: gis.data.vbgov.com | — | — |
+| Mesa AZ | REMOVED (data-076) | Org T3Rrfm3Dqq8Eepqn (services2) — service name unverified; portal: data-mesagis.opendata.arcgis.com | — | — |
+| Aurora CO | REMOVED (data-076) | Org IJdEUGKefCEk4KsP (services1) — service name unverified; portal: data-auroragis.opendata.arcgis.com | — | — |
+| Corpus Christi | REMOVED (data-076) | Org 5eqOE8IxIoFkEeGd — service name unverified; portal: data-cctexas.opendata.arcgis.com | — | — |
+| Greensboro NC | REMOVED (data-076) | Org CZ8GsPy9zJAnUBMD — service name unverified; portal: data-greensboroncgov.opendata.arcgis.com | — | — |
+| Durham NC | REMOVED (data-076) | Org QLwOtBvdB5bFqPNF — service name unverified; portal: data-durhamnc.opendata.arcgis.com | — | — |
+| Chandler AZ | REMOVED (data-076) | Org SVsGn6WnqbDYPUgf — service name unverified; portal: data.chandleraz.gov | — | — |
+| Scottsdale AZ | REMOVED (data-076) | Org 4sF4h3aBrdOGHDuF — service name unverified; portal: data.scottsdaleaz.gov | — | — |
+| Gilbert AZ | REMOVED (data-076) | Org K1VMQDQNLVxLvLqs **CONFIRMED INVALID** (400 error); visit data.gilbertaz.gov to find correct org | — | — |
+| Glendale AZ | REMOVED (data-076) | Org s0YYoMkpLLkb2IPC — service name unverified; portal: data.glendaleaz.gov | — | — |
+| Henderson NV | REMOVED (data-076) | Org pGfbNXXgj2WN9j5V — service name unverified; portal: hendersonnv.gov/opendata | — | — |
+| Tempe AZ | REMOVED (data-076) | Org e5BBQV9bLnUqzr4V — service name unverified; portal: data.tempe.gov | — | — |
+| Peoria AZ | REMOVED (data-076) | Org ZNh2Q3xZvn5AJFGZ — service name unverified; portal: data.peoriaaz.gov (also try self-hosted gis.peoriaaz.gov) | — | — |
+| Surprise AZ | REMOVED (data-076) | Org QJfxWS1GiDHgQMwH — service name unverified; portal: data.surpriseaz.gov | — | — |
+| Goodyear AZ | REMOVED (data-076) | Org aMqXhGKtSoqR5lNw — service name unverified; portal: data.goodyearaz.gov | — | — |
+| Fort Wayne IN | REMOVED (data-076) | Org 8Wez4BJD3neYYnDt — service name unverified; portal: data.fortwayne.com (crime script is stub — no public crime API) | — | — |
+| Boise ID | REMOVED (data-076) | Org r1QnEiQlTiHHMlou — service name unverified; portal: opendata.cityofboise.org | — | — |
+| Cape Coral FL | REMOVED (data-076) | Org qJBnRfhGOvGVBnaX **LIKELY INVALID**; capecoral-capegis.opendata.arcgis.com has 70+ datasets — query for permit service directly | — | — |
+| Eugene OR | REMOVED (data-076) | Org VZLb8iHnAWdlSeZ3 (services1) — service name unverified; portal: data.eugene-or.gov | — | — |
+| Springfield MO | REMOVED (data-076) | Org bdLPgVQpKkp3xrEm (services6) — service name unverified; portal: data.springfieldmo.gov | — | — |
+| Sioux Falls SD | REMOVED (data-076) | Org Nf5qHqEDvuX5aNFd — service name unverified; also try self-hosted: gis.siouxfalls.gov/arcgis/rest/services | — | — |
+| Omaha NE | REMOVED (data-076) | Org q4kU3NFQX1XtcMeJ — service name unverified; portal: opendata.cityofomaha.org | — | — |
+| Lincoln NE | REMOVED (data-076) | Org ZPeUDkbFEf7WXNID — service name unverified; portal: opendata.lincoln.ne.gov | — | — |
+| Salem OR | REMOVED (data-076) | Org uUvqNr0XSi28N3Hj — service name unverified; portal: data.cityofsalem.net | — | — |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -483,15 +483,41 @@ Research was done via SKILL.md cross-reference (crime script org IDs) and traini
 - **glendale_az** — org `s0YYoMkpLLkb2IPC` is unverified (MUST VERIFY in crime script too).
   Portal: https://data.glendaleaz.gov — search "building permits".
 
-*Action required for data-076:* Run with network access (outbound HTTPS):
-  ```
-  python backend/ingest/us_city_permits_arcgis.py --city denver --dry-run
-  # ... etc. for all remaining cities
-  ```
-  For each city where --discover returns a FeatureServer URL:
-  1. Update service_url in CITY_CONFIGS
-  2. Remove from DISABLED_SOURCE_KEYS
-  3. Run --city <key> --dry-run to confirm fields and record count
+**data-076: All remaining 31 disabled permit configs removed (2026-03-27):**
+CI environment has no outbound HTTPS (curl/WebFetch/urllib all blocked). All 31 ArcGIS
+configs and 1 Socrata config (Honolulu) were removed from CITY_CONFIGS / disabled=True
+entries. The placeholder service name `Building_Permits/FeatureServer/0` never matched
+any real ArcGIS service and all returned HTTP 400 in every pipeline run.
+
+Org IDs and portal URLs are preserved in REMOVED comment blocks in each source file
+(search for `REMOVED — data-057` through `REMOVED — data-076` in us_city_permits_arcgis.py)
+and in the ArcGIS Permits table above.
+
+*To re-add a city with network access:*
+```bash
+# 1. List all services for the city's org (find the permit service name):
+curl -s "https://services{N}.arcgis.com/{ORG_ID}/arcgis/rest/services?f=json" \
+  | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
+
+# 2. Try self-hosted GIS servers if ArcGIS Online has no results:
+curl -s "https://gis.{city}.gov/arcgis/rest/services?f=json" | python3 -c "..."
+
+# 3. Once you find the real service name, test it:
+python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
+
+# 4. If it returns records: add the config back to CITY_CONFIGS with the correct
+#    service_url, id_field, issue_date_field, and addr_field values.
+```
+
+*Next step for data-077:* Run the above for all 31 cities with network access.
+Priority order (most likely to have valid data):
+1. orlando, richmond, des_moines, tulsa, wichita (orgs match crime scripts)
+2. virginia_beach, colorado_springs, aurora, corpus_christi, greensboro, durham
+3. chandler, scottsdale, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az
+4. fort_wayne, boise, eugene, springfield_mo, omaha, lincoln, salem_or, sioux_falls
+5. cape_coral (org likely invalid; check capecoral-capegis.opendata.arcgis.com directly)
+6. gilbert (org K1VMQDQNLVxLvLqs confirmed invalid; visit data.gilbertaz.gov to get correct org)
+7. honolulu (Socrata): curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
 
 ### Stale / Frozen Datasets
 

@@ -11,8 +11,8 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-075 (research permit URLs for 20 high-value disabled cities)
-# Next task to create: data-076
+# Last completed task: data-076 (audit remaining 31 disabled permit cities — configs removed)
+# Next task to create: data-077
 
 tasks:
   - id: data-075
@@ -58,33 +58,63 @@ tasks:
           3. Run --dry-run to verify fields and record count
 
   - id: data-076
-    title: Live-verify and re-enable permit configs for verified-org cities
+    title: Audit remaining 31 disabled permit cities — remove broken placeholder configs
+    status: done
+    priority: high
+    github_issue: 239
+    files:
+      - backend/ingest/us_city_permits_arcgis.py
+      - backend/ingest/us_city_permits.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-076 complete (issue #239).
+      CI has no outbound HTTPS — could not run --discover or curl service listings.
+      All 31 ArcGIS placeholder configs (data-057 through data-071) removed from
+      CITY_CONFIGS. All had placeholder service name "Building_Permits/FeatureServer/0"
+      that never matched any real ArcGIS service. All returned HTTP 400 in every run.
+      Honolulu Socrata config (us_city_permits.py) also removed — dataset ID msx3-yfxc
+      was unverified and returned HTTP 400.
+      DISABLED_SOURCE_KEYS is now empty.
+      Org IDs + portal URLs preserved in REMOVED comment blocks in us_city_permits_arcgis.py
+      and in ArcGIS Permits table in SKILL.md.
+      SKILL.md data-076 section has re-enablement guide with curl commands and priority order.
+      Next: data-077 should run with NETWORK ACCESS to query service listings for all 31 cities,
+        find real permit service names, and re-add configs that work.
+        Priority: orlando, richmond, des_moines, tulsa, wichita (orgs likely valid, same as crime scripts).
+        For each: curl https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json
+        then add config with correct service_url and run --dry-run.
+
+  - id: data-077
+    title: Re-enable permit configs for 31 removed cities with network access
     status: backlog
     priority: high
     github_issue: null
     files:
       - backend/ingest/us_city_permits_arcgis.py
+      - backend/ingest/us_city_permits.py
       - TASKS.yaml
       - SKILL.md
     notes_for_next_agent: >
-      data-076 is the follow-on to data-075.
-      REQUIRES NETWORK ACCESS (outbound HTTPS) to run --discover and --dry-run.
-      Priority order (verified orgs first, most likely to succeed):
-        1. denver  — org zdB7qR0BtYrg0Xpl VALID; run --discover to find correct service name
-        2. san_jose — org p8Tul9YqBFRRdPqD VALID; run --discover to find correct service name
-        3. fort_worth — org AHCzmZstRKFEQEqv VALID; run --discover to find correct service name
-        4. albuquerque — org 3HnGBxB8VqLCXhUn VALID; run --discover to find correct service name
-        5. portland — org quVN97tn06YNGj9s UNVERIFIED; may need different URL format
-        6. las_vegas — org VIkzGEMZbaSsMGLk UNVERIFIED; different org from crime script
-        7. tucson — self-hosted gisdata.tucsonaz.gov; browse REST services catalog
-        Then: virginia_beach, colorado_springs, aurora, corpus_christi, greensboro,
-              durham, chandler, scottsdale, glendale_az (all orgs unverified)
-      For each city:
-        python backend/ingest/us_city_permits_arcgis.py --city <key> --discover
-        → If FeatureServer URL found: update service_url, remove from DISABLED_SOURCE_KEYS
-        → Run --dry-run to confirm fields and record count
-        → Update SKILL.md ArcGIS Permits table with verified URL
-      See SKILL.md data-075 section for portal URLs and research context per city.
+      data-077 is the follow-on to data-076. REQUIRES NETWORK ACCESS.
+      31 ArcGIS cities + 1 Socrata city (honolulu) need live verification.
+      Org IDs are in REMOVED comment blocks in us_city_permits_arcgis.py.
+      Re-enablement workflow per city:
+        1. curl "https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json" \
+               | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
+        2. Find permit service name (look for "permit", "building", "construction")
+        3. Try /FeatureServer/0 and /MapServer/0 for the discovered service
+        4. Add config entry with correct service_url, id_field, issue_date_field, addr_field
+        5. Run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
+        6. If records returned: add to CITY_CONFIGS, update SKILL.md table
+      Priority order:
+        Tier 1 (orgs same as working crime scripts): orlando, richmond, des_moines, tulsa, wichita
+        Tier 2: virginia_beach, colorado_springs, aurora, corpus_christi, greensboro, durham
+        Tier 3 AZ: chandler, scottsdale, glendale_az, henderson, tempe, peoria_az, surprise_az, goodyear_az
+        Tier 4: fort_wayne, boise, eugene, springfield_mo, omaha, lincoln, salem_or, sioux_falls
+        Tier 5 (uncertain): cape_coral (org likely invalid), gilbert (org confirmed invalid)
+        Socrata: honolulu — curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
+      See SKILL.md data-076 section for full re-enablement guide.
 
   - id: data-074
     title: Fix broken permit configs + add crime stubs for 5 new cities
