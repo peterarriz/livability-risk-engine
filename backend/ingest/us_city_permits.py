@@ -686,39 +686,11 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     # -----------------------------------------------------------------
-    # data-071: tier-13 city permits (Socrata portals)
+    # REMOVED — data-071 Honolulu (2026-03-27, data-076):
+    #   dataset ID msx3-yfxc returned HTTP 400 in every pipeline run — never live-verified.
+    #   To re-add: curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
+    #   to find the correct Socrata 4x4 dataset ID, then add back config with disabled=False.
     # -----------------------------------------------------------------
-    {
-        # Honolulu, HI — Building Permits.
-        # Portal: https://data.honolulu.gov (Socrata — City and County of Honolulu)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"
-        #   curl "https://data.honolulu.gov/resource/<id>.json?$limit=1"
-        # data-071: added 2026-03-25
-        "city_name":        "Honolulu",
-        "source_key":       "honolulu",
-        "disabled":         True,  # data-074: returns HTTP 400; dataset ID not live-verified
-        "disabled_reason":  (
-            "dataset ID msx3-yfxc not live-verified — returns HTTP 400. "
-            "Fix: curl 'https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10' "
-            "to find the correct dataset ID, then remove disabled=True."
-        ),
-        "domain":           "data.honolulu.gov",
-        "dataset_id":       "msx3-yfxc",  # not live-verified — update before re-enabling
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "skip_date_filter": False,
-        "max_records":      None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Honolulu, HI",
-        "where_clause":     None,
-    },
     # -----------------------------------------------------------------
     # data-058: tier-8 city permits (Socrata portals)
     # -----------------------------------------------------------------

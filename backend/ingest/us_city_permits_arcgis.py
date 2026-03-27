@@ -341,274 +341,34 @@ CITY_CONFIGS: list[dict] = [
     #   No public permit FeatureServer found.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # data-057: Tier-7 city permits (2026-03-24)
+    # REMOVED — data-057 tier-7 cities (2026-03-27, data-076):
+    #   All 12 configs returned HTTP 400 "Invalid URL" in every pipeline run.
+    #   Service names were guessed placeholders ("Building_Permits/FeatureServer/0")
+    #   that do not match the actual ArcGIS service names for these orgs.
+    #   Org IDs may be valid (same orgs used in crime-trends scripts) but
+    #   real service names require live verification with network access.
+    #
+    #   To re-enable a city:
+    #     1. curl https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json \
+    #            | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
+    #     2. Find the permit-related service name from the output
+    #     3. Add a config entry with the correct service_url
+    #     4. Run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
+    #
+    #   City reference (org IDs + portals):
+    #     orlando:          services1.arcgis.com/ySBMu4XsNZMHPCce  portal: data-cityoforlando.opendata.arcgis.com
+    #     richmond:         services1.arcgis.com/k3vhq11XkBNeeOfM  portal: data-rvagis.opendata.arcgis.com
+    #     des_moines:       services.arcgis.com/eSi6C3K7GxWJJFTG   portal: data.dsm.city
+    #     tulsa:            services.arcgis.com/vL1HzBwQf4fxjZTy   portal: opendata-maptulsa.opendata.arcgis.com
+    #     wichita:          services.arcgis.com/sJ7GWBy3GCkiIsY7   portal: opendata.wichita.gov
+    #     colorado_springs: services3.arcgis.com/oR4yfmG5eJFhSqy7  portal: data-cospatial.opendata.arcgis.com
+    #     arlington_tx:     services.arcgis.com/v400IkDOw1ad7Yad   portal: data-cityofarlington.opendata.arcgis.com
+    #     virginia_beach:   services1.arcgis.com/DqA6wR9XSVCoCbVN  portal: gis.data.vbgov.com
+    #     mesa:             services2.arcgis.com/T3Rrfm3Dqq8Eepqn  portal: data-mesagis.opendata.arcgis.com
+    #     aurora:           services1.arcgis.com/IJdEUGKefCEk4KsP  portal: data-auroragis.opendata.arcgis.com
+    #     corpus_christi:   services.arcgis.com/5eqOE8IxIoFkEeGd   portal: data-cctexas.opendata.arcgis.com
+    #     greensboro:       services.arcgis.com/CZ8GsPy9zJAnUBMD   portal: data-greensboroncgov.opendata.arcgis.com
     # -----------------------------------------------------------------
-    {
-        # Orlando, FL — Building Permits.
-        # Portal: https://data-cityoforlando.opendata.arcgis.com (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city orlando --discover
-        #   Or visit: https://data-cityoforlando.opendata.arcgis.com and search "permits"
-        "city_name":        "Orlando",
-        "source_key":       "orlando",
-        "service_url":      (
-            "https://services1.arcgis.com/ySBMu4XsNZMHPCce/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-cityoforlando.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Orlando, FL",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Richmond, VA — Building Permits.
-        # Portal: https://data-rvagis.opendata.arcgis.com (Richmond GIS)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city richmond --discover
-        "city_name":        "Richmond",
-        "source_key":       "richmond",
-        "service_url":      (
-            "https://services1.arcgis.com/k3vhq11XkBNeeOfM/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-rvagis.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Richmond, VA",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Des Moines, IA — Building Permits.
-        # Portal: https://data.dsm.city (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city des_moines --discover
-        "city_name":        "Des Moines",
-        "source_key":       "des_moines",
-        "service_url":      (
-            "https://services.arcgis.com/eSi6C3K7GxWJJFTG/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.dsm.city",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Des Moines, IA",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Tulsa, OK — Building Permits.
-        # Portal: https://opendata-maptulsa.opendata.arcgis.com (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city tulsa --discover
-        "city_name":        "Tulsa",
-        "source_key":       "tulsa",
-        "service_url":      (
-            "https://services.arcgis.com/vL1HzBwQf4fxjZTy/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendata-maptulsa.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Tulsa, OK",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Wichita, KS — Building Permits.
-        # Portal: https://opendata.wichita.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city wichita --discover
-        "city_name":        "Wichita",
-        "source_key":       "wichita",
-        "service_url":      (
-            "https://services.arcgis.com/sJ7GWBy3GCkiIsY7/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendata.wichita.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Wichita, KS",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Colorado Springs, CO — Building Permits.
-        # Portal: https://data-cospatial.opendata.arcgis.com (City of Colorado Springs GIS)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city colorado_springs --discover
-        "city_name":        "Colorado Springs",
-        "source_key":       "colorado_springs",
-        "service_url":      (
-            "https://services3.arcgis.com/oR4yfmG5eJFhSqy7/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-cospatial.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Colorado Springs, CO",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Arlington, TX — Building Permits.
-        # Portal: https://data-cityofarlington.opendata.arcgis.com (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city arlington_tx --discover
-        "city_name":        "Arlington TX",
-        "source_key":       "arlington_tx",
-        "service_url":      (
-            "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-cityofarlington.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Arlington, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Virginia Beach, VA — Building Permits.
-        # Portal: https://gis.data.vbgov.com (Virginia Beach GIS)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city virginia_beach --discover
-        "city_name":        "Virginia Beach",
-        "source_key":       "virginia_beach",
-        "service_url":      (
-            "https://services1.arcgis.com/DqA6wR9XSVCoCbVN/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://gis.data.vbgov.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Virginia Beach, VA",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Mesa, AZ — Building Permits.
-        # Portal: https://data-mesagis.opendata.arcgis.com (Mesa GIS)
-        # Note: Mesa is separate from Phoenix/Maricopa — covered by separate scripts.
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city mesa --discover
-        "city_name":        "Mesa",
-        "source_key":       "mesa",
-        "service_url":      (
-            "https://services2.arcgis.com/T3Rrfm3Dqq8Eepqn/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-mesagis.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Mesa, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Aurora, CO — Building Permits.
-        # Portal: https://data-auroragis.opendata.arcgis.com (Aurora GIS)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city aurora --discover
-        "city_name":        "Aurora",
-        "source_key":       "aurora",
-        "service_url":      (
-            "https://services1.arcgis.com/IJdEUGKefCEk4KsP/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-auroragis.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Aurora, CO",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Corpus Christi, TX — Building Permits.
-        # Portal: https://data-cctexas.opendata.arcgis.com (City of Corpus Christi)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city corpus_christi --discover
-        "city_name":        "Corpus Christi",
-        "source_key":       "corpus_christi",
-        "service_url":      (
-            "https://services.arcgis.com/5eqOE8IxIoFkEeGd/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-cctexas.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Corpus Christi, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Greensboro, NC — Building Permits.
-        # Portal: https://data-greensboroncgov.opendata.arcgis.com (City of Greensboro)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city greensboro --discover
-        "city_name":        "Greensboro",
-        "source_key":       "greensboro",
-        "service_url":      (
-            "https://services.arcgis.com/CZ8GsPy9zJAnUBMD/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-greensboroncgov.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Greensboro, NC",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-057):
     #   Bakersfield, CA — no Socrata, ArcGIS, or CKAN portal.
@@ -619,150 +379,20 @@ CITY_CONFIGS: list[dict] = [
     #     Same Orange County limitation; no independent city API.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # data-058: tier-8 city permits (ArcGIS Hub)
+    # REMOVED — data-058 tier-8 cities (2026-03-27, data-076):
+    #   All 6 configs returned HTTP 400 "Invalid URL" in every pipeline run.
+    #   Service name "Building_Permits/FeatureServer/0" was a guessed placeholder.
+    #   gilbert org K1VMQDQNLVxLvLqs is CONFIRMED INVALID (returns 400).
+    #   Other orgs may be valid; real service names require live verification.
+    #
+    #   City reference (org IDs + portals):
+    #     durham:      services.arcgis.com/QLwOtBvdB5bFqPNF   portal: data-durhamnc.opendata.arcgis.com
+    #     chandler:    services.arcgis.com/SVsGn6WnqbDYPUgf   portal: data.chandleraz.gov
+    #     scottsdale:  services.arcgis.com/4sF4h3aBrdOGHDuF   portal: data.scottsdaleaz.gov
+    #     gilbert:     org K1VMQDQNLVxLvLqs CONFIRMED INVALID — visit data.gilbertaz.gov to find correct org
+    #     glendale_az: services.arcgis.com/s0YYoMkpLLkb2IPC   portal: data.glendaleaz.gov
+    #     henderson:   services.arcgis.com/pGfbNXXgj2WN9j5V   portal: hendersonnv.gov/opendata
     # -----------------------------------------------------------------
-    {
-        # Durham, NC — Building Permits.
-        # Portal: https://data-durhamnc.opendata.arcgis.com (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city durham --discover
-        # data-058: added 2026-03-24
-        "city_name":        "Durham",
-        "source_key":       "durham",
-        "service_url":      (
-            "https://services.arcgis.com/QLwOtBvdB5bFqPNF/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-durhamnc.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Durham, NC",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Chandler, AZ — Building Permits.
-        # Portal: https://data.chandleraz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city chandler --discover
-        # data-058: added 2026-03-24
-        "city_name":        "Chandler",
-        "source_key":       "chandler",
-        "service_url":      (
-            "https://services.arcgis.com/SVsGn6WnqbDYPUgf/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.chandleraz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Chandler, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Scottsdale, AZ — Building Permits.
-        # Portal: https://data.scottsdaleaz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city scottsdale --discover
-        # data-058: added 2026-03-24
-        "city_name":        "Scottsdale",
-        "source_key":       "scottsdale",
-        "service_url":      (
-            "https://services.arcgis.com/4sF4h3aBrdOGHDuF/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.scottsdaleaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Scottsdale, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Gilbert, AZ — Building Permits.
-        # Portal: https://data.gilbertaz.gov (ArcGIS Hub)
-        # BLOCKED: org ID K1VMQDQNLVxLvLqs is INVALID (returns 400 "Invalid URL").
-        # Fix: visit https://data.gilbertaz.gov, find Building Permits dataset,
-        #      extract org ID from FeatureServer URL, update service_url below.
-        # Helper: python backend/ingest/verify_arcgis_endpoints.py --city gilbert --discover
-        # data-058: added 2026-03-24; data-066: blocked — needs org ID fix
-        "city_name":        "Gilbert",
-        "source_key":       "gilbert",
-        "service_url":      (
-            "https://services.arcgis.com/K1VMQDQNLVxLvLqs/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"  # INVALID — see comment above
-        ),
-        "portal_url":       "https://data.gilbertaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Gilbert, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Glendale, AZ — Building Permits.
-        # NOTE: This is Glendale, AZ (Maricopa County), not Glendale, CA.
-        # Portal: https://data.glendaleaz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city glendale_az --discover
-        # data-058: added 2026-03-24
-        "city_name":        "Glendale AZ",
-        "source_key":       "glendale_az",
-        "service_url":      (
-            "https://services.arcgis.com/s0YYoMkpLLkb2IPC/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.glendaleaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Glendale, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Henderson, NV — Building Permits.
-        # Henderson has its own city portal (separate from Las Vegas).
-        # Portal: https://hendersonnv.gov/opendata (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city henderson --discover
-        # data-058: added 2026-03-24
-        "city_name":        "Henderson",
-        "source_key":       "henderson",
-        "service_url":      (
-            "https://services.arcgis.com/pGfbNXXgj2WN9j5V/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://hendersonnv.gov/opendata",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Henderson, NV",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-058):
     #   Hialeah, FL — no separate city portal; Miami-Dade County coverage
@@ -782,102 +412,16 @@ CITY_CONFIGS: list[dict] = [
     #   Chesapeake, VA — CPD no public incident-level API found.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # data-065: tier-10 city permits (ArcGIS Hub) — Maricopa County AZ
+    # REMOVED — data-065 tier-10 cities (2026-03-27, data-076):
+    #   All 4 Maricopa County AZ configs returned HTTP 400 in every pipeline run.
+    #   Service name "Building_Permits/FeatureServer/0" was a guessed placeholder.
+    #
+    #   City reference (org IDs + portals):
+    #     tempe:       services.arcgis.com/e5BBQV9bLnUqzr4V   portal: data.tempe.gov
+    #     peoria_az:   services.arcgis.com/ZNh2Q3xZvn5AJFGZ   portal: data.peoriaaz.gov
+    #     surprise_az: services.arcgis.com/QJfxWS1GiDHgQMwH   portal: data.surpriseaz.gov
+    #     goodyear_az: services.arcgis.com/aMqXhGKtSoqR5lNw   portal: data.goodyearaz.gov
     # -----------------------------------------------------------------
-    {
-        # Tempe, AZ — Building Permits.
-        # Portal: https://data.tempe.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city tempe --discover
-        #   Or visit: https://data.tempe.gov and search "building permits"
-        # data-065: added 2026-03-24
-        "city_name":        "Tempe",
-        "source_key":       "tempe",
-        "service_url":      (
-            "https://services.arcgis.com/e5BBQV9bLnUqzr4V/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.tempe.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Tempe, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Peoria, AZ — Building Permits.
-        # NOTE: This is Peoria, AZ (Maricopa County), not Peoria, IL.
-        # Portal: https://data.peoriaaz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city peoria_az --discover
-        # data-065: added 2026-03-24
-        "city_name":        "Peoria AZ",
-        "source_key":       "peoria_az",
-        "service_url":      (
-            "https://services.arcgis.com/ZNh2Q3xZvn5AJFGZ/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.peoriaaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Peoria, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Surprise, AZ — Building Permits.
-        # Portal: https://data.surpriseaz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city surprise_az --discover
-        # data-065: added 2026-03-24
-        "city_name":        "Surprise AZ",
-        "source_key":       "surprise_az",
-        "service_url":      (
-            "https://services.arcgis.com/QJfxWS1GiDHgQMwH/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.surpriseaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Surprise, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Goodyear, AZ — Building Permits.
-        # Portal: https://data.goodyearaz.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city goodyear_az --discover
-        # data-065: added 2026-03-24
-        "city_name":        "Goodyear AZ",
-        "source_key":       "goodyear_az",
-        "service_url":      (
-            "https://services.arcgis.com/aMqXhGKtSoqR5lNw/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.goodyearaz.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Goodyear, AZ",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-065):
     #   Montgomery, AL — no Socrata/ArcGIS/CKAN open data portal.
@@ -893,230 +437,31 @@ CITY_CONFIGS: list[dict] = [
     #   Elk Grove, CA — Sacramento suburb; no open data portal found.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
-    # data-068: tier-11 city permits (ArcGIS Hub) — new cities
+    # REMOVED — data-068 tier-11 cities (2026-03-27, data-076):
+    #   All 3 configs returned HTTP 400 in every pipeline run.
+    #   cape_coral org qJBnRfhGOvGVBnaX noted as invalid (SKILL.md data-075).
+    #   fort_wayne crime script is a stub (no public crime API); permit endpoint unknown.
+    #
+    #   City reference (org IDs + portals):
+    #     fort_wayne: services.arcgis.com/8Wez4BJD3neYYnDt  portal: data.fortwayne.com
+    #     boise:      services.arcgis.com/r1QnEiQlTiHHMlou  portal: opendata.cityofboise.org
+    #     cape_coral: org qJBnRfhGOvGVBnaX LIKELY INVALID   portal: data.capecoral.gov
+    #                 (capecoral-capegis.opendata.arcgis.com has 70+ datasets; check for permits)
     # -----------------------------------------------------------------
-    {
-        # Fort Wayne, IN — Building Permits.
-        # Portal: https://data.fortwayne.com (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city fort_wayne --discover
-        #   Or visit: https://data.fortwayne.com and search "building permits"
-        # data-068: added 2026-03-25
-        "city_name":        "Fort Wayne",
-        "source_key":       "fort_wayne",
-        "service_url":      (
-            "https://services.arcgis.com/8Wez4BJD3neYYnDt/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.fortwayne.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Fort Wayne, IN",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Boise, ID — Building Permits.
-        # Portal: https://opendata.cityofboise.org (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city boise --discover
-        #   Or visit: https://opendata.cityofboise.org and search "building permits"
-        # data-068: added 2026-03-25
-        "city_name":        "Boise",
-        "source_key":       "boise",
-        "service_url":      (
-            "https://services.arcgis.com/r1QnEiQlTiHHMlou/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendata.cityofboise.org",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Boise, ID",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Cape Coral, FL — Building Permits.
-        # Portal: https://data.capecoral.gov (ArcGIS Hub — confirmed to exist; data-065)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city cape_coral --discover
-        #   Or visit: https://data.capecoral.gov and search "building permits"
-        # data-068: added 2026-03-25
-        "city_name":        "Cape Coral",
-        "source_key":       "cape_coral",
-        "service_url":      (
-            "https://services.arcgis.com/qJBnRfhGOvGVBnaX/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.capecoral.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Cape Coral, FL",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
     # -----------------------------------------------------------------
-    # data-070: tier-12 city permits (ArcGIS portals)
+    # REMOVED — data-070 + data-071 tier-12/13 cities (2026-03-27, data-076):
+    #   All 6 configs returned HTTP 400 in every pipeline run.
+    #   sioux_falls crime uses self-hosted gis.siouxfalls.gov; permit org Nf5qHqEDvuX5aNFd unverified.
+    #
+    #   City reference (org IDs + portals):
+    #     eugene:         services1.arcgis.com/VZLb8iHnAWdlSeZ3  portal: data.eugene-or.gov
+    #     springfield_mo: services6.arcgis.com/bdLPgVQpKkp3xrEm  portal: data.springfieldmo.gov
+    #     sioux_falls:    services.arcgis.com/Nf5qHqEDvuX5aNFd   portal: siouxfalls.org/departments/information-technology/gis
+    #                     (also try self-hosted: gis.siouxfalls.gov/arcgis/rest/services)
+    #     omaha:          services.arcgis.com/q4kU3NFQX1XtcMeJ   portal: opendata.cityofomaha.org
+    #     lincoln:        services.arcgis.com/ZPeUDkbFEf7WXNID   portal: opendata.lincoln.ne.gov
+    #     salem_or:       services.arcgis.com/uUvqNr0XSi28N3Hj   portal: data.cityofsalem.net
     # -----------------------------------------------------------------
-    {
-        # Eugene, OR — Building Permits.
-        # Portal: https://data.eugene-or.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city eugene --discover
-        #   Or visit: https://data.eugene-or.gov and search "building permits"
-        # data-070: added 2026-03-25
-        "city_name":        "Eugene",
-        "source_key":       "eugene",
-        "service_url":      (
-            "https://services1.arcgis.com/VZLb8iHnAWdlSeZ3/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.eugene-or.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Eugene, OR",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Springfield, MO — Building Permits.
-        # Portal: https://data.springfieldmo.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city springfield_mo --discover
-        #   Or visit: https://data.springfieldmo.gov and search "building permits"
-        # data-070: added 2026-03-25
-        "city_name":        "Springfield MO",
-        "source_key":       "springfield_mo",
-        "service_url":      (
-            "https://services6.arcgis.com/bdLPgVQpKkp3xrEm/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.springfieldmo.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Springfield, MO",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Sioux Falls, SD — Building Permits.
-        # Portal: ArcGIS Hub (search "Sioux Falls building permits")
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city sioux_falls --discover
-        #   Or search ArcGIS Hub for "Sioux Falls building permits"
-        # data-070: added 2026-03-25
-        "city_name":        "Sioux Falls",
-        "source_key":       "sioux_falls",
-        "service_url":      (
-            "https://services.arcgis.com/Nf5qHqEDvuX5aNFd/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://www.siouxfalls.org/departments/information-technology/gis",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Sioux Falls, SD",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    # -----------------------------------------------------------------
-    # data-071: tier-13 city permits (ArcGIS Hub)
-    # -----------------------------------------------------------------
-    {
-        # Omaha, NE — Building Permits.
-        # Portal: https://opendata.cityofomaha.org (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city omaha --discover
-        #   Or visit: https://opendata.cityofomaha.org and search "building permits"
-        # data-071: added 2026-03-25
-        "city_name":        "Omaha",
-        "source_key":       "omaha",
-        "service_url":      (
-            "https://services.arcgis.com/q4kU3NFQX1XtcMeJ/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendata.cityofomaha.org",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Omaha, NE",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Lincoln, NE — Building Permits.
-        # Portal: https://opendata.lincoln.ne.gov (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city lincoln --discover
-        #   Or visit: https://opendata.lincoln.ne.gov and search "building permits"
-        # data-071: added 2026-03-25
-        "city_name":        "Lincoln",
-        "source_key":       "lincoln",
-        "service_url":      (
-            "https://services.arcgis.com/ZPeUDkbFEf7WXNID/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendata.lincoln.ne.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Lincoln, NE",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Salem, OR — Building Permits.
-        # Portal: https://data.cityofsalem.net or https://gis.cityofsalem.net (ArcGIS Hub)
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city salem_or --discover
-        #   Or visit: https://salem.maps.arcgis.com and search "building permits"
-        # data-071: added 2026-03-25
-        "city_name":        "Salem OR",
-        "source_key":       "salem_or",
-        "service_url":      (
-            "https://services.arcgis.com/uUvqNr0XSi28N3Hj/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.cityofsalem.net",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Salem, OR",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-071):
     #   Green Bay, WI — data.greenbaywi.gov does not resolve to open data portal;
@@ -1170,48 +515,28 @@ CITY_CONFIGS: list[dict] = [
 CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 
 # ---------------------------------------------------------------------------
-# Disabled source keys (pending URL verification) — data-074
+# Disabled source keys — data-076
 # ---------------------------------------------------------------------------
-# All entries below returned HTTP 400 "Invalid URL" in every pipeline run.
-# Their org IDs were estimated and have NOT been live-verified.
+# All 31 placeholder configs (data-057 through data-071) were removed from
+# CITY_CONFIGS on 2026-03-27 (data-076). They all returned HTTP 400 "Invalid
+# URL" because the service names were guessed placeholders ("Building_Permits")
+# that did not match any real ArcGIS service name.
 #
-# To re-enable a city:
-#   1. python backend/ingest/us_city_permits_arcgis.py --city <key> --discover
-#      OR visit the city's portal_url and search "building permits"
-#   2. Copy the FeatureServer/0 URL from the dataset API explorer
-#   3. Update service_url in CITY_CONFIGS for that entry
-#   4. Remove source_key from DISABLED_SOURCE_KEYS below
-#   5. Re-run --city <key> --dry-run to confirm records are returned
-DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
-    # data-057: unverified org IDs
-    "orlando", "richmond", "des_moines", "tulsa", "wichita",
-    "colorado_springs", "arlington_tx", "virginia_beach",
-    "mesa", "aurora", "corpus_christi", "greensboro",
-    # data-058: unverified or confirmed invalid org IDs
-    "durham", "chandler", "scottsdale",
-    "gilbert",       # CONFIRMED INVALID: org K1VMQDQNLVxLvLqs returns 400
-    "glendale_az", "henderson",
-    # data-065: unverified org IDs
-    "tempe", "peoria_az", "surprise_az", "goodyear_az",
-    # data-068: unverified org IDs
-    "fort_wayne", "boise", "cape_coral",
-    # data-070: unverified org IDs
-    "eugene", "springfield_mo", "sioux_falls",
-    # data-071: unverified org IDs
-    "omaha", "lincoln", "salem_or",
-})
+# The org IDs are preserved in REMOVED comment blocks in CITY_CONFIGS above.
+# To re-add a city: query its org's service listing, find the permit service
+# name, then add a config entry and run --dry-run to verify.
+#
+# DISABLED_SOURCE_KEYS is kept empty — no active city configs are disabled.
+DISABLED_SOURCE_KEYS: frozenset[str] = frozenset()
 
-# Special notes for specific disabled cities (shown in log output).
-# data-075: added notes for priority cities to guide re-enablement.
+# Special notes for removed cities (preserved for reference).
 DISABLED_NOTES: dict[str, str] = {
-    "gilbert": (
-        "org ID K1VMQDQNLVxLvLqs is CONFIRMED INVALID (HTTP 400). "
-        "Visit https://data.gilbertaz.gov to find the correct FeatureServer URL."
-    ),
-    # san_jose, fort_worth, albuquerque: REMOVED (2026-03-25) — org IDs return
-    # 0 services on all subdomains. No public permit FeatureServer found.
-    # las_vegas: REMOVED (2026-03-27) — org VIkzGEMZbaSsMGLk returns 0 services,
-    # gis.lasvegasnevada.gov does not resolve, Hub search returns no permit datasets.
+    # gilbert: org K1VMQDQNLVxLvLqs CONFIRMED INVALID (HTTP 400). Config removed.
+    # las_vegas: org VIkzGEMZbaSsMGLk returns 0 services; gis.lasvegasnevada.gov unreachable.
+    # el_paso: real data at gis.elpasotexas.gov but server blocks python-requests with 403.
+    # san_jose, fort_worth, albuquerque: orgs return 0 services on all subdomains.
+    # cape_coral: org qJBnRfhGOvGVBnaX noted as invalid; capecoral-capegis.opendata.arcgis.com
+    #   has 70+ datasets but no permit FeatureServer confirmed.
 }
 
 # Records per page (ArcGIS default max varies by server; 1000 is safe).
