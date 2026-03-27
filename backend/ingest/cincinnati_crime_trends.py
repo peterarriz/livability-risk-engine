@@ -8,9 +8,13 @@ crime trends by district.
 
 Source:
   Socrata — data.cincinnati-oh.gov
-  Dataset: PDI (Police Data Initiative) Crime Incidents (k59e-2pvf)
+  Dataset: Reported Crime (STARS Category Offenses) on or after 6/3/2024
+  Dataset ID: 7aqy-xrv9 (verified 2026-03-27, actively updated)
 
-  Key fields: date_reported, dst, offense
+  Note: Previous dataset k59e-2pvf (PDI Crime Incidents) stopped receiving
+  new data after Jan 2026 — only 3 records in the last 12 months.
+
+  Key fields: datereported, beat (D{district}B{beat}), stars_category
 
 Output:
   data/raw/cincinnati_crime_trends.json
@@ -31,13 +35,13 @@ from pathlib import Path
 
 import requests
 
-CRIMES_URL = "https://data.cincinnati-oh.gov/resource/k59e-2pvf.json"
+CRIMES_URL = "https://data.cincinnati-oh.gov/resource/7aqy-xrv9.json"
 SOCRATA_DOMAIN = "data.cincinnati-oh.gov"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/cincinnati_crime_trends.json")
 
-DATE_FIELD = "date_reported"
-GROUP_FIELD = "dst"
+DATE_FIELD = "datereported"
+GROUP_FIELD = "beat"
 
 CINCINNATI_LAT = 39.1031
 CINCINNATI_LON = -84.5120
@@ -73,9 +77,14 @@ def fetch_crime_counts(
 
     results: dict[str, int] = {}
     for row in rows:
-        district = str(row.get(GROUP_FIELD) or "").strip()
-        if not district:
+        beat = str(row.get(GROUP_FIELD) or "").strip()
+        if not beat:
             continue
+        # Extract district from beat code: D3B5 → 3, D1B2 → 1
+        if beat.startswith("D") and "B" in beat:
+            district = beat[1:beat.index("B")]
+        else:
+            continue  # skip non-standard beats (CP, CB, etc.)
         try:
             count = int(row.get("crime_count", 0))
         except (TypeError, ValueError):

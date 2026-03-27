@@ -10,6 +10,10 @@ Source:
   ArcGIS FeatureServer — City of Fresno Crime Data
   https://services6.arcgis.com/Gs01XZPFhKUG8tKU/arcgis/rest/services/City_of_Fresno_Crime_Data_View/FeatureServer/0
 
+  WARNING: Dataset frozen at July 2023 (CrimeDataTmpl2022, 31,667 records).
+  No newer crime data found on this ArcGIS org. Returns 0 records for
+  any date window after 2023-07-25. Needs a new data source.
+
   Key fields: OccurredOn, District, PD_District, Offense, Lat, Lon
 
 Output:

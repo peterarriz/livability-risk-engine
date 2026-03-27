@@ -19,8 +19,9 @@ Source:
     https://services.arcgis.com/CWv1abTnC3urn4bV/arcgis/rest/services
     /Incidents/FeatureServer/0
 
-  Verify sample record:
-    curl "{service_url}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json"
+  WARNING: Dataset frozen at November 17, 2024 (108,395 records).
+  No newer crime data found on this ArcGIS org. Returns 0 records for
+  any date window after 2024-11-17. Needs a new data source.
 
   Key fields (verified via sample query):
     ReportDateTime — date of incident report
