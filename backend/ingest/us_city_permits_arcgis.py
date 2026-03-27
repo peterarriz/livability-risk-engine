@@ -378,18 +378,35 @@ CITY_CONFIGS: list[dict] = [
         "skip_date_filter": True,  # CreatedDate is record creation, not permit issuance
         "max_records":      None,
     },
-    #   City reference (org IDs + portals):
-    #     orlando:          services1.arcgis.com/ySBMu4XsNZMHPCce  portal: data-cityoforlando.opendata.arcgis.com
-    #     des_moines:       services.arcgis.com/eSi6C3K7GxWJJFTG   portal: data.dsm.city
-    #     tulsa:            services.arcgis.com/vL1HzBwQf4fxjZTy   portal: opendata-maptulsa.opendata.arcgis.com
-    #     wichita:          services.arcgis.com/sJ7GWBy3GCkiIsY7   portal: opendata.wichita.gov
-    #     colorado_springs: services3.arcgis.com/oR4yfmG5eJFhSqy7  portal: data-cospatial.opendata.arcgis.com
-    #     arlington_tx:     services.arcgis.com/v400IkDOw1ad7Yad   portal: data-cityofarlington.opendata.arcgis.com
-    #     virginia_beach:   services1.arcgis.com/DqA6wR9XSVCoCbVN  portal: gis.data.vbgov.com
-    #     mesa:             services2.arcgis.com/T3Rrfm3Dqq8Eepqn  portal: data-mesagis.opendata.arcgis.com
-    #     aurora:           services1.arcgis.com/IJdEUGKefCEk4KsP  portal: data-auroragis.opendata.arcgis.com
-    #     corpus_christi:   services.arcgis.com/5eqOE8IxIoFkEeGd   portal: data-cctexas.opendata.arcgis.com
-    #     greensboro:       services.arcgis.com/CZ8GsPy9zJAnUBMD   portal: data-greensboroncgov.opendata.arcgis.com
+    {
+        # Greensboro, NC — Building Permits (verified 2026-03-27).
+        # Self-hosted ArcGIS Server at gis.greensboro-nc.gov.
+        # Service: EngineeringInspections/BuildingPermits_MS/MapServer, layer 6.
+        # 57,966 records with point geometry. Date filter works.
+        "city_name":        "Greensboro",
+        "source_key":       "greensboro",
+        "service_url":      (
+            "https://gis.greensboro-nc.gov/arcgis/rest/services"
+            "/EngineeringInspections/BuildingPermits_MS/MapServer/6"
+        ),
+        "portal_url":       "https://data-greensboroncgov.opendata.arcgis.com",
+        "id_field":         "PermitNum",
+        "type_field":       "ApplicationType",
+        "desc_field":       "Description",
+        "issue_date_field": "IssuedDate",
+        "exp_date_field":   None,
+        "addr_field":       "FullAddress",
+        "city_state":       "Greensboro, NC",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    #   REMOVED — data-057 tier-7 cities (2026-03-27):
+    #   Org IDs return 0 services on all ArcGIS subdomains, and self-hosted
+    #   GIS servers either don't exist or have no permit data:
+    #     orlando, des_moines, tulsa, wichita, arlington_tx, virginia_beach,
+    #     mesa, aurora, corpus_christi.
+    #   colorado_springs: self-hosted has Planning_Applications (885 records)
+    #     but no date field and max 200 records/page — not usable.
     # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # SKIPPED — No public open data portal found (data-057):
@@ -407,8 +424,8 @@ CITY_CONFIGS: list[dict] = [
     #   gilbert org K1VMQDQNLVxLvLqs is CONFIRMED INVALID (returns 400).
     #   Other orgs may be valid; real service names require live verification.
     #
-    #   City reference (org IDs + portals):
-    #     durham:      services.arcgis.com/QLwOtBvdB5bFqPNF   portal: data-durhamnc.opendata.arcgis.com
+    #   City reference (org IDs return 0 services; self-hosted GIS not found):
+    #     durham:      services.arcgis.com/QLwOtBvdB5bFqPNF   gisweb.durhamnc.gov returns no JSON
     #     chandler:    services.arcgis.com/SVsGn6WnqbDYPUgf   portal: data.chandleraz.gov
     #     scottsdale:  services.arcgis.com/4sF4h3aBrdOGHDuF   portal: data.scottsdaleaz.gov
     #     gilbert:     org K1VMQDQNLVxLvLqs CONFIRMED INVALID — visit data.gilbertaz.gov to find correct org
