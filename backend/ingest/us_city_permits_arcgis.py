@@ -291,52 +291,17 @@ CITY_CONFIGS: list[dict] = [
         "skip_date_filter": False,
         "max_records":      None,
     },
-    {
-        # Las Vegas, NV — Building Permits.
-        # Portal: https://opendataportal-lasvegas.opendata.arcgis.com
-        # data-075: org VIkzGEMZbaSsMGLk is UNVERIFIED.
-        #   Las Vegas crime script uses org jjSk6t82vIntwDbs (LVMPD, county-level) — different org.
-        #   City of Las Vegas permits would be under a city-specific org, not LVMPD.
-        #   Run --discover or visit portal to find the correct city org ID.
-        "city_name":        "Las Vegas",
-        "source_key":       "las_vegas",
-        "service_url":      (
-            "https://services.arcgis.com/VIkzGEMZbaSsMGLk/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://opendataportal-lasvegas.opendata.arcgis.com",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "Las Vegas, NV",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # El Paso, TX — Building Permits.
-        # Portal: https://data.elpasotexas.gov
-        # Endpoint researched, not live-verified — run --discover to confirm:
-        #   python backend/ingest/us_city_permits_arcgis.py --city el_paso --discover
-        "city_name":        "El Paso",
-        "source_key":       "el_paso",
-        "service_url":      (
-            "https://services.arcgis.com/YGBqHTHNMoJPJOav/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.elpasotexas.gov",
-        "id_field":         "PERMIT_NUM",
-        "type_field":       "PERMIT_TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "ISSUED_DATE",
-        "exp_date_field":   None,
-        "addr_field":       "ADDRESS",
-        "city_state":       "El Paso, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Las Vegas (2026-03-27):
+    #   Org VIkzGEMZbaSsMGLk returns 0 services on all subdomains.
+    #   gis.lasvegasnevada.gov does not resolve. ArcGIS Hub portal
+    #   search returns no permit datasets. No public permit API found.
+    # REMOVED — El Paso (2026-03-27):
+    #   Real data exists at gis.elpasotexas.gov Planning/NewResidential
+    #   (42,472 records, MapServer/1) but the server blocks python-requests
+    #   User-Agent with HTTP 403 (Cloudflare/WAF). FeatureServer also 403.
+    #   curl works but automated ingest is not possible without UA spoofing.
+    # -----------------------------------------------------------------
     {
         # Tucson, AZ — Residential Permits (verified 2026-03-25).
         # Self-hosted ArcGIS Server at gis.tucsonaz.gov (NOT gisdata.tucsonaz.gov which is Hub).
@@ -1218,8 +1183,6 @@ CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 #   4. Remove source_key from DISABLED_SOURCE_KEYS below
 #   5. Re-run --city <key> --dry-run to confirm records are returned
 DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
-    # data-050: unverified org IDs
-    "las_vegas", "el_paso",
     # data-057: unverified org IDs
     "orlando", "richmond", "des_moines", "tulsa", "wichita",
     "colorado_springs", "arlington_tx", "virginia_beach",
@@ -1247,12 +1210,8 @@ DISABLED_NOTES: dict[str, str] = {
     ),
     # san_jose, fort_worth, albuquerque: REMOVED (2026-03-25) — org IDs return
     # 0 services on all subdomains. No public permit FeatureServer found.
-    # data-075: org IDs unverified; different org from crime scripts.
-    "las_vegas": (
-        "org VIkzGEMZbaSsMGLk is UNVERIFIED. Las Vegas crime uses org jjSk6t82vIntwDbs "
-        "(LVMPD, county-level) — different org. "
-        "Visit https://opendataportal-lasvegas.opendata.arcgis.com and search 'building permits'."
-    ),
+    # las_vegas: REMOVED (2026-03-27) — org VIkzGEMZbaSsMGLk returns 0 services,
+    # gis.lasvegasnevada.gov does not resolve, Hub search returns no permit datasets.
 }
 
 # Records per page (ArcGIS default max varies by server; 1000 is safe).
