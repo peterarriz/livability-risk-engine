@@ -355,9 +355,31 @@ CITY_CONFIGS: list[dict] = [
     #     3. Add a config entry with the correct service_url
     #     4. Run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
     #
+    {
+        # Richmond, VA — Plans of Development (verified 2026-03-27).
+        # Org k3vhq11XkBNeeOfM on services1.arcgis.com.
+        # Service: PlanOfDevelopment/FeatureServer/0 (2,109 records, polygon geometry).
+        # Note: this is development/rezoning plans, not construction permits.
+        # Polygon centroids computed automatically by fetch_page().
+        "city_name":        "Richmond",
+        "source_key":       "richmond",
+        "service_url":      (
+            "https://services1.arcgis.com/k3vhq11XkBNeeOfM/arcgis/rest/services"
+            "/PlanOfDevelopment/FeatureServer/0"
+        ),
+        "portal_url":       "https://data-rvagis.opendata.arcgis.com",
+        "id_field":         "FileID",
+        "type_field":       "Name",
+        "desc_field":       "Description",
+        "issue_date_field": "CreatedDate",
+        "exp_date_field":   "InactiveDate",
+        "addr_field":       "Address",
+        "city_state":       "Richmond, VA",
+        "skip_date_filter": True,  # CreatedDate is record creation, not permit issuance
+        "max_records":      None,
+    },
     #   City reference (org IDs + portals):
     #     orlando:          services1.arcgis.com/ySBMu4XsNZMHPCce  portal: data-cityoforlando.opendata.arcgis.com
-    #     richmond:         services1.arcgis.com/k3vhq11XkBNeeOfM  portal: data-rvagis.opendata.arcgis.com
     #     des_moines:       services.arcgis.com/eSi6C3K7GxWJJFTG   portal: data.dsm.city
     #     tulsa:            services.arcgis.com/vL1HzBwQf4fxjZTy   portal: opendata-maptulsa.opendata.arcgis.com
     #     wichita:          services.arcgis.com/sJ7GWBy3GCkiIsY7   portal: opendata.wichita.gov
@@ -617,8 +639,17 @@ def fetch_page(
         geom = feat.get("geometry") or {}
 
         # Inject geometry as private fields for lat/lon extraction.
-        attrs["_geometry_x"] = geom.get("x")
-        attrs["_geometry_y"] = geom.get("y")
+        # Point geometry: {"x": ..., "y": ...}
+        # Polygon geometry: {"rings": [[[x,y], ...]]} — compute centroid.
+        gx = geom.get("x")
+        gy = geom.get("y")
+        if gx is None and gy is None and geom.get("rings"):
+            ring = geom["rings"][0]
+            if ring:
+                gx = sum(pt[0] for pt in ring) / len(ring)
+                gy = sum(pt[1] for pt in ring) / len(ring)
+        attrs["_geometry_x"] = gx
+        attrs["_geometry_y"] = gy
 
         records.append(attrs)
 
