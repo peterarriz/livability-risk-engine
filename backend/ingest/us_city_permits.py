@@ -518,50 +518,15 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Raleigh, NC",
         "where_clause":     None,
     },
-    {
-        # Tampa, FL — Building Permits.
-        # Portal: https://opendata.tampa.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://opendata.tampa.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "Tampa",
-        "source_key":       "tampa",
-        "domain":           "opendata.tampa.gov",
-        "dataset_id":       "fd3u-fy3v",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "site_address",
-        "city_state":       "Tampa, FL",
-        "where_clause":     None,
-    },
-    {
-        # Miami-Dade, FL — Building Permits.
-        # Portal: https://opendata.miamidade.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://opendata.miamidade.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "Miami-Dade",
-        "source_key":       "miami_dade",
-        "domain":           "opendata.miamidade.gov",
-        "dataset_id":       "r6qv-7pvx",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Miami, FL",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Tampa (verified 2026-03-28):
+    #   opendata.tampa.gov is CKAN (not Socrata). fd3u-fy3v returns 404.
+    #   CKAN package_search returns 0 permit datasets. GIS server
+    #   (gis.tampagov.net) unreachable.
+    # REMOVED — Miami-Dade (verified 2026-03-28):
+    #   opendata.miamidade.gov Socrata returns 0 permit datasets.
+    #   r6qv-7pvx returns empty JSON. data.miami.gov is down.
+    # -----------------------------------------------------------------
     {
         # St. Louis, MO — Building Permits.
         # Portal: https://data.stlouis-mo.gov (Socrata)

@@ -189,8 +189,8 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Fresno | `fresno` | data.fresno.gov | `sxvh-bkgt` | `permit_number` | `issue_date` |
 | Sacramento | `sacramento` | data.cityofsacramento.org | `rent-6pka` | `permit_number` | `issued_date` |
 | Raleigh | `raleigh` | data.raleighnc.gov | `k4n2-jcgh` (MUST VERIFY) | `permit_number` | `issued_date` |
-| Tampa | `tampa` | opendata.tampa.gov | `fd3u-fy3v` (MUST VERIFY) | `permit_number` | `issue_date` |
-| Miami-Dade | `miami_dade` | opendata.miamidade.gov | `r6qv-7pvx` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Tampa | `tampa` | opendata.tampa.gov — CKAN, fd3u-fy3v returns 404. No permit datasets found (2026-03-28). GIS server unreachable. | — | — |
+| Miami-Dade | `miami_dade` | opendata.miamidade.gov — 0 permit datasets on Socrata. r6qv-7pvx returns empty JSON (2026-03-28). | — | — |
 | St. Louis | `st_louis` | data.stlouis-mo.gov | `44bp-4y2y` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Baton Rouge | `baton_rouge` | data.brla.gov | `a6aw-dngx` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Lexington KY | `lexington` | data.lexingtonky.gov | `3gzb-avhn` (MUST VERIFY) | `permit_number` | `issued_date` |
@@ -256,7 +256,7 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Omaha NE | REMOVED (data-076) | Org q4kU3NFQX1XtcMeJ — service name unverified; portal: opendata.cityofomaha.org | — | — |
 | Lincoln NE | REMOVED (data-076) | Org ZPeUDkbFEf7WXNID — service name unverified; portal: opendata.lincoln.ne.gov | — | — |
 | Salem OR | REMOVED (data-076) | Org uUvqNr0XSi28N3Hj — service name unverified; portal: data.cityofsalem.net | — | — |
-| Dallas TX | `dallas` | Org K1vmv3C6RR68oGEo (MUST VERIFY) — service `Dallas_Building_Permits/FeatureServer/0`; portal: dallasopendata.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Dallas TX | REMOVED | Org K1vmv3C6RR68oGEo returns 0 services. Socrata e7gq-4sah is FY2019 only (frozen). No current permit data (2026-03-28). | — | — |
 | Detroit MI | `detroit` | Org qvkbeam7Wirps6zC (same as crime script, services2) — service `Detroit_Building_Permits/FeatureServer/0` (MUST VERIFY); portal: data.detroitmi.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
 | St. Petersburg FL | `st_petersburg` | Org 8vEm1j5dMMr9eBob (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: data.stpete.org | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
 | Birmingham AL | `birmingham` | Org iFT94KHJdBf1glgr (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: birminghamal.maps.arcgis.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
