@@ -1,6 +1,6 @@
 """
 backend/ingest/load_neighborhood_quality.py
-task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070, data-071, data-074
+task: data-040, data-044, data-045, data-047, data-050, data-053, data-059, data-065, data-068, data-070, data-071, data-074, data-081
 lane: data
 
 Loads neighborhood quality staging files into the neighborhood_quality DB table.
@@ -75,6 +75,8 @@ Reads from staging files written by:
   backend/ingest/laredo_tx_crime_trends.py    → data/raw/laredo_tx_crime_trends.json
   backend/ingest/lubbock_tx_crime_trends.py   → data/raw/lubbock_tx_crime_trends.json
   backend/ingest/amarillo_tx_crime_trends.py  → data/raw/amarillo_tx_crime_trends.json
+  backend/ingest/fhfa_hpi.py                 → data/raw/fhfa_hpi_zip.json
+  backend/ingest/fhfa_hpi.py                 → data/raw/fhfa_hpi_metro.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -101,6 +103,8 @@ Usage:
   python backend/ingest/load_neighborhood_quality.py --source crime_sioux_falls
   python backend/ingest/load_neighborhood_quality.py --source schools
   python backend/ingest/load_neighborhood_quality.py --source schools_national
+  python backend/ingest/load_neighborhood_quality.py --source hpi_zip
+  python backend/ingest/load_neighborhood_quality.py --source hpi_metro
 
 Prerequisites:
   - DATABASE_URL or POSTGRES_* env vars must be set
@@ -277,9 +281,16 @@ STAGING_FILES = {
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
     "schools_national":  Path("data/raw/national_school_ratings.json"),
+    # data-081: FHFA House Price Index — zip and metro level
+    "hpi_zip":           Path("data/raw/fhfa_hpi_zip.json"),
+    "hpi_metro":         Path("data/raw/fhfa_hpi_metro.json"),
 }
 
 CURRENT_YEAR = _dt.datetime.now().year
+
+# HPI sources use a dedicated upsert that only touches HPI columns so they
+# don't clobber crime/flood/school data for the same region keys.
+HPI_SOURCE_KEYS = frozenset({"hpi_zip", "hpi_metro"})
 
 UPSERT_SQL = """
     INSERT INTO neighborhood_quality (
@@ -315,6 +326,25 @@ UPSERT_SQL = """
         school_attainment = EXCLUDED.school_attainment,
         school_growth    = EXCLUDED.school_growth,
         geom             = EXCLUDED.geom,
+        data_year        = EXCLUDED.data_year,
+        updated_at       = now();
+"""
+
+# Separate upsert for HPI data — inserts new zip/metro rows or updates only
+# the HPI columns so existing crime/flood/school rows are not overwritten.
+UPSERT_HPI_SQL = """
+    INSERT INTO neighborhood_quality (
+        region_type, region_id,
+        hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change,
+        hpi_period, data_year
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (region_type, region_id) DO UPDATE SET
+        hpi_index_value  = EXCLUDED.hpi_index_value,
+        hpi_1yr_change   = EXCLUDED.hpi_1yr_change,
+        hpi_5yr_change   = EXCLUDED.hpi_5yr_change,
+        hpi_10yr_change  = EXCLUDED.hpi_10yr_change,
+        hpi_period       = EXCLUDED.hpi_period,
         data_year        = EXCLUDED.data_year,
         updated_at       = now();
 """
@@ -386,6 +416,20 @@ def _record_to_params(record: dict) -> tuple:
     )
 
 
+def _hpi_record_to_params(record: dict) -> tuple:
+    """Convert an HPI staging record to the SQL parameter tuple for UPSERT_HPI_SQL (8 params)."""
+    return (
+        record.get("region_type"),
+        record.get("region_id"),
+        record.get("hpi_index_value"),
+        record.get("hpi_1yr_change"),
+        record.get("hpi_5yr_change"),
+        record.get("hpi_10yr_change"),
+        record.get("hpi_period"),
+        CURRENT_YEAR,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Load logic
 # ---------------------------------------------------------------------------
@@ -423,11 +467,20 @@ def load_source(
 
     batch_size = 500
     upserted = 0
+
+    # HPI sources use a dedicated upsert that only touches HPI columns.
+    if source_key in HPI_SOURCE_KEYS:
+        sql = UPSERT_HPI_SQL
+        to_params = _hpi_record_to_params
+    else:
+        sql = UPSERT_SQL
+        to_params = _record_to_params
+
     with conn.cursor() as cur:
         for i in range(0, len(records), batch_size):
             batch = records[i : i + batch_size]
-            params_list = [_record_to_params(r) for r in batch]
-            psycopg2.extras.execute_batch(cur, UPSERT_SQL, params_list)
+            params_list = [to_params(r) for r in batch]
+            psycopg2.extras.execute_batch(cur, sql, params_list)
             upserted += len(batch)
             print(f"  Upserted {upserted}/{len(records)} records...")
 
@@ -488,7 +541,10 @@ def parse_args() -> argparse.Namespace:
             "crime_shreveport", "crime_huntsville",
             # data-078: tier-15 cities
             "crime_dallas", "crime_oakland",
-            "schools", "schools_national", "all",
+            "schools", "schools_national",
+            # data-081: FHFA House Price Index
+            "hpi_zip", "hpi_metro",
+            "all",
         ],
         default="all",
         help="Which staging source to load (default: all).",

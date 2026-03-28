@@ -278,6 +278,46 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 
 ---
 
+## Neighborhood Quality Datasets
+
+### FHFA House Price Index (data-081)
+
+**Script:** `backend/ingest/fhfa_hpi.py`
+**Staging files:** `data/raw/fhfa_hpi_zip.json`, `data/raw/fhfa_hpi_metro.json`
+**Load:** `python backend/ingest/load_neighborhood_quality.py --source hpi_zip`
+         `python backend/ingest/load_neighborhood_quality.py --source hpi_metro`
+**Pipeline mode:** monthly (`--mode monthly`)
+
+| Source | URL | Format | Coverage |
+|--------|-----|--------|----------|
+| ZIP-level HPI | `https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_BDL_ZIP5.xlsx` | XLSX | All US ZIP codes, quarterly since 2008 |
+| Metro-level HPI | `https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_metro.csv` | CSV | All CBSA metro areas, quarterly (longer history) |
+
+**DB table:** `neighborhood_quality`
+**region_type:** `"zip"` (zip-level) or `"metro"` (metro-level)
+**region_id:** 5-digit ZIP code or CBSA code string
+
+**Fields stored:**
+- `hpi_index_value` — most recent quarter index value (NSA, not seasonally adjusted)
+- `hpi_1yr_change` — 1-year price change (%)
+- `hpi_5yr_change` — 5-year price change (%)
+- `hpi_10yr_change` — 10-year price change (%)
+- `hpi_period` — data period string, e.g. `"2024Q3"`
+
+**Column name handling:** The script normalizes column names from the source files.
+Expected XLSX columns: zip5/ZIP Code, Year, Quarter, Index (NSA), Annual Change (%),
+Five-Year Change (%), Ten-Year Change (%). If pre-computed change columns are absent,
+the script derives them from the time series (4/20/40 quarters back = 1/5/10 years).
+
+**Dependencies:** `openpyxl>=3.1.0` (added to `backend/requirements.txt`)
+
+**Known limitations:**
+- ZIP5 file is ~15-20 MB XLSX — download timeout set to 120s
+- 10yr change unavailable for zips with <10 years of data (will be NULL)
+- File URL uses a date-stamped path (`2024-11`) — update URL when FHFA publishes new vintage
+
+---
+
 ## Common Failures
 
 ### Portal Migration (Socrata → ArcGIS Hub)
