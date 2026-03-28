@@ -17,6 +17,15 @@ Usage:
   # Full pipeline (requires DATABASE_URL or POSTGRES_* env vars)
   python run_pipeline.py
 
+  # Run only the daily steps (permits, geocode, load, row-count check)
+  python run_pipeline.py --mode daily
+
+  # Run only the weekly steps (all city crime trends, school ratings, neighborhood quality)
+  python run_pipeline.py --mode weekly
+
+  # Run only the monthly steps (Census ACS, NCES school ratings, FEMA flood zones)
+  python run_pipeline.py --mode monthly
+
   # Skip geocoding fill (faster; use only if staging files already have coords)
   python run_pipeline.py --skip-geocode
 
@@ -757,6 +766,118 @@ STEPS = [
 
 
 # ---------------------------------------------------------------------------
+# Mode-based step filtering  (data-079)
+#
+# --mode daily   → permit fetches, geocode, load_projects, row_count (runs every 24h)
+# --mode weekly  → all city crime trends, IL school ratings, load_neighborhood_quality
+# --mode monthly → Census ACS, national school ratings (NCES), FEMA flood zones
+#
+# When --mode is omitted the full pipeline runs (all steps), preserving the
+# original behaviour for manual runs and legacy CI invocations.
+# ---------------------------------------------------------------------------
+
+_WEEKLY_SKIP_KEYS: frozenset = frozenset({
+    # Chicago crime
+    "skip_crime_trends",
+    # Other city crime trends
+    "skip_austin_crime",
+    "skip_seattle_crime",
+    "skip_nyc_crime",
+    "skip_kc_crime",
+    "skip_denver_crime",
+    "skip_boston_crime",
+    "skip_milwaukee_crime",
+    "skip_sf_crime",
+    "skip_baltimore_crime",
+    "skip_nashville_crime",
+    "skip_portland_crime",
+    "skip_dc_crime",
+    "skip_okc_crime",
+    "skip_san_antonio_crime",
+    "skip_san_diego_crime",
+    "skip_memphis_crime",
+    "skip_louisville_crime",
+    "skip_fresno_crime",
+    "skip_sacramento_crime",
+    "skip_las_vegas_crime",
+    "skip_el_paso_crime",
+    "skip_tucson_crime",
+    "skip_houston_crime",
+    "skip_charlotte_crime",
+    "skip_columbus_crime",
+    "skip_minneapolis_crime",
+    "skip_phoenix_crime",
+    "skip_san_jose_crime",
+    "skip_jacksonville_crime",
+    "skip_fort_worth_crime",
+    "skip_indianapolis_crime",
+    "skip_albuquerque_crime",
+    "skip_raleigh_crime",
+    "skip_philadelphia_crime",
+    "skip_new_orleans_crime",
+    "skip_atlanta_crime",
+    "skip_detroit_crime",
+    "skip_cleveland_crime",
+    "skip_cincinnati_crime",
+    "skip_buffalo_crime",
+    "skip_providence_crime",
+    "skip_omaha_crime",
+    "skip_pittsburgh_crime",
+    "skip_tampa_crime",
+    "skip_miami_crime",
+    "skip_st_louis_crime",
+    "skip_baton_rouge_crime",
+    "skip_lexington_crime",
+    "skip_orlando_crime",
+    "skip_richmond_crime",
+    "skip_des_moines_crime",
+    "skip_tulsa_crime",
+    "skip_wichita_crime",
+    "skip_colorado_springs_crime",
+    "skip_arlington_tx_crime",
+    "skip_virginia_beach_crime",
+    "skip_mesa_crime",
+    "skip_aurora_crime",
+    "skip_corpus_christi_crime",
+    "skip_greensboro_crime",
+    "skip_anchorage_crime",
+    "skip_madison_crime",
+    "skip_spokane_crime",
+    "skip_durham_crime",
+    "skip_chandler_crime",
+    "skip_scottsdale_crime",
+    "skip_gilbert_crime",
+    "skip_glendale_az_crime",
+    "skip_henderson_crime",
+    "skip_tacoma_crime",
+    "skip_chattanooga_crime",
+    "skip_grand_rapids_crime",
+    "skip_fayetteville_nc_crime",
+    "skip_cary_crime",
+    # IL school ratings (CPS)
+    "skip_school_ratings",
+    # Load neighborhood quality (loads crime + school staging files into DB)
+    "skip_neighborhood_quality",
+})
+
+_MONTHLY_SKIP_KEYS: frozenset = frozenset({
+    "skip_census_acs",
+    "skip_national_school_ratings",
+    "skip_fema",
+})
+
+
+def _step_mode(step: dict) -> str:
+    """Return 'daily', 'weekly', or 'monthly' for a given pipeline step."""
+    key = step.get("skip_key")
+    if key in _MONTHLY_SKIP_KEYS:
+        return "monthly"
+    if key in _WEEKLY_SKIP_KEYS:
+        return "weekly"
+    return "daily"
+
+
+# ---------------------------------------------------------------------------
 # Ingest run tracking  (data-041)
 # Writes to the ingest_runs table so /health/db can report freshness and
 # so the regression check can compare current vs prior record counts.
@@ -1146,6 +1267,19 @@ def parse_args() -> argparse.Namespace:
         help="Skip the post-ingest row-count regression check.",
     )
     parser.add_argument(
+        "--mode",
+        choices=["daily", "weekly", "monthly"],
+        default=None,
+        metavar="MODE",
+        help=(
+            "Run only the steps for this schedule mode: "
+            "'daily' (permits, geocode, load), "
+            "'weekly' (all city crime trends, school ratings, neighborhood quality load), "
+            "'monthly' (Census ACS, NCES school ratings, FEMA flood zones). "
+            "Omit to run all steps (legacy behaviour)."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Fetch data from APIs but do not write to the database.",
@@ -1166,7 +1300,12 @@ def main() -> None:
     if args.dry_run:
         print("══ DRY-RUN MODE: data will be fetched but not written to DB ══")
 
-    print("══ LRE INGEST PIPELINE ═══════════════════════════════════════")
+    if args.mode:
+        active_steps = [s for s in STEPS if _step_mode(s) == args.mode]
+        print(f"══ LRE INGEST PIPELINE [{args.mode.upper()}] ══ {len(active_steps)} steps ══════════════")
+    else:
+        active_steps = STEPS
+        print("══ LRE INGEST PIPELINE ═══════════════════════════════════════")
 
     # Record pipeline start in ingest_runs (best-effort; skipped on dry-run)
     db_url = _get_db_url()
@@ -1175,7 +1314,7 @@ def main() -> None:
         run_id = _record_run_start(db_url)
 
     failed: list[str] = []
-    for step in STEPS:
+    for step in active_steps:
         ok = run_step(step, args)
         if not ok:
             failed.append(step["name"])
