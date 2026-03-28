@@ -1584,7 +1584,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
               }} />
               <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
                 {/* data-043: prefer Claude display_title over raw title (sanitized) */}
-                {hoveredRow.detail.display_title ?? sanitizeApiText(hoveredRow.detail.title ?? "") || hoveredRow.typeLabel}
+                {(hoveredRow.detail.display_title ?? sanitizeApiText(hoveredRow.detail.title ?? "")) || hoveredRow.typeLabel}
               </strong>
             </span>
             {hoveredRow.detail.description && (

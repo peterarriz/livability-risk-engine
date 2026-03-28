@@ -283,10 +283,26 @@ export default function HomePage() {
       skipSuggestRef.current = false;
       return;
     }
-    if (address.trim().length < 3) {
+    if (address.trim().length === 0) {
       setSuggestions([]);
       setShowSuggestions(false);
       setActiveSuggestionIndex(-1);
+      return;
+    }
+    // For 1-2 chars show popular suggestions immediately (no wait) so the
+    // dropdown never goes blank while the user starts typing.
+    if (address.trim().length < 3) {
+      const requestId = ++suggestRequestIdRef.current;
+      setSuggestionsLoading(true);
+      fetchAddressSuggestions("", { popular: true, limit: 5 }).then((results) => {
+        if (requestId !== suggestRequestIdRef.current) return;
+        if (isFocused && results.length > 0) {
+          setSuggestions(results);
+          setShowSuggestions(true);
+          setActiveSuggestionIndex(-1);
+        }
+        setSuggestionsLoading(false);
+      });
       return;
     }
     const timer = setTimeout(async () => {
@@ -320,7 +336,7 @@ export default function HomePage() {
         setSuggestionsError(null);
       }
       setSuggestionsLoading(false);
-    }, 300);
+    }, 150);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
@@ -675,7 +691,7 @@ export default function HomePage() {
               </p>
               {!workspaceMode && (
                 <a href="mailto:enterprise@livabilityrisks.com" className="enterprise-cta">
-                  Request enterprise demo \u2192
+                  Request enterprise demo →
                 </a>
               )}
             </div>
