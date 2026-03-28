@@ -68,10 +68,10 @@ const SEVERITY_PERCENT: Record<SeverityLevel, number> = {
 };
 
 const SCORE_COPY = [
-  { max: 24, label: "Low disruption risk", summary: "Near-term conditions look broadly stable around this address." },
-  { max: 49, label: "Moderate disruption risk", summary: "Some friction is likely, but it should remain manageable." },
-  { max: 74, label: "High disruption risk", summary: "Clear nearby activity is likely to affect access or daily experience." },
-  { max: 100, label: "Severe disruption risk", summary: "Multiple strong signals point to meaningful short-term disruption." },
+  { max: 24, label: "Low disruption activity", summary: "Near-term conditions look broadly stable around this address." },
+  { max: 49, label: "Moderate disruption activity", summary: "Some friction is likely, but it should remain manageable." },
+  { max: 74, label: "High disruption activity", summary: "Clear nearby activity is likely to affect access or daily experience." },
+  { max: 100, label: "Severe disruption activity", summary: "Multiple strong signals point to meaningful short-term disruption." },
 ];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

@@ -6,8 +6,8 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Livability Risk Engine",
-  description: "Real-time livability intelligence for any address — construction, crime, schools, and neighborhood context.",
+  title: "Livability Intelligence",
+  description: "Address intelligence for real estate and operations teams — construction, crime, schools, and neighborhood context.",
 };
 
 export default function RootLayout({

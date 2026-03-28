@@ -76,9 +76,9 @@ export default function ApiDocsPage() {
 
       {/* Main content */}
       <main className="docs-main">
-        <h1 className="docs-title">Livability Risk Engine API</h1>
+        <h1 className="docs-title">Livability Intelligence API</h1>
         <p className="docs-intro">
-          Score any US address for livability risk using 20+ live data sources. Returns a 0&ndash;100 score,
+          Score any US address for livability using 20+ live data sources. Returns a 0&ndash;100 score,
           severity breakdown, top risk signals, and spatial context &mdash; all in a single JSON response.
         </p>
 
@@ -149,7 +149,7 @@ export default function ApiDocsPage() {
             <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><code>address</code></td><td>string</td><td>The geocoded address</td></tr>
-              <tr><td><code>disruption_score</code></td><td>integer</td><td>0&ndash;100 construction disruption risk score</td></tr>
+              <tr><td><code>disruption_score</code></td><td>integer</td><td>0&ndash;100 construction disruption activity score</td></tr>
               <tr><td><code>livability_score</code></td><td>integer</td><td>0&ndash;100 composite livability score (includes crime, schools, environment)</td></tr>
               <tr><td><code>confidence</code></td><td>string</td><td>LOW, MEDIUM, or HIGH &mdash; how closely signals tie to this specific address</td></tr>
               <tr><td><code>severity</code></td><td>object</td><td>Three-axis severity: <code>noise</code>, <code>traffic</code>, <code>dust</code> (each LOW/MEDIUM/HIGH)</td></tr>

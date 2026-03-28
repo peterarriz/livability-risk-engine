@@ -270,7 +270,7 @@ function ComparePageInner() {
           <div className="brand-lockup">
             <div className="brand-mark" aria-hidden="true">LR</div>
             <div>
-              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-title">Livability Intelligence</p>
               <p className="brand-subtitle">Chicago disruption intelligence</p>
             </div>
           </div>
@@ -283,7 +283,7 @@ function ComparePageInner() {
           <div className="section-head">
             <p className="eyebrow">Compare</p>
             <h1>Side-by-side address comparison</h1>
-            <p className="lede">Score two Chicago addresses at once to compare disruption risk, severity signals, and key drivers.</p>
+            <p className="lede">Score two Chicago addresses at once to compare disruption activity, severity signals, and key drivers.</p>
           </div>
 
           {bothScored && scoreDiff !== null && (
@@ -291,11 +291,11 @@ function ComparePageInner() {
               <span className="status-badge">Comparison</span>
               <div className="status-copy">
                 {Math.abs(scoreDiff) < 5 ? (
-                  <strong>These addresses have similar disruption risk levels.</strong>
+                  <strong>These addresses have similar disruption levels.</strong>
                 ) : scoreDiff > 0 ? (
-                  <strong>Address A scores {Math.abs(scoreDiff)} points higher — it carries more near-term disruption risk.</strong>
+                  <strong>Address A scores {Math.abs(scoreDiff)} points higher — it has more near-term disruption activity.</strong>
                 ) : (
-                  <strong>Address B scores {Math.abs(scoreDiff)} points higher — it carries more near-term disruption risk.</strong>
+                  <strong>Address B scores {Math.abs(scoreDiff)} points higher — it has more near-term disruption activity.</strong>
                 )}
               </div>
             </div>
