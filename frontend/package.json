@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test src/__tests__/**/*.test.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.0.0",

@@ -950,7 +950,7 @@ export async function saveReport(
 ): Promise<SaveReportResponse> {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {
-    throw new ApiError("Backend not configured. Cannot save report.");
+    throw new ApiError("Report saving is currently unavailable.");
   }
   const url = buildApiUrl("/save");
   const authHeaders = backendToken ? getAuthHeaders(backendToken) : await getSessionAuthHeaders();
@@ -960,7 +960,7 @@ export async function saveReport(
     body: JSON.stringify(score),
   });
   if (!resp.ok) {
-    throw new ApiError(`Save failed: ${resp.status}`);
+    throw new ApiError("Could not save report. Please try again.");
   }
   const saved = (await resp.json()) as SaveReportResponse;
   try {
@@ -1374,9 +1374,7 @@ export async function fetchNeighborhood(slug: string): Promise<NeighborhoodRespo
 export async function fetchScoreWithKey(address: string, apiKey: string): Promise<ScoreResponse> {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {
-    throw new ApiError(
-      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to enable bulk scoring.",
-    );
+    throw new ApiError("Scoring service is currently unavailable.");
   }
   const url = buildApiUrl("/score");
   url.searchParams.set("address", address);
@@ -1385,7 +1383,7 @@ export async function fetchScoreWithKey(address: string, apiKey: string): Promis
   const resp = await fetch(url.toString(), { cache: "no-store", headers });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({})) as { detail?: string };
-    throw new ApiError(data.detail ?? `Score request failed (${resp.status})`);
+    throw new ApiError(data.detail ?? "Scoring unavailable. Please try again.");
   }
   return (await resp.json()) as ScoreResponse;
 }
@@ -1400,9 +1398,7 @@ export async function fetchScore(
   // silently showing demo data the user didn't ask for.
   if (!apiBaseUrl) {
     logFrontendFallback("frontend_api_not_configured", "NEXT_PUBLIC_API_URL not set");
-    throw new ApiError(
-      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to enable live scoring.",
-    );
+    throw new ApiError("Scoring service is currently unavailable.");
   }
 
   const url = buildApiUrl("/score");
@@ -1438,7 +1434,7 @@ export async function fetchScore(
     throw new ApiError(
       response.status >= 500
         ? "The scoring service returned an error. Try again in a moment."
-        : `Scoring request failed (${response.status}).`,
+        : "Scoring unavailable. Please try again.",
     );
   }
 
@@ -1497,7 +1493,7 @@ export async function fetchCommute(
 ): Promise<CommuteResponse> {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {
-    throw new ApiError("Backend not configured. Cannot score commute corridor.");
+    throw new ApiError("Commute scoring is currently unavailable.");
   }
   const url = buildApiUrl("/commute");
   const resp = await fetch(url.toString(), {
@@ -1508,7 +1504,7 @@ export async function fetchCommute(
   });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({})) as { detail?: string };
-    throw new ApiError(data.detail ?? `Commute scoring failed (${resp.status}).`);
+    throw new ApiError(data.detail ?? "Could not score this commute. Please try again.");
   }
   return (await resp.json()) as CommuteResponse;
 }

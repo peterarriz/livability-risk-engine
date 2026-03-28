@@ -345,9 +345,14 @@ def _closure_title(record: dict) -> str:
     elif from_st:
         parts.append(f"near {from_st}")
 
+    # Prefer the human-readable description over the raw work_type code.
+    # work_type_description is mapped from Socrata's `worktypedescription` field
+    # and contains plain English (e.g. "General Opening" vs. "GenOpening").
+    work_type_desc = record.get("work_type_description", "").strip()
     work_type = record.get("work_type", "").strip()
-    if work_type:
-        parts.append(f"({work_type})")
+    work_label = work_type_desc or work_type
+    if work_label:
+        parts.append(f"({work_label})")
 
     if parts:
         return " ".join(parts) + " closure"
