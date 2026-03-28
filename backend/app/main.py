@@ -3141,14 +3141,37 @@ def check_commute(body: CommuteRequest) -> dict:
 
 @app.get("/suggest")
 def suggest_addresses(
-    q: str = Query(..., min_length=2, description="Partial US address query"),
+    q: str = Query("", description="Partial US address query"),
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
+    popular: bool = Query(False, description="Return popular addresses when query is short or empty"),
 ) -> dict:
     query = q.strip()
-    if len(query) < 3:
-        return {"query": query, "suggestions": []}
 
     rows = _get_address_rows()
+
+    # For empty/short queries, return most popular scored addresses so the
+    # frontend can show instant suggestions on focus or after 1-2 keystrokes.
+    if len(query) < 3:
+        if not popular and len(query) == 0:
+            return {"query": query, "suggestions": []}
+        top = sorted(rows, key=lambda r: int(r.get("popularity", 0)), reverse=True)[:limit]
+        return {
+            "query": query,
+            "suggestions": [
+                {
+                    "canonical_id": row["canonical_id"],
+                    "display_address": row["display_address"],
+                    "lat": row.get("lat"),
+                    "lon": row.get("lon"),
+                    "city": row.get("city"),
+                    "state": row.get("state"),
+                    "zip": row.get("zip"),
+                }
+                for row in top
+                if row.get("canonical_id") and row.get("display_address")
+            ],
+        }
+
     ranked_rows = _top_ranked_address_rows(query, rows, limit, with_geo_penalty=True)
 
     # If backend index has too few strong candidates, allow geocoder-backed

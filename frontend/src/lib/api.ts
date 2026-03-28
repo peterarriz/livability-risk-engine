@@ -676,8 +676,7 @@ export async function fetchAddressSuggestions(
       url.searchParams.set("q", q);
       url.searchParams.set("limit", String(limit));
       if (popular && q.length < 3) {
-        // /suggest intentionally avoids low-signal empty queries.
-        return [];
+        url.searchParams.set("popular", "true");
       }
     debugSearchFlow("SEARCH_REQUEST", {
       query: q,
