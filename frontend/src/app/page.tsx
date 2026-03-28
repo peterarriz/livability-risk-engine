@@ -665,13 +665,18 @@ export default function HomePage() {
               <h1>
                 {workspaceMode
                   ? "A decision-ready livability brief for the current address."
-                  : "Know what it\u2019s actually like to live there."}
+                  : "Address intelligence for teams that need to know before they move."}
               </h1>
               <p className="lede">
                 {workspaceMode
                   ? "Run another lookup below. Score, reasoning, and spatial context update automatically."
-                  : "Real-time livability scores for any address \u2014 combining construction activity, crime trends, school ratings, and neighborhood context. Updated daily across 12 US cities."}
+                  : "Livability scores powered by 20+ live data sources \u2014 construction permits, crime trends, school ratings, transit, and environmental risk. Updated daily across 50+ US cities."}
               </p>
+              {!workspaceMode && (
+                <a href="mailto:enterprise@livabilityrisks.com" className="enterprise-cta">
+                  Request enterprise demo \u2192
+                </a>
+              )}
             </div>
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
@@ -950,6 +955,29 @@ export default function HomePage() {
               </div>
             </div>
           </Section>
+        )}
+
+        {/* ── Value proposition tiles — only shown on explore (pre-search) ── */}
+        {!workspaceMode && (
+          <section className="value-prop-section">
+            <div className="value-prop-grid">
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">🏠</span>
+                <h3>Real estate due diligence</h3>
+                <p>Score any address before a lease signing, purchase, or investment. Surface construction, crime, school, and environmental risks that aren't in the listing.</p>
+              </div>
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">📊</span>
+                <h3>Portfolio risk monitoring</h3>
+                <p>Track livability scores across your entire portfolio. Get alerted when new construction permits, crime trends, or infrastructure changes affect your properties.</p>
+              </div>
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">🚛</span>
+                <h3>Logistics &amp; operations planning</h3>
+                <p>Assess access disruptions before routing, scheduling deliveries, or planning site visits. Know about lane closures and construction before your team arrives.</p>
+              </div>
+            </div>
+          </section>
         )}
 
         <Section
