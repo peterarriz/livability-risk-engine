@@ -295,6 +295,7 @@ def _compute_livability_score(
     lat: float,
     lon: float,
     conn,
+    zip_code: str | None = None,
 ) -> tuple[int, dict]:
     neighborhood_context = neighborhood_context or {}
     weights = _LIVABILITY_WEIGHTS
@@ -372,6 +373,40 @@ def _compute_livability_score(
     flood_risk = str(neighborhood_context.get("flood_risk") or "").upper()
     flood_component = {"MINIMAL": 90.0, "MODERATE": 65.0, "HIGH": 25.0}.get(flood_risk, 50.0)
 
+    # 6) HPI price trend bonus/penalty (up to ±5 points)
+    hpi_bonus = 0.0
+    hpi_data: dict | None = None
+    if zip_code and conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
+                           hpi_10yr_change, hpi_period
+                    FROM neighborhood_quality
+                    WHERE region_type = 'zip' AND region_id = %s
+                    LIMIT 1
+                    """,
+                    (zip_code,),
+                )
+                row = cur.fetchone()
+                if row and row[1] is not None:
+                    hpi_data = {
+                        "hpi_index_value": float(row[0]) if row[0] else None,
+                        "hpi_1yr_change": float(row[1]) if row[1] else None,
+                        "hpi_5yr_change": float(row[2]) if row[2] else None,
+                        "hpi_10yr_change": float(row[3]) if row[3] else None,
+                        "hpi_period": row[4],
+                    }
+                    # Positive 1yr change → bonus (capped at +5), negative → penalty (capped at -5)
+                    yr1 = float(row[1])
+                    hpi_bonus = max(-5.0, min(5.0, yr1 * 0.3))
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
     components = {
         "disruption_risk": disruption_component,
         "crime_trend": crime_component,
@@ -383,16 +418,22 @@ def _compute_livability_score(
         k: round(v * weights[k], 1)
         for k, v in components.items()
     }
-    livability_score = int(round(sum(weighted.values())))
+    livability_score = int(round(sum(weighted.values()) + hpi_bonus))
     livability_score = max(0, min(100, livability_score))
 
-    return livability_score, {
+    breakdown: dict = {
         "weights": weights,
         "components": {
             k: {"raw_score": round(components[k], 1), "weighted_contribution": weighted[k]}
             for k in components
         },
     }
+    if hpi_bonus != 0.0:
+        breakdown["hpi_bonus"] = round(hpi_bonus, 1)
+    if hpi_data:
+        breakdown["hpi"] = hpi_data
+
+    return livability_score, breakdown
 
 
 def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
@@ -692,12 +733,14 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 pass
 
         result = compute_score(nearby, address)
+        address_zip = _extract_zip(address)
         livability_score, livability_breakdown = _compute_livability_score(
             disruption_score=result.disruption_score,
             neighborhood_context=neighborhood_context,
             lat=lat,
             lon=lon,
             conn=conn,
+            zip_code=address_zip,
         )
         result_dict = {
             **asdict(result),
