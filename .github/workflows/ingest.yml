@@ -23,8 +23,12 @@ name: Daily ingest pipeline
 
 on:
   schedule:
-    # 06:00 UTC daily — after Chicago midnight, before business hours open.
-    - cron: "0 6 * * *"
+# 06:00 UTC daily — after Chicago midnight, before business hours open.
+      - cron: "0 6 * * *"
+      # Weekly — Sundays 3am UTC (crime trends, school ratings)
+      - cron: "0 3 * * 0"
+      # Monthly — 1st of month 3am UTC (Census ACS, NCES, FEMA)
+      - cron: "0 3 1 * *"
 
   workflow_dispatch:
     inputs:
