@@ -73,7 +73,7 @@ def fetch_crime_counts_with_centroids(
     if app_token:
         params["$$app_token"] = app_token
 
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
+    resp = requests.get(CRIMES_URL, params=params, timeout=120)
     resp.raise_for_status()
     rows = resp.json()
 
