@@ -486,6 +486,8 @@ def parse_args() -> argparse.Namespace:
             # data-074: tier-14 cities (stubs — no public API)
             "crime_knoxville", "crime_akron", "crime_winston_salem",
             "crime_shreveport", "crime_huntsville",
+            # data-078: tier-15 cities
+            "crime_dallas", "crime_oakland",
             "schools", "schools_national", "all",
         ],
         default="all",
