@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
 import { headlineScore as getHeadlineScore } from "@/lib/score-utils";
+import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
   CommuteResponse,
   CommuteSignal,
@@ -92,21 +93,10 @@ function metersToFeet(meters: number): number {
 }
 
 function humanizeRiskText(text: string): string {
-  // Replace internal permit type codes with plain language
-  let result = text
-    .replace(/\bGenOpening\b/g, "Permitted work (opening phase)")
-    .replace(/\bGenOccupy\b/g, "Active lane occupation");
-
-  // Convert meter distances to feet
-  result = result.replace(/(\d{1,4})\s*meters?\b/gi, (_, m) => `~${metersToFeet(Number(m))} ft`);
-
-  // Humanize "18TH from 14 to 59" style street ranges → "18TH between addresses 14–59"
-  result = result.replace(
-    /\b([A-Z0-9][A-Z0-9\s]{1,20})\s+from\s+(\d+)\s+to\s+(\d+)\b/gi,
-    (_, street, start, end) => `${toTitleCase(street.trim().toLowerCase())} between addresses ${start}–${end}`,
-  );
-
-  return result;
+  // Delegate to the comprehensive sanitization layer in text-sanitize.ts.
+  // That module handles all work type codes, ISO dates, meter→feet conversion,
+  // street range reformatting, and ALLCAPS normalization.
+  return sanitizeApiText(text);
 }
 
 function inferImpact(text: string, index: number): RiskCardModel["impact"] {
@@ -630,7 +620,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
         {detail.notes && (
           <div>
             <dt>Notes</dt>
-            <dd>{detail.notes}</dd>
+            <dd>{sanitizeNotes(detail.notes)}</dd>
           </div>
         )}
         {detail.address && (
@@ -773,7 +763,7 @@ export function ExplanationPanel({ explanation, meaning }: ExplanationPanelProps
     <div className="explanation-stack">
       <div className="explanation-panel card-entrance" style={{ animationDelay: "180ms" }}>
         <p className="explanation-kicker">Why this score</p>
-        <p className="explanation-copy">{explanation}</p>
+        <p className="explanation-copy">{sanitizeApiText(explanation)}</p>
       </div>
 
       <div className="meaning-panel card-entrance" style={{ animationDelay: "240ms" }}>
@@ -1532,8 +1522,8 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
                 background: hoveredRow.color, flexShrink: 0,
               }} />
               <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
-                {/* data-043: prefer Claude display_title over raw title */}
-                {hoveredRow.detail.display_title ?? hoveredRow.detail.title ?? hoveredRow.typeLabel}
+                {/* data-043: prefer Claude display_title over raw title (sanitized) */}
+                {hoveredRow.detail.display_title ?? sanitizeApiText(hoveredRow.detail.title ?? "") || hoveredRow.typeLabel}
               </strong>
             </span>
             {hoveredRow.detail.description && (

@@ -59,6 +59,7 @@ from backend.models.project import (
     IMPACT_UTILITY_REPAIR,
     Project,
 )
+from backend.scoring.sanitize import format_date, sanitize_notes, sanitize_title
 
 
 # ---------------------------------------------------------------------------
@@ -355,29 +356,30 @@ def _build_top_risks(
     risks = []
     for nearby, weight in contributions[:3]:
         p = nearby.project
+        title = sanitize_title(p.title)
         dist_str = f"within roughly {int(nearby.distance_m)} meters"
 
         # Build the risk string from what we know.
         if p.impact_type == IMPACT_FULL_CLOSURE:
-            risk = f"Full street closure on {p.title} {dist_str}"
+            risk = f"Full street closure on {title} {dist_str}"
         elif p.impact_type == IMPACT_MULTI_LANE:
-            risk = f"Multi-lane closure on {p.title} {dist_str}"
+            risk = f"Multi-lane closure on {title} {dist_str}"
         elif p.impact_type == IMPACT_SINGLE_LANE:
-            risk = f"Lane or curb closure near {p.title} {dist_str}"
+            risk = f"Lane or curb closure near {title} {dist_str}"
         elif p.impact_type == IMPACT_DEMOLITION:
-            risk = f"Active demolition or excavation near {p.title} {dist_str}"
+            risk = f"Active demolition or excavation near {title} {dist_str}"
         elif p.impact_type == IMPACT_ROAD_CONSTRUCTION:
-            risk = f"Active road reconstruction or resurfacing near {p.title} {dist_str}"
+            risk = f"Active road reconstruction or resurfacing near {title} {dist_str}"
         elif p.impact_type == IMPACT_CONSTRUCTION:
-            risk = f"Active construction permit near {p.title} {dist_str}"
+            risk = f"Active construction permit near {title} {dist_str}"
         elif p.impact_type == IMPACT_UTILITY_OUTAGE:
-            risk = f"Active utility emergency near {p.title} {dist_str}"
+            risk = f"Active utility emergency near {title} {dist_str}"
         else:
-            risk = f"Nearby permit activity: {p.title} {dist_str}"
+            risk = f"Nearby permit activity: {title} {dist_str}"
 
-        # Append active window if available.
+        # Append active window if available — human-readable date, not ISO.
         if p.end_date:
-            risk += f"; active through {p.end_date.isoformat()}"
+            risk += f"; active through {format_date(p.end_date)}"
 
         risks.append(risk)
 
@@ -399,8 +401,8 @@ def _build_top_risk_details(
             "source": p.source,
             "source_id": p.source_id,
             "impact_type": p.impact_type,
-            "title": p.title,
-            "notes": p.notes,
+            "title": sanitize_title(p.title),
+            "notes": sanitize_notes(p.notes),
             "status": p.status,
             "start_date": p.start_date.isoformat() if p.start_date else None,
             "end_date": p.end_date.isoformat() if p.end_date else None,
@@ -427,32 +429,33 @@ def _build_explanation(
 
     top_np, top_w = contributions[0]
     p = top_np.project
+    title = sanitize_title(p.title)
     dist_str = f"within roughly {int(top_np.distance_m)} meters"
 
     # Select explanation pattern based on dominant impact type.
     if p.impact_type in (IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE):
-        lead = f"A nearby lane or street closure ({p.title}, {dist_str}) is the main driver"
+        lead = f"A nearby lane or street closure ({title}, {dist_str}) is the main driver"
         category = "traffic disruption"
     elif p.impact_type == IMPACT_ROAD_CONSTRUCTION:
-        lead = f"Nearby road reconstruction or resurfacing work ({p.title}, {dist_str}) is the main driver"
+        lead = f"Nearby road reconstruction or resurfacing work ({title}, {dist_str}) is the main driver"
         category = "traffic and access disruption"
     elif p.impact_type == IMPACT_DEMOLITION:
-        lead = f"Nearby demolition or excavation ({p.title}, {dist_str}) is the main driver"
+        lead = f"Nearby demolition or excavation ({title}, {dist_str}) is the main driver"
         category = "noise and dust disruption"
     elif p.impact_type == IMPACT_CONSTRUCTION:
-        lead = f"Nearby construction activity ({p.title}, {dist_str}) is the main driver"
+        lead = f"Nearby construction activity ({title}, {dist_str}) is the main driver"
         category = "noise disruption"
     elif p.impact_type == IMPACT_UTILITY_OUTAGE:
-        lead = f"An active utility emergency ({p.title}, {dist_str}) is the main driver"
+        lead = f"An active utility emergency ({title}, {dist_str}) is the main driver"
         category = "traffic and service disruption"
     else:
-        lead = f"Nearby permitted work ({p.title}, {dist_str}) is contributing"
+        lead = f"Nearby permitted work ({title}, {dist_str}) is contributing"
         category = "minor disruption"
 
-    # Add timing detail if available.
+    # Add timing detail — human-readable date, not ISO.
     timing = ""
     if p.end_date:
-        timing = f" The active window runs through {p.end_date.isoformat()}."
+        timing = f" The active window runs through {format_date(p.end_date)}."
 
     # Mention secondary driver only if it is meaningfully different in category.
     secondary = ""
