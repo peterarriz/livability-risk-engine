@@ -8,9 +8,9 @@ Data is quarterly, going back to 2008 for zip-level and further for metro-level.
 
 Sources:
   FHFA HPI zip-level (XLSX, quarterly since 2008):
-    https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_BDL_ZIP5.xlsx
+    https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx
   FHFA HPI metro-level (CSV, quarterly):
-    https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_metro.csv
+    https://www.fhfa.gov/hpi/download/quarterly_datasets/hpi_at_metro.csv
 
 Output:
   data/raw/fhfa_hpi_zip.json   — most recent HPI per 5-digit ZIP code
@@ -49,8 +49,11 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-ZIP_URL = "https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_BDL_ZIP5.xlsx"
-METRO_URL = "https://www.fhfa.gov/sites/default/files/2024-11/HPI_AT_metro.csv"
+# FHFA restructured their site in 2025. Old /sites/default/files/YYYY-MM/ paths
+# now 404. New paths use /hpi/download/{annual,quarterly_datasets}/ with lowercase
+# filenames. Verified 2026-03-28.
+ZIP_URL = "https://www.fhfa.gov/hpi/download/annual/hpi_at_zip5.xlsx"
+METRO_URL = "https://www.fhfa.gov/hpi/download/quarterly_datasets/hpi_at_metro.csv"
 
 ZIP_OUTPUT_PATH = Path("data/raw/fhfa_hpi_zip.json")
 METRO_OUTPUT_PATH = Path("data/raw/fhfa_hpi_metro.json")
@@ -81,7 +84,11 @@ def _find_col(headers: list[str], candidates: list[str]) -> str | None:
     norm_headers = [_norm(h) for h in headers]
     for candidate in candidates:
         target = _norm(candidate)
+        if not target:
+            continue
         for i, nh in enumerate(norm_headers):
+            if not nh:
+                continue  # skip empty headers
             if target in nh or nh in target:
                 return headers[i]
     return None
@@ -115,13 +122,17 @@ def _parse_zip_xlsx(content: bytes, dry_run: bool) -> list[dict]:
 
     rows_iter = ws.iter_rows(values_only=True)
 
-    # Find header row (first non-empty row)
+    # Find header row — skip title rows until we find one with multiple
+    # non-empty cells containing column-name keywords like "zip", "year", etc.
+    # (FHFA XLSX has a title row with a single merged cell before the headers)
     headers: list[str] = []
     for row in rows_iter:
-        non_empty = [str(c) for c in row if c is not None]
-        if non_empty:
-            headers = [str(c) if c is not None else "" for c in row]
-            break
+        non_empty = [str(c).strip() for c in row if c is not None and str(c).strip()]
+        if len(non_empty) < 3:
+            continue  # skip title rows (single merged cell) and blanks
+        candidate = [str(c) if c is not None else "" for c in row]
+        headers = candidate
+        break
 
     if not headers:
         raise ValueError("ZIP XLSX: could not find header row")
@@ -144,7 +155,7 @@ def _parse_zip_xlsx(content: bytes, dry_run: bool) -> list[dict]:
         "yr10_chg", "ten-year change", "10-year change", "10yr", "10_year_change",
     ])
 
-    if not zip_col or not year_col or not qtr_col or not index_col:
+    if not zip_col or not year_col or not index_col:
         raise ValueError(
             f"ZIP XLSX: missing required columns. Found: {headers}. "
             f"zip={zip_col}, year={year_col}, qtr={qtr_col}, index={index_col}"
@@ -152,7 +163,7 @@ def _parse_zip_xlsx(content: bytes, dry_run: bool) -> list[dict]:
 
     zip_i = headers.index(zip_col)
     year_i = headers.index(year_col)
-    qtr_i = headers.index(qtr_col)
+    qtr_i = headers.index(qtr_col) if qtr_col else None
     index_i = headers.index(index_col)
     annual_i = headers.index(annual_col) if annual_col else None
     yr5_i = headers.index(yr5_col) if yr5_col else None
@@ -170,11 +181,11 @@ def _parse_zip_xlsx(content: bytes, dry_run: bool) -> list[dict]:
 
         zip5 = row[zip_i]
         year = row[year_i]
-        qtr = row[qtr_i]
+        qtr = row[qtr_i] if qtr_i is not None else 4  # annual data defaults to Q4
         index_val = row[index_i]
 
         # Skip rows with missing key fields
-        if zip5 is None or year is None or qtr is None or index_val is None:
+        if zip5 is None or year is None or index_val is None:
             continue
 
         # Normalize zip to 5-digit string (Excel may store as int)
@@ -319,20 +330,28 @@ def _parse_metro_csv(content: bytes, dry_run: bool) -> list[dict]:
     yr5_col = _find_col(headers, ["yr5_chg", "five-year change", "5-year change", "5yr"])
     yr10_col = _find_col(headers, ["yr10_chg", "ten-year change", "10-year change", "10yr"])
 
+    # Headerless CSV fallback: FHFA's new download has no header row.
+    # Fixed column order: metro_name, cbsa_code, year, quarter, index_nsa, annual_change
     if not cbsa_col or not year_col or not qtr_col or not index_col:
-        raise ValueError(
-            f"Metro CSV: missing required columns. Found: {headers}. "
-            f"cbsa={cbsa_col}, year={year_col}, qtr={qtr_col}, index={index_col}"
-        )
-
-    cbsa_i = headers.index(cbsa_col)
-    name_i = headers.index(name_col) if name_col else None
-    year_i = headers.index(year_col)
-    qtr_i = headers.index(qtr_col)
-    index_i = headers.index(index_col)
-    annual_i = headers.index(annual_col) if annual_col else None
-    yr5_i = headers.index(yr5_col) if yr5_col else None
-    yr10_i = headers.index(yr10_col) if yr10_col else None
+        print("  No header row detected — using positional column mapping.")
+        name_i = 0
+        cbsa_i = 1
+        year_i = 2
+        qtr_i = 3
+        index_i = 4
+        annual_i = 5 if len(headers) > 5 else None
+        yr5_i = None
+        yr10_i = None
+        header_lineno = -1  # re-read from start since "header" is data
+    else:
+        cbsa_i = headers.index(cbsa_col)
+        name_i = headers.index(name_col) if name_col else None
+        year_i = headers.index(year_col)
+        qtr_i = headers.index(qtr_col)
+        index_i = headers.index(index_col)
+        annual_i = headers.index(annual_col) if annual_col else None
+        yr5_i = headers.index(yr5_col) if yr5_col else None
+        yr10_i = headers.index(yr10_col) if yr10_col else None
 
     # Re-read and skip to data rows
     metro_data: dict[str, list[tuple]] = {}

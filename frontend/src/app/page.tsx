@@ -180,8 +180,8 @@ export default function HomePage() {
   }, [isDemoResult, result, scoredAt]);
   const scoreTrend = useMemo<number | null>(() => {
     if (scoreHistory.length < 2) return null;
-    const latest = scoreHistory[0]?.disruption_score;
-    const oldest = scoreHistory[scoreHistory.length - 1]?.disruption_score;
+    const latest = scoreHistory[0] ? headlineScore(scoreHistory[0]) : undefined;
+    const oldest = scoreHistory[scoreHistory.length - 1] ? headlineScore(scoreHistory[scoreHistory.length - 1]) : undefined;
     if (typeof latest !== "number" || typeof oldest !== "number") return null;
     return latest - oldest;
   }, [scoreHistory]);
@@ -377,6 +377,7 @@ export default function HomePage() {
         setScoreHistory(
           payload.history.map((h) => ({
             disruption_score: h.disruption_score,
+            livability_score: h.livability_score,
             confidence: h.confidence,
             mode: h.mode as import("../lib/api").ScoreMode,
             created_at: h.scored_at,
@@ -392,6 +393,7 @@ export default function HomePage() {
         r
           ? r.history.map((h) => ({
               disruption_score: h.disruption_score,
+              livability_score: h.livability_score,
               confidence: h.confidence,
               mode: h.mode as import("../lib/api").ScoreMode,
               created_at: h.scored_at,
@@ -952,7 +954,7 @@ export default function HomePage() {
 
               {/* ── Full desktop results (CSS-hidden on mobile unless mobileShowFull) ── */}
               <div className={`desktop-view${!mobileShowFull ? " desktop-view--mobile-hidden" : ""}`}>
-              {result.disruption_score >= 61 && (
+              {headlineScore(result) >= 61 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
                   <span>
@@ -966,7 +968,7 @@ export default function HomePage() {
                 <Card className="score-card">
                   <ScoreHero result={result} />
                   {scoreHistory.length >= 1 && (
-                    <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
+                    <ScoreSparkline history={scoreHistory} currentScore={headlineScore(result)} />
                   )}
                   <div className="score-actions">
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
@@ -992,7 +994,7 @@ export default function HomePage() {
               </div>
 
               {/* ── Monitor this address — shown for score >= 50 ─────────── */}
-              {result.disruption_score >= 50 && (
+              {headlineScore(result) >= 50 && (
                 <WatchlistForm address={result.address} score={headlineScore(result)} />
               )}
 
@@ -1048,7 +1050,7 @@ export default function HomePage() {
                     latitude={mapCoords.lat}
                     longitude={mapCoords.lon}
                     address={result.address}
-                    disruptionScore={result.disruption_score}
+                    disruptionScore={headlineScore(result)}
                     signals={result.nearby_signals ?? []}
                     schools={result.nearby_schools ?? []}
                     amenities={amenities}

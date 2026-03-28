@@ -829,7 +829,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     // Sort chronologically; drop entries older than 30 days.
     const dated = history
       .filter((e) => e.created_at != null)
-      .map((e) => ({ score: e.disruption_score, ts: new Date(e.created_at!).getTime() }))
+      .map((e) => ({ score: getHeadlineScore(e), ts: new Date(e.created_at!).getTime() }))
       .filter((e) => e.ts >= cutoff30)
       .sort((a, b) => a.ts - b.ts);
 
@@ -837,7 +837,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     const undated = history
       .filter((e) => e.created_at == null)
       .map((e, i, arr) => ({
-        score: e.disruption_score,
+        score: getHeadlineScore(e),
         ts: cutoff30 + ((i + 1) / (arr.length + 1)) * (30 * DAY_MS),
       }));
 
@@ -1200,7 +1200,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
   // Don't render when we have nothing to show.
   if (!hasHistory && !hasTrend && !lat && !lon) return null;
 
-  const score          = result.disruption_score;
+  const score          = getHeadlineScore(result);
   const medianScore    = hood?.median_score ?? null;
   const neighborhoodName = hood?.name ?? slugInfo?.name ?? null;
   const blurb          = slugInfo
@@ -2198,7 +2198,8 @@ function _pillColor(impactType: string | null | undefined): string {
 }
 
 export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
-  const band = _mobileBand(result.disruption_score);
+  const _headline = getHeadlineScore(result);
+  const band = _mobileBand(_headline);
 
   // ── Share state ──────────────────────────────────────────────────────────
   const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
@@ -2212,7 +2213,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       if (typeof navigator.share === "function") {
         await navigator.share({
           title: `Disruption score — ${result.address}`,
-          text: `${result.address} scores ${result.disruption_score}/100 (${band.label}) for near-term construction disruption.`,
+          text: `${result.address} scores ${_headline}/100 (${band.label}) for near-term construction disruption.`,
           url,
         });
         setShareState("idle");
@@ -2271,7 +2272,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       <div className="msv-hero" style={{ "--msv-band-color": band.color } as React.CSSProperties}>
         <p className="msv-eyebrow">Disruption Score</p>
         <div className="msv-score" style={{ color: band.color }}>
-          {result.disruption_score}
+          {_headline}
         </div>
         <p className="msv-band" style={{ color: band.color }}>{band.label}</p>
         <p className="msv-address">{result.address}</p>
