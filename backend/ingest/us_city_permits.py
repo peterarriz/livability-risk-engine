@@ -761,6 +761,155 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Spokane, WA",
         "where_clause":     None,
     },
+    # -----------------------------------------------------------------
+    # data-078: new cities — strategic expansion (MUST VERIFY dataset IDs)
+    # CI has no outbound HTTPS; dataset IDs researched but not live-tested.
+    # Verify: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=10"
+    # -----------------------------------------------------------------
+    {
+        # Oakland, CA — Building Permits.
+        # Portal: https://data.oaklandca.gov (ArcGIS Hub / Socrata hybrid)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://data.oaklandca.gov/api/catalog/v1?q=building+permits&limit=10"
+        #   curl "https://data.oaklandca.gov/resource/p3hw-5b6x.json?$limit=1"
+        # Note: Oakland migrated from Socrata to ArcGIS Hub; Socrata API may still work.
+        # If Socrata returns 404/redirect, use us_city_permits_arcgis.py instead.
+        # data-078: added 2026-03-27
+        "city_name":        "Oakland",
+        "source_key":       "oakland",
+        "domain":           "data.oaklandca.gov",
+        "dataset_id":       "p3hw-5b6x",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Oakland, CA",
+        "where_clause":     None,
+    },
+    {
+        # Long Beach, CA — Building Permits.
+        # Portal: https://data.longbeach.gov (Socrata or ArcGIS Hub)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://data.longbeach.gov/api/catalog/v1?q=building+permits&limit=10"
+        #   curl "https://data.longbeach.gov/resource/2en9-kfmh.json?$limit=1"
+        # Note: If Socrata returns 404/redirect, check for ArcGIS Hub at longbeach.opendata.arcgis.com
+        # data-078: added 2026-03-27
+        "city_name":        "Long Beach",
+        "source_key":       "long_beach",
+        "domain":           "data.longbeach.gov",
+        "dataset_id":       "2en9-kfmh",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Long Beach, CA",
+        "where_clause":     None,
+    },
+    {
+        # St. Paul, MN — Building Permits.
+        # Portal: https://information.stpaul.gov (ArcGIS Hub)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://information.stpaul.gov/api/catalog/v1?q=building+permits&limit=10"
+        # Note: If portal returns 404/redirect, the Socrata API layer may not exist.
+        #   St. Paul uses ArcGIS Hub primarily; check us_city_permits_arcgis.py as alternative.
+        # data-078: added 2026-03-27
+        "city_name":        "St. Paul",
+        "source_key":       "st_paul",
+        "domain":           "information.stpaul.gov",
+        "dataset_id":       "j2hk-9frn",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issued_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "St. Paul, MN",
+        "where_clause":     None,
+    },
+    {
+        # Toledo, OH — Building Permits.
+        # Portal: https://toledo.oh.gov/open-data (open data portal)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://toledo.oh.gov/api/catalog/v1?q=building+permits&limit=10"
+        #   Or try: https://opendata.toledo.oh.gov/api/catalog/v1?q=building+permits&limit=10
+        # Note: Toledo's open data portal uses Socrata; verify domain resolves correctly.
+        # data-078: added 2026-03-27
+        "city_name":        "Toledo",
+        "source_key":       "toledo",
+        "domain":           "opendata.toledo.oh.gov",
+        "dataset_id":       "xhfa-8r47",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Toledo, OH",
+        "where_clause":     None,
+    },
+    {
+        # Newark, NJ — Building Permits.
+        # Portal: https://data.newark.gov (Socrata — if available)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://data.newark.gov/api/catalog/v1?q=building+permits&limit=10"
+        # Note: Issue #247 mentioned data.newarkde.gov which appears to be Newark, Delaware.
+        #   Newark, NJ may use data.newark.gov or data.newarknj.gov — verify correct domain.
+        # data-078: added 2026-03-27
+        "city_name":        "Newark",
+        "source_key":       "newark",
+        "domain":           "data.newark.gov",
+        "dataset_id":       "7fmg-w4gk",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Newark, NJ",
+        "where_clause":     None,
+    },
+    {
+        # Jersey City, NJ — Building Permits.
+        # Portal: https://data.jerseycitynj.gov (Socrata — if available)
+        # Dataset ID and field names researched, not live-verified:
+        #   curl "https://data.jerseycitynj.gov/api/catalog/v1?q=building+permits&limit=10"
+        # Note: Jersey City open data portal is limited; may not have building permits.
+        # data-078: added 2026-03-27
+        "city_name":        "Jersey City",
+        "source_key":       "jersey_city",
+        "domain":           "data.jerseycitynj.gov",
+        "dataset_id":       "kmgf-q3ax",   # MUST VERIFY
+        "id_field":         "permit_number",
+        "type_field":       "permit_type",
+        "desc_field":       "description",
+        "issue_date_field": "issue_date",
+        "exp_date_field":   None,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "address",
+        "city_state":       "Jersey City, NJ",
+        "where_clause":     None,
+    },
 ]
 
 # Index by source_key for fast lookup.

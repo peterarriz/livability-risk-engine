@@ -11,10 +11,119 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-076 (audit remaining 31 disabled permit cities — configs removed)
-# Next task to create: data-077
+# Last completed task: data-078 (strategic city expansion — markets that matter)
+# Next task to create: data-079
 
 tasks:
+  - id: data-079
+    title: Live-verify all data-078 MUST VERIFY endpoints with network access
+    status: backlog
+    priority: high
+    github_issue: null
+    files:
+      - backend/ingest/dallas_crime_trends.py
+      - backend/ingest/st_petersburg_crime_trends.py
+      - backend/ingest/st_paul_crime_trends.py
+      - backend/ingest/toledo_crime_trends.py
+      - backend/ingest/birmingham_crime_trends.py
+      - backend/ingest/plano_tx_crime_trends.py
+      - backend/ingest/irving_tx_crime_trends.py
+      - backend/ingest/riverside_ca_crime_trends.py
+      - backend/ingest/murfreesboro_crime_trends.py
+      - backend/ingest/frisco_tx_crime_trends.py
+      - backend/ingest/mckinney_tx_crime_trends.py
+      - backend/ingest/long_beach_crime_trends.py
+      - backend/ingest/oakland_crime_trends.py
+      - backend/ingest/us_city_permits_arcgis.py
+      - backend/ingest/us_city_permits.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-079 is the live-verification follow-on to data-078. REQUIRES NETWORK ACCESS.
+      All data-078 endpoints have placeholder org IDs and service names marked MUST VERIFY.
+      Verification workflow per city:
+        1. For ArcGIS crime: curl "https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json"
+           | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
+           Find the crime service, update FEATURESERVER_URL, DATE_FIELD, DISTRICT_FIELD, LAT_FIELD, LON_FIELD
+           Run: python backend/ingest/{city}_crime_trends.py --dry-run
+        2. For Socrata crime/permits: curl "https://<domain>/api/catalog/v1?q=crime&limit=10"
+           Find the dataset ID, run: curl "https://<domain>/resource/<id>.json?$limit=1"
+           Update DATASET_ID, DATE_FIELD, DISTRICT_FIELD if different
+        3. For ArcGIS permits: curl service listing, find permit service name,
+           update service_url in us_city_permits_arcgis.py CITY_CONFIGS,
+           run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
+        4. If org ID invalid (returns 0 services or 400): mark as STUB or REMOVED in SKILL.md
+        5. Update SKILL.md tables to remove MUST VERIFY / add verified URLs
+      Priority order for data-078 cities:
+        Tier 1 crime (highest value): dallas, st_paul, toledo, birmingham
+        Tier 2 crime: st_petersburg, long_beach, oakland, riverside_ca
+        Tier 3 crime (Sun Belt): frisco_tx, mckinney_tx, murfreesboro
+        Tier 4 crime (may be stubs): plano_tx, irving_tx
+        Permits: dallas, detroit, st_petersburg, birmingham, orlando, plano
+        Socrata permits: oakland, long_beach, st_paul, toledo, newark, jersey_city
+      Also: data-077 (re-enable 31 existing removed cities) should be done before or alongside data-079.
+
+  - id: data-078
+    title: Strategic city expansion — markets that matter for enterprise sales
+    status: done
+    priority: high
+    github_issue: 247
+    files:
+      - backend/ingest/dallas_crime_trends.py
+      - backend/ingest/st_petersburg_crime_trends.py
+      - backend/ingest/st_paul_crime_trends.py
+      - backend/ingest/toledo_crime_trends.py
+      - backend/ingest/birmingham_crime_trends.py
+      - backend/ingest/plano_tx_crime_trends.py
+      - backend/ingest/irving_tx_crime_trends.py
+      - backend/ingest/riverside_ca_crime_trends.py
+      - backend/ingest/murfreesboro_crime_trends.py
+      - backend/ingest/frisco_tx_crime_trends.py
+      - backend/ingest/mckinney_tx_crime_trends.py
+      - backend/ingest/long_beach_crime_trends.py
+      - backend/ingest/oakland_crime_trends.py
+      - backend/ingest/bakersfield_crime_trends.py
+      - backend/ingest/stockton_ca_crime_trends.py
+      - backend/ingest/newark_nj_crime_trends.py
+      - backend/ingest/jersey_city_crime_trends.py
+      - backend/ingest/garland_tx_crime_trends.py
+      - backend/ingest/laredo_tx_crime_trends.py
+      - backend/ingest/lubbock_tx_crime_trends.py
+      - backend/ingest/amarillo_tx_crime_trends.py
+      - backend/ingest/north_port_crime_trends.py
+      - backend/ingest/round_rock_tx_crime_trends.py
+      - backend/ingest/cedar_park_tx_crime_trends.py
+      - backend/ingest/us_city_permits_arcgis.py
+      - backend/ingest/us_city_permits.py
+      - backend/ingest/load_neighborhood_quality.py
+      - TASKS.yaml
+      - SKILL.md
+    notes_for_next_agent: >
+      data-078 complete (issue #247).
+      CI has no outbound HTTPS — all new endpoints have placeholder org IDs/service names
+      marked MUST VERIFY. Next agent data-079 must verify all new endpoints with network access.
+      IMPLEMENTED (data-078):
+        Crime scripts added (ArcGIS MUST VERIFY, 11 cities):
+          dallas, st_petersburg, st_paul, toledo, birmingham, plano_tx, irving_tx,
+          riverside_ca, murfreesboro, frisco_tx, mckinney_tx
+        Crime scripts added (Socrata MUST VERIFY, 2 cities):
+          long_beach, oakland
+        Crime stubs (no public API confirmed, 11 cities):
+          bakersfield, stockton_ca, newark_nj, jersey_city, garland_tx, laredo_tx,
+          lubbock_tx, amarillo_tx, north_port, round_rock_tx, cedar_park_tx
+        Already existed (no new scripts needed):
+          miami (Miami-Dade SKIPPED), tampa (MUST VERIFY), san_diego (CSV),
+          detroit (have crime), spokane (state NIBRS), orlando (MUST VERIFY),
+          gilbert/cape_coral/surprise_az/goodyear_az (stubs/MUST VERIFY)
+        Permit configs added to us_city_permits_arcgis.py (MUST VERIFY):
+          dallas, detroit, st_petersburg, birmingham, riverside, irving, orlando, plano
+        Permit configs added to us_city_permits.py (Socrata MUST VERIFY):
+          oakland, long_beach, st_paul, toledo, newark, jersey_city
+        load_neighborhood_quality.py updated with all 24 new crime sources
+        SKILL.md and TASKS.yaml updated
+      NEXT: data-079 should live-verify all MUST VERIFY endpoints and remove broken ones.
+      Separately: data-077 (31 previously removed ArcGIS permit cities) is still backlog.
+
   - id: data-075
     title: Research and fix permit URLs for high-value disabled cities
     status: done

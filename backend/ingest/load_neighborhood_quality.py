@@ -51,6 +51,30 @@ Reads from staging files written by:
   backend/ingest/winston_salem_crime_trends.py → data/raw/winston_salem_crime_trends.json
   backend/ingest/shreveport_crime_trends.py   → data/raw/shreveport_crime_trends.json
   backend/ingest/huntsville_crime_trends.py   → data/raw/huntsville_crime_trends.json
+  backend/ingest/dallas_crime_trends.py       → data/raw/dallas_crime_trends.json
+  backend/ingest/st_petersburg_crime_trends.py → data/raw/st_petersburg_crime_trends.json
+  backend/ingest/frisco_tx_crime_trends.py    → data/raw/frisco_tx_crime_trends.json
+  backend/ingest/mckinney_tx_crime_trends.py  → data/raw/mckinney_tx_crime_trends.json
+  backend/ingest/north_port_crime_trends.py   → data/raw/north_port_crime_trends.json
+  backend/ingest/murfreesboro_crime_trends.py → data/raw/murfreesboro_crime_trends.json
+  backend/ingest/round_rock_tx_crime_trends.py → data/raw/round_rock_tx_crime_trends.json
+  backend/ingest/cedar_park_tx_crime_trends.py → data/raw/cedar_park_tx_crime_trends.json
+  backend/ingest/newark_nj_crime_trends.py    → data/raw/newark_nj_crime_trends.json
+  backend/ingest/jersey_city_crime_trends.py  → data/raw/jersey_city_crime_trends.json
+  backend/ingest/long_beach_crime_trends.py   → data/raw/long_beach_crime_trends.json
+  backend/ingest/oakland_crime_trends.py      → data/raw/oakland_crime_trends.json
+  backend/ingest/riverside_ca_crime_trends.py → data/raw/riverside_ca_crime_trends.json
+  backend/ingest/bakersfield_crime_trends.py  → data/raw/bakersfield_crime_trends.json
+  backend/ingest/stockton_ca_crime_trends.py  → data/raw/stockton_ca_crime_trends.json
+  backend/ingest/st_paul_crime_trends.py      → data/raw/st_paul_crime_trends.json
+  backend/ingest/toledo_crime_trends.py       → data/raw/toledo_crime_trends.json
+  backend/ingest/birmingham_crime_trends.py   → data/raw/birmingham_crime_trends.json
+  backend/ingest/plano_tx_crime_trends.py     → data/raw/plano_tx_crime_trends.json
+  backend/ingest/irving_tx_crime_trends.py    → data/raw/irving_tx_crime_trends.json
+  backend/ingest/garland_tx_crime_trends.py   → data/raw/garland_tx_crime_trends.json
+  backend/ingest/laredo_tx_crime_trends.py    → data/raw/laredo_tx_crime_trends.json
+  backend/ingest/lubbock_tx_crime_trends.py   → data/raw/lubbock_tx_crime_trends.json
+  backend/ingest/amarillo_tx_crime_trends.py  → data/raw/amarillo_tx_crime_trends.json
 
 Each record is upserted into neighborhood_quality keyed on (region_type, region_id).
 
@@ -221,6 +245,34 @@ STAGING_FILES = {
     "crime_winston_salem":        Path("data/raw/winston_salem_crime_trends.json"),
     "crime_shreveport":           Path("data/raw/shreveport_crime_trends.json"),
     "crime_huntsville":           Path("data/raw/huntsville_crime_trends.json"),
+    # data-078: strategic city expansion — Tier 1 (ArcGIS MUST VERIFY)
+    "crime_dallas":               Path("data/raw/dallas_crime_trends.json"),
+    "crime_st_petersburg":        Path("data/raw/st_petersburg_crime_trends.json"),
+    # data-078: strategic city expansion — Tier 2 Sun Belt growth markets
+    "crime_frisco_tx":            Path("data/raw/frisco_tx_crime_trends.json"),
+    "crime_mckinney_tx":          Path("data/raw/mckinney_tx_crime_trends.json"),
+    "crime_north_port":           Path("data/raw/north_port_crime_trends.json"),
+    "crime_murfreesboro":         Path("data/raw/murfreesboro_crime_trends.json"),
+    "crime_round_rock_tx":        Path("data/raw/round_rock_tx_crime_trends.json"),
+    "crime_cedar_park_tx":        Path("data/raw/cedar_park_tx_crime_trends.json"),
+    # data-078: strategic city expansion — Tier 3 major coastal markets
+    "crime_newark_nj":            Path("data/raw/newark_nj_crime_trends.json"),
+    "crime_jersey_city":          Path("data/raw/jersey_city_crime_trends.json"),
+    "crime_long_beach":           Path("data/raw/long_beach_crime_trends.json"),
+    "crime_oakland":              Path("data/raw/oakland_crime_trends.json"),
+    "crime_riverside_ca":         Path("data/raw/riverside_ca_crime_trends.json"),
+    "crime_bakersfield":          Path("data/raw/bakersfield_crime_trends.json"),
+    "crime_stockton_ca":          Path("data/raw/stockton_ca_crime_trends.json"),
+    "crime_st_paul":              Path("data/raw/st_paul_crime_trends.json"),
+    "crime_toledo":               Path("data/raw/toledo_crime_trends.json"),
+    "crime_birmingham":           Path("data/raw/birmingham_crime_trends.json"),
+    # data-078: strategic city expansion — Tier 4 Texas triangle
+    "crime_plano_tx":             Path("data/raw/plano_tx_crime_trends.json"),
+    "crime_irving_tx":            Path("data/raw/irving_tx_crime_trends.json"),
+    "crime_garland_tx":           Path("data/raw/garland_tx_crime_trends.json"),
+    "crime_laredo_tx":            Path("data/raw/laredo_tx_crime_trends.json"),
+    "crime_lubbock_tx":           Path("data/raw/lubbock_tx_crime_trends.json"),
+    "crime_amarillo_tx":          Path("data/raw/amarillo_tx_crime_trends.json"),
     # data-045: IL school ratings (CPS — Chicago only, richer rating fields)
     "schools":           Path("data/raw/il_school_ratings.json"),
     # data-053: National school locations via NCES CCD (all active cities)
