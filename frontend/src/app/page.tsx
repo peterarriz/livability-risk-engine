@@ -1221,16 +1221,17 @@ export default function HomePage() {
           id="pricing-section"
           eyebrow="Pricing"
           title="Choose the right plan"
-          description="Start free. Upgrade when you need forecasts, exports, and team access."
+          description="Start free. Upgrade when you need more lookups, team access, or API integration."
           className="pricing-section"
         >
-          <div className="pricing-grid pricing-grid--three">
+          <div className="pricing-grid pricing-grid--four">
             <Card className="detail-card pricing-card">
               <p className="supporting-kicker">Free</p>
               <h2>$0 / month</h2>
+              <p className="pricing-roi">For exploring and occasional lookups</p>
               <ul className="pricing-features">
-                <li>Unlimited address lookups</li>
-                <li>Real-time disruption score</li>
+                <li>10 address lookups / month</li>
+                <li>Real-time livability score</li>
                 <li>Signal cards and confidence read</li>
                 <li>Spatial map context</li>
               </ul>
@@ -1239,34 +1240,77 @@ export default function HomePage() {
             <Card className="detail-card pricing-card pricing-card--pro">
               <p className="supporting-kicker">Pro</p>
               <h2>$49 / month</h2>
+              <p className="pricing-roi">Typical agent runs 50+ lookups/month</p>
               <ul className="pricing-features">
-                <li>Everything in Free</li>
+                <li>Unlimited address lookups</li>
                 <li>30-day disruption forecasts</li>
                 <li>PDF and CSV report exports</li>
                 <li>Permit detail drill-down</li>
                 <li>Address comparison tool</li>
-                <li>Priority data refresh</li>
+                <li>Alert monitoring (email)</li>
               </ul>
               <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
             </Card>
-            <Card className="detail-card pricing-card pricing-card--enterprise">
-              <p className="supporting-kicker">Enterprise</p>
-              <h2>Custom pricing</h2>
+            <Card className="detail-card pricing-card pricing-card--teams">
+              <p className="supporting-kicker">Teams</p>
+              <h2>$199 / month</h2>
+              <p className="pricing-roi">For brokerages and property managers</p>
               <ul className="pricing-features">
                 <li>Everything in Pro</li>
-                <li>Batch API access (up to 10,000 addresses/mo)</li>
+                <li>Up to 5 team seats</li>
+                <li>CSV bulk import (500 addresses)</li>
+                <li>REST API access</li>
+                <li>Team dashboard</li>
+                <li>Priority support</li>
+              </ul>
+              <button type="button" className="pricing-cta pricing-cta--primary">Start Teams trial</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--enterprise">
+              <p className="supporting-kicker">Enterprise</p>
+              <h2>From $999 / month</h2>
+              <p className="pricing-roi">Custom pricing for large teams</p>
+              <ul className="pricing-features">
+                <li>Everything in Teams</li>
+                <li>Unlimited seats</li>
+                <li>Batch API (10,000+ addresses/mo)</li>
                 <li>Webhook alerts</li>
                 <li>SLA guarantee</li>
-                <li>Dedicated account support</li>
-                <li>White-label report option</li>
+                <li>White-label reports</li>
+                <li>Dedicated account manager</li>
               </ul>
               <a
-                href="mailto:hello@livabilityrisk.com?subject=Enterprise%20inquiry"
+                href="mailto:enterprise@livabilityrisks.com?subject=Enterprise%20inquiry"
                 className="pricing-cta pricing-cta--enterprise"
               >
                 Talk to us
               </a>
             </Card>
+          </div>
+
+          {/* Feature comparison table */}
+          <div className="pricing-comparison">
+            <table className="pricing-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Free</th>
+                  <th>Pro</th>
+                  <th>Teams</th>
+                  <th>Enterprise</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Lookups / month</td><td>10</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+                <tr><td>Bulk CSV upload</td><td>&mdash;</td><td>&mdash;</td><td>500 addresses</td><td>10,000+</td></tr>
+                <tr><td>API access</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>Team seats</td><td>1</td><td>1</td><td>Up to 5</td><td>Unlimited</td></tr>
+                <tr><td>PDF exports</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>Alert monitoring</td><td>&mdash;</td><td>Email</td><td>Email</td><td>Email + Webhook</td></tr>
+                <tr><td>30-day forecasts</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>SLA</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>99.9%</td></tr>
+                <tr><td>Support</td><td>Community</td><td>Email</td><td>Priority</td><td>Dedicated</td></tr>
+              </tbody>
+            </table>
           </div>
         </Section>
 

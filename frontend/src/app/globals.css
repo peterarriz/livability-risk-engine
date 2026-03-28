@@ -1975,6 +1975,11 @@ button:disabled {
   max-width: 1100px;
 }
 
+.pricing-grid--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 1200px;
+}
+
 .pricing-card {
   display: flex;
   flex-direction: column;
@@ -2045,6 +2050,55 @@ button:disabled {
   box-shadow: none;
   transform: none;
   color: #3ce5b3;
+}
+
+/* Teams tier */
+.pricing-card--teams {
+  border-color: rgba(251, 191, 36, 0.25);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(95, 124, 255, 0.04)), var(--surface);
+}
+
+/* ROI framing text */
+.pricing-roi {
+  font-size: 0.78rem;
+  color: var(--text-soft, #94a3b8);
+  margin: -8px 0 4px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ── Feature comparison table ───────────────────────────────────────── */
+.pricing-comparison {
+  margin-top: 2.5rem;
+  overflow-x: auto;
+}
+.pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  color: var(--text-soft, #94a3b8);
+}
+.pricing-table th,
+.pricing-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pricing-table th {
+  font-weight: 700;
+  color: var(--text, #e8eef8);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pricing-table td:first-child,
+.pricing-table th:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text, #e8eef8);
+}
+.pricing-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* ─── Nav pricing link ────────────────────────────────────────── */
