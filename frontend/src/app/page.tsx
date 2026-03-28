@@ -20,9 +20,10 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
+import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -114,6 +115,11 @@ export default function HomePage() {
   const [isFocused, setIsFocused] = useState(false);
   // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
   const [isDebugMode, setIsDebugMode] = useState(false);
+  // Free-tier lookup gating
+  const { user, isSignedIn } = useUser();
+  const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
+  const [lookupUsage, setLookupUsage] = useState({ count: 0, limit: 10, remaining: 10, isGated: false });
+  const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Mobile simplified view — reset to false on each new result so users always
   // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
@@ -244,7 +250,9 @@ export default function HomePage() {
   // Read ?debug=true from URL after mount (client-side only).
   useEffect(() => {
     setIsDebugMode(new URLSearchParams(window.location.search).get("debug") === "true");
-  }, []);
+    // Load lookup usage from localStorage
+    setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
+  }, [isSignedIn, isPro]);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -488,6 +496,16 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
+    // Free-tier gate: check quota before making the request.
+    // Demo addresses are never gated.
+    if (!isDemoAddress(addr)) {
+      const usage = getLookupUsage(!!isSignedIn, isPro);
+      if (usage.isGated) {
+        setShowGate(true);
+        return;
+      }
+    }
+
     debugSearchFlow("SEARCH_REQUEST", {
       request_fired: true,
       identifier_type: selectedAddress?.id ? "canonical_id" : "address_text",
@@ -519,6 +537,11 @@ export default function HomePage() {
         const deduped = [addr, ...prev.filter((a: string) => a !== addr)];
         return deduped.slice(0, 5);
       });
+      // Record lookup for quota tracking (demo addresses exempt)
+      if (!isDemoAddress(addr)) {
+        const updated = recordLookup(!!isSignedIn, isPro);
+        setLookupUsage(updated);
+      }
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -806,6 +829,48 @@ export default function HomePage() {
                 </div>
               </div>
             </form>
+
+            {/* Free-tier usage indicator — only shown for non-Pro users */}
+            {!isPro && lookupUsage.count > 0 && (
+              <p className="lookup-usage-indicator">
+                {lookupUsage.count}/{lookupUsage.limit} free lookups used this month
+              </p>
+            )}
+
+            {/* Gate overlay — shown when free-tier limit is reached */}
+            {showGate && (
+              <div className="gate-overlay" role="alert">
+                <div className="gate-overlay-card">
+                  <p className="gate-overlay-icon">🔒</p>
+                  <h3>
+                    {isSignedIn
+                      ? `You\u2019ve used your ${lookupUsage.limit} free lookups this month.`
+                      : `Sign up to get ${10} free lookups per month.`}
+                  </h3>
+                  <p>
+                    {isSignedIn
+                      ? "Upgrade to Pro for unlimited address lookups, batch analysis, and PDF exports."
+                      : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} free lookups. Create a free account to get more, or upgrade to Pro for unlimited access.`}
+                  </p>
+                  <div className="gate-overlay-actions">
+                    {isSignedIn ? (
+                      <a href="#pricing-section" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
+                        See Pro plan
+                      </a>
+                    ) : (
+                      <SignInButton mode="modal">
+                        <button type="button" className="gate-btn gate-btn--primary">
+                          Sign up free
+                        </button>
+                      </SignInButton>
+                    )}
+                    <button type="button" className="gate-btn gate-btn--secondary" onClick={() => setShowGate(false)}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {(result || statusNote) ? (
               <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
