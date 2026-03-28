@@ -458,6 +458,27 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Buffalo, NY",
         "where_clause":     None,
     },
+    {
+        # Kansas City, MO — CPD Permits (verified 2026-03-28).
+        # Portal: https://data.kcmo.org (Socrata)
+        # Dataset: ntw8-aacc (681,036 records, through May 2025)
+        "city_name":        "Kansas City",
+        "source_key":       "kansas_city",
+        "domain":           "data.kcmo.org",
+        "dataset_id":       "ntw8-aacc",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
+        "loc_field":        None,
+        "addr_field":       "originaladdress1",
+        "city_state":       "Kansas City, MO",
+        "where_clause":     None,
+        "skip_date_filter": True,  # data through May 2025; stale but large dataset
+    },
     # -----------------------------------------------------------------
     # REMOVED — Raleigh (verified 2026-03-28):
     #   data.raleighnc.gov is not Socrata or CKAN. 0 Socrata results.
