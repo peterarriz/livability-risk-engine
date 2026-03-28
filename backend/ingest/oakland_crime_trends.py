@@ -89,12 +89,11 @@ def fetch_crime_counts_with_centroids(
     end_date: datetime,
 ) -> dict[str, dict]:
     """
-    Fetch total crime counts per beat for a date range, with avg lat/lon.
+    Fetch total crime counts per beat for a date range.
     Uses SoQL GROUP BY to compute aggregates server-side.
 
     Returns dict: beat → {count, lat, lon}.
-
-"""
+    """
     where_clause = (
         f"{DATE_FIELD} >= '{_date_str(start_date)}' "
         f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
