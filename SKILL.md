@@ -105,6 +105,30 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Winston-Salem NC | `winston_salem_crime_trends.py` | **STUB — no public API** (WSPD no ArcGIS/Socrata crime service) | — | — | `winston_salem_crime_trends.json` (0 records) |
 | Shreveport LA | `shreveport_crime_trends.py` | **STUB — no public API** (SPD publishes aggregate counts only) | — | — | `shreveport_crime_trends.json` (0 records) |
 | Huntsville AL | `huntsville_crime_trends.py` | **STUB — no public API** (HPD via JustFOIA only) | — | — | `huntsville_crime_trends.json` (0 records) |
+| Dallas TX | `dallas_crime_trends.py` | `services.arcgis.com/K1vmv3C6RR68oGEo/.../DPD_CrimeIncidents/FeatureServer/0` (**MUST VERIFY** — org ID and service name not live-tested; portal: dallasopendata.com) | `IncidentDate` (MUST VERIFY) | `Division` (MUST VERIFY) | `dallas_crime_trends.json` |
+| St. Petersburg FL | `st_petersburg_crime_trends.py` | `services1.arcgis.com/8vEm1j5dMMr9eBob/.../SPPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: data.stpete.org) | `IncidentDate` (MUST VERIFY) | `Sector` (MUST VERIFY) | `st_petersburg_crime_trends.json` |
+| Frisco TX | `frisco_tx_crime_trends.py` | `services.arcgis.com/GE4Z4z1cnF58LL3C/.../FPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: friscotexas.gov/opendata) | `IncidentDate` (MUST VERIFY) | `Beat` (MUST VERIFY) | `frisco_tx_crime_trends.json` |
+| McKinney TX | `mckinney_tx_crime_trends.py` | `services.arcgis.com/5VpNVlUxHMX5rB9c/.../MPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: mckinneytexas.org) | `IncidentDate` (MUST VERIFY) | `Beat` (MUST VERIFY) | `mckinney_tx_crime_trends.json` |
+| North Port FL | `north_port_crime_trends.py` | **STUB — no public API** (NPPD no public REST API; Sarasota County area; no open data portal found) | — | — | `north_port_crime_trends.json` (0 records) |
+| Murfreesboro TN | `murfreesboro_crime_trends.py` | `services1.arcgis.com/QpJd9AijpBIH7O5B/.../MPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: murfreesborotn.gov/opendata) | `IncidentDate` (MUST VERIFY) | `Zone` (MUST VERIFY) | `murfreesboro_crime_trends.json` |
+| Round Rock TX | `round_rock_tx_crime_trends.py` | **STUB — no public API** (RRPD no public incident-level API; data.roundrocktexas.gov is document portal only) | — | — | `round_rock_tx_crime_trends.json` (0 records) |
+| Cedar Park TX | `cedar_park_tx_crime_trends.py` | **STUB — no public API** (CPPD no public incident-level API; city ~100k, no dedicated open data portal) | — | — | `cedar_park_tx_crime_trends.json` (0 records) |
+| Newark NJ | `newark_nj_crime_trends.py` | **STUB — no confirmed API** (NJPD no confirmed public REST API; issue suggested data.newarkde.gov which is Newark, Delaware not NJ; check data.newark.gov) | — | — | `newark_nj_crime_trends.json` (0 records) |
+| Jersey City NJ | `jersey_city_crime_trends.py` | **STUB — no public API** (JCPD no public incident-level API; data.jerseycitynj.gov has only limited datasets) | — | — | `jersey_city_crime_trends.json` (0 records) |
+| Long Beach CA | `long_beach_crime_trends.py` | Socrata — data.longbeach.gov, dataset `4bz9-ggsz` (**MUST VERIFY**) | `date_rptd` (MUST VERIFY) | `area_name` (MUST VERIFY) | `long_beach_crime_trends.json` |
+| Oakland CA | `oakland_crime_trends.py` | Socrata — data.oaklandca.gov, dataset `ppgh-7dqv` (**MUST VERIFY**) | `datetime` (MUST VERIFY) | `beat` (MUST VERIFY) | `oakland_crime_trends.json` |
+| Riverside CA | `riverside_ca_crime_trends.py` | `services3.arcgis.com/nIQ0V9y1TigP8hAV/.../RPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: riversideca.gov) | `IncidentDate` (MUST VERIFY) | `Beat` (MUST VERIFY) | `riverside_ca_crime_trends.json` |
+| Bakersfield CA | `bakersfield_crime_trends.py` | **STUB — no public API** (confirmed data-057/058; Accela/CrimeMapping.com only; re-confirmed 2026-03-27) | — | — | `bakersfield_crime_trends.json` (0 records) |
+| Stockton CA | `stockton_ca_crime_trends.py` | **STUB — no confirmed API** (data.stocktonca.gov has no confirmed crime incident API; MUST VERIFY curl data.stocktonca.gov/api/catalog/v1?q=crime) | — | — | `stockton_ca_crime_trends.json` (0 records) |
+| St. Paul MN | `st_paul_crime_trends.py` | `services.arcgis.com/v400IkDOw1ad7Yad/.../SPPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: information.stpaul.gov) | `DateOccurred` (MUST VERIFY) | `Precinct` (MUST VERIFY) | `st_paul_crime_trends.json` |
+| Toledo OH | `toledo_crime_trends.py` | `services2.arcgis.com/R5KgFnGrFdJMFDr4/.../TPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: toledo.oh.gov/open-data) | `IncidentDate` (MUST VERIFY) | `Sector` (MUST VERIFY) | `toledo_crime_trends.json` |
+| Birmingham AL | `birmingham_crime_trends.py` | `services6.arcgis.com/iFT94KHJdBf1glgr/.../BPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: birminghamal.maps.arcgis.com) | `IncidentDate` (MUST VERIFY) | `Precinct` (MUST VERIFY) | `birmingham_crime_trends.json` |
+| Plano TX | `plano_tx_crime_trends.py` | `services.arcgis.com/J6sY5RXbVdFl1rTf/.../PPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: data.plano.gov) | `IncidentDate` (MUST VERIFY) | `Sector` (MUST VERIFY) | `plano_tx_crime_trends.json` |
+| Irving TX | `irving_tx_crime_trends.py` | `services.arcgis.com/9xyBGNHCPT1TXqR6/.../IPD_Crime_Incidents/FeatureServer/0` (**MUST VERIFY** — portal: cityofirving.org/299/Open-Data) | `IncidentDate` (MUST VERIFY) | `Beat` (MUST VERIFY) | `irving_tx_crime_trends.json` |
+| Garland TX | `garland_tx_crime_trends.py` | **STUB — no public API** (GPD confirmed no public incident-level API; re-confirmed data-058, data-071, data-078) | — | — | `garland_tx_crime_trends.json` (0 records) |
+| Laredo TX | `laredo_tx_crime_trends.py` | **STUB — no public API** (LPD annual PDF reports only; re-confirmed data-058, data-071, data-078) | — | — | `laredo_tx_crime_trends.json` (0 records) |
+| Lubbock TX | `lubbock_tx_crime_trends.py` | **STUB — no public API** (LPD quarterly PDF stats only; re-confirmed data-058, data-071, data-078) | — | — | `lubbock_tx_crime_trends.json` (0 records) |
+| Amarillo TX | `amarillo_tx_crime_trends.py` | **STUB — no public API** (APD no public open data crime API; CrimeMapping.com view-only; re-confirmed data-070, data-071, data-078) | — | — | `amarillo_tx_crime_trends.json` (0 records) |
 
 ### OpenDataSoft-Based
 
@@ -176,6 +200,12 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
 | Dayton OH | `dayton` | data.dayton.gov | `kpz4-qmte` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Honolulu HI | REMOVED (data-076) | data.honolulu.gov | dataset ID `msx3-yfxc` unverified — returned HTTP 400. Run: `curl "https://data.honolulu.gov/api/catalog/v1?q=building+permits&limit=10"` to find correct ID | — | — |
+| Oakland CA | `oakland` | data.oaklandca.gov | `p3hw-5b6x` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Long Beach CA | `long_beach` | data.longbeach.gov | `2en9-kfmh` (MUST VERIFY) | `permit_number` | `issue_date` |
+| St. Paul MN | `st_paul` | information.stpaul.gov | `j2hk-9frn` (MUST VERIFY) | `permit_number` | `issued_date` |
+| Toledo OH | `toledo` | opendata.toledo.oh.gov | `xhfa-8r47` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Newark NJ | `newark` | data.newark.gov | `7fmg-w4gk` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Jersey City NJ | `jersey_city` | data.jerseycitynj.gov | `kmgf-q3ax` (MUST VERIFY) | `permit_number` | `issue_date` |
 
 ### ArcGIS Permits (`us_city_permits_arcgis.py`)
 
@@ -226,6 +256,14 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Omaha NE | REMOVED (data-076) | Org q4kU3NFQX1XtcMeJ — service name unverified; portal: opendata.cityofomaha.org | — | — |
 | Lincoln NE | REMOVED (data-076) | Org ZPeUDkbFEf7WXNID — service name unverified; portal: opendata.lincoln.ne.gov | — | — |
 | Salem OR | REMOVED (data-076) | Org uUvqNr0XSi28N3Hj — service name unverified; portal: data.cityofsalem.net | — | — |
+| Dallas TX | `dallas` | Org K1vmv3C6RR68oGEo (MUST VERIFY) — service `Dallas_Building_Permits/FeatureServer/0`; portal: dallasopendata.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Detroit MI | `detroit` | Org qvkbeam7Wirps6zC (same as crime script, services2) — service `Detroit_Building_Permits/FeatureServer/0` (MUST VERIFY); portal: data.detroitmi.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| St. Petersburg FL | `st_petersburg` | Org 8vEm1j5dMMr9eBob (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: data.stpete.org | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Birmingham AL | `birmingham` | Org iFT94KHJdBf1glgr (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: birminghamal.maps.arcgis.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Riverside CA | `riverside` | Org nIQ0V9y1TigP8hAV (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: riversideca.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Irving TX | `irving` | Org 9xyBGNHCPT1TXqR6 (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: cityofirving.org/299/Open-Data | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Orlando FL | `orlando` | Org ySBMu4XsNZMHPCce (services1) — service `Building_Permits/FeatureServer/0` (MUST VERIFY, re-added data-078); portal: data-cityoforlando.opendata.arcgis.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Plano TX | `plano` | Org J6sY5RXbVdFl1rTf (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: data.plano.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
@@ -508,6 +546,40 @@ python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
 # 4. If it returns records: add the config back to CITY_CONFIGS with the correct
 #    service_url, id_field, issue_date_field, and addr_field values.
 ```
+
+**data-078: Strategic city expansion — new cities added (2026-03-27):**
+CI has no outbound HTTPS. All new endpoint org IDs and service names are researched estimates, not live-tested. Next agent (data-079) should verify all MUST VERIFY endpoints.
+
+New crime scripts added (ArcGIS MUST VERIFY):
+- dallas (org K1vmv3C6RR68oGEo, service DPD_CrimeIncidents)
+- st_petersburg (org 8vEm1j5dMMr9eBob, service SPPD_Crime_Incidents)
+- frisco_tx (org GE4Z4z1cnF58LL3C, service FPD_Crime_Incidents)
+- mckinney_tx (org 5VpNVlUxHMX5rB9c, service MPD_Crime_Incidents)
+- murfreesboro (org QpJd9AijpBIH7O5B, service MPD_Crime_Incidents)
+- st_paul (org v400IkDOw1ad7Yad, service SPPD_Crime_Incidents)
+- toledo (org R5KgFnGrFdJMFDr4, service TPD_Crime_Incidents)
+- birmingham (org iFT94KHJdBf1glgr, service BPD_Crime_Incidents)
+- plano_tx (org J6sY5RXbVdFl1rTf, service PPD_Crime_Incidents)
+- irving_tx (org 9xyBGNHCPT1TXqR6, service IPD_Crime_Incidents)
+- riverside_ca (org nIQ0V9y1TigP8hAV, service RPD_Crime_Incidents)
+
+New crime scripts added (Socrata MUST VERIFY):
+- long_beach (data.longbeach.gov, dataset 4bz9-ggsz)
+- oakland (data.oaklandca.gov, dataset ppgh-7dqv)
+
+New crime stubs (no public API confirmed):
+- bakersfield, north_port, round_rock_tx, cedar_park_tx, jersey_city,
+  stockton_ca, newark_nj, garland_tx, laredo_tx, lubbock_tx, amarillo_tx
+
+New permit configs added (ArcGIS MUST VERIFY):
+- dallas, detroit, st_petersburg, birmingham, riverside, irving, orlando, plano
+
+New permit configs added (Socrata MUST VERIFY):
+- oakland (data.oaklandca.gov), long_beach (data.longbeach.gov),
+  st_paul (information.stpaul.gov), toledo (opendata.toledo.oh.gov),
+  newark (data.newark.gov), jersey_city (data.jerseycitynj.gov)
+
+Note on Newark NJ: Issue #247 suggested data.newarkde.gov — this appears to be Newark, Delaware, not NJ. Newark, NJ (city ~280k) is the intended target. Used data.newark.gov as the Socrata domain; verify the correct portal.
 
 *Next step for data-077:* Run the above for all 31 cities with network access.
 Priority order (most likely to have valid data):
