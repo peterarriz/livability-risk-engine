@@ -782,6 +782,43 @@ button:disabled {
   animation: scoreReveal 560ms ease both;
 }
 
+/* ── Recommended Action row ─────────────────────────────────────────── */
+.score-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.score-action-icon { font-size: 1rem; flex-shrink: 0; }
+.score-action-label { flex: 1; }
+
+.score-action-row--clear {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+}
+.score-action-row--monitor {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+}
+.score-action-row--review {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: #fcd34d;
+}
+.score-action-row--defer {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
 .score-hero-title {
   margin: 0 0 10px;
   font-size: clamp(1.65rem, 4vw, 2.3rem);

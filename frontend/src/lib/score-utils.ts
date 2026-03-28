@@ -74,3 +74,86 @@ export function impactTypeLabel(impactType: string | null | undefined): string {
   // Fallback: "closure_multi_lane" → "Closure multi lane"
   return impactType.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
+
+// ---------------------------------------------------------------------------
+// Recommended Action — decision-first guidance based on score + signals.
+// ---------------------------------------------------------------------------
+
+export type RecommendedAction = {
+  icon: string;
+  label: string;
+  tone: "clear" | "monitor" | "review" | "defer";
+};
+
+type SignalLike = {
+  end_date?: string | null;
+};
+
+/**
+ * Derive a recommended action from the headline score and nearby signals.
+ *
+ * States:
+ *   score < 30                          → Clear to proceed
+ *   score 30-60, all signals end ≤ 30d  → Monitor (clearing soon)
+ *   score 30-60, signals ongoing        → Review before committing
+ *   score > 60                          → Defer if possible
+ */
+export function recommendedAction(
+  score: number,
+  signals: SignalLike[],
+): RecommendedAction {
+  if (score > 60) {
+    // Find the latest end date for the "through [date]" label
+    const latestEnd = _latestEndDate(signals);
+    const throughLabel = latestEnd ? ` through ${_formatShortDate(latestEnd)}` : "";
+    return {
+      icon: "🔴",
+      label: `Defer if possible — high disruption overlapping your target window${throughLabel}`,
+      tone: "defer",
+    };
+  }
+
+  if (score >= 30) {
+    const latestEnd = _latestEndDate(signals);
+    const daysUntilClear = latestEnd
+      ? Math.ceil((latestEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    if (daysUntilClear !== null && daysUntilClear <= 30 && daysUntilClear > 0) {
+      return {
+        icon: "📊",
+        label: `Monitor — disruption clearing within ${daysUntilClear} days`,
+        tone: "monitor",
+      };
+    }
+
+    const throughLabel = latestEnd ? ` through ${_formatShortDate(latestEnd)}` : "";
+    return {
+      icon: "⚠",
+      label: `Review before committing — active disruption${throughLabel}`,
+      tone: "review",
+    };
+  }
+
+  return {
+    icon: "✓",
+    label: "Clear to proceed — no active disruptions in your impact window",
+    tone: "clear",
+  };
+}
+
+function _latestEndDate(signals: SignalLike[]): Date | null {
+  let latest: Date | null = null;
+  for (const s of signals) {
+    if (!s.end_date) continue;
+    const d = new Date(s.end_date);
+    if (isNaN(d.getTime())) continue;
+    if (!latest || d > latest) latest = d;
+  }
+  return latest;
+}
+
+function _formatShortDate(d: Date): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
