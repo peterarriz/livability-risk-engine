@@ -675,7 +675,7 @@ export default function HomePage() {
               </p>
               {!workspaceMode && (
                 <a href="mailto:enterprise@livabilityrisks.com" className="enterprise-cta">
-                  Request enterprise demo \u2192
+                  Request enterprise demo →
                 </a>
               )}
             </div>
