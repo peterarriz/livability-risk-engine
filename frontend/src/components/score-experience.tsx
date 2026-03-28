@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
+import { headlineScore as getHeadlineScore } from "@/lib/score-utils";
 import type {
   CommuteResponse,
   CommuteSignal,
@@ -422,7 +423,7 @@ function getBenchmarkText(score: number): string {
 }
 
 export function ScoreHero({ result }: ScoreHeroProps) {
-  const headlineScore = result.livability_score ?? result.disruption_score;
+  const headlineScore = getHeadlineScore(result);
   const displayScore = useAnimatedScore(headlineScore);
   const scoreMessage = getScoreMessage(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);

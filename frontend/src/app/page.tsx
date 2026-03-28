@@ -22,6 +22,7 @@ import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { headlineScore } from "@/lib/score-utils";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -219,6 +220,24 @@ export default function HomePage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Dev guard: warn if livability_score and disruption_score differ, which
+  // means two components could render different numbers on the same page.
+  // All score displays must use headlineScore() — never read fields directly.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (!result) return;
+    if (
+      result.livability_score != null &&
+      result.livability_score !== result.disruption_score
+    ) {
+      console.warn(
+        `[ScoreConsistency] livability_score (${result.livability_score}) ≠ disruption_score (${result.disruption_score}). ` +
+          `Headline renders ${headlineScore(result)}. ` +
+          `All score displays must call headlineScore(result) — never reference disruption_score or livability_score directly for display.`
+      );
+    }
+  }, [result]);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -964,7 +983,7 @@ export default function HomePage() {
 
               {/* ── Monitor this address — shown for score >= 50 ─────────── */}
               {result.disruption_score >= 50 && (
-                <WatchlistForm address={result.address} score={result.disruption_score} />
+                <WatchlistForm address={result.address} score={headlineScore(result)} />
               )}
 
               {/* ── Check my commute ─────────────────────────────────────── */}
