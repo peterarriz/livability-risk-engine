@@ -368,8 +368,8 @@ export default function HomePage() {
 
   useEffect(() => {
     document.title = result
-      ? `${result.address} — Livability Risk Engine`
-      : "Livability Risk Engine";
+      ? `${result.address} — Livability Intelligence`
+      : "Livability Intelligence";
   }, [result]);
 
   useEffect(() => {
@@ -645,8 +645,8 @@ export default function HomePage() {
               LR
             </div>
             <div>
-              <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Real-time livability intelligence</p>
+              <p className="brand-title">Livability Intelligence</p>
+              <p className="brand-subtitle">Address intelligence for real estate and operations teams</p>
             </div>
           </div>
 
@@ -704,7 +704,7 @@ export default function HomePage() {
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Real-Time Livability Intelligence</p>
+              <p className="eyebrow">Address Intelligence Platform</p>
               <h1>
                 {workspaceMode
                   ? "A decision-ready livability brief for the current address."
