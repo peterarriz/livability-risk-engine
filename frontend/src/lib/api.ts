@@ -1069,6 +1069,7 @@ export async function fetchReport(reportId: string): Promise<FetchReportResponse
 
 export type HistoryEntry = {
   disruption_score: number;
+  livability_score: number;
   confidence: ConfidenceLevel;
   mode: string;
   scored_at: string;
@@ -1123,6 +1124,7 @@ export async function fetchHistory(
 // Score history entry returned by /history (data-025).
 export type ScoreHistoryEntry = {
   disruption_score: number;
+  livability_score: number;
   confidence: ConfidenceLevel;
   mode: ScoreMode;
   created_at: string | null;
