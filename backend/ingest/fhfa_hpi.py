@@ -80,7 +80,12 @@ def _norm(name: str) -> str:
 
 
 def _find_col(headers: list[str], candidates: list[str]) -> str | None:
-    """Return the first header (normalized) that matches any candidate string."""
+    """Return the first header (normalized) that matches any candidate string.
+
+    Matching is one-directional: the candidate must appear as a substring
+    of the header (not the reverse). This prevents short headers like "year"
+    from matching candidates like "5yr" or "10yr".
+    """
     norm_headers = [_norm(h) for h in headers]
     for candidate in candidates:
         target = _norm(candidate)
@@ -89,7 +94,7 @@ def _find_col(headers: list[str], candidates: list[str]) -> str | None:
         for i, nh in enumerate(norm_headers):
             if not nh:
                 continue  # skip empty headers
-            if target in nh or nh in target:
+            if target in nh:
                 return headers[i]
     return None
 
@@ -243,13 +248,18 @@ def _build_zip_records(zip_data: dict[str, list[tuple]]) -> list[dict]:
         yr, qt, idx_val, annual, yr5, yr10 = latest
         period = f"{yr}Q{qt}"
 
-        # Compute missing changes from time series
+        # Compute missing changes from time series.
+        # Detect annual vs quarterly: if all entries share the same quarter,
+        # the data is annual (1 entry/year) so look back 1/5/10 entries.
+        is_annual = len(set(e[1] for e in entries)) <= 1
+        per_year = 1 if is_annual else 4
+
         if annual is None:
-            annual = _compute_change(entries, 0, 4)   # 4 quarters back = 1 year
+            annual = _compute_change(entries, 0, 1 * per_year)
         if yr5 is None:
-            yr5 = _compute_change(entries, 0, 20)     # 20 quarters = 5 years
+            yr5 = _compute_change(entries, 0, 5 * per_year)
         if yr10 is None:
-            yr10 = _compute_change(entries, 0, 40)    # 40 quarters = 10 years
+            yr10 = _compute_change(entries, 0, 10 * per_year)
 
         records.append({
             "region_type": "zip",
