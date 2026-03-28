@@ -793,16 +793,17 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Long Beach, CA — Building Permits.
-        # Portal: https://data.longbeach.gov (Socrata or ArcGIS Hub)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.longbeach.gov/api/catalog/v1?q=building+permits&limit=10"
-        #   curl "https://data.longbeach.gov/resource/2en9-kfmh.json?$limit=1"
-        # Note: If Socrata returns 404/redirect, check for ArcGIS Hub at longbeach.opendata.arcgis.com
-        # data-078: added 2026-03-27
+        # Portal: https://data.longbeach.gov — USES OPENDATASOFT (not Socrata).
+        # data-080 (2026-03-28): data.longbeach.gov uses OpenDataSoft API v1/v2.1.
+        #   This ingest script uses Socrata SODA format (/resource/<id>.json).
+        #   OpenDataSoft uses /api/explore/v2.1/catalog/datasets/<id>/records instead.
+        #   DISABLED until a separate OpenDataSoft ingest is implemented.
+        # data-078: added 2026-03-27; disabled data-080 2026-03-28
         "city_name":        "Long Beach",
         "source_key":       "long_beach",
+        "disabled":         True,
         "domain":           "data.longbeach.gov",
-        "dataset_id":       "2en9-kfmh",   # MUST VERIFY
+        "dataset_id":       "2en9-kfmh",   # MUST VERIFY (OpenDataSoft dataset ID format)
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -841,16 +842,16 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Toledo, OH — Building Permits.
-        # Portal: https://toledo.oh.gov/open-data (open data portal)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://toledo.oh.gov/api/catalog/v1?q=building+permits&limit=10"
-        #   Or try: https://opendata.toledo.oh.gov/api/catalog/v1?q=building+permits&limit=10
-        # Note: Toledo's open data portal uses Socrata; verify domain resolves correctly.
-        # data-078: added 2026-03-27
+        # Portal: https://data.toledo.gov/datasets (ArcGIS-based open data hub)
+        # Domain verified data-080 (2026-03-28): data.toledo.gov
+        #   (opendata.toledo.oh.gov does NOT appear to be Socrata; city uses data.toledo.gov)
+        # Dataset ID still MUST VERIFY — may not be Socrata format:
+        #   Visit https://data.toledo.gov/datasets and search for building permits.
+        # data-078: added 2026-03-27; domain fixed data-080 2026-03-28
         "city_name":        "Toledo",
         "source_key":       "toledo",
-        "domain":           "opendata.toledo.oh.gov",
-        "dataset_id":       "xhfa-8r47",   # MUST VERIFY
+        "domain":           "data.toledo.gov",
+        "dataset_id":       "xhfa-8r47",   # MUST VERIFY — may not be Socrata format
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -865,16 +866,18 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Newark, NJ — Building Permits.
-        # Portal: https://data.newark.gov (Socrata — if available)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.newark.gov/api/catalog/v1?q=building+permits&limit=10"
-        # Note: Issue #247 mentioned data.newarkde.gov which appears to be Newark, Delaware.
-        #   Newark, NJ may use data.newark.gov or data.newarknj.gov — verify correct domain.
-        # data-078: added 2026-03-27
+        # Portal: https://data.ci.newark.nj.us (Socrata)
+        # Domain verified data-080 (2026-03-28): data.ci.newark.nj.us
+        #   (data.newark.gov does NOT resolve; correct subdomain is data.ci.newark.nj.us)
+        # Dataset ID still MUST VERIFY:
+        #   curl "https://data.ci.newark.nj.us/api/catalog/v1?q=building+permits&limit=10"
+        # Alternative: NJ state-level dataset at data.nj.gov/resource/w9se-dmra.json
+        #   (NJ Construction Permit Data, filter by municipality="Newark")
+        # data-078: added 2026-03-27; domain fixed data-080 2026-03-28
         "city_name":        "Newark",
         "source_key":       "newark",
-        "domain":           "data.newark.gov",
-        "dataset_id":       "7fmg-w4gk",   # MUST VERIFY
+        "domain":           "data.ci.newark.nj.us",
+        "dataset_id":       "7fmg-w4gk",   # MUST VERIFY — ID unconfirmed for new domain
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",
@@ -889,15 +892,19 @@ CITY_CONFIGS: list[dict] = [
     },
     {
         # Jersey City, NJ — Building Permits.
-        # Portal: https://data.jerseycitynj.gov (Socrata — if available)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.jerseycitynj.gov/api/catalog/v1?q=building+permits&limit=10"
-        # Note: Jersey City open data portal is limited; may not have building permits.
-        # data-078: added 2026-03-27
+        # Portal: https://data.jerseycitynj.gov — USES OPENDATASOFT (not Socrata).
+        # data-080 (2026-03-28): data.jerseycitynj.gov uses OpenDataSoft API.
+        #   This ingest script uses Socrata SODA format (/resource/<id>.json).
+        #   OpenDataSoft endpoint: /api/explore/v2.1/catalog/datasets/<id>/records
+        #   Portal only has "Permit Requirements and Restrictions PDF" dataset;
+        #   no building permit incident dataset was found.
+        #   DISABLED until further research confirms a queryable dataset exists.
+        # data-078: added 2026-03-27; disabled data-080 2026-03-28
         "city_name":        "Jersey City",
         "source_key":       "jersey_city",
+        "disabled":         True,
         "domain":           "data.jerseycitynj.gov",
-        "dataset_id":       "kmgf-q3ax",   # MUST VERIFY
+        "dataset_id":       "kmgf-q3ax",   # MUST VERIFY (OpenDataSoft; no permit dataset confirmed)
         "id_field":         "permit_number",
         "type_field":       "permit_type",
         "desc_field":       "description",

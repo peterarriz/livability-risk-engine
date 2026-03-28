@@ -667,16 +667,18 @@ export async function fetchAddressSuggestions(
   if (!popular && q.length < 3) return [];
 
   const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) return [];
+  const streetFrag = _streetPrefix(q);
 
-  try {
-    const url = buildApiUrl("/suggest");
-    url.searchParams.set("q", q);
-    url.searchParams.set("limit", String(limit));
-    if (popular && q.length < 3) {
-      // /suggest intentionally avoids low-signal empty queries.
-      return [];
-    }
+  // 1. Backend /suggest endpoint (best results, enriched with canonical IDs).
+  if (apiBaseUrl) {
+    try {
+      const url = buildApiUrl("/suggest");
+      url.searchParams.set("q", q);
+      url.searchParams.set("limit", String(limit));
+      if (popular && q.length < 3) {
+        // /suggest intentionally avoids low-signal empty queries.
+        return [];
+      }
     debugSearchFlow("SEARCH_REQUEST", {
       query: q,
       source: "frontend.fetchAddressSuggestions",
@@ -687,8 +689,8 @@ export async function fetchAddressSuggestions(
     const resp = await fetch(url.toString(), { cache: "no-store" });
     if (!resp.ok) {
       debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, status: resp.status, query: q });
-      return [];
-    }
+      // fall through to browser geocoding
+    } else {
     const data = (await resp.json()) as {
       suggestions?: Array<
         | string
@@ -751,11 +753,51 @@ export async function fetchAddressSuggestions(
       top_suggestions: deduped.slice(0, 3).map((s) => s.display_address),
       canonical_ids: deduped.slice(0, 3).map((s) => s.canonical_id),
     });
-    return deduped;
-  } catch {
-    debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, error: "fetch_exception", query: q });
-    return [];
+      if (deduped.length > 0) return deduped;
+      // backend returned nothing — fall through to browser geocoding
+    }
+    } catch {
+      debugSearchFlow("SEARCH_RESPONSE", { source: "backend_suggest", ok: false, error: "fetch_exception", query: q });
+      // backend unreachable — fall through to browser geocoding
+    }
   }
+
+  // 2. Browser-side Nominatim fallback.
+  try {
+    const nomUrl = new URL("https://nominatim.openstreetmap.org/search");
+    nomUrl.searchParams.set("q", q);
+    nomUrl.searchParams.set("format", "json");
+    nomUrl.searchParams.set("limit", "10");
+    nomUrl.searchParams.set("countrycodes", "us");
+    nomUrl.searchParams.set("addressdetails", "1");
+    const nomResp = await fetch(nomUrl.toString(), {
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
+      cache: "no-store",
+    });
+    if (nomResp.ok) {
+      const strings = _parseNominatim((await nomResp.json()) as NominatimItem[], streetFrag);
+      if (strings.length > 0) {
+        debugSearchFlow("SEARCH_RESPONSE", { source: "browser_nominatim", query: q, suggestion_count: strings.length });
+        return strings.map((s) => ({ canonical_id: null, display_address: s }));
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 3. Browser-side Photon fallback.
+  try {
+    const photonUrl = new URL("https://photon.komoot.io/api/");
+    photonUrl.searchParams.set("q", q);
+    photonUrl.searchParams.set("limit", "10");
+    photonUrl.searchParams.set("lang", "en");
+    const photonResp = await fetch(photonUrl.toString(), { cache: "no-store" });
+    if (photonResp.ok) {
+      const strings = _parsePhoton(((await photonResp.json()) as { features: PhotonFeature[] }).features ?? [], streetFrag);
+      debugSearchFlow("SEARCH_RESPONSE", { source: "browser_photon", query: q, suggestion_count: strings.length });
+      return strings.map((s) => ({ canonical_id: null, display_address: s }));
+    }
+  } catch { /* fall through */ }
+
+  return [];
 }
 
 export async function fetchAddressDashboard(

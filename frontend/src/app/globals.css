@@ -822,13 +822,39 @@ button:disabled {
 
 .score-hero-meta-stack {
   display: grid;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .score-hero-meta-stack div {
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-radius: 16px;
+}
+
+.score-breakdown-details {
+  margin-top: 12px;
+}
+
+.score-breakdown-details > summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  user-select: none;
+  padding: 4px 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-breakdown-details > summary::before {
+  content: "▶";
+  font-size: 0.6rem;
+  transition: transform 0.15s;
+}
+
+.score-breakdown-details[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .score-hero-meta-stack span {

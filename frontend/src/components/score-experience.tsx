@@ -479,20 +479,19 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <span>Primary signals</span>
             <strong>{result.top_risks.length} detected</strong>
           </div>
-          <div>
-            <span>Disruption score</span>
-            <strong>{result.disruption_score}</strong>
-          </div>
         </div>
         {Object.keys(breakdown).length > 0 && (
-          <div className="score-hero-meta-stack" style={{ marginTop: "0.75rem" }}>
-            {Object.entries(breakdown).map(([k, v]) => (
-              <div key={k}>
-                <span>{k.replace(/_/g, " ")}</span>
-                <strong>{v.weighted_contribution.toFixed(1)} pts</strong>
-              </div>
-            ))}
-          </div>
+          <details className="score-breakdown-details">
+            <summary>Show score breakdown</summary>
+            <div className="score-hero-meta-stack" style={{ marginTop: "0.5rem" }}>
+              {Object.entries(breakdown).map(([k, v]) => (
+                <div key={k}>
+                  <span>{k.replace(/_/g, " ")}</span>
+                  <strong>{v.weighted_contribution.toFixed(1)} pts</strong>
+                </div>
+              ))}
+            </div>
+          </details>
         )}
       </div>
     </div>

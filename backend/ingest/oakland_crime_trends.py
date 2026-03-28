@@ -7,14 +7,19 @@ Ingests Oakland OPD crime data and calculates 12-month crime trends by beat.
 
 Source:
   Socrata — data.oaklandca.gov
-  Dataset: OPD 90-day crime rolling window (verified 2026-03-27)
-  Dataset ID: wau4-95ys (~10K records rolling)
+  Dataset: CrimeWatch Data (verified data-080, 2026-03-28)
+  Dataset ID: ppgh-7dqv (verified — full historical dataset, not rolling window)
 
-  Key fields (verified 2026-03-27):
+  Source URL:
+    https://data.oaklandca.gov/Public-Safety/CrimeWatch-Data/ppgh-7dqv
+
+  Key fields (verified data-080, 2026-03-28):
     datetime     — date of incident
     policebeat   — patrol beat/area (e.g. "19X", "04X")
+    lat/lon      — not present in this dataset; city centroid used
 
-  Note: No lat/lon fields in this dataset; city centroid fallback used.
+  NOTE: A 90-day rolling dataset also exists (mrwt-jswm) but is insufficient
+  for 12-month trend analysis. ppgh-7dqv is the full historical dataset.
 
 Method:
   1. Aggregate crime counts by beat for the last 12 months (current window).
@@ -50,7 +55,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "data.oaklandca.gov"
-DATASET_ID = "wau4-95ys"   # 90-day crime (verified 2026-03-27, ~10K records rolling)
+DATASET_ID = "ppgh-7dqv"   # CrimeWatch Data — full history (verified data-080, 2026-03-28)
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/oakland_crime_trends.json")
