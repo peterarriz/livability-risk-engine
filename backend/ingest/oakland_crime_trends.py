@@ -7,26 +7,19 @@ Ingests Oakland OPD crime data and calculates 12-month crime trends by beat.
 
 Source:
   Socrata — data.oaklandca.gov
-  Dataset: OPD Crime Watch Data (not live-verified via catalog API)
-  Dataset ID: ppgh-7dqv (MUST VERIFY — may be different)
+  Dataset: CrimeWatch Data (verified data-080, 2026-03-28)
+  Dataset ID: ppgh-7dqv (verified — full historical dataset, not rolling window)
 
-  Verify dataset ID:
-    curl "https://data.oaklandca.gov/api/catalog/v1?q=crime+incidents&limit=10"
+  Source URL:
+    https://data.oaklandca.gov/Public-Safety/CrimeWatch-Data/ppgh-7dqv
 
-  Verify sample row / field names:
-    curl "https://data.oaklandca.gov/resource/ppgh-7dqv.json?$limit=1"
+  Key fields (verified data-080, 2026-03-28):
+    datetime     — date of incident
+    policebeat   — patrol beat/area (e.g. "19X", "04X")
+    lat/lon      — not present in this dataset; city centroid used
 
-  Key fields (MUST VERIFY — names below are best-guess, not live-confirmed):
-    datetime     — date of incident  (MUST VERIFY field name)
-    beat         — patrol beat/area  (MUST VERIFY — may be "district")
-    lat          — latitude          (MUST VERIFY)
-    long_        — longitude         (MUST VERIFY — Socrata uses "long_" to avoid
-                                      the SQL reserved word "long"; may be "lon"
-                                      or "longitude")
-
-  NOTE: CI has no outbound HTTPS.  All field/dataset verification must be done
-  manually (task data-079) using the curl commands above before this script is
-  used in production.
+  NOTE: A 90-day rolling dataset also exists (mrwt-jswm) but is insufficient
+  for 12-month trend analysis. ppgh-7dqv is the full historical dataset.
 
 Method:
   1. Aggregate crime counts by beat for the last 12 months (current window).
@@ -62,7 +55,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "data.oaklandca.gov"
-DATASET_ID = "wau4-95ys"   # 90-day crime (verified 2026-03-27, ~10K records rolling)
+DATASET_ID = "ppgh-7dqv"   # CrimeWatch Data — full history (verified data-080, 2026-03-28)
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/oakland_crime_trends.json")
@@ -101,11 +94,7 @@ def fetch_crime_counts_with_centroids(
 
     Returns dict: beat → {count, lat, lon}.
 
-    MUST VERIFY: DATE_FIELD, DISTRICT_FIELD, LAT_FIELD, LON_FIELD, and
-    DATASET_ID against data.oaklandca.gov before production use.
-    CI has no outbound HTTPS — verify manually with:
-      curl "https://data.oaklandca.gov/resource/ppgh-7dqv.json?$limit=1"
-    """
+"""
     where_clause = (
         f"{DATE_FIELD} >= '{_date_str(start_date)}' "
         f"AND {DATE_FIELD} < '{_date_str(end_date)}'"

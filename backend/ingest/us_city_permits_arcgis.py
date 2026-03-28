@@ -589,24 +589,25 @@ CITY_CONFIGS: list[dict] = [
     {
         # Detroit, MI — Building Permits.
         # Portal: https://data.detroitmi.gov (ArcGIS Hub)
-        # Note: Detroit crime script uses org qvkbeam7Wirps6zC (services2).
-        # MUST VERIFY: Service name "Detroit_Building_Permits" is a placeholder.
-        #   curl -s "https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
+        # Org verified data-080 (2026-03-28): CyVvlIiUfRBmMQuu (services2).
+        # Service verified data-080: Building_Permits_Applications_view (~109K records).
+        # Hub page: https://hub.arcgis.com/datasets/detroitmi::building-permits-1
+        # Field names: MUST VERIFY against FeatureServer/0?f=json — use typical
+        #   BSEED permit field names; run --dry-run to confirm.
+        # data-078: added 2026-03-27; org+service updated data-080 2026-03-28
         "city_name":        "Detroit",
         "source_key":       "detroit",
         "service_url":      (
-            "https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services"
-            "/Detroit_Building_Permits/FeatureServer/0"
+            "https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services"
+            "/Building_Permits_Applications_view/FeatureServer/0"
         ),
         "portal_url":       "https://data.detroitmi.gov",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
+        "id_field":         "permit_number",    # MUST VERIFY field name
+        "type_field":       "permit_type",      # MUST VERIFY field name
+        "desc_field":       "description",      # MUST VERIFY field name
+        "issue_date_field": "issue_date",       # MUST VERIFY field name
         "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
+        "addr_field":       "address",          # MUST VERIFY field name
         "city_state":       "Detroit, MI",
         "skip_date_filter": False,
         "max_records":      None,
@@ -775,8 +776,35 @@ CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 # To re-add a city: query its org's service listing, find the permit service
 # name, then add a config entry and run --dry-run to verify.
 #
-# DISABLED_SOURCE_KEYS is kept empty — no active city configs are disabled.
-DISABLED_SOURCE_KEYS: frozenset[str] = frozenset()
+# data-080 (2026-03-28): Disable data-078 cities whose ArcGIS permit configs
+# could not be live-verified (no public FeatureServer confirmed).
+# Orgs/service names preserved in CITY_CONFIGS above for future re-enablement.
+#
+#   dallas:        org K1vmv3C6RR68oGEo + service Dallas_Building_Permits —
+#                  org unverified; Socrata alternative exists at
+#                  www.dallasopendata.com/resource/e7gq-4sah.json
+#   st_petersburg: org 8vEm1j5dMMr9eBob — city moved to Tyler Software
+#                  (Nov 2025); no public ArcGIS FeatureServer confirmed.
+#   birmingham:    org iFT94KHJdBf1glgr — city uses self-hosted GIS at
+#                  gisweb.birminghamal.gov; ArcGIS Online org not confirmed.
+#   riverside:     org nIQ0V9y1TigP8hAV — city uses custom permit portal
+#                  (riversideca.gov/transparency/data/dataset/show/34);
+#                  no ArcGIS FeatureServer confirmed.
+#   irving:        org 9xyBGNHCPT1TXqR6 — same org as crime script which
+#                  returns 0 services; permit FeatureServer not confirmed.
+#   orlando:       org ySBMu4XsNZMHPCce — city uses myrelayview.com for
+#                  permits; no public ArcGIS FeatureServer confirmed.
+#   plano:         org J6sY5RXbVdFl1rTf — same org as crime script which
+#                  returns 0 services; permit FeatureServer not confirmed.
+DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
+    "dallas",
+    "st_petersburg",
+    "birmingham",
+    "riverside",
+    "irving",
+    "orlando",
+    "plano",
+})
 
 # Special notes for removed cities (preserved for reference).
 DISABLED_NOTES: dict[str, str] = {
