@@ -77,12 +77,26 @@ jobs:
           sudo apt-get install -y postgresql-client --quiet
           bash scripts/apply_schema.sh
 
+      - name: Detect pipeline mode from schedule
+        id: detect-mode
+        run: |
+          CRON="${{ github.event.schedule }}"
+          if [ "$CRON" = "0 3 1 * *" ]; then
+            echo "mode=monthly" >> "$GITHUB_OUTPUT"
+          elif [ "$CRON" = "0 3 * * 0" ]; then
+            echo "mode=weekly" >> "$GITHUB_OUTPUT"
+          else
+            # Daily cron ("0 6 * * *") or workflow_dispatch
+            echo "mode=daily" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Pipeline mode: $(grep mode= "$GITHUB_OUTPUT" | cut -d= -f2)"
+
       - name: Run ingest pipeline
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CHICAGO_SOCRATA_APP_TOKEN: ${{ secrets.CHICAGO_SOCRATA_APP_TOKEN }}
         run: |
-          ARGS=""
+          ARGS="--mode ${{ steps.detect-mode.outputs.mode }}"
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
