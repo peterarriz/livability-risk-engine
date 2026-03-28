@@ -62,18 +62,17 @@ import requests
 # ---------------------------------------------------------------------------
 
 SOCRATA_DOMAIN = "data.oaklandca.gov"
-DATASET_ID = "ppgh-7dqv"   # MUST VERIFY — not live-confirmed
+DATASET_ID = "wau4-95ys"   # 90-day crime (verified 2026-03-27, ~10K records rolling)
 CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/oakland_crime_trends.json")
 
 # Date field and district field in the Oakland OPD crime dataset.
 # MUST VERIFY field names against the actual dataset before production use.
-DATE_FIELD = "datetime"         # MUST VERIFY — may differ
-DISTRICT_FIELD = "beat"         # MUST VERIFY — may be "district" or "reporting_area"
-LAT_FIELD = "lat"               # MUST VERIFY
-LON_FIELD = "long_"             # MUST VERIFY — Socrata sometimes uses "long_" to avoid
-                                #               the SQL reserved word "long"
+DATE_FIELD = "datetime"         # verified 2026-03-27
+DISTRICT_FIELD = "policebeat"   # verified — e.g. "19X", "04X"
+LAT_FIELD = None                # no lat/lon in this dataset
+LON_FIELD = None                # no lat/lon in this dataset
 
 # City centre fallback (unused in computation; reserved for future use)
 OAKLAND_LAT = 37.8044
@@ -114,9 +113,7 @@ def fetch_crime_counts_with_centroids(
     params: dict = {
         "$select": (
             f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            f"avg({LAT_FIELD}::number) as avg_lat, "
-            f"avg({LON_FIELD}::number) as avg_lon"
+            "count(*) as crime_count"
         ),
         "$where": where_clause,
         "$group": DISTRICT_FIELD,
@@ -138,15 +135,7 @@ def fetch_crime_counts_with_centroids(
             count = int(row.get("crime_count", 0))
         except (TypeError, ValueError):
             count = 0
-        try:
-            lat = float(row["avg_lat"]) if row.get("avg_lat") is not None else None
-        except (TypeError, ValueError):
-            lat = None
-        try:
-            lon = float(row["avg_lon"]) if row.get("avg_lon") is not None else None
-        except (TypeError, ValueError):
-            lon = None
-        results[beat] = {"count": count, "lat": lat, "lon": lon}
+        results[beat] = {"count": count, "lat": None, "lon": None}
 
     return results
 
