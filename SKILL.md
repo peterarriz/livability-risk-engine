@@ -192,9 +192,10 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Tampa | `tampa` | opendata.tampa.gov — CKAN, fd3u-fy3v returns 404. No permit datasets found (2026-03-28). GIS server unreachable. | — | — |
 | Miami-Dade | `miami_dade` | opendata.miamidade.gov — 0 permit datasets on Socrata. r6qv-7pvx returns empty JSON (2026-03-28). | — | — |
 | St. Louis | `st_louis` | data.stlouis-mo.gov | `44bp-4y2y` (MUST VERIFY) | `permit_number` | `issue_date` |
-| Baton Rouge | `baton_rouge` | data.brla.gov | `a6aw-dngx` (MUST VERIFY) | `permit_number` | `issue_date` |
-| Lexington KY | `lexington` | data.lexingtonky.gov | `3gzb-avhn` (MUST VERIFY) | `permit_number` | `issued_date` |
-| Anchorage | `anchorage` | data.muni.org | `73xi-i4bq` (MUST VERIFY) | `permit_number` | `issue_date` |
+| Baton Rouge | `baton_rouge` | data.brla.gov | `7fq7-8j7r` (verified, 139K records) | `permitnumber` | `issueddate` |
+| Kansas City | `kansas_city` | data.kcmo.org | `ntw8-aacc` (verified, 681K records, through May 2025) | `permitnum` | `issueddate` |
+| Lexington KY | REMOVED | data.lexingtonky.gov is ArcGIS Hub, not Socrata (2026-03-28) | — | — |
+| Anchorage | REMOVED | data.muni.org 0 Socrata results for permits (2026-03-28) | — | — |
 | Madison | `madison` | data.cityofmadison.com | `ekdx-6fbt` (MUST VERIFY) | `permit_id` | `issued_date` |
 | Spokane | `spokane` | data.spokanecity.org | `kixq-bk3d` (MUST VERIFY) | `permit_number` | `issue_date` |
 | Tallahassee FL | `tallahassee` | data.talgov.com | `ax5x-ixcm` (MUST VERIFY) | `permit_number` | `issued_date` |
