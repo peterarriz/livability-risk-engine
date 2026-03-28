@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
-import { headlineScore as getHeadlineScore, impactTypeLabel } from "@/lib/score-utils";
+import { headlineScore as getHeadlineScore, impactTypeLabel, recommendedAction } from "@/lib/score-utils";
 import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
   CommuteResponse,
@@ -417,6 +417,10 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const displayScore = useAnimatedScore(headlineScore);
   const scoreMessage = getScoreMessage(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
+  const action = useMemo(
+    () => recommendedAction(headlineScore, result.nearby_signals ?? []),
+    [headlineScore, result.nearby_signals],
+  );
   const isDemo = result.mode === "demo";
   const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
   const modeLabelTooltip = isDemo
@@ -434,6 +438,11 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
+
+        <div className={`score-action-row score-action-row--${action.tone}`}>
+          <span className="score-action-icon" aria-hidden="true">{action.icon}</span>
+          <span className="score-action-label">{action.label}</span>
+        </div>
 
         <div className="score-gauge" aria-label={`Score ${displayScore} out of 100`}>
           <div className="score-gauge-track">
