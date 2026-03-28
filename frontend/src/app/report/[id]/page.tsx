@@ -22,6 +22,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   useEffect(() => {
     fetchReport(params.id)
@@ -144,8 +145,29 @@ export default function ReportPage({ params }: { params: { id: string } }) {
             >
               ↓ PDF
             </a>
+            <button
+              type="button"
+              className="action-btn"
+              onClick={() => {
+                const code = `<iframe src="${window.location.origin}/widget/${params.id}" width="320" height="200" frameborder="0" style="border-radius:12px;border:1px solid rgba(0,0,0,0.1)"></iframe>`;
+                navigator.clipboard.writeText(code).then(() => {
+                  setEmbedCopied(true);
+                  setTimeout(() => setEmbedCopied(false), 2500);
+                });
+              }}
+            >
+              {embedCopied ? "Embed code copied!" : "Embed widget"}
+            </button>
             <a href="/" className="compare-link">Score another address →</a>
           </div>
+
+          <p className="report-disclaimer">
+            This report reflects the livability score at the time it was generated.
+            Scores update live as new data becomes available &mdash;{" "}
+            <a href={`/?address=${encodeURIComponent(report?.address ?? "")}`}>
+              check the current score
+            </a>.
+          </p>
 
           <div className="workspace-top-grid">
             <Card className="score-card">

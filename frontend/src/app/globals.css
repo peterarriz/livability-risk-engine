@@ -4884,3 +4884,20 @@ button:disabled {
   .docs-nav-back { margin-top: 0; }
   .docs-main { padding: 1.5rem 1rem 3rem; }
 }
+
+/* ── Report disclaimer ──────────────────────────────────────────────── */
+.report-disclaimer {
+  font-size: 0.78rem;
+  color: var(--text-soft, #94a3b8);
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+.report-disclaimer a {
+  color: #a5b4fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
