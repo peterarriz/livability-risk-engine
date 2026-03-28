@@ -363,13 +363,12 @@ export default function HomePage() {
           return;
         }
         if (!payload.available) {
+          // Silently degrade — omit history section, no error shown to users.
+          // Debug info only visible via ?debug=true URL param.
           setScoreHistory([]);
           setDashboardUnavailableReason(
-            payload.reason === "db_not_configured"
-              ? "Partial dashboard only: backend storage is not connected yet."
-              : payload.reason === "no_backend_record"
-                ? `Partial dashboard only: no score history yet${payload.modules_unavailable?.length ? ` (missing: ${payload.modules_unavailable.join(", ")})` : ""}.`
-                : "Partial dashboard only: some modules are unavailable for this address.",
+            `reason=${payload.reason ?? "unknown"}`
+            + (payload.modules_unavailable?.length ? ` modules=[${payload.modules_unavailable.join(",")}]` : ""),
           );
           return;
         }
@@ -837,18 +836,20 @@ export default function HomePage() {
             ) : null}
 
             {/* Dashboard hydration failures degrade silently — history section is
-                simply omitted when unavailable. Internal status is never shown
-                to end users. Visible only when ?debug=true is in the URL. */}
-            {isDebugMode && dashboardUnavailableReason && (
-              <details style={{ marginTop: "0.75rem", fontSize: "0.75rem", opacity: 0.7 }}>
-                <summary style={{ cursor: "pointer", userSelect: "none" }}>
-                  [debug] dashboard hydration: {dashboardHydrationStatus ?? "unknown"}
-                </summary>
-                <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {JSON.stringify({ status: dashboardHydrationStatus, reason: dashboardUnavailableReason, history_count: scoreHistory.length }, null, 2)}
-                </pre>
-              </details>
-            )}
+                simply omitted when unavailable. Debug info requires both
+                ?debug=true URL param AND signed-in user. */}
+            <SignedIn>
+              {isDebugMode && dashboardUnavailableReason && (
+                <details style={{ marginTop: "0.75rem", fontSize: "0.75rem", opacity: 0.7 }}>
+                  <summary style={{ cursor: "pointer", userSelect: "none" }}>
+                    [debug] dashboard hydration: {dashboardHydrationStatus ?? "unknown"}
+                  </summary>
+                  <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {JSON.stringify({ status: dashboardHydrationStatus, reason: dashboardUnavailableReason, history_count: scoreHistory.length }, null, 2)}
+                  </pre>
+                </details>
+              )}
+            </SignedIn>
           </Card>
         </Section>
 
