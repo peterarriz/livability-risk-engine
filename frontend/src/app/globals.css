@@ -950,6 +950,17 @@ button:disabled {
   gap: 8px;
 }
 
+.severity-summary {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--color-muted, #a1a1aa);
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.05);
+  border-radius: 0 6px 6px 0;
+}
+
 .severity-grid {
   display: grid;
   gap: 14px;
