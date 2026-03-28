@@ -257,13 +257,13 @@ Group field: `area`. Output: `kansas_city_crime_trends.json`.
 | Lincoln NE | REMOVED (data-076) | Org ZPeUDkbFEf7WXNID — service name unverified; portal: opendata.lincoln.ne.gov | — | — |
 | Salem OR | REMOVED (data-076) | Org uUvqNr0XSi28N3Hj — service name unverified; portal: data.cityofsalem.net | — | — |
 | Dallas TX | REMOVED | Org K1vmv3C6RR68oGEo returns 0 services. Socrata e7gq-4sah is FY2019 only (frozen). No current permit data (2026-03-28). | — | — |
-| Detroit MI | `detroit` | Org qvkbeam7Wirps6zC (same as crime script, services2) — service `Detroit_Building_Permits/FeatureServer/0` (MUST VERIFY); portal: data.detroitmi.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| St. Petersburg FL | `st_petersburg` | Org 8vEm1j5dMMr9eBob (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: data.stpete.org | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| Birmingham AL | `birmingham` | Org iFT94KHJdBf1glgr (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: birminghamal.maps.arcgis.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| Riverside CA | `riverside` | Org nIQ0V9y1TigP8hAV (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: riversideca.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| Irving TX | `irving` | Org 9xyBGNHCPT1TXqR6 (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: cityofirving.org/299/Open-Data | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| Orlando FL | `orlando` | Org ySBMu4XsNZMHPCce (services1) — service `Building_Permits/FeatureServer/0` (MUST VERIFY, re-added data-078); portal: data-cityoforlando.opendata.arcgis.com | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
-| Plano TX | `plano` | Org J6sY5RXbVdFl1rTf (MUST VERIFY) — service `Building_Permits/FeatureServer/0`; portal: data.plano.gov | `permit_number` (MUST VERIFY) | `issue_date` (MUST VERIFY) |
+| Detroit MI | `detroit` | services2.arcgis.com/qvkbeam7Wirps6zC/.../bseed_building_permits/FeatureServer/0 (verified, 44K records) | `record_id` | `issued_date` |
+| St. Petersburg FL | REMOVED | Org 8vEm1j5dMMr9eBob returns 0 services on all subdomains (2026-03-28) | — | — |
+| Birmingham AL | REMOVED | Org iFT94KHJdBf1glgr returns 0 services on all subdomains (2026-03-28) | — | — |
+| Riverside CA | REMOVED | Org nIQ0V9y1TigP8hAV returns 0 services on all subdomains (2026-03-28) | — | — |
+| Irving TX | REMOVED | Org 9xyBGNHCPT1TXqR6 returns 0 services on all subdomains (2026-03-28) | — | — |
+| Orlando FL | REMOVED | Org ySBMu4XsNZMHPCce returns 0 services on all subdomains (2026-03-28) | — | — |
+| Plano TX | REMOVED | Org J6sY5RXbVdFl1rTf returns 0 services on all subdomains (2026-03-28) | — | — |
 
 ### CKAN Permits (`us_city_permits_ckan.py`)
 
