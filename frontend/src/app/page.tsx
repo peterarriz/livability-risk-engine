@@ -112,6 +112,8 @@ export default function HomePage() {
   const [dashboardUnavailableReason, setDashboardUnavailableReason] = useState<string | null>(null);
   const [dashboardHydrationStatus, setDashboardHydrationStatus] = useState<"full" | "partial" | "unsupported" | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
+  const [isDebugMode, setIsDebugMode] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Mobile simplified view — reset to false on each new result so users always
   // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
@@ -238,6 +240,11 @@ export default function HomePage() {
       );
     }
   }, [result]);
+
+  // Read ?debug=true from URL after mount (client-side only).
+  useEffect(() => {
+    setIsDebugMode(new URLSearchParams(window.location.search).get("debug") === "true");
+  }, []);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -820,23 +827,26 @@ export default function HomePage() {
                 <p>
                   {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
                     ? "We couldn't find that address in Illinois. Try including a ZIP code."
-                    : error}
+                    : error.toLowerCase().includes("not configured") || error.toLowerCase().includes("next_public")
+                      ? "Scoring service is currently unavailable. Please try again later."
+                      : error}
                 </p>
               </div>
             ) : null}
 
-            {dashboardUnavailableReason ? (
-              <div className="feedback-banner" role="status" style={{ marginTop: "0.75rem" }}>
-                <p className="feedback-title">
-                  {dashboardHydrationStatus === "partial"
-                    ? "Partial dashboard"
-                    : dashboardHydrationStatus === "unsupported"
-                      ? "Unsupported address"
-                      : "Address dashboard not available"}
-                </p>
-                <p>{dashboardUnavailableReason}</p>
-              </div>
-            ) : null}
+            {/* Dashboard hydration failures degrade silently — history section is
+                simply omitted when unavailable. Internal status is never shown
+                to end users. Visible only when ?debug=true is in the URL. */}
+            {isDebugMode && dashboardUnavailableReason && (
+              <details style={{ marginTop: "0.75rem", fontSize: "0.75rem", opacity: 0.7 }}>
+                <summary style={{ cursor: "pointer", userSelect: "none" }}>
+                  [debug] dashboard hydration: {dashboardHydrationStatus ?? "unknown"}
+                </summary>
+                <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {JSON.stringify({ status: dashboardHydrationStatus, reason: dashboardUnavailableReason, history_count: scoreHistory.length }, null, 2)}
+                </pre>
+              </details>
+            )}
           </Card>
         </Section>
 
