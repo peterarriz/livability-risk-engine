@@ -1560,6 +1560,53 @@ def get_nearby_amenities(
 # Never raises 5xx. DB state is reflected in the response body of /health/db.
 # ---------------------------------------------------------------------------
 
+@app.get("/api/live-signals")
+def live_signals() -> dict:
+    """
+    Returns the 10 most recently started active disruption signals across
+    all cities. Used by the landing page "Live across 50+ cities" feed.
+    No authentication required — public endpoint.
+    """
+    conn = _get_connection()
+    if not conn:
+        return {"signals": []}
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT source, address, impact_type, title, start_date
+            FROM projects
+            WHERE status = 'active'
+              AND start_date IS NOT NULL
+              AND address IS NOT NULL
+            ORDER BY start_date DESC, id DESC
+            LIMIT 10
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        signals = []
+        for row in rows:
+            source, address, impact_type, title, start_date = row
+            # Extract city from address (last "City, ST" part) or source
+            city = "Unknown"
+            if address:
+                parts = [p.strip() for p in address.split(",")]
+                if len(parts) >= 2:
+                    city = parts[-2] if len(parts) >= 3 else parts[0]
+            signals.append({
+                "city": city,
+                "address": address,
+                "impact_type": impact_type,
+                "title": title,
+                "start_date": str(start_date) if start_date else None,
+                "source": source,
+            })
+        return {"signals": signals}
+    except Exception:
+        return {"signals": []}
+
+
 @app.get("/health")
 def health() -> dict:
     """

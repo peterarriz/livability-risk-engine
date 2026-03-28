@@ -21,8 +21,8 @@ import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
-import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
-import { headlineScore } from "@/lib/score-utils";
+import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchLiveSignals, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, LiveSignal, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { headlineScore, impactTypeLabel } from "@/lib/score-utils";
 import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
 import type { SelectedAddress } from "@/lib/address-types";
 
@@ -78,6 +78,18 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   ));
 }
 
+function _relativeTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
 function debugSearchFlow(stage: string, payload: Record<string, unknown>) {
   if (typeof window === "undefined") return;
   const enabled =
@@ -115,6 +127,8 @@ export default function HomePage() {
   const [isFocused, setIsFocused] = useState(false);
   // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
   const [isDebugMode, setIsDebugMode] = useState(false);
+  // Live signals feed for landing page
+  const [liveSignals, setLiveSignals] = useState<LiveSignal[]>([]);
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
   const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
@@ -253,6 +267,11 @@ export default function HomePage() {
     // Load lookup usage from localStorage
     setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
   }, [isSignedIn, isPro]);
+
+  // Fetch live signals for landing page feed
+  useEffect(() => {
+    fetchLiveSignals().then(setLiveSignals);
+  }, []);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -994,6 +1013,33 @@ export default function HomePage() {
                 <h3>Logistics &amp; operations planning</h3>
                 <p>Assess access disruptions before routing, scheduling deliveries, or planning site visits. Know about lane closures and construction before your team arrives.</p>
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Live signals feed — landing page only ───────────── */}
+        {!workspaceMode && liveSignals.length > 0 && (
+          <section className="live-signals-section">
+            <p className="live-signals-eyebrow">
+              <span className="live-dot" aria-hidden="true" />
+              Live across 50+ cities
+            </p>
+            <div className="live-signals-feed">
+              {liveSignals.slice(0, 8).map((sig, i) => (
+                <div key={`${sig.address}-${i}`} className="live-signal-item">
+                  <span className="live-dot live-dot--small" aria-hidden="true" />
+                  <div className="live-signal-body">
+                    <span className="live-signal-city">{sig.city}</span>
+                    <span className="live-signal-type">{impactTypeLabel(sig.impact_type)}</span>
+                    <span className="live-signal-addr">{sig.title || sig.address}</span>
+                    {sig.start_date && (
+                      <span className="live-signal-time">
+                        {_relativeTime(sig.start_date)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
