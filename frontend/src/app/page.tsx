@@ -537,6 +537,8 @@ export default function HomePage() {
     try {
       const scoreResult = await fetchScore(addr, {
         canonicalId: selectedAddress?.id ?? null,
+        lat: typeof selectedAddress?.lat === "number" ? selectedAddress.lat : undefined,
+        lon: typeof selectedAddress?.lon === "number" ? selectedAddress.lon : undefined,
         lat: selectedAddress?.lat ?? null,
         lon: selectedAddress?.lon ?? null,
       });

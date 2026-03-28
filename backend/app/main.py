@@ -126,6 +126,13 @@ def _run_startup_migrations() -> None:
 
 _run_startup_migrations()
 
+# Pre-warm the address index cache so the first autocomplete request is fast.
+try:
+    _get_address_rows()
+    log.info("startup: address index cache warmed")
+except Exception as _warm_exc:
+    log.debug("startup: address cache warm skipped: %s", _warm_exc)
+
 # ---------------------------------------------------------------------------
 # CORS middleware
 # Allows the Next.js dev server (localhost:3000) to call the API directly.
@@ -1236,6 +1243,10 @@ def get_score(
             if row.get("lat") is not None and row.get("lon") is not None:
                 resolved_coords = (float(row["lat"]), float(row["lon"]))
             resolution_source = "canonical_id"
+        elif canonical_id.startswith("geo_"):
+            # Geocoder-derived canonical_id — not stored in our DB index.
+            # Fall through to address text + any lat/lon provided by the caller.
+            resolution_source = "address_text"
         else:
             raise HTTPException(status_code=422, detail="Unknown canonical_id for score lookup.")
 
@@ -1876,11 +1887,16 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
 # Canonical backend-backed combobox suggestions with strict relevance ranking.
 # ---------------------------------------------------------------------------
 
-_ADDRESS_SEARCH_CACHE_TTL_SEC = 60
+_ADDRESS_SEARCH_CACHE_TTL_SEC = 300  # 5 minutes — reduce DB churn
 _address_search_cache: dict[str, object] = {
     "loaded_at": 0.0,
     "rows": [],
 }
+
+# Per-query Nominatim result cache so the same partial string doesn't hit the
+# network on every keystroke.  Keyed on normalized query string, TTL 10 min.
+_nominatim_suggest_cache: dict[str, dict] = {}
+_NOMINATIM_SUGGEST_CACHE_TTL_SEC = 600
 
 _FALLBACK_ADDRESSES = [
     {"canonical_id": "addr_demo_1", "display_address": "1600 W Chicago Ave, Chicago, IL 60622", "lat": 41.8956, "lon": -87.6606},
@@ -2067,7 +2083,16 @@ def _top_ranked_address_rows(query: str, rows: list[dict], limit: int, with_geo_
 
 
 def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
-    """Fallback suggestions from geocoder when DB index has no strong results."""
+    """Fallback suggestions from geocoder when DB index has no results.
+
+    Results are cached per normalized query string for 10 minutes so repeated
+    keystrokes don't each incur a network round-trip.
+    """
+    cache_key = normalize_address_query(query)
+    entry = _nominatim_suggest_cache.get(cache_key)
+    if entry and (time.time() - entry["ts"]) < _NOMINATIM_SUGGEST_CACHE_TTL_SEC:
+        return entry["rows"][:limit]
+
     _nom_headers = {"User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)"}
     try:
         resp = _requests.get(
@@ -2113,7 +2138,9 @@ def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
                 "popularity": 0,
                 **features,
             }
-        return list(by_norm.values())
+        rows = list(by_norm.values())
+        _nominatim_suggest_cache[cache_key] = {"ts": time.time(), "rows": rows}
+        return rows[:limit]
     except Exception:
         return []
 
@@ -3174,14 +3201,13 @@ def suggest_addresses(
 
     ranked_rows = _top_ranked_address_rows(query, rows, limit, with_geo_penalty=True)
 
-    # If backend index has too few strong candidates, allow geocoder-backed
-    # rows as a secondary source. They are still normalized + ranked.
-    if len(ranked_rows) < limit:
+    # Only fall back to Nominatim when the DB index has NO results at all.
+    # Previously this triggered whenever results < limit, causing a network
+    # call on every keystroke even when the DB had 3-4 good matches.
+    if len(ranked_rows) == 0:
         geocoder_rows = _rows_from_nominatim(query, limit)
-        by_norm: dict[str, dict] = {r["normalized_full"]: r for r in ranked_rows}
-        for row in geocoder_rows:
-            by_norm.setdefault(row["normalized_full"], row)
-        ranked_rows = _top_ranked_address_rows(query, list(by_norm.values()), limit, with_geo_penalty=True)
+        if geocoder_rows:
+            ranked_rows = _top_ranked_address_rows(query, geocoder_rows, limit, with_geo_penalty=True)
 
     suggestions = [
         {
