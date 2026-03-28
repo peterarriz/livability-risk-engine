@@ -370,48 +370,12 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Louisville, KY",
         "where_clause":     None,
     },
-    {
-        # Fresno — Building Permits.
-        # Portal: https://data.fresno.gov
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.fresno.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Fresno",
-        "source_key":       "fresno",
-        "domain":           "data.fresno.gov",
-        "dataset_id":       "sxvh-bkgt",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Fresno, CA",
-        "where_clause":     None,
-    },
-    {
-        # Sacramento — Building Permits.
-        # Portal: https://data.cityofsacramento.org
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.cityofsacramento.org/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Sacramento",
-        "source_key":       "sacramento",
-        "domain":           "data.cityofsacramento.org",
-        "dataset_id":       "rent-6pka",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Sacramento, CA",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Fresno (verified 2026-03-28):
+    #   data.fresno.gov DNS does not resolve (HTTP 000). No Socrata.
+    # REMOVED — Sacramento (verified 2026-03-28):
+    #   data.cityofsacramento.org exists but 0 Socrata results for permits.
+    #   Dataset rent-6pka returns no JSON.
     # -----------------------------------------------------------------
     # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
     #
@@ -494,30 +458,11 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Buffalo, NY",
         "where_clause":     None,
     },
-    {
-        # Raleigh, NC — Building Permits.
-        # Portal: https://data.raleighnc.gov (Socrata)
-        # Dataset: Building Permits (NIBRS/development permits)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.raleighnc.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   curl "https://data.raleighnc.gov/resource/k4n2-jcgh.json?$limit=1"
-        # data-050: added 2026-03-23
-        "city_name":        "Raleigh",
-        "source_key":       "raleigh",
-        "domain":           "data.raleighnc.gov",
-        "dataset_id":       "k4n2-jcgh",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Raleigh, NC",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Raleigh (verified 2026-03-28):
+    #   data.raleighnc.gov is not Socrata or CKAN. 0 Socrata results.
+    #   Dataset k4n2-jcgh returns no JSON.
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # REMOVED — Tampa (verified 2026-03-28):
     #   opendata.tampa.gov is CKAN (not Socrata). fd3u-fy3v returns 404.
@@ -527,73 +472,36 @@ CITY_CONFIGS: list[dict] = [
     #   opendata.miamidade.gov Socrata returns 0 permit datasets.
     #   r6qv-7pvx returns empty JSON. data.miami.gov is down.
     # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # REMOVED — St. Louis (verified 2026-03-28):
+    #   data.stlouis-mo.gov redirects (301). 0 Socrata results for permits.
+    #   Dataset 44bp-4y2y returns no JSON. Domain not Socrata.
+    # -----------------------------------------------------------------
     {
-        # St. Louis, MO — Building Permits.
-        # Portal: https://data.stlouis-mo.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.stlouis-mo.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "St. Louis",
-        "source_key":       "st_louis",
-        "domain":           "data.stlouis-mo.gov",
-        "dataset_id":       "44bp-4y2y",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "St. Louis, MO",
-        "where_clause":     None,
-    },
-    {
-        # Baton Rouge, LA — Building and Trade Permits.
-        # Portal: https://data.brla.gov (Socrata — CONFIRMED)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.brla.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
+        # Baton Rouge, LA — EBR Building Permits (verified 2026-03-28).
+        # Portal: https://data.brla.gov (Socrata)
+        # Dataset: 7fq7-8j7r (139,501 records, updated daily)
         "city_name":        "Baton Rouge",
         "source_key":       "baton_rouge",
         "domain":           "data.brla.gov",
-        "dataset_id":       "a6aw-dngx",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
+        "dataset_id":       "7fq7-8j7r",
+        "id_field":         "permitnumber",
+        "type_field":       "permittype",
+        "desc_field":       "projectdescription",
+        "issue_date_field": "issueddate",
         "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
+        "lat_field":        None,
+        "lon_field":        None,
         "loc_field":        None,
         "addr_field":       "address",
         "city_state":       "Baton Rouge, LA",
         "where_clause":     None,
     },
-    {
-        # Lexington, KY — Building Permits.
-        # Portal: https://data.lexingtonky.gov (Socrata — not live-verified)
-        # not live-verified portal type and dataset_id:
-        #   curl "https://data.lexingtonky.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   If that returns 404/HTML, the portal may be ArcGIS Hub not Socrata.
-        # data-057: added 2026-03-24
-        "city_name":        "Lexington",
-        "source_key":       "lexington",
-        "domain":           "data.lexingtonky.gov",
-        "dataset_id":       "3gzb-avhn",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Lexington, KY",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Lexington (verified 2026-03-28):
+    #   data.lexingtonky.gov is ArcGIS Hub, not Socrata. 0 Socrata results.
+    #   Dataset 3gzb-avhn returns no JSON.
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # data-068: tier-11 city permits (Socrata portals)
     # -----------------------------------------------------------------
