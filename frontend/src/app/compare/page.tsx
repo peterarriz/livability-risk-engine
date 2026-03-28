@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ScoreHero, TopRiskGrid, SeverityMeters, getConfidenceReasons } from "@/components/score-experience";
 import { Card, Container, Header } from "@/components/shell";
 import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
+import { headlineScore } from "@/lib/score-utils";
 
 function getSeverityColor(score: number): string {
   if (score >= 75) return "severe";
@@ -115,7 +116,7 @@ function AddressSlot({
 
       {slot.result && !slot.isLoading && (
         <div className="compare-result">
-          <Card className={`score-card compare-score-card compare-score-card--${getSeverityColor(slot.result.disruption_score)}`}>
+          <Card className={`score-card compare-score-card compare-score-card--${getSeverityColor(headlineScore(slot.result))}`}>
             <ScoreHero result={slot.result} />
           </Card>
           <Card className="detail-card">
@@ -260,7 +261,7 @@ function ComparePageInner() {
   }
 
   const bothScored = slotA.result !== null && slotB.result !== null;
-  const scoreDiff = bothScored ? slotA.result!.disruption_score - slotB.result!.disruption_score : null;
+  const scoreDiff = bothScored ? headlineScore(slotA.result!) - headlineScore(slotB.result!) : null;
 
   return (
     <main className="page page--workspace">
