@@ -1639,3 +1639,28 @@ export async function revokeApiKey(keyId: number, token: string): Promise<void> 
     throw new Error((err as { detail?: string }).detail ?? "Failed to revoke API key");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Live signals feed
+// ---------------------------------------------------------------------------
+
+export type LiveSignal = {
+  city: string;
+  address: string;
+  impact_type: string;
+  title: string;
+  start_date: string | null;
+  source: string;
+};
+
+export async function fetchLiveSignals(): Promise<LiveSignal[]> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+    const resp = await fetch(`${base}/api/live-signals`, { next: { revalidate: 300 } });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.signals ?? [];
+  } catch {
+    return [];
+  }
+}
