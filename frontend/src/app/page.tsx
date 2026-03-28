@@ -24,6 +24,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/n
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchLiveSignals, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, LiveSignal, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { headlineScore, impactTypeLabel } from "@/lib/score-utils";
 import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
+import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -135,6 +136,11 @@ export default function HomePage() {
   const [lookupUsage, setLookupUsage] = useState({ count: 0, limit: 10, remaining: 10, isGated: false });
   const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
+  // Onboarding
+  const showOnboarding = useOnboardingState();
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => { setOnboardingVisible(showOnboarding); }, [showOnboarding]);
   // Mobile simplified view — reset to false on each new result so users always
   // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
   const [mobileShowFull, setMobileShowFull] = useState(false);
@@ -1422,6 +1428,25 @@ export default function HomePage() {
           </div>
         </Section>
       </Container>
+
+      {/* ── Onboarding flow ─────────────────────────────────── */}
+      {onboardingVisible && (
+        <OnboardingModal
+          onComplete={(exampleAddr) => {
+            setOnboardingVisible(false);
+            if (exampleAddr) {
+              setAddress(exampleAddr);
+              submitAddress(exampleAddr);
+              // Show tour after results load
+              setTimeout(() => setShowTour(true), 3000);
+            }
+          }}
+        />
+      )}
+
+      {showTour && result && (
+        <FeatureTour onDismiss={() => setShowTour(false)} />
+      )}
 
       {showSaveModal && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
