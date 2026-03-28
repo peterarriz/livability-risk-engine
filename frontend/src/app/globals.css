@@ -4901,3 +4901,224 @@ button:disabled {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ONBOARDING FLOW
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+}
+.onboarding-card {
+  background: var(--card-bg, #1c1c2e);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 2rem 2.25rem;
+  max-width: 520px;
+  width: 92vw;
+  text-align: center;
+}
+
+/* Progress dots */
+.onboarding-progress {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.2s;
+}
+.onboarding-dot--active { background: #6366f1; }
+.onboarding-dot--done { background: #10b981; }
+
+/* Step content */
+.onboarding-step h2 {
+  font-size: 1.25rem;
+  margin: 0 0 0.35rem;
+}
+.onboarding-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-soft, #94a3b8);
+  margin: 0 0 1.25rem;
+}
+
+/* Role buttons */
+.onboarding-role-grid {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+.onboarding-role-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.65rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: var(--text, #e8eef8);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+.onboarding-role-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.onboarding-role-btn--selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+.onboarding-role-icon { font-size: 1.1rem; }
+
+/* City tiles */
+.onboarding-city-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+.onboarding-city-tile {
+  padding: 0.55rem 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text, #e8eef8);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.onboarding-city-tile:hover { background: rgba(255, 255, 255, 0.06); }
+.onboarding-city-tile--selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Example card */
+.onboarding-example-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.onboarding-example-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-soft, #94a3b8);
+  margin: 0 0 0.35rem;
+}
+.onboarding-example-addr {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Buttons */
+.onboarding-btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.onboarding-next-btn {
+  padding: 0.6rem 1.5rem;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.onboarding-next-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.onboarding-back-btn {
+  padding: 0.6rem 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text-soft, #94a3b8);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.onboarding-skip {
+  display: block;
+  margin: 1rem auto 0;
+  background: none;
+  border: none;
+  color: var(--text-soft, #94a3b8);
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .onboarding-city-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FEATURE TOUR
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.5);
+}
+.tour-highlight {
+  position: fixed;
+  border: 2px solid #6366f1;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+.tour-tooltip {
+  position: fixed;
+  background: var(--card-bg, #1c1c2e);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  max-width: 320px;
+  z-index: 10002;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.tour-text {
+  font-size: 0.82rem;
+  color: var(--text, #e8eef8);
+  line-height: 1.5;
+  margin: 0 0 0.5rem;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tour-counter {
+  font-size: 0.7rem;
+  color: var(--text-soft, #94a3b8);
+}
+.tour-next-btn {
+  padding: 0.35rem 0.85rem;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
