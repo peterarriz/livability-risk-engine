@@ -662,6 +662,7 @@ export default function HomePage() {
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
             <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-docs" className="topnav-aux-link">Docs</a>
+            <a href="/methodology" className="topnav-aux-link">Methodology</a>
             <a href="/api-access" className="topnav-api-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">
