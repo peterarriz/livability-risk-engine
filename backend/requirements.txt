@@ -5,3 +5,4 @@ requests>=2.31.0
 python-dotenv>=1.0.0
 python-multipart>=0.0.9
 python-jose[cryptography]>=3.3.0  # added for JWT verification
+openpyxl>=3.1.0                   # data-081: FHFA HPI XLSX parsing
