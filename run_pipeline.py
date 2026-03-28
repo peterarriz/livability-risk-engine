@@ -186,6 +186,24 @@ STEPS = [
         "non_fatal": True,
     },
     {
+        # data-081: Downloads FHFA HPI zip-level XLSX (all US zip codes, quarterly).
+        # Stored in neighborhood_quality table (region_type='zip').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch FHFA HPI — zip level",
+        "cmd": [sys.executable, "backend/ingest/fhfa_hpi.py", "--source", "zip"],
+        "skip_key": "skip_fhfa_hpi",
+        "non_fatal": True,
+    },
+    {
+        # data-081: Downloads FHFA HPI metro-level CSV (CBSA areas, quarterly).
+        # Stored in neighborhood_quality table (region_type='metro').
+        # Failures are non-fatal — pipeline continues to next step.
+        "name": "Fetch FHFA HPI — metro level",
+        "cmd": [sys.executable, "backend/ingest/fhfa_hpi.py", "--source", "metro"],
+        "skip_key": "skip_fhfa_hpi",
+        "non_fatal": True,
+    },
+    {
         # Fetches Austin APD crime data and calculates 12-month trends by sector.
         # Failures are non-fatal — pipeline continues to next step.
         "name": "Fetch Austin crime trends",
@@ -864,6 +882,7 @@ _MONTHLY_SKIP_KEYS: frozenset = frozenset({
     "skip_census_acs",
     "skip_national_school_ratings",
     "skip_fema",
+    "skip_fhfa_hpi",  # data-081: FHFA House Price Index (zip + metro)
 })
 
 
@@ -1101,6 +1120,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-fema",
         action="store_true",
         help="Skip the FEMA flood zones fetch step.",
+    )
+    parser.add_argument(
+        "--skip-fhfa-hpi",
+        action="store_true",
+        help="Skip the FHFA House Price Index fetch step (zip + metro).",
     )
     parser.add_argument(
         "--skip-crime-trends",

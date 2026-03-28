@@ -20,9 +20,10 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
+import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -114,6 +115,11 @@ export default function HomePage() {
   const [isFocused, setIsFocused] = useState(false);
   // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
   const [isDebugMode, setIsDebugMode] = useState(false);
+  // Free-tier lookup gating
+  const { user, isSignedIn } = useUser();
+  const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
+  const [lookupUsage, setLookupUsage] = useState({ count: 0, limit: 10, remaining: 10, isGated: false });
+  const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Mobile simplified view — reset to false on each new result so users always
   // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
@@ -180,8 +186,8 @@ export default function HomePage() {
   }, [isDemoResult, result, scoredAt]);
   const scoreTrend = useMemo<number | null>(() => {
     if (scoreHistory.length < 2) return null;
-    const latest = scoreHistory[0]?.disruption_score;
-    const oldest = scoreHistory[scoreHistory.length - 1]?.disruption_score;
+    const latest = scoreHistory[0] ? headlineScore(scoreHistory[0]) : undefined;
+    const oldest = scoreHistory[scoreHistory.length - 1] ? headlineScore(scoreHistory[scoreHistory.length - 1]) : undefined;
     if (typeof latest !== "number" || typeof oldest !== "number") return null;
     return latest - oldest;
   }, [scoreHistory]);
@@ -244,7 +250,9 @@ export default function HomePage() {
   // Read ?debug=true from URL after mount (client-side only).
   useEffect(() => {
     setIsDebugMode(new URLSearchParams(window.location.search).get("debug") === "true");
-  }, []);
+    // Load lookup usage from localStorage
+    setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
+  }, [isSignedIn, isPro]);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -363,13 +371,12 @@ export default function HomePage() {
           return;
         }
         if (!payload.available) {
+          // Silently degrade — omit history section, no error shown to users.
+          // Debug info only visible via ?debug=true URL param.
           setScoreHistory([]);
           setDashboardUnavailableReason(
-            payload.reason === "db_not_configured"
-              ? "Partial dashboard only: backend storage is not connected yet."
-              : payload.reason === "no_backend_record"
-                ? `Partial dashboard only: no score history yet${payload.modules_unavailable?.length ? ` (missing: ${payload.modules_unavailable.join(", ")})` : ""}.`
-                : "Partial dashboard only: some modules are unavailable for this address.",
+            `reason=${payload.reason ?? "unknown"}`
+            + (payload.modules_unavailable?.length ? ` modules=[${payload.modules_unavailable.join(",")}]` : ""),
           );
           return;
         }
@@ -377,6 +384,7 @@ export default function HomePage() {
         setScoreHistory(
           payload.history.map((h) => ({
             disruption_score: h.disruption_score,
+            livability_score: h.livability_score,
             confidence: h.confidence,
             mode: h.mode as import("../lib/api").ScoreMode,
             created_at: h.scored_at,
@@ -392,6 +400,7 @@ export default function HomePage() {
         r
           ? r.history.map((h) => ({
               disruption_score: h.disruption_score,
+              livability_score: h.livability_score,
               confidence: h.confidence,
               mode: h.mode as import("../lib/api").ScoreMode,
               created_at: h.scored_at,
@@ -487,6 +496,16 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
+    // Free-tier gate: check quota before making the request.
+    // Demo addresses are never gated.
+    if (!isDemoAddress(addr)) {
+      const usage = getLookupUsage(!!isSignedIn, isPro);
+      if (usage.isGated) {
+        setShowGate(true);
+        return;
+      }
+    }
+
     debugSearchFlow("SEARCH_REQUEST", {
       request_fired: true,
       identifier_type: selectedAddress?.id ? "canonical_id" : "address_text",
@@ -518,6 +537,11 @@ export default function HomePage() {
         const deduped = [addr, ...prev.filter((a: string) => a !== addr)];
         return deduped.slice(0, 5);
       });
+      // Record lookup for quota tracking (demo addresses exempt)
+      if (!isDemoAddress(addr)) {
+        const updated = recordLookup(!!isSignedIn, isPro);
+        setLookupUsage(updated);
+      }
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -621,6 +645,7 @@ export default function HomePage() {
             <a href="#examples-section" className="topnav-aux-link">Examples</a>
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
             <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
+            <a href="/api-docs" className="topnav-aux-link">Docs</a>
             <a href="/api-access" className="topnav-api-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">
@@ -641,13 +666,18 @@ export default function HomePage() {
               <h1>
                 {workspaceMode
                   ? "A decision-ready livability brief for the current address."
-                  : "Know what it\u2019s actually like to live there."}
+                  : "Address intelligence for teams that need to know before they move."}
               </h1>
               <p className="lede">
                 {workspaceMode
                   ? "Run another lookup below. Score, reasoning, and spatial context update automatically."
-                  : "Real-time livability scores for any address \u2014 combining construction activity, crime trends, school ratings, and neighborhood context. Updated daily across 12 US cities."}
+                  : "Livability scores powered by 20+ live data sources \u2014 construction permits, crime trends, school ratings, transit, and environmental risk. Updated daily across 50+ US cities."}
               </p>
+              {!workspaceMode && (
+                <a href="mailto:enterprise@livabilityrisks.com" className="enterprise-cta">
+                  Request enterprise demo \u2192
+                </a>
+              )}
             </div>
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
@@ -806,6 +836,48 @@ export default function HomePage() {
               </div>
             </form>
 
+            {/* Free-tier usage indicator — only shown for non-Pro users */}
+            {!isPro && lookupUsage.count > 0 && (
+              <p className="lookup-usage-indicator">
+                {lookupUsage.count}/{lookupUsage.limit} free lookups used this month
+              </p>
+            )}
+
+            {/* Gate overlay — shown when free-tier limit is reached */}
+            {showGate && (
+              <div className="gate-overlay" role="alert">
+                <div className="gate-overlay-card">
+                  <p className="gate-overlay-icon">🔒</p>
+                  <h3>
+                    {isSignedIn
+                      ? `You\u2019ve used your ${lookupUsage.limit} free lookups this month.`
+                      : `Sign up to get ${10} free lookups per month.`}
+                  </h3>
+                  <p>
+                    {isSignedIn
+                      ? "Upgrade to Pro for unlimited address lookups, batch analysis, and PDF exports."
+                      : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} free lookups. Create a free account to get more, or upgrade to Pro for unlimited access.`}
+                  </p>
+                  <div className="gate-overlay-actions">
+                    {isSignedIn ? (
+                      <a href="#pricing-section" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
+                        See Pro plan
+                      </a>
+                    ) : (
+                      <SignInButton mode="modal">
+                        <button type="button" className="gate-btn gate-btn--primary">
+                          Sign up free
+                        </button>
+                      </SignInButton>
+                    )}
+                    <button type="button" className="gate-btn gate-btn--secondary" onClick={() => setShowGate(false)}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {(result || statusNote) ? (
               <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
                 <span className="status-badge" title={statusBadgeTooltip}>{statusHeadline}</span>
@@ -835,18 +907,20 @@ export default function HomePage() {
             ) : null}
 
             {/* Dashboard hydration failures degrade silently — history section is
-                simply omitted when unavailable. Internal status is never shown
-                to end users. Visible only when ?debug=true is in the URL. */}
-            {isDebugMode && dashboardUnavailableReason && (
-              <details style={{ marginTop: "0.75rem", fontSize: "0.75rem", opacity: 0.7 }}>
-                <summary style={{ cursor: "pointer", userSelect: "none" }}>
-                  [debug] dashboard hydration: {dashboardHydrationStatus ?? "unknown"}
-                </summary>
-                <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {JSON.stringify({ status: dashboardHydrationStatus, reason: dashboardUnavailableReason, history_count: scoreHistory.length }, null, 2)}
-                </pre>
-              </details>
-            )}
+                simply omitted when unavailable. Debug info requires both
+                ?debug=true URL param AND signed-in user. */}
+            <SignedIn>
+              {isDebugMode && dashboardUnavailableReason && (
+                <details style={{ marginTop: "0.75rem", fontSize: "0.75rem", opacity: 0.7 }}>
+                  <summary style={{ cursor: "pointer", userSelect: "none" }}>
+                    [debug] dashboard hydration: {dashboardHydrationStatus ?? "unknown"}
+                  </summary>
+                  <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {JSON.stringify({ status: dashboardHydrationStatus, reason: dashboardUnavailableReason, history_count: scoreHistory.length }, null, 2)}
+                  </pre>
+                </details>
+              )}
+            </SignedIn>
           </Card>
         </Section>
 
@@ -882,6 +956,29 @@ export default function HomePage() {
               </div>
             </div>
           </Section>
+        )}
+
+        {/* ── Value proposition tiles — only shown on explore (pre-search) ── */}
+        {!workspaceMode && (
+          <section className="value-prop-section">
+            <div className="value-prop-grid">
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">🏠</span>
+                <h3>Real estate due diligence</h3>
+                <p>Score any address before a lease signing, purchase, or investment. Surface construction, crime, school, and environmental risks that aren't in the listing.</p>
+              </div>
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">📊</span>
+                <h3>Portfolio risk monitoring</h3>
+                <p>Track livability scores across your entire portfolio. Get alerted when new construction permits, crime trends, or infrastructure changes affect your properties.</p>
+              </div>
+              <div className="value-prop-tile">
+                <span className="value-prop-icon" aria-hidden="true">🚛</span>
+                <h3>Logistics &amp; operations planning</h3>
+                <p>Assess access disruptions before routing, scheduling deliveries, or planning site visits. Know about lane closures and construction before your team arrives.</p>
+              </div>
+            </div>
+          </section>
         )}
 
         <Section
@@ -952,7 +1049,7 @@ export default function HomePage() {
 
               {/* ── Full desktop results (CSS-hidden on mobile unless mobileShowFull) ── */}
               <div className={`desktop-view${!mobileShowFull ? " desktop-view--mobile-hidden" : ""}`}>
-              {result.disruption_score >= 61 && (
+              {headlineScore(result) >= 61 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
                   <span>
@@ -966,7 +1063,7 @@ export default function HomePage() {
                 <Card className="score-card">
                   <ScoreHero result={result} />
                   {scoreHistory.length >= 1 && (
-                    <ScoreSparkline history={scoreHistory} currentScore={result.disruption_score} />
+                    <ScoreSparkline history={scoreHistory} currentScore={headlineScore(result)} />
                   )}
                   <div className="score-actions">
                     <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
@@ -992,7 +1089,7 @@ export default function HomePage() {
               </div>
 
               {/* ── Monitor this address — shown for score >= 50 ─────────── */}
-              {result.disruption_score >= 50 && (
+              {headlineScore(result) >= 50 && (
                 <WatchlistForm address={result.address} score={headlineScore(result)} />
               )}
 
@@ -1048,7 +1145,7 @@ export default function HomePage() {
                     latitude={mapCoords.lat}
                     longitude={mapCoords.lon}
                     address={result.address}
-                    disruptionScore={result.disruption_score}
+                    disruptionScore={headlineScore(result)}
                     signals={result.nearby_signals ?? []}
                     schools={result.nearby_schools ?? []}
                     amenities={amenities}
@@ -1125,16 +1222,17 @@ export default function HomePage() {
           id="pricing-section"
           eyebrow="Pricing"
           title="Choose the right plan"
-          description="Start free. Upgrade when you need forecasts, exports, and team access."
+          description="Start free. Upgrade when you need more lookups, team access, or API integration."
           className="pricing-section"
         >
-          <div className="pricing-grid pricing-grid--three">
+          <div className="pricing-grid pricing-grid--four">
             <Card className="detail-card pricing-card">
               <p className="supporting-kicker">Free</p>
               <h2>$0 / month</h2>
+              <p className="pricing-roi">For exploring and occasional lookups</p>
               <ul className="pricing-features">
-                <li>Unlimited address lookups</li>
-                <li>Real-time disruption score</li>
+                <li>10 address lookups / month</li>
+                <li>Real-time livability score</li>
                 <li>Signal cards and confidence read</li>
                 <li>Spatial map context</li>
               </ul>
@@ -1143,34 +1241,77 @@ export default function HomePage() {
             <Card className="detail-card pricing-card pricing-card--pro">
               <p className="supporting-kicker">Pro</p>
               <h2>$49 / month</h2>
+              <p className="pricing-roi">Typical agent runs 50+ lookups/month</p>
               <ul className="pricing-features">
-                <li>Everything in Free</li>
+                <li>Unlimited address lookups</li>
                 <li>30-day disruption forecasts</li>
                 <li>PDF and CSV report exports</li>
                 <li>Permit detail drill-down</li>
                 <li>Address comparison tool</li>
-                <li>Priority data refresh</li>
+                <li>Alert monitoring (email)</li>
               </ul>
               <button type="button" className="pricing-cta pricing-cta--primary">Start Pro trial</button>
             </Card>
-            <Card className="detail-card pricing-card pricing-card--enterprise">
-              <p className="supporting-kicker">Enterprise</p>
-              <h2>Custom pricing</h2>
+            <Card className="detail-card pricing-card pricing-card--teams">
+              <p className="supporting-kicker">Teams</p>
+              <h2>$199 / month</h2>
+              <p className="pricing-roi">For brokerages and property managers</p>
               <ul className="pricing-features">
                 <li>Everything in Pro</li>
-                <li>Batch API access (up to 10,000 addresses/mo)</li>
+                <li>Up to 5 team seats</li>
+                <li>CSV bulk import (500 addresses)</li>
+                <li>REST API access</li>
+                <li>Team dashboard</li>
+                <li>Priority support</li>
+              </ul>
+              <button type="button" className="pricing-cta pricing-cta--primary">Start Teams trial</button>
+            </Card>
+            <Card className="detail-card pricing-card pricing-card--enterprise">
+              <p className="supporting-kicker">Enterprise</p>
+              <h2>From $999 / month</h2>
+              <p className="pricing-roi">Custom pricing for large teams</p>
+              <ul className="pricing-features">
+                <li>Everything in Teams</li>
+                <li>Unlimited seats</li>
+                <li>Batch API (10,000+ addresses/mo)</li>
                 <li>Webhook alerts</li>
                 <li>SLA guarantee</li>
-                <li>Dedicated account support</li>
-                <li>White-label report option</li>
+                <li>White-label reports</li>
+                <li>Dedicated account manager</li>
               </ul>
               <a
-                href="mailto:hello@livabilityrisk.com?subject=Enterprise%20inquiry"
+                href="mailto:enterprise@livabilityrisks.com?subject=Enterprise%20inquiry"
                 className="pricing-cta pricing-cta--enterprise"
               >
                 Talk to us
               </a>
             </Card>
+          </div>
+
+          {/* Feature comparison table */}
+          <div className="pricing-comparison">
+            <table className="pricing-table">
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Free</th>
+                  <th>Pro</th>
+                  <th>Teams</th>
+                  <th>Enterprise</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Lookups / month</td><td>10</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+                <tr><td>Bulk CSV upload</td><td>&mdash;</td><td>&mdash;</td><td>500 addresses</td><td>10,000+</td></tr>
+                <tr><td>API access</td><td>&mdash;</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>Team seats</td><td>1</td><td>1</td><td>Up to 5</td><td>Unlimited</td></tr>
+                <tr><td>PDF exports</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>Alert monitoring</td><td>&mdash;</td><td>Email</td><td>Email</td><td>Email + Webhook</td></tr>
+                <tr><td>30-day forecasts</td><td>&mdash;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+                <tr><td>SLA</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>99.9%</td></tr>
+                <tr><td>Support</td><td>Community</td><td>Email</td><td>Priority</td><td>Dedicated</td></tr>
+              </tbody>
+            </table>
           </div>
         </Section>
 

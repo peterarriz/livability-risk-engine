@@ -468,6 +468,13 @@ CREATE TABLE IF NOT EXISTS neighborhood_quality (
     school_attainment TEXT,
     school_growth    TEXT,
 
+    -- FHFA House Price Index (data-081)
+    hpi_index_value  NUMERIC(10,2),    -- most recent quarter index value (NSA)
+    hpi_1yr_change   NUMERIC(8,4),     -- 1-year price change (%)
+    hpi_5yr_change   NUMERIC(8,4),     -- 5-year price change (%)
+    hpi_10yr_change  NUMERIC(8,4),     -- 10-year price change (%)
+    hpi_period       TEXT,             -- data period, e.g. '2024Q3'
+
     -- Location
     latitude         DOUBLE PRECISION,
     longitude        DOUBLE PRECISION,
@@ -493,7 +500,14 @@ CREATE INDEX IF NOT EXISTS neighborhood_quality_latlon_idx
 COMMENT ON TABLE neighborhood_quality IS
     'Neighborhood-level context for livability scoring (data-040). '
     'Stores FEMA flood zones, crime trends, Census ACS demographics, '
-    'and school ratings keyed on (region_type, region_id).';
+    'school ratings, and FHFA HPI data keyed on (region_type, region_id).';
+
+-- data-081: idempotent migrations for HPI columns on existing deployments
+ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_index_value NUMERIC(10,2);
+ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_1yr_change  NUMERIC(8,4);
+ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_5yr_change  NUMERIC(8,4);
+ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_10yr_change NUMERIC(8,4);
+ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_period      TEXT;
 
 
 -- ---------------------------------------------------------------------------

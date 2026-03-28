@@ -11,11 +11,56 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-080 (live-verify data-078 MUST VERIFY endpoints)
-# Next task to create: data-082
+# Last completed task: data-081 (FHFA HPI ingest)
+# Next task to create: data-083
 
 tasks:
   - id: data-081
+    title: Ingest FHFA house price index data by zip code and metro
+    status: done
+    priority: high
+    github_issue: 257
+    files:
+      - backend/ingest/fhfa_hpi.py
+      - backend/ingest/load_neighborhood_quality.py
+      - run_pipeline.py
+      - db/schema.sql
+      - backend/requirements.txt
+      - SKILL.md
+      - TASKS.yaml
+    notes_for_next_agent: >
+      data-081 complete (issue #257).
+      Created backend/ingest/fhfa_hpi.py — downloads FHFA HPI XLSX (zip) and CSV (metro),
+      parses both to find most recent quarter per zip/metro, computes 1yr/5yr/10yr changes
+      from time series when pre-computed columns are absent.
+      Added openpyxl>=3.1.0 to backend/requirements.txt.
+      Added HPI columns to neighborhood_quality table (db/schema.sql):
+        hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period
+      Added ALTER TABLE ... ADD COLUMN IF NOT EXISTS migrations for live deployments.
+      Added hpi_zip and hpi_metro to load_neighborhood_quality.py STAGING_FILES.
+      HPI load uses UPSERT_HPI_SQL (only touches HPI columns — won't clobber crime/flood data).
+      run_pipeline.py: added 2 monthly steps (skip_key=skip_fhfa_hpi) + --skip-fhfa-hpi arg.
+      NEXT: verify the ingest works with real FHFA data (REQUIRES NETWORK ACCESS):
+        python backend/ingest/fhfa_hpi.py --dry-run
+        python backend/ingest/load_neighborhood_quality.py --source hpi_zip --dry-run
+
+  - id: data-083
+    title: Wire FHFA HPI data into neighborhood trajectory score
+    status: backlog
+    priority: medium
+    github_issue: null
+    files:
+      - backend/app/main.py
+      - TASKS.yaml
+    notes_for_next_agent: >
+      data-083: expose HPI data from neighborhood_quality via the /score endpoint.
+      Query neighborhood_quality WHERE region_type='zip' AND region_id=<zip5>.
+      Fallback to region_type='metro' if zip-level not found.
+      Fields to expose: hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period.
+      This requires data-081 to have run so staging files and DB rows are populated.
+      Create GitHub issue [data-083] before starting.
+
+  - id: data-082
     title: Verify Detroit permit field names + add Dallas Socrata permits
     status: backlog
     priority: high
@@ -25,7 +70,7 @@ tasks:
       - backend/ingest/us_city_permits.py
       - TASKS.yaml
     notes_for_next_agent: >
-      data-081 is the follow-on to data-080. REQUIRES NETWORK ACCESS.
+      data-082 is the follow-on to data-080. REQUIRES NETWORK ACCESS.
       1. Detroit permits (ArcGIS) — field names still MUST VERIFY:
            python backend/ingest/us_city_permits_arcgis.py --city detroit --dry-run
            OR: curl "https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services/
