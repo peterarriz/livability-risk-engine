@@ -11,11 +11,33 @@
 #   github_issue: issue number on peterarriz/livability-risk-engine
 #   notes_for_next_agent: key context for the agent picking this up next
 #
-# Last completed task: data-078 (strategic city expansion — markets that matter)
-# Next task to create: data-079
+# Last completed task: data-079 (split ingest pipeline into daily/weekly/monthly schedules)
+# Next task to create: data-081
 
 tasks:
   - id: data-079
+    title: Split ingest pipeline into daily/weekly/monthly schedules
+    status: done
+    priority: high
+    github_issue: 249
+    files:
+      - run_pipeline.py
+      - TASKS.yaml
+    notes_for_next_agent: >
+      data-079 complete (issue #249).
+      Added --mode daily|weekly|monthly flag to run_pipeline.py.
+      _WEEKLY_SKIP_KEYS and _MONTHLY_SKIP_KEYS sets defined near line 759 control step routing.
+      _step_mode(step) helper returns the mode for any step.
+      When --mode is omitted, all steps run (backward compatible).
+      WORKFLOW FILES NOT UPDATED: .github/workflows/ingest.yml could not be modified due to
+      GitHub App permissions. The weekly and monthly cron triggers must be added manually:
+        Weekly (Sunday 3:00am UTC):  cron "0 3 * * 0"  → python run_pipeline.py --mode weekly
+        Monthly (1st of month 3:00am UTC): cron "0 3 1 * *" → python run_pipeline.py --mode monthly
+        Daily stays as-is: python run_pipeline.py --mode daily
+      Dry-run test: python run_pipeline.py --mode daily --dry-run
+      Next task: data-080 (live-verify data-078 MUST VERIFY endpoints — REQUIRES NETWORK ACCESS).
+
+  - id: data-080
     title: Live-verify all data-078 MUST VERIFY endpoints with network access
     status: backlog
     priority: high
@@ -39,7 +61,7 @@ tasks:
       - TASKS.yaml
       - SKILL.md
     notes_for_next_agent: >
-      data-079 is the live-verification follow-on to data-078. REQUIRES NETWORK ACCESS.
+      data-080 is the live-verification follow-on to data-078. REQUIRES NETWORK ACCESS.
       All data-078 endpoints have placeholder org IDs and service names marked MUST VERIFY.
       Verification workflow per city:
         1. For ArcGIS crime: curl "https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json"
@@ -61,7 +83,7 @@ tasks:
         Tier 4 crime (may be stubs): plano_tx, irving_tx
         Permits: dallas, detroit, st_petersburg, birmingham, orlando, plano
         Socrata permits: oakland, long_beach, st_paul, toledo, newark, jersey_city
-      Also: data-077 (re-enable 31 existing removed cities) should be done before or alongside data-079.
+      Also: data-077 (re-enable 31 existing removed cities) should be done before or alongside data-080.
 
   - id: data-078
     title: Strategic city expansion — markets that matter for enterprise sales
