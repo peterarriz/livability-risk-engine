@@ -19,12 +19,16 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useUser } from "@clerk/nextjs";
 import { Card, Container, Header } from "@/components/shell";
 import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const FREE_LIMIT = 10;
+const FREE_BATCH_LIMIT = 5;
+const PRO_BATCH_LIMIT = 500;
+const CSV_TEMPLATE = "address\n1600 W Chicago Ave, Chicago, IL\n700 W Grand Ave, Chicago, IL\n233 S Wacker Dr, Chicago, IL\n";
 const STORAGE_KEY = "lre_portfolio_v1";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -197,6 +201,15 @@ export default function PortfolioPage() {
   const [sortCol, setSortCol] = useState<SortCol>("score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+  const [riskFilter, setRiskFilter] = useState<"all" | "low" | "moderate" | "high">("all");
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Tier detection
+  const { user } = useUser();
+  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier as string | undefined;
+  const isPro = tier === "pro" || tier === "teams" || tier === "enterprise";
+  const batchLimit = isPro ? PRO_BATCH_LIMIT : FREE_BATCH_LIMIT;
+  const csvUploadRef = useRef<HTMLInputElement>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const skipSuggestRef = useRef(false);
@@ -309,6 +322,62 @@ export default function PortfolioPage() {
     setItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  // ── CSV upload ────────────────────────────────────────────────────────────
+
+  function downloadTemplate() {
+    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "portfolio_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleCSVUpload(file: File) {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    // Skip header if it looks like one
+    const startIdx = /^address$/i.test(lines[0] ?? "") ? 1 : 0;
+    const addresses = lines.slice(startIdx).filter((l) => l.length > 5);
+
+    if (addresses.length === 0) {
+      setAddError("No valid addresses found in CSV.");
+      return;
+    }
+
+    if (addresses.length > batchLimit) {
+      setAddError(
+        isPro
+          ? `CSV contains ${addresses.length} addresses. Max ${PRO_BATCH_LIMIT} per upload.`
+          : `Free plan allows ${FREE_BATCH_LIMIT} addresses per upload. Upgrade to Pro for up to ${PRO_BATCH_LIMIT}.`,
+      );
+      return;
+    }
+
+    setAddError(null);
+
+    // Deduplicate against existing items
+    const existing = new Set(items.map((i) => i.address.toLowerCase()));
+    const newAddrs = addresses.filter((a) => !existing.has(a.toLowerCase()));
+    if (newAddrs.length === 0) {
+      setAddError("All addresses in this CSV are already in your portfolio.");
+      return;
+    }
+
+    // Create items
+    const newItems = newAddrs.map(makeItem);
+    setItems((prev) => [...newItems, ...prev]);
+
+    // Score sequentially with progress
+    setBatchProgress({ current: 0, total: newItems.length });
+    for (let i = 0; i < newItems.length; i++) {
+      await scoreItem(newItems[i].id, newItems[i].address);
+      setBatchProgress({ current: i + 1, total: newItems.length });
+    }
+    setBatchProgress(null);
+  }
+
   // ── Refresh all ───────────────────────────────────────────────────────────
 
   const refreshAll = useCallback(async () => {
@@ -336,8 +405,18 @@ export default function PortfolioPage() {
   }
 
   const sortedItems = useMemo(() => {
-    const copy = [...items];
-    copy.sort((a, b) => {
+    let filtered = [...items];
+    // Apply risk filter
+    if (riskFilter !== "all") {
+      filtered = filtered.filter((i) => {
+        if (i.disruption_score === null) return false;
+        if (riskFilter === "low") return i.disruption_score <= 30;
+        if (riskFilter === "moderate") return i.disruption_score > 30 && i.disruption_score <= 60;
+        if (riskFilter === "high") return i.disruption_score > 60;
+        return true;
+      });
+    }
+    filtered.sort((a, b) => {
       let cmp = 0;
       switch (sortCol) {
         case "address":
@@ -352,8 +431,8 @@ export default function PortfolioPage() {
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-    return copy;
-  }, [items, sortCol, sortDir]);
+    return filtered;
+  }, [items, sortCol, sortDir, riskFilter]);
 
   // ── Keyboard handler for add-address input ────────────────────────────────
 
@@ -510,12 +589,59 @@ export default function PortfolioPage() {
             {atLimit && (
               <div className="portfolio-limit-banner">
                 <span>Free plan limit reached ({FREE_LIMIT} addresses).</span>
-                <a href="#pricing-section" className="portfolio-upgrade-link">
+                <a href="/#pricing-section" className="portfolio-upgrade-link">
                   Upgrade to Pro for unlimited →
                 </a>
               </div>
             )}
           </form>
+
+          {/* CSV upload controls */}
+          <div className="portfolio-csv-row">
+            <input
+              ref={csvUploadRef}
+              type="file"
+              accept=".csv"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleCSVUpload(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="portfolio-action-btn"
+              onClick={() => csvUploadRef.current?.click()}
+            >
+              Upload CSV
+            </button>
+            <button
+              type="button"
+              className="portfolio-action-btn portfolio-action-btn--secondary"
+              onClick={downloadTemplate}
+            >
+              Download template
+            </button>
+            <span className="portfolio-csv-hint">
+              {isPro ? `Up to ${PRO_BATCH_LIMIT} addresses per upload` : `Free: ${FREE_BATCH_LIMIT} addresses per upload`}
+            </span>
+          </div>
+
+          {/* Batch progress */}
+          {batchProgress && (
+            <div className="portfolio-batch-progress">
+              <div className="portfolio-batch-bar">
+                <div
+                  className="portfolio-batch-fill"
+                  style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                />
+              </div>
+              <span className="portfolio-batch-label">
+                Scoring {batchProgress.current} of {batchProgress.total} addresses...
+              </span>
+            </div>
+          )}
         </Card>
 
         {/* ── Stats bar ───────────────────────────────────────────── */}
@@ -571,6 +697,16 @@ export default function PortfolioPage() {
                 {scored.length < items.length && ` · ${items.length - scored.length} scoring…`}
               </span>
               <div className="portfolio-toolbar-actions">
+                <select
+                  className="portfolio-filter-select"
+                  value={riskFilter}
+                  onChange={(e) => setRiskFilter(e.target.value as typeof riskFilter)}
+                >
+                  <option value="all">All risk levels</option>
+                  <option value="low">Low risk (0–30)</option>
+                  <option value="moderate">Moderate (31–60)</option>
+                  <option value="high">High risk (61+)</option>
+                </select>
                 <button
                   type="button"
                   className="portfolio-action-btn"
