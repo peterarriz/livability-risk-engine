@@ -510,18 +510,50 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   );
 }
 
+function _severitySummary(noise: SeverityLevel, traffic: SeverityLevel, dust: SeverityLevel): string {
+  const level = (v: SeverityLevel) => v === "HIGH" ? "high" : v === "MEDIUM" ? "moderate" : "low";
+  const directImpact = level(traffic);
+  const background = level(noise);
+  const construction = level(dust);
+
+  if (traffic === "HIGH") {
+    return `Direct access impact is high${dust === "HIGH" ? " with heavy construction activity nearby" : ""}. Plan for delays.`;
+  }
+  if (traffic === "MEDIUM" && noise === "HIGH") {
+    return `High nearby activity, but the direct impact on this address is moderate.`;
+  }
+  if (traffic === "LOW" && noise === "LOW" && dust === "LOW") {
+    return `Low activity across all dimensions — this area is currently quiet.`;
+  }
+  if (traffic === "LOW" && (noise !== "LOW" || dust !== "LOW")) {
+    return `Background activity is ${background} but direct access impact remains low.`;
+  }
+  return `${toTitleCase(directImpact)} direct impact with ${background} background activity and ${construction} construction levels.`;
+}
+
 export function SeverityMeters({ severity, confidence, confidenceReasons }: SeverityMetersProps) {
   const rows = useMemo(
     () => [
-      { label: "Signal noise (unrelated activity nearby)", value: severity.noise, accent: "noise" },
-      { label: "Access disruption", value: severity.traffic, accent: "traffic" },
-      { label: "Construction intensity", value: severity.dust, accent: "dust" },
+      {
+        label: "Background activity level",
+        tooltip: "How much unrelated construction/permit activity exists in the area — doesn\u2019t directly affect your score",
+        value: severity.noise,
+        accent: "noise",
+      },
+      { label: "Direct access impact", tooltip: null, value: severity.traffic, accent: "traffic" },
+      { label: "Construction activity level", tooltip: null, value: severity.dust, accent: "dust" },
     ],
+    [severity],
+  );
+
+  const summary = useMemo(
+    () => _severitySummary(severity.noise, severity.traffic, severity.dust),
     [severity],
   );
 
   return (
     <div className="severity-stack">
+      <p className="severity-summary">{summary}</p>
       <div className="confidence-summary">
         <div className="confidence-summary-head">
           <p className="confidence-summary-label">
@@ -546,8 +578,16 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
         {rows.map((row) => (
           <div key={row.label} className="severity-row">
             <div className="severity-row-head">
-              <span>{row.label}</span>
-              <strong>{row.value}</strong>
+              <span>
+                {row.label}
+                {row.tooltip && (
+                  <span className="tooltip-anchor" tabIndex={0} aria-label={row.tooltip}>
+                    {" "}?
+                    <span className="tooltip-content" role="tooltip">{row.tooltip}</span>
+                  </span>
+                )}
+              </span>
+              <strong>{toTitleCase(row.value.toLowerCase())}</strong>
             </div>
             <div className="severity-meter" aria-hidden="true">
               <div
