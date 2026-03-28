@@ -125,14 +125,26 @@ function inferImpact(text: string, index: number): RiskCardModel["impact"] {
   return index === 0 ? "High" : "Low";
 }
 
-function inferDriverEyebrow(text: string): string {
+function inferDriverEyebrow(text: string, impactType?: string | null): string {
+  // Use impact_type when available for precise categorization
+  if (impactType) {
+    if (/^closure|lane/.test(impactType)) return "Traffic Impact";
+    if (/construction|demolition|permit|road_construction/.test(impactType)) return "Construction Activity";
+    if (/cta|transit|bike_station/.test(impactType)) return "Service Alert";
+    if (/utility/.test(impactType)) return "Utility Work";
+    if (/traffic_crash|traffic_signal/.test(impactType)) return "Traffic Impact";
+    if (/crime/.test(impactType)) return "Safety Signal";
+    if (/flood/.test(impactType)) return "Environmental";
+    if (/film|event/.test(impactType)) return "Event / Filming";
+  }
+  // Fallback: infer from text
   const normalized = text.toLowerCase();
-
-  if (/closure|lane|traffic/.test(normalized)) return "Access signal";
-  if (/construction|permit|site work|excavation|renovation/.test(normalized)) return "Worksite signal";
-  if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) return "Curb access";
-  if (/through|window|next\s+\d+\s+days|active/.test(normalized)) return "Timing signal";
-  return "Supporting signal";
+  if (/closure|lane|traffic/.test(normalized)) return "Traffic Impact";
+  if (/construction|permit|site work|excavation|renovation/.test(normalized)) return "Construction Activity";
+  if (/cta|transit|bus|train|rail/.test(normalized)) return "Service Alert";
+  if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) return "Curb Access";
+  if (/through|window|next\s+\d+\s+days|active/.test(normalized)) return "Active Window";
+  return "Nearby Signal";
 }
 
 function inferDriverTitle(text: string): string {
@@ -237,7 +249,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
 
     return {
       id: `${risk}-${index}`,
-      eyebrow: inferDriverEyebrow(humanized),
+      eyebrow: inferDriverEyebrow(humanized, detail?.impact_type),
       title: displayTitle ?? inferDriverTitle(humanized),
       distance: distanceLabel,
       impact,
@@ -487,7 +499,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               {Object.entries(breakdown).map(([k, v]) => (
                 <div key={k}>
                   <span>{k.replace(/_/g, " ")}</span>
-                  <strong>{v.weighted_contribution.toFixed(1)} pts</strong>
+                  <strong>{v.weighted_contribution > 10 ? "High" : v.weighted_contribution >= 5 ? "Medium" : "Low"}</strong>
                 </div>
               ))}
             </div>
@@ -651,8 +663,8 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
           <dd>{formatDate(detail.end_date)}</dd>
         </div>
         <div>
-          <dt>Weighted contribution</dt>
-          <dd>{detail.weighted_score} pts</dd>
+          <dt>Score impact</dt>
+          <dd>{Number(detail.weighted_score) > 10 ? "High" : Number(detail.weighted_score) >= 5 ? "Medium" : "Low"}</dd>
         </div>
       </dl>
     </div>
