@@ -39,51 +39,62 @@ tasks:
 
   - id: data-080
     title: Live-verify all data-078 MUST VERIFY endpoints with network access
-    status: backlog
+    status: in-progress
     priority: high
-    github_issue: null
+    github_issue: 255
     files:
-      - backend/ingest/dallas_crime_trends.py
-      - backend/ingest/st_petersburg_crime_trends.py
-      - backend/ingest/st_paul_crime_trends.py
-      - backend/ingest/toledo_crime_trends.py
-      - backend/ingest/birmingham_crime_trends.py
-      - backend/ingest/plano_tx_crime_trends.py
-      - backend/ingest/irving_tx_crime_trends.py
-      - backend/ingest/riverside_ca_crime_trends.py
-      - backend/ingest/murfreesboro_crime_trends.py
-      - backend/ingest/frisco_tx_crime_trends.py
-      - backend/ingest/mckinney_tx_crime_trends.py
-      - backend/ingest/long_beach_crime_trends.py
       - backend/ingest/oakland_crime_trends.py
       - backend/ingest/us_city_permits_arcgis.py
       - backend/ingest/us_city_permits.py
       - TASKS.yaml
       - SKILL.md
     notes_for_next_agent: >
-      data-080 is the live-verification follow-on to data-078. REQUIRES NETWORK ACCESS.
-      All data-078 endpoints have placeholder org IDs and service names marked MUST VERIFY.
-      Verification workflow per city:
-        1. For ArcGIS crime: curl "https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json"
-           | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-           Find the crime service, update FEATURESERVER_URL, DATE_FIELD, DISTRICT_FIELD, LAT_FIELD, LON_FIELD
-           Run: python backend/ingest/{city}_crime_trends.py --dry-run
-        2. For Socrata crime/permits: curl "https://<domain>/api/catalog/v1?q=crime&limit=10"
-           Find the dataset ID, run: curl "https://<domain>/resource/<id>.json?$limit=1"
-           Update DATASET_ID, DATE_FIELD, DISTRICT_FIELD if different
-        3. For ArcGIS permits: curl service listing, find permit service name,
-           update service_url in us_city_permits_arcgis.py CITY_CONFIGS,
-           run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
-        4. If org ID invalid (returns 0 services or 400): mark as STUB or REMOVED in SKILL.md
-        5. Update SKILL.md tables to remove MUST VERIFY / add verified URLs
-      Priority order for data-078 cities:
-        Tier 1 crime (highest value): dallas, st_paul, toledo, birmingham
-        Tier 2 crime: st_petersburg, long_beach, oakland, riverside_ca
-        Tier 3 crime (Sun Belt): frisco_tx, mckinney_tx, murfreesboro
-        Tier 4 crime (may be stubs): plano_tx, irving_tx
-        Permits: dallas, detroit, st_petersburg, birmingham, orlando, plano
-        Socrata permits: oakland, long_beach, st_paul, toledo, newark, jersey_city
-      Also: data-077 (re-enable 31 existing removed cities) should be done before or alongside data-080.
+      data-080 partially complete (issue #255). REQUIRES NETWORK ACCESS for permit verification.
+      Crime verification status (2026-03-28):
+        DONE — dallas: Socrata qv6i-rri7, verified 2026-03-27, fully working.
+        DONE — st_petersburg: STUB (no public crime API confirmed in data-078).
+        DONE — st_paul: STUB (no public crime API confirmed in data-078).
+        DONE — toledo: STUB (no public crime API confirmed in data-078).
+        DONE — birmingham: STUB (no public crime API confirmed in data-078).
+        DONE — plano_tx: STUB (org J6sY5RXbVdFl1rTf returns 0 services).
+        DONE — irving_tx: STUB (org 9xyBGNHCPT1TXqR6 returns 0 services).
+        DONE — riverside_ca: STUB (org nIQ0V9y1TigP8hAV returns 0 services).
+        DONE — murfreesboro: STUB (no public crime API confirmed in data-078).
+        DONE — frisco_tx: STUB (org GE4Z4z1cnF58LL3C returns 0 services).
+        DONE — mckinney_tx: STUB (org 5VpNVlUxHMX5rB9c returns 0 services).
+        DONE — long_beach: STUB (data.longbeach.gov returns 403).
+        DONE — oakland: dataset wau4-95ys, datetime/policebeat fields verified 2026-03-27.
+                        Stale MUST VERIFY docstring comments cleaned up in data-080.
+      Permit verification status — STILL NEEDS LIVE NETWORK ACCESS:
+        ArcGIS permits (us_city_permits_arcgis.py CITY_CONFIGS):
+          dallas   — org K1vmv3C6RR68oGEo, service "Dallas_Building_Permits" — MUST VERIFY
+          detroit  — org qvkbeam7Wirps6zC (services2), service "Detroit_Building_Permits" — MUST VERIFY
+          st_pete  — org 8vEm1j5dMMr9eBob (services1), service "Building_Permits" — MUST VERIFY
+          birmingham — org iFT94KHJdBf1glgr (services6), service "Building_Permits" — MUST VERIFY
+          riverside  — org nIQ0V9y1TigP8hAV (services3), service "Building_Permits" — MUST VERIFY
+          irving   — org 9xyBGNHCPT1TXqR6, service "Building_Permits" — MUST VERIFY
+          orlando  — org ySBMu4XsNZMHPCce (services1), service "Building_Permits" — MUST VERIFY
+          plano    — org J6sY5RXbVdFl1rTf, service "Building_Permits" — MUST VERIFY
+        Socrata permits (us_city_permits.py CITY_CONFIGS):
+          oakland     — data.oaklandca.gov, dataset p3hw-5b6x — MUST VERIFY
+          long_beach  — data.longbeach.gov, dataset 2en9-kfmh — MUST VERIFY
+          st_paul     — information.stpaul.gov, dataset j2hk-9frn — MUST VERIFY
+          toledo      — opendata.toledo.oh.gov, dataset xhfa-8r47 — MUST VERIFY
+          newark      — data.newark.gov, dataset 7fmg-w4gk — MUST VERIFY (also verify correct domain: data.newark.gov vs data.newarknj.gov)
+          jersey_city — data.jerseycitynj.gov, dataset kmgf-q3ax — MUST VERIFY
+      Verification workflow per permit city:
+        ArcGIS: curl "https://services{N}.arcgis.com/{ORG}/arcgis/rest/services?f=json"
+          | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
+          Find correct service name, update service_url in us_city_permits_arcgis.py.
+          If 0 services or 400: remove city config or mark disabled.
+          Then verify field names: curl ".../FeatureServer/0?f=json" | check fields.
+          Run: python backend/ingest/us_city_permits_arcgis.py --city <key> --dry-run
+        Socrata: curl "https://<domain>/resource/<id>.json?$limit=1"
+          If 200: check field names match id_field/type_field/issue_date_field/addr_field in config.
+          If 404: try catalog search curl "https://<domain>/api/catalog/v1?q=building+permits&limit=10"
+          Run: python backend/ingest/us_city_permits.py --city <key> --dry-run
+      After verification: update SKILL.md permit tables to remove MUST VERIFY / add confirmed URLs.
+      Note: riverside and irving permit orgs match crime orgs that returned 0 services — permits may also be unavailable.
 
   - id: data-078
     title: Strategic city expansion — markets that matter for enterprise sales

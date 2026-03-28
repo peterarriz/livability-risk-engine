@@ -7,26 +7,14 @@ Ingests Oakland OPD crime data and calculates 12-month crime trends by beat.
 
 Source:
   Socrata — data.oaklandca.gov
-  Dataset: OPD Crime Watch Data (not live-verified via catalog API)
-  Dataset ID: ppgh-7dqv (MUST VERIFY — may be different)
+  Dataset: OPD 90-day crime rolling window (verified 2026-03-27)
+  Dataset ID: wau4-95ys (~10K records rolling)
 
-  Verify dataset ID:
-    curl "https://data.oaklandca.gov/api/catalog/v1?q=crime+incidents&limit=10"
+  Key fields (verified 2026-03-27):
+    datetime     — date of incident
+    policebeat   — patrol beat/area (e.g. "19X", "04X")
 
-  Verify sample row / field names:
-    curl "https://data.oaklandca.gov/resource/ppgh-7dqv.json?$limit=1"
-
-  Key fields (MUST VERIFY — names below are best-guess, not live-confirmed):
-    datetime     — date of incident  (MUST VERIFY field name)
-    beat         — patrol beat/area  (MUST VERIFY — may be "district")
-    lat          — latitude          (MUST VERIFY)
-    long_        — longitude         (MUST VERIFY — Socrata uses "long_" to avoid
-                                      the SQL reserved word "long"; may be "lon"
-                                      or "longitude")
-
-  NOTE: CI has no outbound HTTPS.  All field/dataset verification must be done
-  manually (task data-079) using the curl commands above before this script is
-  used in production.
+  Note: No lat/lon fields in this dataset; city centroid fallback used.
 
 Method:
   1. Aggregate crime counts by beat for the last 12 months (current window).
@@ -96,15 +84,10 @@ def fetch_crime_counts_with_centroids(
     end_date: datetime,
 ) -> dict[str, dict]:
     """
-    Fetch total crime counts per beat for a date range, with avg lat/lon.
+    Fetch total crime counts per beat for a date range.
     Uses SoQL GROUP BY to compute aggregates server-side.
 
     Returns dict: beat → {count, lat, lon}.
-
-    MUST VERIFY: DATE_FIELD, DISTRICT_FIELD, LAT_FIELD, LON_FIELD, and
-    DATASET_ID against data.oaklandca.gov before production use.
-    CI has no outbound HTTPS — verify manually with:
-      curl "https://data.oaklandca.gov/resource/ppgh-7dqv.json?$limit=1"
     """
     where_clause = (
         f"{DATE_FIELD} >= '{_date_str(start_date)}' "
