@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
-import { headlineScore as getHeadlineScore } from "@/lib/score-utils";
+import { headlineScore as getHeadlineScore, impactTypeLabel } from "@/lib/score-utils";
 import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
   CommuteResponse,
@@ -611,7 +611,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
         </div>
         <div>
           <dt>Type</dt>
-          <dd>{IMPACT_TYPE_LABELS[detail.impact_type] ?? detail.impact_type}</dd>
+          <dd>{impactTypeLabel(detail.impact_type)}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -1450,7 +1450,7 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
     return {
       id:         `tl-${d.project_id}-${i}`,
       detail:     d,
-      typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
+      typeLabel:  impactTypeLabel(d.impact_type),
       color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
       category:   TL_CATEGORY[d.impact_type] ?? "other",
       startPct:   toPct(sDate),
@@ -2108,7 +2108,7 @@ export function CommuteChecker({ homeAddress }: CommuteCheckerProps) {
                           aria-hidden="true"
                         />
                         <span className="commute-signal-title">
-                          {sig.title ?? sig.impact_type ?? "Unknown signal"}
+                          {sig.title ?? impactTypeLabel(sig.impact_type)}
                         </span>
                       </li>
                     ))}
@@ -2177,16 +2177,7 @@ function _mobileBand(score: number): { label: string; color: string } {
 
 function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {
   if (title) return title.length > 38 ? title.slice(0, 35) + "…" : title;
-  const MAP: Record<string, string> = {
-    closure_full:         "Full Road Closure",
-    closure_multi_lane:   "Multi-lane Closure",
-    closure_single_lane:  "Lane Closure",
-    construction:         "Construction",
-    demolition:           "Demolition",
-    light_permit:         "Street Permit",
-    utility:              "Utility Work",
-  };
-  return MAP[impactType ?? ""] ?? "Active Signal";
+  return impactTypeLabel(impactType);
 }
 
 function _pillColor(impactType: string | null | undefined): string {

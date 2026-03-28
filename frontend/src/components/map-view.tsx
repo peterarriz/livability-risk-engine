@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchMapNarration, type NearbyAmenity, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
+import { impactTypeLabel } from "@/lib/score-utils";
 
 type MapMode = "signals" | "heatmap";
 type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -162,7 +163,7 @@ const ALL_IMPACT_TYPES = [
   "crime_trend_increasing", "crime_trend_stable", "crime_trend_decreasing",
 ] as const;
 
-function impactLabel(t: string) { return IMPACT_LABEL[t] ?? t; }
+function impactLabel(t: string) { return impactTypeLabel(t); }
 function impactColor(t: string) { return IMPACT_COLOR[t] ?? DEFAULT_COLOR; }
 function heatRadius(t: string) { return HEAT_RADIUS[t] ?? DEFAULT_HEAT_RADIUS; }
 function sourceLabel(s: string) { return SOURCE_LABEL[s] ?? s; }
