@@ -11,6 +11,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { fetchNeighborhood, NeighborhoodProject, NeighborhoodResponse } from "@/lib/api";
+import { impactTypeLabel } from "@/lib/score-utils";
 
 // Impact type → marker color mapping
 const IMPACT_COLORS: Record<string, string> = {
@@ -86,7 +87,7 @@ function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
         });
 
         const label = project.title ?? project.project_id;
-        const type = project.impact_type ?? "unknown";
+        const type = impactTypeLabel(project.impact_type);
         circleMarker.bindPopup(
           `<strong>${label}</strong><br/>` +
           `Type: ${type}<br/>` +
@@ -180,7 +181,7 @@ function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
               {p.title ?? p.project_id}
             </div>
             <div style={{ fontSize: "12px", color: "var(--color-muted, #666)", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <span>Type: {p.impact_type ?? "—"}</span>
+              <span>Type: {impactTypeLabel(p.impact_type)}</span>
               <span>Source: {p.source}</span>
               {p.start_date && <span>From: {formatDate(p.start_date)}</span>}
               {p.end_date && <span>To: {formatDate(p.end_date)}</span>}

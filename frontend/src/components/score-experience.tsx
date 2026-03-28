@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
-import { headlineScore as getHeadlineScore } from "@/lib/score-utils";
+import { headlineScore as getHeadlineScore, impactTypeLabel, recommendedAction } from "@/lib/score-utils";
 import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
   CommuteResponse,
@@ -125,14 +125,26 @@ function inferImpact(text: string, index: number): RiskCardModel["impact"] {
   return index === 0 ? "High" : "Low";
 }
 
-function inferDriverEyebrow(text: string): string {
+function inferDriverEyebrow(text: string, impactType?: string | null): string {
+  // Use impact_type when available for precise categorization
+  if (impactType) {
+    if (/^closure|lane/.test(impactType)) return "Traffic Impact";
+    if (/construction|demolition|permit|road_construction/.test(impactType)) return "Construction Activity";
+    if (/cta|transit|bike_station/.test(impactType)) return "Service Alert";
+    if (/utility/.test(impactType)) return "Utility Work";
+    if (/traffic_crash|traffic_signal/.test(impactType)) return "Traffic Impact";
+    if (/crime/.test(impactType)) return "Safety Signal";
+    if (/flood/.test(impactType)) return "Environmental";
+    if (/film|event/.test(impactType)) return "Event / Filming";
+  }
+  // Fallback: infer from text
   const normalized = text.toLowerCase();
-
-  if (/closure|lane|traffic/.test(normalized)) return "Access signal";
-  if (/construction|permit|site work|excavation|renovation/.test(normalized)) return "Worksite signal";
-  if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) return "Curb access";
-  if (/through|window|next\s+\d+\s+days|active/.test(normalized)) return "Timing signal";
-  return "Supporting signal";
+  if (/closure|lane|traffic/.test(normalized)) return "Traffic Impact";
+  if (/construction|permit|site work|excavation|renovation/.test(normalized)) return "Construction Activity";
+  if (/cta|transit|bus|train|rail/.test(normalized)) return "Service Alert";
+  if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) return "Curb Access";
+  if (/through|window|next\s+\d+\s+days|active/.test(normalized)) return "Active Window";
+  return "Nearby Signal";
 }
 
 function inferDriverTitle(text: string): string {
@@ -237,7 +249,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
 
     return {
       id: `${risk}-${index}`,
-      eyebrow: inferDriverEyebrow(humanized),
+      eyebrow: inferDriverEyebrow(humanized, detail?.impact_type),
       title: displayTitle ?? inferDriverTitle(humanized),
       distance: distanceLabel,
       impact,
@@ -417,6 +429,10 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const displayScore = useAnimatedScore(headlineScore);
   const scoreMessage = getScoreMessage(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
+  const action = useMemo(
+    () => recommendedAction(headlineScore, result.nearby_signals ?? []),
+    [headlineScore, result.nearby_signals],
+  );
   const isDemo = result.mode === "demo";
   const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
   const modeLabelTooltip = isDemo
@@ -434,6 +450,11 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
         <div className="score-value score-value--animated">{displayScore}</div>
+
+        <div className={`score-action-row score-action-row--${action.tone}`}>
+          <span className="score-action-icon" aria-hidden="true">{action.icon}</span>
+          <span className="score-action-label">{action.label}</span>
+        </div>
 
         <div className="score-gauge" aria-label={`Score ${displayScore} out of 100`}>
           <div className="score-gauge-track">
@@ -478,7 +499,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               {Object.entries(breakdown).map(([k, v]) => (
                 <div key={k}>
                   <span>{k.replace(/_/g, " ")}</span>
-                  <strong>{v.weighted_contribution.toFixed(1)} pts</strong>
+                  <strong>{v.weighted_contribution > 10 ? "High" : v.weighted_contribution >= 5 ? "Medium" : "Low"}</strong>
                 </div>
               ))}
             </div>
@@ -489,18 +510,50 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   );
 }
 
+function _severitySummary(noise: SeverityLevel, traffic: SeverityLevel, dust: SeverityLevel): string {
+  const level = (v: SeverityLevel) => v === "HIGH" ? "high" : v === "MEDIUM" ? "moderate" : "low";
+  const directImpact = level(traffic);
+  const background = level(noise);
+  const construction = level(dust);
+
+  if (traffic === "HIGH") {
+    return `Direct access impact is high${dust === "HIGH" ? " with heavy construction activity nearby" : ""}. Plan for delays.`;
+  }
+  if (traffic === "MEDIUM" && noise === "HIGH") {
+    return `High nearby activity, but the direct impact on this address is moderate.`;
+  }
+  if (traffic === "LOW" && noise === "LOW" && dust === "LOW") {
+    return `Low activity across all dimensions — this area is currently quiet.`;
+  }
+  if (traffic === "LOW" && (noise !== "LOW" || dust !== "LOW")) {
+    return `Background activity is ${background} but direct access impact remains low.`;
+  }
+  return `${toTitleCase(directImpact)} direct impact with ${background} background activity and ${construction} construction levels.`;
+}
+
 export function SeverityMeters({ severity, confidence, confidenceReasons }: SeverityMetersProps) {
   const rows = useMemo(
     () => [
-      { label: "Signal noise (unrelated activity nearby)", value: severity.noise, accent: "noise" },
-      { label: "Access disruption", value: severity.traffic, accent: "traffic" },
-      { label: "Construction intensity", value: severity.dust, accent: "dust" },
+      {
+        label: "Background activity level",
+        tooltip: "How much unrelated construction/permit activity exists in the area — doesn\u2019t directly affect your score",
+        value: severity.noise,
+        accent: "noise",
+      },
+      { label: "Direct access impact", tooltip: null, value: severity.traffic, accent: "traffic" },
+      { label: "Construction activity level", tooltip: null, value: severity.dust, accent: "dust" },
     ],
+    [severity],
+  );
+
+  const summary = useMemo(
+    () => _severitySummary(severity.noise, severity.traffic, severity.dust),
     [severity],
   );
 
   return (
     <div className="severity-stack">
+      <p className="severity-summary">{summary}</p>
       <div className="confidence-summary">
         <div className="confidence-summary-head">
           <p className="confidence-summary-label">
@@ -525,8 +578,16 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
         {rows.map((row) => (
           <div key={row.label} className="severity-row">
             <div className="severity-row-head">
-              <span>{row.label}</span>
-              <strong>{row.value}</strong>
+              <span>
+                {row.label}
+                {row.tooltip && (
+                  <span className="tooltip-anchor" tabIndex={0} aria-label={row.tooltip}>
+                    {" "}?
+                    <span className="tooltip-content" role="tooltip">{row.tooltip}</span>
+                  </span>
+                )}
+              </span>
+              <strong>{toTitleCase(row.value.toLowerCase())}</strong>
             </div>
             <div className="severity-meter" aria-hidden="true">
               <div
@@ -611,7 +672,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
         </div>
         <div>
           <dt>Type</dt>
-          <dd>{IMPACT_TYPE_LABELS[detail.impact_type] ?? detail.impact_type}</dd>
+          <dd>{impactTypeLabel(detail.impact_type)}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -642,8 +703,8 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
           <dd>{formatDate(detail.end_date)}</dd>
         </div>
         <div>
-          <dt>Weighted contribution</dt>
-          <dd>{detail.weighted_score} pts</dd>
+          <dt>Score impact</dt>
+          <dd>{Number(detail.weighted_score) > 10 ? "High" : Number(detail.weighted_score) >= 5 ? "Medium" : "Low"}</dd>
         </div>
       </dl>
     </div>
@@ -829,7 +890,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     // Sort chronologically; drop entries older than 30 days.
     const dated = history
       .filter((e) => e.created_at != null)
-      .map((e) => ({ score: e.disruption_score, ts: new Date(e.created_at!).getTime() }))
+      .map((e) => ({ score: getHeadlineScore(e), ts: new Date(e.created_at!).getTime() }))
       .filter((e) => e.ts >= cutoff30)
       .sort((a, b) => a.ts - b.ts);
 
@@ -837,7 +898,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     const undated = history
       .filter((e) => e.created_at == null)
       .map((e, i, arr) => ({
-        score: e.disruption_score,
+        score: getHeadlineScore(e),
         ts: cutoff30 + ((i + 1) / (arr.length + 1)) * (30 * DAY_MS),
       }));
 
@@ -1200,7 +1261,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
   // Don't render when we have nothing to show.
   if (!hasHistory && !hasTrend && !lat && !lon) return null;
 
-  const score          = result.disruption_score;
+  const score          = getHeadlineScore(result);
   const medianScore    = hood?.median_score ?? null;
   const neighborhoodName = hood?.name ?? slugInfo?.name ?? null;
   const blurb          = slugInfo
@@ -1450,7 +1511,7 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
     return {
       id:         `tl-${d.project_id}-${i}`,
       detail:     d,
-      typeLabel:  TL_TYPE_LABEL[d.impact_type] ?? d.impact_type,
+      typeLabel:  impactTypeLabel(d.impact_type),
       color:      TL_COLOR[d.impact_type] ?? TL_COLOR_DEFAULT,
       category:   TL_CATEGORY[d.impact_type] ?? "other",
       startPct:   toPct(sDate),
@@ -2108,7 +2169,7 @@ export function CommuteChecker({ homeAddress }: CommuteCheckerProps) {
                           aria-hidden="true"
                         />
                         <span className="commute-signal-title">
-                          {sig.title ?? sig.impact_type ?? "Unknown signal"}
+                          {sig.title ?? impactTypeLabel(sig.impact_type)}
                         </span>
                       </li>
                     ))}
@@ -2177,16 +2238,7 @@ function _mobileBand(score: number): { label: string; color: string } {
 
 function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {
   if (title) return title.length > 38 ? title.slice(0, 35) + "…" : title;
-  const MAP: Record<string, string> = {
-    closure_full:         "Full Road Closure",
-    closure_multi_lane:   "Multi-lane Closure",
-    closure_single_lane:  "Lane Closure",
-    construction:         "Construction",
-    demolition:           "Demolition",
-    light_permit:         "Street Permit",
-    utility:              "Utility Work",
-  };
-  return MAP[impactType ?? ""] ?? "Active Signal";
+  return impactTypeLabel(impactType);
 }
 
 function _pillColor(impactType: string | null | undefined): string {
@@ -2198,7 +2250,8 @@ function _pillColor(impactType: string | null | undefined): string {
 }
 
 export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
-  const band = _mobileBand(result.disruption_score);
+  const _headline = getHeadlineScore(result);
+  const band = _mobileBand(_headline);
 
   // ── Share state ──────────────────────────────────────────────────────────
   const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
@@ -2212,7 +2265,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       if (typeof navigator.share === "function") {
         await navigator.share({
           title: `Disruption score — ${result.address}`,
-          text: `${result.address} scores ${result.disruption_score}/100 (${band.label}) for near-term construction disruption.`,
+          text: `${result.address} scores ${_headline}/100 (${band.label}) for near-term construction disruption.`,
           url,
         });
         setShareState("idle");
@@ -2271,7 +2324,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       <div className="msv-hero" style={{ "--msv-band-color": band.color } as React.CSSProperties}>
         <p className="msv-eyebrow">Disruption Score</p>
         <div className="msv-score" style={{ color: band.color }}>
-          {result.disruption_score}
+          {_headline}
         </div>
         <p className="msv-band" style={{ color: band.color }}>{band.label}</p>
         <p className="msv-address">{result.address}</p>
