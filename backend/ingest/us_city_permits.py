@@ -461,9 +461,10 @@ CITY_CONFIGS: list[dict] = [
     {
         # Kansas City, MO — CPD Permits (verified 2026-03-28).
         # Portal: https://data.kcmo.org (Socrata)
-        # Dataset: ntw8-aacc (681,036 records, through May 2025)
-        # Note: latitude/longitude columns are text type containing literal "NULL"
-        # for all records — no usable coordinates. Geocode_fill backfills from address.
+        # Dataset: ntw8-aacc (681K total, ~25K in last 2 years)
+        # Note: lat/lon columns are text "NULL" for all records — no coordinates.
+        # Geocode_fill backfills from address. where_clause limits to 2024+ to
+        # keep the dataset manageable for geocoding (~25K vs 681K).
         "city_name":        "Kansas City",
         "source_key":       "kansas_city",
         "domain":           "data.kcmo.org",
@@ -478,8 +479,8 @@ CITY_CONFIGS: list[dict] = [
         "loc_field":        None,
         "addr_field":       "originaladdress1",
         "city_state":       "Kansas City, MO",
-        "where_clause":     None,
-        "skip_date_filter": True,  # data through May 2025; stale but large dataset
+        "where_clause":     "issueddate >= '2024-01-01T00:00:00' AND originaladdress1 IS NOT NULL",
+        "skip_date_filter": True,  # where_clause handles date filtering
     },
     # -----------------------------------------------------------------
     # REMOVED — Raleigh (verified 2026-03-28):
