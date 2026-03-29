@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -111,6 +112,9 @@ def fetch_flood_zones(dry_run: bool) -> list[dict]:
     print("Fetching FEMA NFHL flood zones for Chicago metro (Cook County)...")
     print(f"  Bounding box: {CHICAGO_BBOX_STR}")
 
+    MAX_RETRIES = 3
+    RETRY_DELAY_S = 5
+
     while True:
         params = {
             "geometry": CHICAGO_BBOX_STR,
@@ -126,26 +130,31 @@ def fetch_flood_zones(dry_run: bool) -> list[dict]:
         }
 
         print(f"  Fetching page at offset {offset}...", end=" ", flush=True)
-        try:
-            resp = session.get(FEMA_NFHL_URL, params=params, timeout=30)
-            resp.raise_for_status()
-        except requests.exceptions.Timeout:
-            print(f"\n  ERROR: Timed out at offset {offset}.", file=sys.stderr)
-            raise
-        except requests.exceptions.HTTPError as exc:
-            print(
-                f"\n  ERROR: HTTP {exc.response.status_code}: "
-                f"{exc.response.text[:200]}",
-                file=sys.stderr,
-            )
-            raise
 
-        data = resp.json()
-        if "error" in data:
-            err = data["error"]
-            msg = err.get("message", str(err))
-            print(f"\n  ERROR: FEMA API error: {msg}", file=sys.stderr)
-            raise RuntimeError(f"FEMA API error: {msg}")
+        data = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                resp = session.get(FEMA_NFHL_URL, params=params, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+
+                if "error" in data:
+                    err = data["error"]
+                    msg = err.get("message", str(err))
+                    raise RuntimeError(f"FEMA API error: {msg}")
+
+                break  # success
+            except (requests.exceptions.RequestException, RuntimeError) as exc:
+                if attempt < MAX_RETRIES:
+                    print(f"\n    WARN: attempt {attempt}/{MAX_RETRIES} failed ({exc}). Retrying in {RETRY_DELAY_S}s...", flush=True)
+                    time.sleep(RETRY_DELAY_S)
+                    print(f"  Retrying offset {offset}...", end=" ", flush=True)
+                else:
+                    print(f"\n  ERROR: All {MAX_RETRIES} attempts failed at offset {offset}. Writing {len(all_records)} records fetched so far.", file=sys.stderr)
+                    return all_records  # return what we have instead of losing everything
+
+        if data is None:
+            return all_records
 
         features = data.get("features", [])
         print(f"{len(features)} features.")
