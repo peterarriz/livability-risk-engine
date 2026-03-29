@@ -108,7 +108,7 @@ _LOCAL_COORDS: dict[str, tuple[float, float]] = {
 # Geocoder implementations
 # ---------------------------------------------------------------------------
 
-def _geocode_census(address: str, session: requests.Session) -> Optional[tuple[float, float]]:
+def _geocode_census(address: str, session: requests.Session, timeout: int = 10) -> Optional[tuple[float, float]]:
     """
     Geocode using the US Census Geocoding Services API.
     Free, no key required, returns WGS84 coordinates.
@@ -122,7 +122,7 @@ def _geocode_census(address: str, session: requests.Session) -> Optional[tuple[f
     }
 
     try:
-        response = session.get(CENSUS_GEOCODER_URL, params=params, timeout=10)
+        response = session.get(CENSUS_GEOCODER_URL, params=params, timeout=timeout)
         response.raise_for_status()
         data = response.json()
 
@@ -143,7 +143,7 @@ def _geocode_census(address: str, session: requests.Session) -> Optional[tuple[f
         return None
 
 
-def _geocode_nominatim(address: str, session: requests.Session) -> Optional[tuple[float, float]]:
+def _geocode_nominatim(address: str, session: requests.Session, timeout: int = 10) -> Optional[tuple[float, float]]:
     """
     Geocode using Nominatim (OpenStreetMap).
     Free, no key required, but slower than Census geocoder.
@@ -160,7 +160,7 @@ def _geocode_nominatim(address: str, session: requests.Session) -> Optional[tupl
     headers = {"User-Agent": NOMINATIM_USER_AGENT}
 
     try:
-        response = session.get(NOMINATIM_URL, params=params, headers=headers, timeout=10)
+        response = session.get(NOMINATIM_URL, params=params, headers=headers, timeout=timeout)
         response.raise_for_status()
         results = response.json()
 
@@ -209,6 +209,8 @@ def geocode_address(
     session: Optional[requests.Session] = None,
     statewide: bool = False,
     allow_national: bool = False,
+    max_retries: int | None = None,
+    request_timeout: int | None = None,
 ) -> Optional[tuple[float, float]]:
     """
     Geocode an address string to (latitude, longitude).
@@ -250,18 +252,20 @@ def geocode_address(
         validator = _is_in_illinois if statewide else _is_in_chicago
 
     _session = session or requests.Session()
+    _retries = max_retries if max_retries is not None else MAX_RETRIES
+    _timeout = request_timeout if request_timeout is not None else 10
 
-    for attempt in range(MAX_RETRIES):
-        result = _geocode_census(address, _session)
+    for attempt in range(_retries):
+        result = _geocode_census(address, _session, timeout=_timeout)
         if result and validator(*result):
             return result
 
         # Brief backoff before retry or fallback.
-        if attempt < MAX_RETRIES - 1:
+        if attempt < _retries - 1:
             time.sleep(RETRY_DELAY_S * (attempt + 1))
 
     # Census geocoder failed — try Nominatim.
-    result = _geocode_nominatim(address, _session)
+    result = _geocode_nominatim(address, _session, timeout=_timeout)
     if result and validator(*result):
         return result
 

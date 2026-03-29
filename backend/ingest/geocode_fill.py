@@ -240,7 +240,7 @@ def fill_staging_file(
         print(f"  Limiting to {max_fill} geocode calls (--max-fill).")
 
     for i, (record, addr) in enumerate(to_fill):
-        result = geocode_address(addr, allow_national=allow_national)
+        result = geocode_address(addr, allow_national=allow_national, max_retries=1, request_timeout=10)
         if result:
             lat, lon = result
             record["latitude"] = str(lat)
