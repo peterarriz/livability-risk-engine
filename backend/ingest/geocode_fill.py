@@ -69,7 +69,7 @@ US_CITIES_FILE_GLOB     = "us_city_permits_*.json"
 # Seconds to sleep between geocoding requests to respect rate limits.
 GEOCODE_SLEEP_S = 0.25
 
-# After this many consecutive failures, mark a record as permanently failed
+# After this many failures, mark a record as permanently failed
 # so future runs skip it immediately.
 MAX_GEOCODE_ATTEMPTS = 3
 
