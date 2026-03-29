@@ -589,6 +589,29 @@ CITY_CONFIGS: list[dict] = [
         "skip_date_filter": False,
         "max_records":      None,
     },
+    {
+        # Raleigh, NC — Building Permits (verified 2026-03-29).
+        # Org v400IkDOw1ad7Yad on services.arcgis.com (1,267 services!).
+        # Service: Building_Permits/FeatureServer/0 (182,109 records).
+        # Fields verified: permitnum, permittypemapped, description, issueddate,
+        #   originaladdress1, latitude_perm, longitude_perm. Point geometry.
+        "city_name":        "Raleigh",
+        "source_key":       "raleigh",
+        "service_url":      (
+            "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services"
+            "/Building_Permits/FeatureServer/0"
+        ),
+        "portal_url":       "https://data.raleighnc.gov",
+        "id_field":         "permitnum",
+        "type_field":       "permittypemapped",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
+        "addr_field":       "originaladdress1",
+        "city_state":       "Raleigh, NC",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
     # -----------------------------------------------------------------
     # REMOVED (verified 2026-03-28): All org IDs return 0 services
     # on all ArcGIS subdomains. No permit data found.
