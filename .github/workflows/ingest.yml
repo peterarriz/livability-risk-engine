@@ -3,14 +3,14 @@ name: Daily ingest pipeline
 # task: data-018
 # lane: data
 #
-# Runs the full Chicago data ingest pipeline on a daily schedule.
-# Fetches building permits + street closures from Socrata, geocodes
-# missing coordinates, and upserts normalized records into the live
-# Railway Postgres+PostGIS database.
+# Runs the full ingest pipeline on a daily/weekly/monthly schedule.
+# Fetches permits, closures, crime trends, and neighborhood data, then
+# upserts normalized records into the Supabase Postgres database.
 #
 # Required GitHub secrets:
-#   DATABASE_URL              — Railway Postgres connection string
-#                               (Settings → Secrets → DATABASE_URL)
+#   SUPABASE_DB_PASSWORD      — Supabase pooler password (the only secret
+#                               needed; host/port/user are not sensitive)
+#   DATABASE_URL is constructed at runtime from SUPABASE_DB_PASSWORD.
 #
 # Optional GitHub secrets:
 #   CHICAGO_SOCRATA_APP_TOKEN — Socrata app token for higher rate limits
@@ -54,6 +54,10 @@ jobs:
     name: Run ingest pipeline
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # Construct DATABASE_URL from the Supabase pooler password secret.
+      # Host, port, user, and database are not sensitive — only the password is.
+      DATABASE_URL: "postgresql://postgres.axpqlklqtpcfqirxtzni:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-1-us-east-1.pooler.supabase.com:6543/postgres"
 
     steps:
       - name: Checkout repository
@@ -70,8 +74,6 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Apply schema (idempotent)
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           # Install psql client
           sudo apt-get install -y postgresql-client --quiet
@@ -93,7 +95,6 @@ jobs:
 
       - name: Run ingest pipeline
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CHICAGO_SOCRATA_APP_TOKEN: ${{ secrets.CHICAGO_SOCRATA_APP_TOKEN }}
         run: |
           ARGS="--mode ${{ steps.detect-mode.outputs.mode }}"
@@ -107,8 +108,6 @@ jobs:
 
       - name: Verify live scoring (smoke check)
         if: ${{ github.event.inputs.dry_run != 'true' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           # Quick row-count check to confirm data landed
           python -c "
@@ -125,8 +124,6 @@ jobs:
 
       - name: Data quality validation
         if: ${{ github.event.inputs.dry_run != 'true' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/validate_ingest.py
 
       - name: Notify on failure
