@@ -182,7 +182,7 @@ def get_neighborhood(slug: str) -> dict:
     Returns:
       slug, name, description, center, bbox, projects (list), project_count, mode
     """
-    from backend.app.main import _NEIGHBORHOODS, _get_projects_in_bbox
+    from backend.app.routes.dashboard import _NEIGHBORHOODS, _get_projects_in_bbox
 
     neighborhood = _NEIGHBORHOODS.get(slug)
     if neighborhood is None:
@@ -220,7 +220,7 @@ def list_neighborhoods() -> dict:
     Return the list of available neighborhood slugs and their names/centers.
     Used by the frontend to render a neighborhood index.
     """
-    from backend.app.main import _NEIGHBORHOODS
+    from backend.app.routes.dashboard import _NEIGHBORHOODS
 
     return {
         "neighborhoods": [
@@ -243,7 +243,7 @@ def get_neighborhood_best_streets(slug: str) -> dict:
     Returns: slug, name, quietest_blocks, busiest_blocks, last_updated,
              mode, meta_description (unique, generated from real data).
     """
-    from backend.app.main import _NEIGHBORHOODS, _get_projects_in_bbox
+    from backend.app.routes.dashboard import _NEIGHBORHOODS, _get_projects_in_bbox
 
     neighborhood = _NEIGHBORHOODS.get(slug)
     if neighborhood is None:

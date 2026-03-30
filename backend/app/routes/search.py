@@ -19,7 +19,7 @@ router = APIRouter()
 def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
     """Fallback suggestions from geocoder when DB index has no strong results."""
     import requests as _requests
-    from backend.app.main import _state_abbrev, _address_features
+    from backend.app.routes.dashboard import _state_abbrev, _address_features
     from backend.app.address_normalization import format_display_address
     from backend.app.services.livability import _extract_zip
 
@@ -79,7 +79,7 @@ def search_addresses(
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
     popular: bool = Query(False, description="Return popular recent addresses when query is empty"),
 ) -> dict:
-    from backend.app.main import (
+    from backend.app.routes.dashboard import (
         _get_address_rows,
         _top_ranked_address_rows,
         _debug_search_flow,
@@ -127,7 +127,7 @@ def suggest_addresses(
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
     popular: bool = Query(False, description="Return popular addresses when query is short or empty"),
 ) -> dict:
-    from backend.app.main import (
+    from backend.app.routes.dashboard import (
         _get_address_rows,
         _top_ranked_address_rows,
         _debug_search_flow,

@@ -213,8 +213,8 @@ def check_watchlist() -> dict:
 
         for watch_id, email, address, threshold in entries:
             try:
-                # Import _score_live lazily to avoid circular import
-                from backend.app.main import _score_live
+                # Import _score_live from extracted score module
+                from backend.app.routes.score import _score_live
                 result = _score_live(address)
                 score = result.get("disruption_score")
                 if score is None:
