@@ -1537,37 +1537,9 @@ async function getSessionAuthHeaders(): Promise<Record<string, string>> {
   return {};
 }
 
-// Shape returned by /auth/register, /auth/login, /auth/google
-export type AuthResponse = {
-  account_id: number;
-  email: string;
-  display_name: string | null;
-  token: string;
-};
-
-// Shape returned by /auth/me
-export type AuthUser = {
-  account_id: string;
-  email: string;
-  name: string | null;
-};
-
-/**
- * Fetch the current user's profile from the backend.
- * Returns null if the token is missing or invalid (unauthenticated).
- */
-export async function fetchAuthMe(backendToken: string): Promise<AuthUser | null> {
-  try {
-    const resp = await fetch(buildApiUrl("/auth/me").toString(), {
-      headers: getAuthHeaders(backendToken),
-      cache: "no-store",
-    });
-    if (!resp.ok) return null;
-    return (await resp.json()) as AuthUser;
-  } catch {
-    return null;
-  }
-}
+// Custom auth types/functions removed (2026-03-30) — replaced by Clerk.
+// AuthResponse (/auth/register, /auth/login, /auth/google) and
+// AuthUser (/auth/me) types removed. Use Clerk useUser() instead.
 
 // ---------------------------------------------------------------------------
 // API key management  (app-025)
@@ -1637,5 +1609,30 @@ export async function revokeApiKey(keyId: number, token: string): Promise<void> 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Failed to revoke API key");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Live signals feed
+// ---------------------------------------------------------------------------
+
+export type LiveSignal = {
+  city: string;
+  address: string;
+  impact_type: string;
+  title: string;
+  start_date: string | null;
+  source: string;
+};
+
+export async function fetchLiveSignals(): Promise<LiveSignal[]> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+    const resp = await fetch(`${base}/api/live-signals`, { next: { revalidate: 300 } });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.signals ?? [];
+  } catch {
+    return [];
   }
 }

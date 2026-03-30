@@ -38,7 +38,7 @@ export async function generateMetadata({
   const data = await fetchBestStreets(params.slug);
   if (!data) {
     return {
-      title: "Quietest Streets in Chicago — Livability Risk Engine",
+      title: "Quietest Streets in Chicago — Livability Intelligence",
       description: "Block-level disruption intelligence for Chicago neighborhoods.",
     };
   }
@@ -54,7 +54,7 @@ export async function generateMetadata({
       title,
       description: data.meta_description,
       url: canonical,
-      siteName: "Livability Risk Engine",
+      siteName: "Livability Intelligence",
       type: "article",
     },
     twitter: {
@@ -244,7 +244,7 @@ function NotAvailable({ slug }: { slug: string }) {
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: "760px", margin: "0 auto", padding: "40px 24px" }}>
       <a href="/" style={{ fontSize: "13px", color: "#64748b", textDecoration: "none" }}>
-        ← Livability Risk Engine
+        ← Livability Intelligence
       </a>
       <h1 style={{ marginTop: "32px", fontSize: "24px", fontWeight: 800 }}>
         Data unavailable
@@ -289,7 +289,7 @@ export default async function BestStreetsPage({
     >
       {/* ── Breadcrumb ───────────────────────────────────────────────── */}
       <nav aria-label="Breadcrumb" style={{ fontSize: "13px", marginBottom: "28px", display: "flex", gap: "6px", color: "#64748b" }}>
-        <a href="/" style={{ color: "#64748b", textDecoration: "none" }}>Livability Risk Engine</a>
+        <a href="/" style={{ color: "#64748b", textDecoration: "none" }}>Livability Intelligence</a>
         <span>›</span>
         <a href={`/neighborhood/${slug}`} style={{ color: "#64748b", textDecoration: "none" }}>
           {name}

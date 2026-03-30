@@ -21,9 +21,10 @@ import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
-import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
-import { headlineScore } from "@/lib/score-utils";
+import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchLiveSignals, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, LiveSignal, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { headlineScore, impactTypeLabel } from "@/lib/score-utils";
 import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
+import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -78,6 +79,18 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   ));
 }
 
+function _relativeTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
 function debugSearchFlow(stage: string, payload: Record<string, unknown>) {
   if (typeof window === "undefined") return;
   const enabled =
@@ -115,12 +128,19 @@ export default function HomePage() {
   const [isFocused, setIsFocused] = useState(false);
   // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
   const [isDebugMode, setIsDebugMode] = useState(false);
+  // Live signals feed for landing page
+  const [liveSignals, setLiveSignals] = useState<LiveSignal[]>([]);
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
   const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
   const [lookupUsage, setLookupUsage] = useState({ count: 0, limit: 10, remaining: 10, isGated: false });
   const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
+  // Onboarding
+  const showOnboarding = useOnboardingState();
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => { setOnboardingVisible(showOnboarding); }, [showOnboarding]);
   // Mobile simplified view — reset to false on each new result so users always
   // land on the mobile summary first. Set to true when "Switch to full report" is tapped.
   const [mobileShowFull, setMobileShowFull] = useState(false);
@@ -254,6 +274,11 @@ export default function HomePage() {
     setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
   }, [isSignedIn, isPro]);
 
+  // Fetch live signals for landing page feed
+  useEffect(() => {
+    fetchLiveSignals().then(setLiveSignals);
+  }, []);
+
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -343,8 +368,8 @@ export default function HomePage() {
 
   useEffect(() => {
     document.title = result
-      ? `${result.address} — Livability Risk Engine`
-      : "Livability Risk Engine";
+      ? `${result.address} — Livability Intelligence`
+      : "Livability Intelligence";
   }, [result]);
 
   useEffect(() => {
@@ -622,8 +647,8 @@ export default function HomePage() {
               LR
             </div>
             <div>
-              <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Real-time livability intelligence</p>
+              <p className="brand-title">Livability Intelligence</p>
+              <p className="brand-subtitle">Address intelligence for real estate and operations teams</p>
             </div>
           </div>
 
@@ -664,6 +689,7 @@ export default function HomePage() {
             <a href="#pricing-section" className="topnav-pricing">Pricing</a>
             <a href="/portfolio" className="topnav-aux-link">Portfolio</a>
             <a href="/api-docs" className="topnav-aux-link">Docs</a>
+            <a href="/methodology" className="topnav-aux-link">Methodology</a>
             <a href="/api-access" className="topnav-api-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">
@@ -680,7 +706,7 @@ export default function HomePage() {
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
             <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Real-Time Livability Intelligence</p>
+              <p className="eyebrow">Address Intelligence Platform</p>
               <h1>
                 {workspaceMode
                   ? "A decision-ready livability brief for the current address."
@@ -995,6 +1021,33 @@ export default function HomePage() {
                 <h3>Logistics &amp; operations planning</h3>
                 <p>Assess access disruptions before routing, scheduling deliveries, or planning site visits. Know about lane closures and construction before your team arrives.</p>
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Live signals feed — landing page only ───────────── */}
+        {!workspaceMode && liveSignals.length > 0 && (
+          <section className="live-signals-section">
+            <p className="live-signals-eyebrow">
+              <span className="live-dot" aria-hidden="true" />
+              Live across 50+ cities
+            </p>
+            <div className="live-signals-feed">
+              {liveSignals.slice(0, 8).map((sig, i) => (
+                <div key={`${sig.address}-${i}`} className="live-signal-item">
+                  <span className="live-dot live-dot--small" aria-hidden="true" />
+                  <div className="live-signal-body">
+                    <span className="live-signal-city">{sig.city}</span>
+                    <span className="live-signal-type">{impactTypeLabel(sig.impact_type)}</span>
+                    <span className="live-signal-addr">{sig.title || sig.address}</span>
+                    {sig.start_date && (
+                      <span className="live-signal-time">
+                        {_relativeTime(sig.start_date)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -1377,6 +1430,25 @@ export default function HomePage() {
           </div>
         </Section>
       </Container>
+
+      {/* ── Onboarding flow ─────────────────────────────────── */}
+      {onboardingVisible && (
+        <OnboardingModal
+          onComplete={(exampleAddr) => {
+            setOnboardingVisible(false);
+            if (exampleAddr) {
+              setAddress(exampleAddr);
+              submitAddress(exampleAddr);
+              // Show tour after results load
+              setTimeout(() => setShowTour(true), 3000);
+            }
+          }}
+        />
+      )}
+
+      {showTour && result && (
+        <FeatureTour onDismiss={() => setShowTour(false)} />
+      )}
 
       {showSaveModal && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>

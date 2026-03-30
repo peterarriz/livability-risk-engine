@@ -1,27 +1,20 @@
 """
 backend/ingest/tampa_crime_trends.py
-task: data-057
+task: data-082
 lane: data
 
-Ingests Tampa Police Department crime data and calculates 12-month crime trends
-by zone/sector.
+Ingests Tampa Police Department crime data and calculates 12-month
+crime trends by district via ArcGIS outStatistics aggregation.
 
 Source:
-  Socrata — opendata.tampa.gov
-  Dataset: Tampa Police Department Incidents
-  Dataset ID: jcxs-sxan (not live-verified via catalog API)
-  Verify: curl "https://opendata.tampa.gov/api/catalog/v1?q=police+incidents&limit=5"
+  ArcGIS FeatureServer — org v400IkDOw1ad7Yad (same as Raleigh permits)
+  Service: Police_Incidents/FeatureServer/0 (616K+ records, updated daily)
 
-  Key fields (not live-verified field names via --dry-run):
-    report_date   — date of incident
-    zone          — patrol zone/sector
-    latitude      — incident latitude
-    longitude     — incident longitude
+  Key fields: reported_date (esriFieldTypeDate), district (string),
+              crime_type (string). Has point geometry.
 
-  If dataset ID or field names are wrong:
-    1. curl "https://opendata.tampa.gov/api/catalog/v1?q=crime&limit=10"
-    2. Find the active crime/incident dataset and update DATASET_ID below.
-    3. Run: python backend/ingest/tampa_crime_trends.py --dry-run
+  Note: Daily_Police_Incidents is a rolling 1-day feed (~127 records).
+  Police_Incidents is the full historical dataset used here.
 
 Output:
   data/raw/tampa_crime_trends.json
@@ -35,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -46,17 +38,24 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SOCRATA_DOMAIN = "opendata.tampa.gov"
-# not live-verified dataset ID via: curl "https://opendata.tampa.gov/api/catalog/v1?q=police+incidents&limit=5"
-DATASET_ID = "jcxs-sxan"
-CRIMES_URL = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
+FEATURESERVER_URL = (
+    "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services"
+    "/Police_Incidents/FeatureServer/0"
+)
 
 DEFAULT_OUTPUT_PATH = Path("data/raw/tampa_crime_trends.json")
 
-DATE_FIELD = "report_date"     # not live-verified
-DISTRICT_FIELD = "zone"        # not live-verified — may be "sector", "beat", or "district"
-LAT_FIELD = "latitude"
-LON_FIELD = "longitude"
+DATE_FIELD = "reported_date"
+GROUP_FIELD = "district"
+
+DISTRICT_CENTROIDS: dict[str, tuple[float, float]] = {
+    "Downtown":  (27.950, -82.458),
+    "North":     (28.020, -82.460),
+    "Northeast": (28.010, -82.400),
+    "Northwest": (28.010, -82.510),
+    "Southeast": (27.920, -82.400),
+    "Southwest": (27.920, -82.510),
+}
 
 TAMPA_LAT = 27.9506
 TAMPA_LON = -82.4572
@@ -65,55 +64,44 @@ STABLE_THRESHOLD_PCT = 5.0
 
 
 def _date_str(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT00:00:00")
+    return f"TIMESTAMP '{dt.strftime('%Y-%m-%d %H:%M:%S')}'"
 
 
-def fetch_crime_counts_with_centroids(
-    app_token: str | None,
+def fetch_crime_counts(
     start_date: datetime,
     end_date: datetime,
-) -> dict[str, dict]:
+) -> dict[str, int]:
+    url = f"{FEATURESERVER_URL}/query"
     where_clause = (
-        f"{DATE_FIELD} >= '{_date_str(start_date)}' "
-        f"AND {DATE_FIELD} < '{_date_str(end_date)}'"
+        f"{DATE_FIELD} >= {_date_str(start_date)} "
+        f"AND {DATE_FIELD} < {_date_str(end_date)}"
     )
-    params: dict = {
-        "$select": (
-            f"{DISTRICT_FIELD}, "
-            "count(*) as crime_count, "
-            f"avg({LAT_FIELD} :: number) as avg_lat, "
-            f"avg({LON_FIELD} :: number) as avg_lon"
-        ),
-        "$where": where_clause,
-        "$group": DISTRICT_FIELD,
-        "$limit": 100,
+    out_statistics = json.dumps([
+        {"statisticType": "count", "onStatisticField": "OBJECTID",
+         "outStatisticFieldName": "crime_count"},
+    ])
+    params = {
+        "where": where_clause,
+        "groupByFieldsForStatistics": GROUP_FIELD,
+        "outStatistics": out_statistics,
+        "f": "json",
     }
-    if app_token:
-        params["$$app_token"] = app_token
 
-    resp = requests.get(CRIMES_URL, params=params, timeout=60)
+    resp = requests.post(url, data=params, timeout=60)
     resp.raise_for_status()
-    rows = resp.json()
+    payload = resp.json()
 
-    results: dict[str, dict] = {}
-    for row in rows:
-        zone = str(row.get(DISTRICT_FIELD, "") or "").strip().upper()
-        if not zone:
+    if "error" in payload:
+        raise RuntimeError(f"ArcGIS query error: {payload['error']}")
+
+    results: dict[str, int] = {}
+    for feature in payload.get("features", []):
+        attrs = feature["attributes"]
+        district = str(attrs.get(GROUP_FIELD) or "").strip()
+        if not district or district == "UNK":
             continue
-        try:
-            count = int(row.get("crime_count", 0))
-        except (TypeError, ValueError):
-            count = 0
-        try:
-            avg_lat = float(row.get("avg_lat") or 0) or None
-        except (TypeError, ValueError):
-            avg_lat = None
-        try:
-            avg_lon = float(row.get("avg_lon") or 0) or None
-        except (TypeError, ValueError):
-            avg_lon = None
-        results[zone] = {"count": count, "lat": avg_lat, "lon": avg_lon}
-
+        count = int(attrs.get("crime_count") or 0)
+        results[district] = results.get(district, 0) + count
     return results
 
 
@@ -131,30 +119,30 @@ def _classify_trend(current: int, prior: int) -> tuple[str, float]:
 
 
 def build_trend_records(
-    current_data: dict[str, dict],
-    prior_data: dict[str, dict],
+    current_data: dict[str, int],
+    prior_data: dict[str, int],
 ) -> list[dict]:
-    all_zones = set(current_data.keys()) | set(prior_data.keys())
+    all_districts = set(current_data.keys()) | set(prior_data.keys())
     records = []
-    for zone in sorted(all_zones):
-        curr = current_data.get(zone, {"count": 0, "lat": None, "lon": None})
-        prev = prior_data.get(zone, {"count": 0, "lat": None, "lon": None})
-        current_count = curr["count"]
-        prior_count = prev["count"]
+    for district in sorted(all_districts):
+        current_count = current_data.get(district, 0)
+        prior_count = prior_data.get(district, 0)
         trend, trend_pct = _classify_trend(current_count, prior_count)
-        lat = curr["lat"] or prev["lat"]
-        lon = curr["lon"] or prev["lon"]
+        centroid = DISTRICT_CENTROIDS.get(district)
+        lat = centroid[0] if centroid else TAMPA_LAT
+        lon = centroid[1] if centroid else TAMPA_LON
+        slug = district.lower().replace(" ", "_")
         records.append({
-            "region_type": "zone",
-            "region_id": f"tampa_zone_{zone}",
-            "district_id": zone,
-            "district_name": f"Tampa Zone {zone}",
+            "region_type": "district",
+            "region_id": f"tampa_district_{slug}",
+            "district_id": district,
+            "district_name": f"Tampa {district}",
             "crime_12mo": current_count,
             "crime_prior_12mo": prior_count,
             "crime_trend": trend,
             "crime_trend_pct": trend_pct,
-            "latitude": lat or TAMPA_LAT,
-            "longitude": lon or TAMPA_LON,
+            "latitude": lat,
+            "longitude": lon,
         })
     return records
 
@@ -163,7 +151,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     staging = {
         "source": "tampa_crime_trends",
-        "source_url": CRIMES_URL,
+        "source_url": FEATURESERVER_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "record_count": len(records),
         "records": records,
@@ -175,7 +163,7 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest Tampa PD crime trends by zone from Socrata."
+        description="Ingest Tampa PD crime trends by district from ArcGIS."
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--dry-run", action="store_true",
@@ -184,11 +172,45 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    print("SKIPPED: Tampa does not publish incident-level crime data through a public API.")
-    print("  opendata.tampa.gov uses CKAN (not Socrata) with only aggregate annual stats.")
-    print("  No machine-readable incident data source is currently available.")
-    print("  This script needs a new data source before it can run.")
-    print("  Exiting cleanly with 0 records.")
+    args = parse_args()
+
+    print(f"Tampa crime trends ingest — source: {FEATURESERVER_URL}")
+
+    now = datetime.now(timezone.utc)
+    current_start = now - timedelta(days=365)
+    prior_start = now - timedelta(days=730)
+    prior_end = current_start
+
+    print(f"\nFetching current 12-month counts ({current_start:%Y-%m-%d} → {now:%Y-%m-%d})...")
+    try:
+        current_data = fetch_crime_counts(current_start, now)
+    except Exception as exc:
+        print(f"ERROR: failed to fetch current counts — {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"  {len(current_data)} districts, {sum(current_data.values()):,} total crimes.")
+
+    print(f"\nFetching prior 12-month counts ({prior_start:%Y-%m-%d} → {prior_end:%Y-%m-%d})...")
+    try:
+        prior_data = fetch_crime_counts(prior_start, prior_end)
+    except Exception as exc:
+        print(f"ERROR: failed to fetch prior counts — {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"  {len(prior_data)} districts, {sum(prior_data.values()):,} total crimes.")
+
+    records = build_trend_records(current_data, prior_data)
+    print(f"\nBuilt {len(records)} district trend records.")
+
+    for r in records:
+        print(f"  {r['district_name']}: {r['crime_12mo']:,} current, {r['crime_prior_12mo']:,} prior → {r['crime_trend']} ({r['crime_trend_pct']:+.1f}%)")
+
+    if args.dry_run:
+        print("\nDry-run mode: skipping file write.")
+        if records:
+            print(f"Sample record:\n{json.dumps(records[0], indent=2)}")
+        return
+
+    write_staging_file(records, args.output)
+    print("Done.")
 
 
 if __name__ == "__main__":

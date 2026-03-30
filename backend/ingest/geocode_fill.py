@@ -69,6 +69,10 @@ US_CITIES_FILE_GLOB     = "us_city_permits_*.json"
 # Seconds to sleep between geocoding requests to respect rate limits.
 GEOCODE_SLEEP_S = 0.25
 
+# After this many failures, mark a record as permanently failed
+# so future runs skip it immediately.
+MAX_GEOCODE_ATTEMPTS = 3
+
 
 # ---------------------------------------------------------------------------
 # Address extraction helpers
@@ -183,6 +187,7 @@ def fill_staging_file(
         "total": 0,
         "already_filled": 0,
         "no_address": 0,
+        "permanently_failed": 0,
         "geocoded": 0,
         "failed": 0,
         "written": False,
@@ -204,15 +209,21 @@ def fill_staging_file(
         if _has_coords(record):
             stats["already_filled"] += 1
             continue
+        if record.get("geocode_failed"):
+            stats["permanently_failed"] += 1
+            continue
         addr = address_fn(record)
         if not addr:
             stats["no_address"] += 1
             continue
         to_fill.append((record, addr))
 
+    pf = stats["permanently_failed"]
+    pf_label = f"  |  Permanently failed: {pf}" if pf else ""
     print(
         f"  Already have coordinates: {stats['already_filled']}"
         f"  |  No address text: {stats['no_address']}"
+        f"{pf_label}"
         f"  |  To geocode: {len(to_fill)}"
     )
 
@@ -229,15 +240,22 @@ def fill_staging_file(
         print(f"  Limiting to {max_fill} geocode calls (--max-fill).")
 
     for i, (record, addr) in enumerate(to_fill):
-        result = geocode_address(addr, allow_national=allow_national)
+        result = geocode_address(addr, allow_national=allow_national, max_retries=1, request_timeout=10)
         if result:
             lat, lon = result
             record["latitude"] = str(lat)
             record["longitude"] = str(lon)
+            # Clear any previous fail count on success
+            record.pop("geocode_fail_count", None)
+            record.pop("geocode_failed", None)
             stats["geocoded"] += 1
             if (i + 1) % 10 == 0 or i == len(to_fill) - 1:
                 print(f"  Geocoded {stats['geocoded']}/{len(to_fill)} records...")
         else:
+            fail_count = record.get("geocode_fail_count", 0) + 1
+            record["geocode_fail_count"] = fail_count
+            if fail_count >= MAX_GEOCODE_ATTEMPTS:
+                record["geocode_failed"] = True
             stats["failed"] += 1
 
         if i < len(to_fill) - 1:
@@ -389,8 +407,10 @@ def main() -> None:
 
     print("\n══ GEOCODE-FILL SUMMARY ═════════════════════════════")
     for label, s in all_stats:
+        pf = s.get("permanently_failed", 0)
+        pf_str = f", {pf} permanently-failed" if pf else ""
         print(
-            f"  {label}: {s['geocoded']} filled, {s['failed']} failed,"
+            f"  {label}: {s['geocoded']} filled, {s['failed']} failed{pf_str},"
             f" {s['no_address']} no-address, {s['already_filled']} already had coords"
             f" (of {s['total']} total)"
         )

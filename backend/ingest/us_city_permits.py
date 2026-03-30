@@ -234,30 +234,8 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Seattle, WA",
         "where_clause":     None,
     },
-    {
-        # Kansas City, MO — Building Permits (CPD Dataset).
-        # Portal: https://data.kcmo.org  (Socrata)
-        # Dataset: "Permits - CPD Dataset" (ntw8-aacc)
-        # Verified 2026-03-22 via catalog API and sample query.
-        # Note: old dataset i6pc-e4ph returns 404; ntw8-aacc is the correct one.
-        # Fields verified: permitnum, permittypedesc, description, issueddate,
-        #   expiresdate, latitude, longitude, originaladdress1.
-        "city_name":        "Kansas City",
-        "source_key":       "kansas_city",
-        "domain":           "data.kcmo.org",
-        "dataset_id":       "ntw8-aacc",
-        "id_field":         "permitnum",
-        "type_field":       "permittypedesc",
-        "desc_field":       "description",
-        "issue_date_field": "issueddate",
-        "exp_date_field":   "expiresdate",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "originaladdress1",
-        "city_state":       "Kansas City, MO",
-        "where_clause":     None,
-    },
+    # Kansas City — duplicate removed; config with corrected lat_field=None
+    # and where_clause filter is in the tier-11 section below.
     # -----------------------------------------------------------------
     # REMOVED — non-Socrata portals (verified 2026-03-22):
     #
@@ -370,48 +348,12 @@ CITY_CONFIGS: list[dict] = [
         "city_state":       "Louisville, KY",
         "where_clause":     None,
     },
-    {
-        # Fresno — Building Permits.
-        # Portal: https://data.fresno.gov
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.fresno.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Fresno",
-        "source_key":       "fresno",
-        "domain":           "data.fresno.gov",
-        "dataset_id":       "sxvh-bkgt",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Fresno, CA",
-        "where_clause":     None,
-    },
-    {
-        # Sacramento — Building Permits.
-        # Portal: https://data.cityofsacramento.org
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.cityofsacramento.org/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Sacramento",
-        "source_key":       "sacramento",
-        "domain":           "data.cityofsacramento.org",
-        "dataset_id":       "rent-6pka",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Sacramento, CA",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Fresno (verified 2026-03-28):
+    #   data.fresno.gov DNS does not resolve (HTTP 000). No Socrata.
+    # REMOVED — Sacramento (verified 2026-03-28):
+    #   data.cityofsacramento.org exists but 0 Socrata results for permits.
+    #   Dataset rent-6pka returns no JSON.
     # -----------------------------------------------------------------
     # NOT YET IMPLEMENTED — ArcGIS Hub cities (data-045):
     #
@@ -495,196 +437,81 @@ CITY_CONFIGS: list[dict] = [
         "where_clause":     None,
     },
     {
-        # Raleigh, NC — Building Permits.
-        # Portal: https://data.raleighnc.gov (Socrata)
-        # Dataset: Building Permits (NIBRS/development permits)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.raleighnc.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   curl "https://data.raleighnc.gov/resource/k4n2-jcgh.json?$limit=1"
-        # data-050: added 2026-03-23
-        "city_name":        "Raleigh",
-        "source_key":       "raleigh",
-        "domain":           "data.raleighnc.gov",
-        "dataset_id":       "k4n2-jcgh",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
+        # Kansas City, MO — CPD Permits (verified 2026-03-28).
+        # Portal: https://data.kcmo.org (Socrata)
+        # Dataset: ntw8-aacc (681K total, ~25K in last 2 years)
+        # Note: lat/lon columns are text "NULL" for all records — no coordinates.
+        # Geocode_fill backfills from address. where_clause limits to 2024+ to
+        # keep the dataset manageable for geocoding (~25K vs 681K).
+        "city_name":        "Kansas City",
+        "source_key":       "kansas_city",
+        "domain":           "data.kcmo.org",
+        "dataset_id":       "ntw8-aacc",
+        "id_field":         "permitnum",
+        "type_field":       "permittypedesc",
         "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
+        "lat_field":        None,
+        "lon_field":        None,
         "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Raleigh, NC",
-        "where_clause":     None,
+        "addr_field":       "originaladdress1",
+        "city_state":       "Kansas City, MO",
+        "where_clause":     "issueddate >= '2024-01-01T00:00:00' AND originaladdress1 IS NOT NULL",
+        "skip_date_filter": True,  # where_clause handles date filtering
     },
+    # -----------------------------------------------------------------
+    # REMOVED — Raleigh (verified 2026-03-28):
+    #   data.raleighnc.gov is not Socrata or CKAN. 0 Socrata results.
+    #   Dataset k4n2-jcgh returns no JSON.
+    # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # REMOVED — Tampa (verified 2026-03-28):
+    #   opendata.tampa.gov is CKAN (not Socrata). fd3u-fy3v returns 404.
+    #   CKAN package_search returns 0 permit datasets. GIS server
+    #   (gis.tampagov.net) unreachable.
+    # REMOVED — Miami-Dade (verified 2026-03-28):
+    #   opendata.miamidade.gov Socrata returns 0 permit datasets.
+    #   r6qv-7pvx returns empty JSON. data.miami.gov is down.
+    # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # REMOVED — St. Louis (verified 2026-03-28):
+    #   data.stlouis-mo.gov redirects (301). 0 Socrata results for permits.
+    #   Dataset 44bp-4y2y returns no JSON. Domain not Socrata.
+    # -----------------------------------------------------------------
     {
-        # Tampa, FL — Building Permits.
-        # Portal: https://opendata.tampa.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://opendata.tampa.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "Tampa",
-        "source_key":       "tampa",
-        "domain":           "opendata.tampa.gov",
-        "dataset_id":       "fd3u-fy3v",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "site_address",
-        "city_state":       "Tampa, FL",
-        "where_clause":     None,
-    },
-    {
-        # Miami-Dade, FL — Building Permits.
-        # Portal: https://opendata.miamidade.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://opendata.miamidade.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "Miami-Dade",
-        "source_key":       "miami_dade",
-        "domain":           "opendata.miamidade.gov",
-        "dataset_id":       "r6qv-7pvx",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Miami, FL",
-        "where_clause":     None,
-    },
-    {
-        # St. Louis, MO — Building Permits.
-        # Portal: https://data.stlouis-mo.gov (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.stlouis-mo.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
-        "city_name":        "St. Louis",
-        "source_key":       "st_louis",
-        "domain":           "data.stlouis-mo.gov",
-        "dataset_id":       "44bp-4y2y",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "St. Louis, MO",
-        "where_clause":     None,
-    },
-    {
-        # Baton Rouge, LA — Building and Trade Permits.
-        # Portal: https://data.brla.gov (Socrata — CONFIRMED)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.brla.gov/api/catalog/v1?q=building+permits&limit=5"
-        # data-057: added 2026-03-24
+        # Baton Rouge, LA — EBR Building Permits (verified 2026-03-28).
+        # Portal: https://data.brla.gov (Socrata)
+        # Dataset: 7fq7-8j7r (139,501 records, updated daily)
         "city_name":        "Baton Rouge",
         "source_key":       "baton_rouge",
         "domain":           "data.brla.gov",
-        "dataset_id":       "a6aw-dngx",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
+        "dataset_id":       "7fq7-8j7r",
+        "id_field":         "permitnumber",
+        "type_field":       "permittype",
+        "desc_field":       "projectdescription",
+        "issue_date_field": "issueddate",
         "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
+        "lat_field":        None,
+        "lon_field":        None,
         "loc_field":        None,
         "addr_field":       "address",
         "city_state":       "Baton Rouge, LA",
         "where_clause":     None,
     },
-    {
-        # Lexington, KY — Building Permits.
-        # Portal: https://data.lexingtonky.gov (Socrata — not live-verified)
-        # not live-verified portal type and dataset_id:
-        #   curl "https://data.lexingtonky.gov/api/catalog/v1?q=building+permits&limit=5"
-        #   If that returns 404/HTML, the portal may be ArcGIS Hub not Socrata.
-        # data-057: added 2026-03-24
-        "city_name":        "Lexington",
-        "source_key":       "lexington",
-        "domain":           "data.lexingtonky.gov",
-        "dataset_id":       "3gzb-avhn",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Lexington, KY",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED — Lexington (verified 2026-03-28):
+    #   data.lexingtonky.gov is ArcGIS Hub, not Socrata. 0 Socrata results.
+    #   Dataset 3gzb-avhn returns no JSON.
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # data-068: tier-11 city permits (Socrata portals)
     # -----------------------------------------------------------------
-    {
-        # Tallahassee, FL — Building Permits.
-        # Portal: https://data.talgov.com (Socrata — City of Tallahassee Open Data)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.talgov.com/api/catalog/v1?q=building+permits&limit=10"
-        #   curl "https://data.talgov.com/resource/<id>.json?$limit=1"
-        # data-068: added 2026-03-25
-        "city_name":        "Tallahassee",
-        "source_key":       "tallahassee",
-        "domain":           "data.talgov.com",
-        "dataset_id":       "ax5x-ixcm",  # not live-verified
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "skip_date_filter": False,
-        "max_records":      None,
-        "lat_field":        None,
-        "lon_field":        None,
-        "loc_field":        "location",
-        "addr_field":       "address",
-        "city_state":       "Tallahassee, FL",
-        "where_clause":     None,
-    },
+    # REMOVED — Tallahassee (verified 2026-03-29): data.talgov.com 0 Socrata datasets total.
     # -----------------------------------------------------------------
     # data-070: tier-12 city permits (Socrata portals)
     # -----------------------------------------------------------------
-    {
-        # Dayton, OH — Building Permits.
-        # Portal: https://data.dayton.gov (Socrata — City of Dayton Open Data)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.dayton.gov/api/catalog/v1?q=building+permits&limit=10"
-        #   curl "https://data.dayton.gov/resource/<id>.json?$limit=1"
-        # data-070: added 2026-03-25
-        "city_name":        "Dayton",
-        "source_key":       "dayton",
-        "domain":           "data.dayton.gov",
-        "dataset_id":       "kpz4-qmte",  # not live-verified
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "skip_date_filter": False,
-        "max_records":      None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Dayton, OH",
-        "where_clause":     None,
-    },
+    # REMOVED — Dayton (verified 2026-03-29): data.dayton.gov does not resolve.
     # -----------------------------------------------------------------
     # REMOVED — data-071 Honolulu (2026-03-27, data-076):
     #   dataset ID msx3-yfxc returned HTTP 400 in every pipeline run — never live-verified.
@@ -694,229 +521,20 @@ CITY_CONFIGS: list[dict] = [
     # -----------------------------------------------------------------
     # data-058: tier-8 city permits (Socrata portals)
     # -----------------------------------------------------------------
-    {
-        # Anchorage, AK — Building Permits.
-        # Portal: https://data.muni.org (Socrata — Municipality of Anchorage)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.muni.org/api/catalog/v1?q=building+permits&limit=5"
-        #   curl "https://data.muni.org/resource/73xi-i4bq.json?$limit=1"
-        # data-058: added 2026-03-24
-        "city_name":        "Anchorage",
-        "source_key":       "anchorage",
-        "domain":           "data.muni.org",
-        "dataset_id":       "73xi-i4bq",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Anchorage, AK",
-        "where_clause":     None,
-    },
-    {
-        # Madison, WI — Building Permits.
-        # Portal: https://data.cityofmadison.com (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.cityofmadison.com/api/catalog/v1?q=building+permits&limit=5"
-        # data-058: added 2026-03-24
-        "city_name":        "Madison",
-        "source_key":       "madison",
-        "domain":           "data.cityofmadison.com",
-        "dataset_id":       "ekdx-6fbt",
-        "id_field":         "permit_id",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Madison, WI",
-        "where_clause":     None,
-    },
-    {
-        # Spokane, WA — Building Permits.
-        # Portal: https://data.spokanecity.org (Socrata)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.spokanecity.org/api/catalog/v1?q=building+permits&limit=5"
-        # data-058: added 2026-03-24
-        "city_name":        "Spokane",
-        "source_key":       "spokane",
-        "domain":           "data.spokanecity.org",
-        "dataset_id":       "kixq-bk3d",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Spokane, WA",
-        "where_clause":     None,
-    },
+    # REMOVED — Anchorage (verified 2026-03-29): data.muni.org 0 Socrata results, no response.
+    # REMOVED — Madison (verified 2026-03-29): data.cityofmadison.com DNS does not resolve.
+    # REMOVED — Spokane (verified 2026-03-29): data.spokanecity.org returns 403, 0 Socrata datasets.
     # -----------------------------------------------------------------
     # data-078: new cities — strategic expansion (MUST VERIFY dataset IDs)
     # CI has no outbound HTTPS; dataset IDs researched but not live-tested.
     # Verify: curl "https://<domain>/api/catalog/v1?q=building+permits&limit=10"
     # -----------------------------------------------------------------
-    {
-        # Oakland, CA — Building Permits.
-        # Portal: https://data.oaklandca.gov (ArcGIS Hub / Socrata hybrid)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://data.oaklandca.gov/api/catalog/v1?q=building+permits&limit=10"
-        #   curl "https://data.oaklandca.gov/resource/p3hw-5b6x.json?$limit=1"
-        # Note: Oakland migrated from Socrata to ArcGIS Hub; Socrata API may still work.
-        # If Socrata returns 404/redirect, use us_city_permits_arcgis.py instead.
-        # data-078: added 2026-03-27
-        "city_name":        "Oakland",
-        "source_key":       "oakland",
-        "domain":           "data.oaklandca.gov",
-        "dataset_id":       "p3hw-5b6x",   # MUST VERIFY
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Oakland, CA",
-        "where_clause":     None,
-    },
-    {
-        # Long Beach, CA — Building Permits.
-        # Portal: https://data.longbeach.gov — USES OPENDATASOFT (not Socrata).
-        # data-080 (2026-03-28): data.longbeach.gov uses OpenDataSoft API v1/v2.1.
-        #   This ingest script uses Socrata SODA format (/resource/<id>.json).
-        #   OpenDataSoft uses /api/explore/v2.1/catalog/datasets/<id>/records instead.
-        #   DISABLED until a separate OpenDataSoft ingest is implemented.
-        # data-078: added 2026-03-27; disabled data-080 2026-03-28
-        "city_name":        "Long Beach",
-        "source_key":       "long_beach",
-        "disabled":         True,
-        "domain":           "data.longbeach.gov",
-        "dataset_id":       "2en9-kfmh",   # MUST VERIFY (OpenDataSoft dataset ID format)
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Long Beach, CA",
-        "where_clause":     None,
-    },
-    {
-        # St. Paul, MN — Building Permits.
-        # Portal: https://information.stpaul.gov (ArcGIS Hub)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://information.stpaul.gov/api/catalog/v1?q=building+permits&limit=10"
-        # Note: If portal returns 404/redirect, the Socrata API layer may not exist.
-        #   St. Paul uses ArcGIS Hub primarily; check us_city_permits_arcgis.py as alternative.
-        # data-078: added 2026-03-27
-        "city_name":        "St. Paul",
-        "source_key":       "st_paul",
-        "domain":           "information.stpaul.gov",
-        "dataset_id":       "j2hk-9frn",   # MUST VERIFY
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issued_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "St. Paul, MN",
-        "where_clause":     None,
-    },
-    {
-        # Toledo, OH — Building Permits.
-        # Portal: https://data.toledo.gov/datasets (ArcGIS-based open data hub)
-        # Domain verified data-080 (2026-03-28): data.toledo.gov
-        #   (opendata.toledo.oh.gov does NOT appear to be Socrata; city uses data.toledo.gov)
-        # Dataset ID still MUST VERIFY — may not be Socrata format:
-        #   Visit https://data.toledo.gov/datasets and search for building permits.
-        # data-078: added 2026-03-27; domain fixed data-080 2026-03-28
-        "city_name":        "Toledo",
-        "source_key":       "toledo",
-        "domain":           "data.toledo.gov",
-        "dataset_id":       "xhfa-8r47",   # MUST VERIFY — may not be Socrata format
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Toledo, OH",
-        "where_clause":     None,
-    },
-    {
-        # Newark, NJ — Building Permits.
-        # Portal: https://data.ci.newark.nj.us (Socrata)
-        # Domain verified data-080 (2026-03-28): data.ci.newark.nj.us
-        #   (data.newark.gov does NOT resolve; correct subdomain is data.ci.newark.nj.us)
-        # Dataset ID still MUST VERIFY:
-        #   curl "https://data.ci.newark.nj.us/api/catalog/v1?q=building+permits&limit=10"
-        # Alternative: NJ state-level dataset at data.nj.gov/resource/w9se-dmra.json
-        #   (NJ Construction Permit Data, filter by municipality="Newark")
-        # data-078: added 2026-03-27; domain fixed data-080 2026-03-28
-        "city_name":        "Newark",
-        "source_key":       "newark",
-        "domain":           "data.ci.newark.nj.us",
-        "dataset_id":       "7fmg-w4gk",   # MUST VERIFY — ID unconfirmed for new domain
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Newark, NJ",
-        "where_clause":     None,
-    },
-    {
-        # Jersey City, NJ — Building Permits.
-        # Portal: https://data.jerseycitynj.gov — USES OPENDATASOFT (not Socrata).
-        # data-080 (2026-03-28): data.jerseycitynj.gov uses OpenDataSoft API.
-        #   This ingest script uses Socrata SODA format (/resource/<id>.json).
-        #   OpenDataSoft endpoint: /api/explore/v2.1/catalog/datasets/<id>/records
-        #   Portal only has "Permit Requirements and Restrictions PDF" dataset;
-        #   no building permit incident dataset was found.
-        #   DISABLED until further research confirms a queryable dataset exists.
-        # data-078: added 2026-03-27; disabled data-080 2026-03-28
-        "city_name":        "Jersey City",
-        "source_key":       "jersey_city",
-        "disabled":         True,
-        "domain":           "data.jerseycitynj.gov",
-        "dataset_id":       "kmgf-q3ax",   # MUST VERIFY (OpenDataSoft; no permit dataset confirmed)
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   None,
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "address",
-        "city_state":       "Jersey City, NJ",
-        "where_clause":     None,
-    },
+    # REMOVED — Oakland (verified 2026-03-29): p3hw-5b6x returns empty. Not Socrata.
+    # REMOVED — Long Beach (2026-03-28): OpenDataSoft, not Socrata. Disabled.
+    # REMOVED — St. Paul (verified 2026-03-29): information.stpaul.gov 0 Socrata datasets.
+    # REMOVED — Toledo (verified 2026-03-29): toledo.oh.gov 0 Socrata datasets. Not Socrata.
+    # REMOVED — Newark (verified 2026-03-29): data.newark.gov DNS dead, data.ci.newark.nj.us 0 results.
+    # REMOVED — Jersey City (2026-03-28): OpenDataSoft, no permit dataset found.
 ]
 
 # Index by source_key for fast lookup.

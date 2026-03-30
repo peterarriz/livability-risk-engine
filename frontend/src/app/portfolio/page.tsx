@@ -488,7 +488,7 @@ export default function PortfolioPage() {
           <div className="brand-lockup">
             <div className="brand-mark" aria-hidden="true">LR</div>
             <div>
-              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-title">Livability Intelligence</p>
               <p className="brand-subtitle">Illinois disruption intelligence</p>
             </div>
           </div>
@@ -683,7 +683,7 @@ export default function PortfolioPage() {
         {hydrated && items.length === 0 ? (
           <div className="portfolio-empty">
             <p className="portfolio-empty-kicker">No addresses yet</p>
-            <p>Add up to {FREE_LIMIT} addresses above to start tracking disruption risk.</p>
+            <p>Add up to {FREE_LIMIT} addresses above to start tracking disruption activity.</p>
             <p className="portfolio-empty-hint">
               Scores are fetched live from Chicago permit and street closure data.
             </p>
@@ -702,7 +702,7 @@ export default function PortfolioPage() {
                   value={riskFilter}
                   onChange={(e) => setRiskFilter(e.target.value as typeof riskFilter)}
                 >
-                  <option value="all">All risk levels</option>
+                  <option value="all">All impact levels</option>
                   <option value="low">Low risk (0–30)</option>
                   <option value="moderate">Moderate (31–60)</option>
                   <option value="high">High risk (61+)</option>

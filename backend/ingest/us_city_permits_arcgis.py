@@ -561,204 +561,67 @@ CITY_CONFIGS: list[dict] = [
     # CI has no outbound HTTPS; service names researched but not live-tested.
     # Next agent (data-079) should run --city <key> --dry-run for each.
     # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    # REMOVED — Dallas (verified 2026-03-28):
+    #   Org K1vmv3C6RR68oGEo returns 0 services. Socrata e7gq-4sah
+    #   has only FY2019 data (frozen). No current permit data.
+    # -----------------------------------------------------------------
     {
-        # Dallas, TX — Building Permits.
-        # Portal: https://www.dallasopendata.com (ArcGIS Hub)
-        # Note: data.dallascityhall.com DNS does not resolve; use dallasopendata.com.
-        # MUST VERIFY: Org K1vmv3C6RR68oGEo and service name not live-tested.
-        #   curl -s "https://services.arcgis.com/K1vmv3C6RR68oGEo/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
-        "city_name":        "Dallas",
-        "source_key":       "dallas",
-        "service_url":      (
-            "https://services.arcgis.com/K1vmv3C6RR68oGEo/arcgis/rest/services"
-            "/Dallas_Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://www.dallasopendata.com",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Dallas, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Detroit, MI — Building Permits.
-        # Portal: https://data.detroitmi.gov (ArcGIS Hub)
-        # Org verified data-080 (2026-03-28): CyVvlIiUfRBmMQuu (services2).
-        # Service verified data-080: Building_Permits_Applications_view (~109K records).
-        # Hub page: https://hub.arcgis.com/datasets/detroitmi::building-permits-1
-        # Field names: MUST VERIFY against FeatureServer/0?f=json — use typical
-        #   BSEED permit field names; run --dry-run to confirm.
-        # data-078: added 2026-03-27; org+service updated data-080 2026-03-28
+        # Detroit, MI — BSEED Building Permits (verified 2026-03-28).
+        # Org qvkbeam7Wirps6zC on services2.arcgis.com.
+        # Service: bseed_building_permits/FeatureServer/0 (44,012 records).
+        # Fields verified: record_id, permit_type, work_description, issued_date,
+        #   address, latitude, longitude. Date filter works. Python access OK.
         "city_name":        "Detroit",
         "source_key":       "detroit",
         "service_url":      (
-            "https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services"
-            "/Building_Permits_Applications_view/FeatureServer/0"
+            "https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services"
+            "/bseed_building_permits/FeatureServer/0"
         ),
         "portal_url":       "https://data.detroitmi.gov",
-        "id_field":         "permit_number",    # MUST VERIFY field name
-        "type_field":       "permit_type",      # MUST VERIFY field name
-        "desc_field":       "description",      # MUST VERIFY field name
-        "issue_date_field": "issue_date",       # MUST VERIFY field name
+        "id_field":         "record_id",
+        "type_field":       "permit_type",
+        "desc_field":       "work_description",
+        "issue_date_field": "issued_date",
         "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY field name
+        "addr_field":       "address",
         "city_state":       "Detroit, MI",
         "skip_date_filter": False,
         "max_records":      None,
     },
     {
-        # St. Petersburg, FL — Building Permits.
-        # Portal: https://data.stpete.org (ArcGIS Hub)
-        # MUST VERIFY: Org 8vEm1j5dMMr9eBob and service name are placeholders.
-        #   curl -s "https://services1.arcgis.com/8vEm1j5dMMr9eBob/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
-        "city_name":        "St. Petersburg",
-        "source_key":       "st_petersburg",
+        # Raleigh, NC — Building Permits (verified 2026-03-29).
+        # Org v400IkDOw1ad7Yad on services.arcgis.com (1,267 services!).
+        # Service: Building_Permits/FeatureServer/0 (182,109 records).
+        # Fields verified: permitnum, permittypemapped, description, issueddate,
+        #   originaladdress1, latitude_perm, longitude_perm. Point geometry.
+        "city_name":        "Raleigh",
+        "source_key":       "raleigh",
         "service_url":      (
-            "https://services1.arcgis.com/8vEm1j5dMMr9eBob/arcgis/rest/services"
+            "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services"
             "/Building_Permits/FeatureServer/0"
         ),
-        "portal_url":       "https://data.stpete.org",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "St. Petersburg, FL",
+        "portal_url":       "https://data.raleighnc.gov",
+        "id_field":         "permitnum",
+        "type_field":       "permittypemapped",
+        "desc_field":       "description",
+        "issue_date_field": "issueddate",
+        "exp_date_field":   "expiresdate",
+        "addr_field":       "originaladdress1",
+        "city_state":       "Raleigh, NC",
         "skip_date_filter": False,
         "max_records":      None,
     },
-    {
-        # Birmingham, AL — Building Permits.
-        # Portal: https://birminghamal.maps.arcgis.com (ArcGIS Hub)
-        # MUST VERIFY: Org iFT94KHJdBf1glgr and service name are placeholders.
-        #   curl -s "https://services6.arcgis.com/iFT94KHJdBf1glgr/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # Also try: https://arcgis.birminghamal.gov/arcgis/rest/services
-        # data-078: added 2026-03-27
-        "city_name":        "Birmingham",
-        "source_key":       "birmingham",
-        "service_url":      (
-            "https://services6.arcgis.com/iFT94KHJdBf1glgr/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://birminghamal.maps.arcgis.com",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Birmingham, AL",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Riverside, CA — Building Permits.
-        # Portal: https://www.riversideca.gov (ArcGIS Hub)
-        # MUST VERIFY: Org nIQ0V9y1TigP8hAV and service name are placeholders.
-        #   curl -s "https://services3.arcgis.com/nIQ0V9y1TigP8hAV/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
-        "city_name":        "Riverside",
-        "source_key":       "riverside",
-        "service_url":      (
-            "https://services3.arcgis.com/nIQ0V9y1TigP8hAV/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://www.riversideca.gov",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Riverside, CA",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Irving, TX — Building Permits.
-        # Portal: https://cityofirving.org/299/Open-Data (ArcGIS Hub)
-        # MUST VERIFY: Org 9xyBGNHCPT1TXqR6 and service name are placeholders.
-        #   curl -s "https://services.arcgis.com/9xyBGNHCPT1TXqR6/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
-        "city_name":        "Irving",
-        "source_key":       "irving",
-        "service_url":      (
-            "https://services.arcgis.com/9xyBGNHCPT1TXqR6/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://cityofirving.org/299/Open-Data",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Irving, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Orlando, FL — Building Permits.
-        # Portal: https://data-cityoforlando.opendata.arcgis.com (ArcGIS Hub)
-        # Note: data-076 removed the placeholder config (org ySBMu4XsNZMHPCce,
-        #   service name was placeholder "Building_Permits/FeatureServer/0").
-        # MUST VERIFY: Service name on org ySBMu4XsNZMHPCce (services1) not confirmed.
-        #   curl -s "https://services1.arcgis.com/ySBMu4XsNZMHPCce/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: re-added 2026-03-27 (was removed in data-076)
-        "city_name":        "Orlando",
-        "source_key":       "orlando",
-        "service_url":      (
-            "https://services1.arcgis.com/ySBMu4XsNZMHPCce/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data-cityoforlando.opendata.arcgis.com",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Orlando, FL",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
-    {
-        # Plano, TX — Building Permits.
-        # Portal: https://data.plano.gov (ArcGIS Hub)
-        # MUST VERIFY: Org J6sY5RXbVdFl1rTf and service name are placeholders.
-        #   curl -s "https://services.arcgis.com/J6sY5RXbVdFl1rTf/arcgis/rest/services?f=json" \
-        #     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin).get('services',[])]"
-        # data-078: added 2026-03-27
-        "city_name":        "Plano",
-        "source_key":       "plano",
-        "service_url":      (
-            "https://services.arcgis.com/J6sY5RXbVdFl1rTf/arcgis/rest/services"
-            "/Building_Permits/FeatureServer/0"
-        ),
-        "portal_url":       "https://data.plano.gov",
-        "id_field":         "permit_number",    # MUST VERIFY
-        "type_field":       "permit_type",      # MUST VERIFY
-        "desc_field":       "description",      # MUST VERIFY
-        "issue_date_field": "issue_date",       # MUST VERIFY
-        "exp_date_field":   None,
-        "addr_field":       "address",          # MUST VERIFY
-        "city_state":       "Plano, TX",
-        "skip_date_filter": False,
-        "max_records":      None,
-    },
+    # -----------------------------------------------------------------
+    # REMOVED (verified 2026-03-28): All org IDs return 0 services
+    # on all ArcGIS subdomains. No permit data found.
+    #   st_petersburg: org 8vEm1j5dMMr9eBob — 0 services
+    #   birmingham: org iFT94KHJdBf1glgr — 0 services
+    #   riverside: org nIQ0V9y1TigP8hAV — 0 services
+    #   irving: org 9xyBGNHCPT1TXqR6 — 0 services
+    #   orlando: org ySBMu4XsNZMHPCce — 0 services
+    #   plano: org J6sY5RXbVdFl1rTf — 0 services
+    # -----------------------------------------------------------------
 ]
 
 # Index by source_key for fast lookup.
@@ -796,15 +659,8 @@ CITY_CONFIG_BY_KEY: dict[str, dict] = {c["source_key"]: c for c in CITY_CONFIGS}
 #                  permits; no public ArcGIS FeatureServer confirmed.
 #   plano:         org J6sY5RXbVdFl1rTf — same org as crime script which
 #                  returns 0 services; permit FeatureServer not confirmed.
-DISABLED_SOURCE_KEYS: frozenset[str] = frozenset({
-    "dallas",
-    "st_petersburg",
-    "birmingham",
-    "riverside",
-    "irving",
-    "orlando",
-    "plano",
-})
+DISABLED_SOURCE_KEYS: frozenset[str] = frozenset()
+# All previously disabled cities verified and removed (2026-03-28).
 
 # Special notes for removed cities (preserved for reference).
 DISABLED_NOTES: dict[str, str] = {

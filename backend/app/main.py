@@ -3,7 +3,7 @@ backend/app/main.py
 tasks: app-001, app-002, app-008, app-019, app-020, app-021, app-023, data-016, data-030
 lane: app
 
-FastAPI /score endpoint — live scoring against the Railway Postgres+PostGIS DB.
+FastAPI /score endpoint -- live scoring against the Railway Postgres+PostGIS DB.
 Demo fallback removed in data-017 (DB is now live on Railway).
 
 Changes in app-019/020/021/023:
@@ -18,63 +18,44 @@ API contract: docs/04_api_contracts.md
            explanation, mode, fallback_reason
 """
 
-import base64
-import csv
-import hashlib
-import io
-import json
-from jose import jwt as _jose_jwt
-from jose.exceptions import ExpiredSignatureError as _JoseExpired, JWTError as _JoseJWTError
-import math
 import logging
-import math
 import os
-import re
-import secrets
-import time
-import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
-from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
-from backend.app.address_normalization import (
-    DIRECTION_NORMALIZATION as _DIRECTION_NORMALIZATION,
-    STREET_SUFFIX_NORMALIZATION as _STREET_SUFFIX_NORMALIZATION,
-    build_address_search_tokens,
-    format_display_address,
-    normalize_address_query,
-    normalize_address_record,
-)
 
-import requests as _requests
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+
+from backend.app.deps import _is_db_configured
 
 log = logging.getLogger(__name__)
-_DEBUG_SEARCH_FLOW = os.environ.get("DEBUG_SEARCH_FLOW", "").strip().lower() in {"1", "true", "yes", "on"}
-
-# ---------------------------------------------------------------------------
-# Clerk JWKS cache  (app-025)
-#
-# Maps issuer URL → {"keys": <jwks dict>, "fetched_at": float}.
-# Keys are fetched once from <issuer>/.well-known/jwks.json and reused for
-# all subsequent JWT verifications.  TTL = 1 hour; auto-refreshed on miss.
-# ---------------------------------------------------------------------------
-_JWKS_CACHE: dict = {}
-_JWKS_CACHE_TTL = 3600  # seconds
-
-
-def _debug_search_flow(stage: str, **payload) -> None:
-    """Temporary structured debug logs for search/dashboard flow."""
-    if not _DEBUG_SEARCH_FLOW:
-        return
-    log.info("[DBG:%s] %s", stage, payload)
 
 app = FastAPI(title="Livability Risk Engine")
+
+# ---------------------------------------------------------------------------
+# Router includes -- extracted route modules
+# ---------------------------------------------------------------------------
+from backend.app.routes.auth import router as _auth_router
+from backend.app.routes.dashboard import router as _dashboard_router
+from backend.app.routes.keys import router as _keys_router
+from backend.app.routes.map import router as _map_router
+from backend.app.routes.neighborhood import router as _neighborhood_router
+from backend.app.routes.reports import router as _reports_router
+from backend.app.routes.score import router as _score_router
+from backend.app.routes.search import router as _search_router
+from backend.app.routes.watchlist import router as _watchlist_router
+
+app.include_router(_auth_router)
+app.include_router(_dashboard_router)
+app.include_router(_keys_router)
+app.include_router(_map_router)
+app.include_router(_neighborhood_router)
+app.include_router(_reports_router)
+app.include_router(_score_router)
+app.include_router(_search_router)
+app.include_router(_watchlist_router)
 
 # Log env var configuration state at startup so Railway logs surface
 # missing-variable problems immediately (values are never logged).
@@ -84,9 +65,13 @@ log.info(
     "set" if os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST") else "MISSING",
     "set" if os.environ.get("CLERK_SECRET_KEY") else "MISSING",
     os.environ.get("REQUIRE_API_KEY", "false"),
-    os.environ.get("FRONTEND_ORIGIN", "(not set — using hardcoded default)"),
+    os.environ.get("FRONTEND_ORIGIN", "(not set -- using hardcoded default)"),
 )
 
+
+# ---------------------------------------------------------------------------
+# Startup migrations
+# ---------------------------------------------------------------------------
 
 def _run_startup_migrations() -> None:
     """Idempotently create tables/columns that may be missing from the live DB."""
@@ -153,7 +138,7 @@ if _frontend_origin and _frontend_origin not in _allowed_origins:
 
 # Allow all Vercel preview/production deployments automatically so the
 # frontend works before FRONTEND_ORIGIN is explicitly configured in Railway.
-_allow_origin_regex = r"https://.*\.vercel\.app"
+_allow_origin_regex = r"https://livability-risk-engine.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
@@ -190,719 +175,59 @@ async def preflight_handler(rest_of_path: str, request: Request) -> JSONResponse
 
 
 # ---------------------------------------------------------------------------
-# Demo fallback response
-# Used when DB is not configured or geocoding fails.
-# Matches the approved example in docs/04_api_contracts.md exactly.
+# Health endpoints
 # ---------------------------------------------------------------------------
 
-DEMO_RESPONSE = {
-    "address": None,            # filled in at request time
-    "disruption_score": 62,
-    "livability_score": 48,
-    "livability_breakdown": {
-        "weights": {
-            "disruption_risk": 0.35,
-            "crime_trend": 0.25,
-            "school_rating": 0.20,
-            "demographics_stability": 0.10,
-            "flood_environmental": 0.10,
-        },
-        "components": {
-            "disruption_risk": {"raw_score": 38, "weighted_contribution": 13.3},
-            "crime_trend": {"raw_score": 55, "weighted_contribution": 13.8},
-            "school_rating": {"raw_score": 60, "weighted_contribution": 12.0},
-            "demographics_stability": {"raw_score": 52, "weighted_contribution": 5.2},
-            "flood_environmental": {"raw_score": 40, "weighted_contribution": 4.0},
-        },
-    },
-    "confidence": "MEDIUM",
-    "severity": {
-        "noise": "LOW",
-        "traffic": "HIGH",
-        "dust": "LOW",
-    },
-    "top_risks": [
-        "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
-        "Active closure window runs through 2026-03-22",
-        "Traffic is the dominant near-term disruption signal at this address",
-    ],
-    "explanation": (
-        "A nearby 2-lane closure is the main driver, so this address has "
-        "elevated short-term traffic disruption even though noise and dust "
-        "are limited."
-    ),
-    # Demo signals near 1600 W Chicago Ave (41.8956, -87.6606) for map heat layer.
-    "nearby_signals": [
-        {
-            "lat": 41.8959,
-            "lon": -87.6594,
-            "impact_type": "closure_multi_lane",
-            "title": "W Chicago Ave 2-lane eastbound closure",
-            "distance_m": 120,
-            "severity_hint": "HIGH",
-            "weight": 30.4,
-        },
-        {
-            "lat": 41.8962,
-            "lon": -87.6618,
-            "impact_type": "construction",
-            "title": "Active construction permit at 1550 W Chicago Ave",
-            "distance_m": 210,
-            "severity_hint": "MEDIUM",
-            "weight": 8.8,
-        },
-        {
-            "lat": 41.8948,
-            "lon": -87.6602,
-            "impact_type": "closure_single_lane",
-            "title": "Curb lane closure on S Ashland Ave",
-            "distance_m": 380,
-            "severity_hint": "MEDIUM",
-            "weight": 5.3,
-        },
-    ],
-}
-
-_LIVABILITY_WEIGHTS = {
-    "disruption_risk": float(os.environ.get("LIVABILITY_W_DISRUPTION", "0.35")),
-    "crime_trend": float(os.environ.get("LIVABILITY_W_CRIME", "0.25")),
-    "school_rating": float(os.environ.get("LIVABILITY_W_SCHOOL", "0.20")),
-    "demographics_stability": float(os.environ.get("LIVABILITY_W_DEMOGRAPHICS", "0.10")),
-    "flood_environmental": float(os.environ.get("LIVABILITY_W_FLOOD", "0.10")),
-}
-
-
-def _school_rating_to_score(v) -> float:
-    if v is None:
-        return 50.0
-    text = str(v).strip().upper()
-    if text in {"EXCELLENT", "LEVEL 1+"}:
-        return 92.0
-    if text in {"STRONG", "LEVEL 1"}:
-        return 78.0
-    if text in {"AVERAGE", "LEVEL 2"}:
-        return 58.0
-    if text in {"WEAK", "LEVEL 3"}:
-        return 34.0
-    if text in {"VERY WEAK", "LEVEL 4"}:
-        return 20.0
-    try:
-        n = float(text)
-        if n <= 5:
-            return max(0.0, min(100.0, n * 20.0))
-        return max(0.0, min(100.0, n))
-    except Exception:
-        return 50.0
-
-
-def _compute_livability_score(
-    *,
-    disruption_score: int,
-    neighborhood_context: dict | None,
-    lat: float,
-    lon: float,
-    conn,
-) -> tuple[int, dict]:
-    neighborhood_context = neighborhood_context or {}
-    weights = _LIVABILITY_WEIGHTS
-
-    # 1) disruption risk (inverted)
-    disruption_component = max(0.0, min(100.0, 100.0 - float(disruption_score)))
-
-    # 2) crime trend
-    trend = str(neighborhood_context.get("crime_trend") or "").upper()
-    crime_component = {"DECREASING": 85.0, "STABLE": 60.0, "INCREASING": 25.0}.get(trend, 50.0)
-    trend_pct = neighborhood_context.get("crime_trend_pct")
-    if trend_pct is not None:
-        crime_component = max(0.0, min(100.0, crime_component + float(trend_pct) * -0.4))
-
-    # 3) school rating (nearest school from neighborhood_quality)
-    school_component = 50.0
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT school_rating
-                FROM neighborhood_quality
-                WHERE region_type = 'school' AND geom IS NOT NULL
-                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (lon, lat),
-            )
-            row = cur.fetchone()
-            if row:
-                school_component = _school_rating_to_score(row[0])
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-    # 4) demographics/stability (income percentile + low vacancy)
-    demo_component = 50.0
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT income_percentile, vacancy_rate
-                FROM (
-                    SELECT
-                        region_id,
-                        median_income,
-                        vacancy_rate,
-                        cume_dist() OVER (ORDER BY median_income) AS income_percentile,
-                        geom
-                    FROM neighborhood_quality
-                    WHERE region_type = 'census_tract'
-                      AND geom IS NOT NULL
-                      AND median_income IS NOT NULL
-                ) q
-                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (lon, lat),
-            )
-            row = cur.fetchone()
-            if row:
-                income_pct = float(row[0]) if row[0] is not None else 0.5
-                vacancy = float(row[1]) if row[1] is not None else 8.0
-                vacancy_score = max(0.0, min(100.0, 100.0 - (vacancy * 8.0)))
-                demo_component = max(0.0, min(100.0, (income_pct * 100.0 * 0.65) + (vacancy_score * 0.35)))
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-    # 5) flood/environment
-    flood_risk = str(neighborhood_context.get("flood_risk") or "").upper()
-    flood_component = {"MINIMAL": 90.0, "MODERATE": 65.0, "HIGH": 25.0}.get(flood_risk, 50.0)
-
-    components = {
-        "disruption_risk": disruption_component,
-        "crime_trend": crime_component,
-        "school_rating": school_component,
-        "demographics_stability": demo_component,
-        "flood_environmental": flood_component,
-    }
-    weighted = {
-        k: round(v * weights[k], 1)
-        for k, v in components.items()
-    }
-    livability_score = int(round(sum(weighted.values())))
-    livability_score = max(0, min(100, livability_score))
-
-    return livability_score, {
-        "weights": weights,
-        "components": {
-            k: {"raw_score": round(components[k], 1), "weighted_contribution": weighted[k]}
-            for k in components
-        },
-    }
-
-
-def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
+@app.get("/health")
+def health() -> dict:
     """
-    Build a demo response for the given address.
-    fallback_reason explains why demo mode is active:
-      "db_not_configured" | "geocode_failed" | "scoring_error"
-    latitude/longitude are included when available so the frontend map can show
-    the correct pin even in demo mode.
-    """
-    return {
-        **DEMO_RESPONSE,
-        "address": address,
-        "mode": "demo",
-        "fallback_reason": fallback_reason,
-        "latitude": lat,
-        "longitude": lon,
-    }
+    Lightweight liveness probe for Railway's healthchecker.
 
-
-# ---------------------------------------------------------------------------
-# DB + scoring path (live mode)
-# ---------------------------------------------------------------------------
-
-def _is_db_configured() -> bool:
-    return bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_HOST"))
-
-
-# ---------------------------------------------------------------------------
-# API key auth  (data-027)
-#
-# Enabled by setting REQUIRE_API_KEY=true (or 1/yes) in the environment.
-# Off by default so existing usage is unaffected.
-#
-# Key format:  lre_<64 random hex chars>
-# Storage:     prefix (first 8 hex chars) + sha256(full key)
-# Header:      X-API-Key: lre_<...>
-# ---------------------------------------------------------------------------
-
-def _require_api_key_enabled() -> bool:
-    return os.environ.get("REQUIRE_API_KEY", "").lower() in ("1", "true", "yes")
-
-
-def _hash_key(full_key: str) -> str:
-    return hashlib.sha256(full_key.encode()).hexdigest()
-
-
-def _generate_api_key() -> tuple[str, str, str]:
-    """
-    Generate a new API key.
-    Returns (full_key, prefix, key_hash).
-      full_key:  returned to the operator once — never stored
-      prefix:    first 8 hex chars of random portion — stored for O(1) lookup
-      key_hash:  sha256(full_key) — stored for verification
-    """
-    random_portion = secrets.token_hex(32)   # 64 hex chars
-    prefix = random_portion[:8]
-    full_key = f"lre_{random_portion}"
-    return full_key, prefix, _hash_key(full_key)
-
-
-async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
-    """
-    FastAPI dependency for optional API key authentication.
-
-    When REQUIRE_API_KEY is not set (the default), this is a no-op and every
-    request passes through.  When enabled, the caller must supply a valid key
-    in the X-API-Key header.
-    """
-    if not _require_api_key_enabled():
-        return
-
-    if not x_api_key or not x_api_key.startswith("lre_"):
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-    random_portion = x_api_key[4:]    # strip "lre_"
-    if len(random_portion) < 8:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-    prefix = random_portion[:8]
-    submitted_hash = _hash_key(x_api_key)
-
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
-
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
-                    (prefix,),
-                )
-                row = cur.fetchone()
-                if row and row[1]:
-                    # Update usage counters — best-effort, non-blocking
-                    try:
-                        cur.execute(
-                            """UPDATE api_keys
-                               SET last_used_at = now(),
-                                   last_called_at = now(),
-                                   call_count = call_count + 1
-                               WHERE prefix = %s""",
-                            (prefix,),
-                        )
-                        conn.commit()
-                    except Exception:
-                        conn.rollback()
-        finally:
-            conn.close()
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("verify_api_key DB error: %s", exc)
-        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
-
-    if not row or not row[1] or row[0] != submitted_hash:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-
-# ---------------------------------------------------------------------------
-# /admin/keys endpoint  (data-027)
-# Protected by ADMIN_SECRET header. Creates a new API key and returns it
-# once. The raw key is never stored — only the sha256 hash is persisted.
-# ---------------------------------------------------------------------------
-
-@app.post("/admin/keys")
-def create_api_key(
-    label: str = Query(..., description="Human-readable label for this key"),
-    x_admin_secret: str | None = Header(None),
-) -> dict:
-    """
-    Create a new API key.
-
-    Requires the X-Admin-Secret header to match the ADMIN_SECRET env var.
-    Returns the raw key once — it cannot be retrieved again.
-
-    The key is stored as a sha256 hash; only the prefix is kept for lookup.
-    Activate API key enforcement by setting REQUIRE_API_KEY=true on the backend.
-    """
-    admin_secret = os.environ.get("ADMIN_SECRET", "")
-    if not admin_secret or x_admin_secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Database not configured")
-
-    full_key, prefix, key_hash = _generate_api_key()
-
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO api_keys (prefix, key_hash, label)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (prefix, key_hash, label.strip()),
-                )
-                conn.commit()
-        finally:
-            conn.close()
-    except Exception as exc:
-        log.error("create_api_key DB error: %s", exc)
-        raise HTTPException(status_code=503, detail="Could not persist API key") from exc
-
-    log.info("create_api_key label=%r prefix=%s", label, prefix)
-    return {
-        "key": full_key,
-        "prefix": prefix,
-        "label": label.strip(),
-        "note": "Store this key securely — it cannot be retrieved again.",
-    }
-
-
-# ---------------------------------------------------------------------------
-# /usage endpoint  (data-043)
-# Returns call count and last-called timestamp for the authenticated key.
-# Requires a valid API key in X-API-Key header (same as /score).
-# ---------------------------------------------------------------------------
-
-@app.get("/usage", dependencies=[Depends(verify_api_key)])
-def get_usage(x_api_key: str | None = Header(None)) -> dict:
-    """
-    Return usage metrics for the authenticated API key.
+    Responds immediately -- does NOT attempt a DB connection so the endpoint
+    always returns within milliseconds regardless of DB state.
 
     Fields:
-      prefix:         first 8 chars of your key (safe to share)
-      label:          human-readable label set when the key was created
-      call_count:     total number of authenticated /score calls made with this key
-      last_called_at: ISO timestamp of the most recent /score call (null if never called)
+      status:        always "ok"
+      mode:          "live" if DATABASE_URL or POSTGRES_HOST is set, else "unconfigured"
+      db_configured: true if DATABASE_URL or POSTGRES_HOST env var is present
     """
-    if not x_api_key or not x_api_key.startswith("lre_"):
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-    prefix = x_api_key[4:][:8]
-
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT prefix, label, call_count, last_called_at FROM api_keys WHERE prefix = %s",
-                    (prefix,),
-                )
-                row = cur.fetchone()
-        finally:
-            conn.close()
-    except Exception as exc:
-        log.error("get_usage DB error: %s", exc)
-        raise HTTPException(status_code=503, detail="Usage service temporarily unavailable") from exc
-
-    if not row:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
+    db_configured = _is_db_configured()
     return {
-        "prefix": row[0],
-        "label": row[1],
-        "call_count": row[2],
-        "last_called_at": row[3].isoformat() if row[3] else None,
+        "status": "ok",
+        "mode": "live" if db_configured else "unconfigured",
+        "db_configured": db_configured,
     }
 
 
-# ---------------------------------------------------------------------------
-# /docs/api-access endpoint  (data-027)
-# Public — returns information about how to obtain and use an API key.
-# ---------------------------------------------------------------------------
-
-@app.get("/docs/api-access")
-def api_access_info() -> dict:
+@app.get("/health/db")
+def health_db() -> dict:
     """
-    Public documentation endpoint for B2B API access.
+    DB connectivity probe for operators and CI.  Separate from /health so the
+    Railway liveness check is never blocked by a slow or unavailable DB.
 
-    Returns information about how to authenticate requests when API key
-    enforcement is active.  Does not require auth.
+    Fields:
+      status:             always "ok" (endpoint never hard-fails)
+      db_configured:      true if DATABASE_URL or POSTGRES_HOST env var is present
+      db_connection:      true if a live DB ping succeeded
+      db_error:           error string if db_connection is false (omitted on success)
+      last_ingest_at:     ISO timestamp of the most recent finished ingest run (null if none)
+      last_ingest_status: "success" | "failed" | "running" from the most recent run (null if none)
+      last_ingest_count:  active project count recorded at end of the last run (null if none)
     """
-    return {
-        "auth_required": _require_api_key_enabled(),
-        "header": "X-API-Key",
-        "key_format": "lre_<64 hex chars>",
-        "how_to_obtain": (
-            "Contact the platform operator to request an API key. "
-            "Keys are provisioned via POST /admin/keys."
-        ),
-        "usage_example": "curl -H 'X-API-Key: lre_...' '<base_url>/score?address=...'",
-        "docs": "https://github.com/peterarriz/livability-risk-engine",
-    }
+    db_configured = _is_db_configured()
+    db_connection = False
+    db_error = None
+    last_ingest_at = None
+    last_ingest_status = None
+    last_ingest_count = None
 
-
-def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict:
-    """
-    Full live scoring path:
-      1. Confirm the canonical DB is reachable
-      2. Geocode address → (lat, lon)
-      3. Query nearby projects from canonical DB
-      4. Apply scoring engine → ScoreResult
-      5. Query neighborhood quality context (data-040) — non-fatal if table absent
-      6. Enrich top_risk_details with Claude-rewritten titles (data-042, cache-first)
-      7. Return as dict matching API contract (includes latitude/longitude)
-    """
-    from backend.ingest.geocode import geocode_address
-    from backend.scoring.query import (
-        compute_score,
-        get_db_connection,
-        get_nearby_crime_signals,
-        get_nearby_projects,
-        get_nearby_schools,
-        get_neighborhood_context,
-    )
-    from backend.scoring.rewrite import enrich_top_risk_details
-
-    conn = get_db_connection()
-    try:
-        resolved_coords = coords
-        if resolved_coords is None:
-            resolved_coords = geocode_address(address)
-        if not resolved_coords:
-            raise ValueError(f"Could not geocode address: {address!r}")
-
-        lat, lon = resolved_coords
-        nearby = get_nearby_projects(lat, lon, conn)
-
-        # Neighborhood quality context (data-040).
-        # Non-fatal: returns None if neighborhood_quality table is not yet populated.
-        neighborhood_context = None
+    if db_configured:
         try:
-            neighborhood_context = get_neighborhood_context(lat, lon, conn)
-        except Exception as nq_exc:
-            log.debug("neighborhood_context lookup skipped: %s", nq_exc)
+            from backend.scoring.query import get_db_connection
+            conn = get_db_connection()
+            db_connection = True
             try:
-                conn.rollback()
-            except Exception:
-                pass
-
-        result = compute_score(nearby, address)
-        livability_score, livability_breakdown = _compute_livability_score(
-            disruption_score=result.disruption_score,
-            neighborhood_context=neighborhood_context,
-            lat=lat,
-            lon=lon,
-            conn=conn,
-        )
-        result_dict = {
-            **asdict(result),
-            "livability_score": livability_score,
-            "livability_breakdown": livability_breakdown,
-            "mode": "live",
-            "fallback_reason": None,
-            "latitude": lat,
-            "longitude": lon,
-            "neighborhood_context": neighborhood_context,
-        }
-
-        # Crime trend map signal (data-054). Non-fatal if table absent.
-        try:
-            crime_signals = get_nearby_crime_signals(lat, lon, conn)
-            if crime_signals:
-                result_dict["nearby_signals"] = (
-                    result_dict.get("nearby_signals") or []
-                ) + crime_signals
-        except Exception as crime_exc:
-            log.debug("crime_signals lookup skipped: %s", crime_exc)
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-        # Nearby schools for map layer (data-061). Non-fatal if table absent.
-        try:
-            result_dict["nearby_schools"] = get_nearby_schools(lat, lon, conn)
-        except Exception as school_exc:
-            log.debug("nearby_schools lookup skipped: %s", school_exc)
-            result_dict["nearby_schools"] = []
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-        # Enrich top_risk_details with Claude-rewritten titles and descriptions
-        # (data-042).  Cache-first: only calls Claude for project_ids not yet
-        # seen.  Non-fatal: falls back gracefully when API key is absent.
-        result_dict["top_risk_details"] = enrich_top_risk_details(
-            result_dict.get("top_risk_details") or [], conn
-        )
-    finally:
-        conn.close()
-
-    return result_dict
-
-
-# ---------------------------------------------------------------------------
-# Score history helpers  (data-025)
-# ---------------------------------------------------------------------------
-
-def _write_score_history(address: str, result: dict) -> None:
-    """
-    Persist a live /score result to the score_history table.
-    Intended for use as a BackgroundTask — failures are logged but not raised.
-    Only live-mode scores are written; demo results are silently skipped.
-    """
-    if result.get("mode") != "live":
-        return
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO score_history (
-                        address, disruption_score, livability_score, livability_breakdown,
-                        confidence, mode, latitude, longitude
-                    )
-                    VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s)
-                    """,
-                    (
-                        address,
-                        result["disruption_score"],
-                        result.get("livability_score", result["disruption_score"]),
-                        json.dumps(result.get("livability_breakdown") or {}),
-                        result["confidence"],
-                        result.get("mode", "live"),
-                        result.get("latitude"),
-                        result.get("longitude"),
-                    ),
-                )
-            conn.commit()
-        finally:
-            conn.close()
-        log.debug("score_history written address=%r score=%s", address, result["disruption_score"])
-    except Exception as exc:
-        log.warning("score_history write failed address=%r error=%s", address, exc)
-
-
-# ---------------------------------------------------------------------------
-# Batch scoring helpers  (data-045)
-# ---------------------------------------------------------------------------
-
-# Maximum addresses allowed in a single batch request.
-_BATCH_MAX = 200
-
-# Parallelism limit for geocoding + scoring worker threads.
-_BATCH_WORKERS = 10
-
-
-async def require_api_key(x_api_key: str | None = Header(None)) -> None:
-    """
-    Strict API key enforcement — always required, regardless of REQUIRE_API_KEY env var.
-    Used for batch endpoints where unauthenticated access is never permitted.
-    """
-    if not x_api_key or not x_api_key.startswith("lre_"):
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-    random_portion = x_api_key[4:]
-    if len(random_portion) < 8:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-    prefix = random_portion[:8]
-    submitted_hash = _hash_key(x_api_key)
-
-    if not _is_db_configured():
-        raise HTTPException(status_code=503, detail="Auth service unavailable (DB not configured)")
-
-    row = None
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT key_hash, is_active FROM api_keys WHERE prefix = %s",
-                    (prefix,),
-                )
-                row = cur.fetchone()
-                if row and row[1]:
-                    try:
-                        cur.execute(
-                            """UPDATE api_keys
-                               SET last_used_at = now(),
-                                   last_called_at = now(),
-                                   call_count = call_count + 1
-                               WHERE prefix = %s""",
-                            (prefix,),
-                        )
-                        conn.commit()
-                    except Exception:
-                        conn.rollback()
-        finally:
-            conn.close()
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("require_api_key DB error: %s", exc)
-        raise HTTPException(status_code=503, detail="Auth service unavailable") from exc
-
-    if not row or not row[1] or row[0] != submitted_hash:
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
-
-
-class BatchScoreRequest(BaseModel):
-    addresses: list[str]
-
-
-def _score_one(address: str) -> dict:
-    """
-    Score a single address. Returns a result dict with an 'error' key on failure.
-    Designed to run inside a ThreadPoolExecutor worker.
-    """
-    try:
-        result = _score_live(address)
-        result.pop("nearby_signals", None)  # not included in batch output
-        return result
-    except Exception as exc:
-        return {
-            "address": address,
-            "disruption_score": None,
-            "confidence": None,
-            "severity": None,
-            "top_risks": None,
-            "explanation": None,
-            "mode": None,
-            "error": str(exc),
-        }
-
-
-def _write_batch_history(results: list[dict], batch_id: str) -> None:
-    """
-    Persist live-mode results from a batch request to score_history.
-    Writes all successful results in a single connection; failures are skipped.
-    """
-    live_results = [r for r in results if r.get("mode") == "live" and r.get("disruption_score") is not None]
-    if not live_results:
-        return
-    try:
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                for r in live_results:
+                with conn.cursor() as cur:
                     cur.execute(
                         """
                         INSERT INTO score_history (

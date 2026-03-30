@@ -129,6 +129,11 @@ CITY_CONFIGS: list[dict] = [
         # San Antonio — Building Permits (verified 2026-03-27).
         # Portal: https://data.sanantonio.gov
         # Package: building-permits, resource: PERMITS ISSUED (101,274 records).
+        # where_extra excludes permit types that are ungeocodeable:
+        #   - Plumbing Irrigation Permit (8,260 — new subdivision streets not in geocoder)
+        #   - Tree Affidavit Permit (2,221 — often no address or informal lot refs)
+        #   - Tree Permit (493 — same issue)
+        #   - On Premise Sign (2,409 — sign permits, low scoring value)
         "city_name":        "San Antonio",
         "source_key":       "san_antonio",
         "domain":           "data.sanantonio.gov",
@@ -143,6 +148,7 @@ CITY_CONFIGS: list[dict] = [
         "addr_field":       "ADDRESS",
         "city_state":       "San Antonio, TX",
         "discover_query":   "building permit",
+        "where_extra":      "\"PERMIT TYPE\" NOT IN ('Plumbing Irrigation Permit','Tree Affidavit Permit','Tree Permit','On Premise Sign')",
     },
     # -----------------------------------------------------------------
     # REMOVED — San Diego (verified 2026-03-27):
@@ -243,9 +249,11 @@ def fetch_page_sql(
     resource_id = config["resource_id"]
     date_field  = config["issue_date_field"]
 
+    where_extra = config.get("where_extra", "")
+    extra_clause = f" AND {where_extra}" if where_extra else ""
     sql = (
         f'SELECT * FROM "{resource_id}" '
-        f'WHERE "{date_field}" >= \'{cutoff_str}\' '
+        f'WHERE "{date_field}" >= \'{cutoff_str}\'{extra_clause} '
         f'ORDER BY "{date_field}" DESC '
         f'LIMIT {limit} OFFSET {offset}'
     )
@@ -378,6 +386,16 @@ def fetch_city_permits(
                     r for r in records
                     if _record_after_cutoff(r, date_field, cutoff_str)
                 ]
+
+            # Apply client-side type exclusion (mirrors where_extra for plain mode).
+            where_extra = config.get("where_extra", "")
+            if where_extra and "NOT IN" in where_extra:
+                # Parse excluded types from where_extra string
+                import re
+                excluded = set(re.findall(r"'([^']+)'", where_extra))
+                type_field = config.get("type_field")
+                if excluded and type_field:
+                    records = [r for r in records if r.get(type_field) not in excluded]
 
             all_records.extend(records)
             offset += PAGE_SIZE  # CKAN offset is always step-by-page-size

@@ -3,8 +3,8 @@ backend/ingest/census_acs.py
 task: data-052
 lane: data
 
-Ingests Census ACS 5-year demographic data for all census tracts in every
-county containing an active permit city.
+Ingests Census ACS 5-year demographic data for ALL US census tracts
+nationally (~85,000 tracts across 52 states/territories).
 No API key required for basic Census Bureau queries.
 
 Sources:
@@ -20,44 +20,16 @@ Variables fetched:
   B25002_003E  Vacant housing units  (→ vacancy_rate computed from these two)
   B25035_001E  Median year structure built
 
-Counties covered (state_fips, county_fips, label):
-  Cook County, IL          (17, 031) — Chicago
-  Los Angeles County, CA   (06, 037) — Los Angeles
-  King County, WA          (53, 033) — Seattle
-  Travis County, TX        (48, 453) — Austin
-  Suffolk County, MA       (25, 025) — Boston
-  Franklin County, OH      (39, 049) — Columbus
-  Maricopa County, AZ      (04, 013) — Phoenix
-  Davidson County, TN      (47, 037) — Nashville
-  Baltimore City, MD       (24, 510)
-  Mecklenburg County, NC   (37, 119) — Charlotte
-  Hennepin County, MN      (27, 053) — Minneapolis
-  San Francisco County, CA (06, 075)
-  New York County, NY      (36, 061) — Manhattan
-  Kings County, NY         (36, 047) — Brooklyn
-  Queens County, NY        (36, 081)
-  Bronx County, NY         (36, 005)
-  Richmond County, NY      (36, 085) — Staten Island
-  Clark County, NV         (32, 003) — Las Vegas
-  Pima County, AZ          (04, 019) — Tucson
-  Sacramento County, CA    (06, 067)
-  Jackson County, MO       (29, 095) — Kansas City
-  Denver County, CO        (08, 031)
-  Milwaukee County, WI     (55, 079)
-  Duval County, FL         (12, 031) — Jacksonville
-  Tarrant County, TX       (48, 439) — Fort Worth
-  Marion County, IN        (18, 097) — Indianapolis
-  Santa Clara County, CA   (06, 085) — San Jose
-  Bernalillo County, NM    (35, 001) — Albuquerque
-  Wake County, NC          (37, 183) — Raleigh
+Coverage: all 50 US states + DC + Puerto Rico (52 state FIPS codes).
+Fetched state-by-state — each ACS call returns all tracts in one state.
 
 Output:
   data/raw/census_acs.json — census tract demographic records with centroids
-                             (all active-permit counties combined)
 
 Usage:
   python backend/ingest/census_acs.py
   python backend/ingest/census_acs.py --dry-run
+  python backend/ingest/census_acs.py --states IL,CA,TX   # test subset
 """
 
 from __future__ import annotations
@@ -80,39 +52,37 @@ TIGER_TRACTS_URL = (
     "tigerWMS_Current/MapServer/8/query"
 )
 
-# All counties containing an active permit city.
-# Each entry: (state_fips, county_fips, label)
-COUNTIES: list[tuple[str, str, str]] = [
-    ("17", "031", "Cook County, IL"),
-    ("06", "037", "Los Angeles County, CA"),
-    ("53", "033", "King County, WA"),
-    ("48", "453", "Travis County, TX"),
-    ("25", "025", "Suffolk County, MA"),
-    ("39", "049", "Franklin County, OH"),
-    ("04", "013", "Maricopa County, AZ"),
-    ("47", "037", "Davidson County, TN"),
-    ("24", "510", "Baltimore City, MD"),
-    ("37", "119", "Mecklenburg County, NC"),
-    ("27", "053", "Hennepin County, MN"),
-    ("06", "075", "San Francisco County, CA"),
-    ("36", "061", "New York County, NY"),
-    ("36", "047", "Kings County, NY"),
-    ("36", "081", "Queens County, NY"),
-    ("36", "005", "Bronx County, NY"),
-    ("36", "085", "Richmond County, NY"),
-    ("32", "003", "Clark County, NV"),
-    ("04", "019", "Pima County, AZ"),
-    ("06", "067", "Sacramento County, CA"),
-    ("29", "095", "Jackson County, MO"),
-    ("08", "031", "Denver County, CO"),
-    ("55", "079", "Milwaukee County, WI"),
-    ("12", "031", "Duval County, FL"),
-    ("48", "439", "Tarrant County, TX"),
-    ("18", "097", "Marion County, IN"),
-    ("06", "085", "Santa Clara County, CA"),
-    ("35", "001", "Bernalillo County, NM"),
-    ("37", "183", "Wake County, NC"),
+# All 52 US states + DC + PR by FIPS code.
+# Census ACS API accepts state FIPS; we query for=tract:* in=state:XX.
+ALL_STATES: list[tuple[str, str]] = [
+    ("01", "Alabama"), ("02", "Alaska"), ("04", "Arizona"), ("05", "Arkansas"),
+    ("06", "California"), ("08", "Colorado"), ("09", "Connecticut"), ("10", "Delaware"),
+    ("11", "District of Columbia"), ("12", "Florida"), ("13", "Georgia"), ("15", "Hawaii"),
+    ("16", "Idaho"), ("17", "Illinois"), ("18", "Indiana"), ("19", "Iowa"),
+    ("20", "Kansas"), ("21", "Kentucky"), ("22", "Louisiana"), ("23", "Maine"),
+    ("24", "Maryland"), ("25", "Massachusetts"), ("26", "Michigan"), ("27", "Minnesota"),
+    ("28", "Mississippi"), ("29", "Missouri"), ("30", "Montana"), ("31", "Nebraska"),
+    ("32", "Nevada"), ("33", "New Hampshire"), ("34", "New Jersey"), ("35", "New Mexico"),
+    ("36", "New York"), ("37", "North Carolina"), ("38", "North Dakota"), ("39", "Ohio"),
+    ("40", "Oklahoma"), ("41", "Oregon"), ("42", "Pennsylvania"), ("44", "Rhode Island"),
+    ("45", "South Carolina"), ("46", "South Dakota"), ("47", "Tennessee"), ("48", "Texas"),
+    ("49", "Utah"), ("50", "Vermont"), ("51", "Virginia"), ("53", "Washington"),
+    ("54", "West Virginia"), ("55", "Wisconsin"), ("56", "Wyoming"),
+    ("72", "Puerto Rico"),
 ]
+
+# Abbreviation → FIPS lookup for --states filter
+_STATE_ABBREV_TO_FIPS: dict[str, str] = {
+    "AL": "01", "AK": "02", "AZ": "04", "AR": "05", "CA": "06", "CO": "08",
+    "CT": "09", "DE": "10", "DC": "11", "FL": "12", "GA": "13", "HI": "15",
+    "ID": "16", "IL": "17", "IN": "18", "IA": "19", "KS": "20", "KY": "21",
+    "LA": "22", "ME": "23", "MD": "24", "MA": "25", "MI": "26", "MN": "27",
+    "MS": "28", "MO": "29", "MT": "30", "NE": "31", "NV": "32", "NH": "33",
+    "NJ": "34", "NM": "35", "NY": "36", "NC": "37", "ND": "38", "OH": "39",
+    "OK": "40", "OR": "41", "PA": "42", "RI": "44", "SC": "45", "SD": "46",
+    "TN": "47", "TX": "48", "UT": "49", "VT": "50", "VA": "51", "WA": "53",
+    "WV": "54", "WI": "55", "WY": "56", "PR": "72",
+}
 
 # Census ACS variables: code → field name in output record
 ACS_VARS = {
@@ -134,35 +104,32 @@ DEFAULT_OUTPUT_PATH = Path("data/raw/census_acs.json")
 # ACS data fetch — single county
 # ---------------------------------------------------------------------------
 
-def fetch_acs_data_for_county(
+def fetch_acs_data_for_state(
     state_fips: str,
-    county_fips: str,
     label: str,
     dry_run: bool,
 ) -> dict[str, dict]:
     """
-    Fetch Census ACS variables for all census tracts in one county.
+    Fetch Census ACS variables for all census tracts in one state.
     Returns a dict: tract_fips (str) → {variable_name: value, ...}
     """
-    print(f"  Fetching ACS data for {label} (state={state_fips}, county={county_fips})...")
-
     var_list = ",".join(ACS_VARS.keys())
     params = {
         "get": var_list,
         "for": "tract:*",
-        "in": f"state:{state_fips} county:{county_fips}",
+        "in": f"state:{state_fips}",
     }
 
     try:
-        resp = requests.get(ACS_API_URL, params=params, timeout=60)
+        resp = requests.get(ACS_API_URL, params=params, timeout=120)
         resp.raise_for_status()
         rows = resp.json()
     except Exception as exc:
-        print(f"    WARN: ACS fetch failed for {label}: {exc}", file=sys.stderr)
+        print(f"  WARN: ACS fetch failed for {label}: {exc}", file=sys.stderr)
         return {}
 
     if not rows or len(rows) < 2:
-        print(f"    WARN: Census ACS API returned no data rows for {label}.", file=sys.stderr)
+        print(f"  WARN: Census ACS API returned no data rows for {label}.", file=sys.stderr)
         return {}
 
     headers = rows[0]
@@ -170,13 +137,13 @@ def fetch_acs_data_for_county(
 
     if dry_run:
         data_rows = data_rows[:5]
-        print(f"    Dry-run: limiting to {len(data_rows)} tracts.")
 
     result: dict[str, dict] = {}
     for row in data_rows:
         row_dict = dict(zip(headers, row))
+        county_fips = str(row_dict.get("county", "") or "").strip().zfill(3)
         tract_num = str(row_dict.get("tract", "") or "").strip().zfill(6)
-        if not tract_num:
+        if not tract_num or not county_fips:
             continue
 
         tract_fips = f"{state_fips}{county_fips}{tract_num}"
@@ -205,22 +172,23 @@ def fetch_acs_data_for_county(
         record["tract_num"] = tract_num
         result[tract_fips] = record
 
-    print(f"    Fetched ACS data for {len(result)} tracts in {label}.")
     return result
 
 
-def fetch_acs_data(dry_run: bool) -> dict[str, dict]:
+def fetch_acs_data(states: list[tuple[str, str]], dry_run: bool) -> dict[str, dict]:
     """
-    Fetch Census ACS variables for all census tracts in all active-permit counties.
+    Fetch Census ACS variables for all census tracts in the given states.
     Returns a combined dict: tract_fips (str) → {variable_name: value, ...}
     """
-    print(f"Fetching Census ACS 5-year data for {len(COUNTIES)} counties...")
+    print(f"Fetching Census ACS 5-year data for {len(states)} states...")
     combined: dict[str, dict] = {}
-    for state_fips, county_fips, label in COUNTIES:
-        county_data = fetch_acs_data_for_county(state_fips, county_fips, label, dry_run)
-        combined.update(county_data)
+    for i, (state_fips, label) in enumerate(states, 1):
+        print(f"  [{i}/{len(states)}] {label} (FIPS {state_fips})...", end=" ", flush=True)
+        state_data = fetch_acs_data_for_state(state_fips, label, dry_run)
+        combined.update(state_data)
+        print(f"{len(state_data)} tracts.")
 
-    print(f"  Total ACS tracts fetched across all counties: {len(combined)}")
+    print(f"  Total ACS tracts fetched: {len(combined)}")
     return combined
 
 
@@ -228,13 +196,12 @@ def fetch_acs_data(dry_run: bool) -> dict[str, dict]:
 # TIGER tract centroid fetch — single county
 # ---------------------------------------------------------------------------
 
-def fetch_tract_centroids_for_county(
+def fetch_tract_centroids_for_state(
     state_fips: str,
-    county_fips: str,
     label: str,
 ) -> dict[str, tuple[float, float]]:
     """
-    Fetch internal point (centroid) lat/lon for census tracts in one county
+    Fetch internal point (centroid) lat/lon for all census tracts in one state
     from the Census TIGER web services (layer 8 = Census Tracts).
     Returns a dict: tract_fips → (lat, lon)
     """
@@ -243,8 +210,8 @@ def fetch_tract_centroids_for_county(
 
     while True:
         params = {
-            "where": f"STATE='{state_fips}' AND COUNTY='{county_fips}'",
-            "outFields": "TRACT,INTPTLAT,INTPTLON",
+            "where": f"STATE='{state_fips}'",
+            "outFields": "STATE,COUNTY,TRACT,INTPTLAT,INTPTLON",
             "returnGeometry": "false",
             "resultRecordCount": TIGER_PAGE_SIZE,
             "resultOffset": offset,
@@ -252,25 +219,23 @@ def fetch_tract_centroids_for_county(
         }
 
         try:
-            resp = requests.get(TIGER_TRACTS_URL, params=params, timeout=30)
+            resp = requests.get(TIGER_TRACTS_URL, params=params, timeout=120)
             resp.raise_for_status()
         except Exception as exc:
-            print(f"    WARN: TIGER API request failed for {label}: {exc}", file=sys.stderr)
+            print(f"\n    WARN: TIGER API failed for {label} at offset {offset}: {exc}", file=sys.stderr)
             break
 
         data = resp.json()
         if "error" in data:
             err = data["error"]
-            print(
-                f"    WARN: TIGER API error for {label}: {err.get('message', err)}",
-                file=sys.stderr,
-            )
+            print(f"\n    WARN: TIGER error for {label}: {err.get('message', err)}", file=sys.stderr)
             break
 
         features = data.get("features", [])
 
         for feat in features:
             attrs = feat.get("attributes", {})
+            county_fips = str(attrs.get("COUNTY") or "").strip().zfill(3)
             tract_num = str(attrs.get("TRACT") or "").strip().zfill(6)
             lat_raw = attrs.get("INTPTLAT")
             lon_raw = attrs.get("INTPTLON")
@@ -292,20 +257,20 @@ def fetch_tract_centroids_for_county(
     return centroids
 
 
-def fetch_tract_centroids() -> dict[str, tuple[float, float]]:
+def fetch_tract_centroids(states: list[tuple[str, str]]) -> dict[str, tuple[float, float]]:
     """
-    Fetch internal point (centroid) lat/lon for all active-permit county tracts.
+    Fetch internal point (centroid) lat/lon for all tracts in the given states.
     Returns a combined dict: tract_fips → (lat, lon)
     """
-    print(f"Fetching census tract centroids for {len(COUNTIES)} counties from TIGER...")
+    print(f"Fetching census tract centroids for {len(states)} states from TIGER...")
     combined: dict[str, tuple[float, float]] = {}
-    for state_fips, county_fips, label in COUNTIES:
-        print(f"  Fetching centroids for {label}...", end=" ", flush=True)
-        county_centroids = fetch_tract_centroids_for_county(state_fips, county_fips, label)
-        print(f"{len(county_centroids)} tracts.")
-        combined.update(county_centroids)
+    for i, (state_fips, label) in enumerate(states, 1):
+        print(f"  [{i}/{len(states)}] {label}...", end=" ", flush=True)
+        state_centroids = fetch_tract_centroids_for_state(state_fips, label)
+        print(f"{len(state_centroids)} tracts.")
+        combined.update(state_centroids)
 
-    print(f"  Total centroids fetched across all counties: {len(combined)}")
+    print(f"  Total centroids fetched: {len(combined)}")
     return combined
 
 
@@ -349,7 +314,6 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
         "source": "census_acs",
         "source_url": ACS_API_URL,
         "ingested_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "county_count": len(COUNTIES),
         "record_count": len(records),
         "records": records,
     }
@@ -365,8 +329,8 @@ def write_staging_file(records: list[dict], output_path: Path) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Ingest Census ACS 5-year demographics for all census tracts "
-            "in every county containing an active permit city."
+            "Ingest Census ACS 5-year demographics for all US census tracts "
+            "nationally (~85,000 tracts across 52 states/territories)."
         )
     )
     parser.add_argument(
@@ -378,16 +342,46 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Fetch limited data (5 tracts per county); do not write output file.",
+        help="Fetch limited data (5 tracts per state); do not write output file.",
+    )
+    parser.add_argument(
+        "--states",
+        type=str,
+        default=None,
+        help="Comma-separated state abbreviations to fetch (e.g. IL,CA,TX). Default: all 52.",
     )
     return parser.parse_args()
 
 
+def _resolve_states(states_arg: str | None) -> list[tuple[str, str]]:
+    """Resolve --states filter to a list of (fips, label) tuples."""
+    if not states_arg:
+        return ALL_STATES
+
+    abbrevs = [s.strip().upper() for s in states_arg.split(",") if s.strip()]
+    result = []
+    for abbr in abbrevs:
+        fips = _STATE_ABBREV_TO_FIPS.get(abbr)
+        if fips:
+            label = next((l for f, l in ALL_STATES if f == fips), abbr)
+            result.append((fips, label))
+        else:
+            print(f"  WARN: unknown state abbreviation '{abbr}', skipping.", file=sys.stderr)
+    return result
+
+
 def main() -> None:
     args = parse_args()
+    states = _resolve_states(args.states)
+
+    if not states:
+        print("ERROR: no valid states to fetch.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Census ACS national ingest — {len(states)} states")
 
     try:
-        acs_data = fetch_acs_data(args.dry_run)
+        acs_data = fetch_acs_data(states, args.dry_run)
     except Exception as exc:
         print(f"ERROR: Census ACS fetch failed — {exc}", file=sys.stderr)
         sys.exit(1)
@@ -397,7 +391,7 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        centroids = fetch_tract_centroids()
+        centroids = fetch_tract_centroids(states)
     except Exception as exc:
         print(
             f"WARN: TIGER centroid fetch failed — {exc}. Records will have no geom.",
