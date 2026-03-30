@@ -1537,37 +1537,9 @@ async function getSessionAuthHeaders(): Promise<Record<string, string>> {
   return {};
 }
 
-// Shape returned by /auth/register, /auth/login, /auth/google
-export type AuthResponse = {
-  account_id: number;
-  email: string;
-  display_name: string | null;
-  token: string;
-};
-
-// Shape returned by /auth/me
-export type AuthUser = {
-  account_id: string;
-  email: string;
-  name: string | null;
-};
-
-/**
- * Fetch the current user's profile from the backend.
- * Returns null if the token is missing or invalid (unauthenticated).
- */
-export async function fetchAuthMe(backendToken: string): Promise<AuthUser | null> {
-  try {
-    const resp = await fetch(buildApiUrl("/auth/me").toString(), {
-      headers: getAuthHeaders(backendToken),
-      cache: "no-store",
-    });
-    if (!resp.ok) return null;
-    return (await resp.json()) as AuthUser;
-  } catch {
-    return null;
-  }
-}
+// Custom auth types/functions removed (2026-03-30) — replaced by Clerk.
+// AuthResponse (/auth/register, /auth/login, /auth/google) and
+// AuthUser (/auth/me) types removed. Use Clerk useUser() instead.
 
 // ---------------------------------------------------------------------------
 // API key management  (app-025)
