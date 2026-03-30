@@ -63,8 +63,8 @@ _DEBUG_SEARCH_FLOW = os.environ.get("DEBUG_SEARCH_FLOW", "").strip().lower() in 
 # Keys are fetched once from <issuer>/.well-known/jwks.json and reused for
 # all subsequent JWT verifications.  TTL = 1 hour; auto-refreshed on miss.
 # ---------------------------------------------------------------------------
-_JWKS_CACHE: dict = {}
-_JWKS_CACHE_TTL = 3600  # seconds
+# Clerk JWT verification moved to backend.app.services.clerk
+from backend.app.services.clerk import _verify_clerk_jwt  # noqa: E402
 
 
 def _debug_search_flow(stage: str, **payload) -> None:
@@ -197,184 +197,16 @@ async def preflight_handler(rest_of_path: str, request: Request) -> JSONResponse
 from backend.app.deps import DEMO_RESPONSE  # noqa: E402
 from backend.app.deps import _build_demo_response  # noqa: E402
 
-_LIVABILITY_WEIGHTS = {
-    "disruption_risk": float(os.environ.get("LIVABILITY_W_DISRUPTION", "0.35")),
-    "crime_trend": float(os.environ.get("LIVABILITY_W_CRIME", "0.25")),
-    "school_rating": float(os.environ.get("LIVABILITY_W_SCHOOL", "0.20")),
-    "demographics_stability": float(os.environ.get("LIVABILITY_W_DEMOGRAPHICS", "0.10")),
-    "flood_environmental": float(os.environ.get("LIVABILITY_W_FLOOD", "0.10")),
-}
+# Livability scoring moved to backend.app.services.livability
+from backend.app.services.livability import (  # noqa: E402
+    _LIVABILITY_WEIGHTS,
+    _school_rating_to_score,
+    _compute_livability_score,
+    _extract_zip,
+)
 
 
-def _school_rating_to_score(v) -> float:
-    if v is None:
-        return 50.0
-    text = str(v).strip().upper()
-    if text in {"EXCELLENT", "LEVEL 1+"}:
-        return 92.0
-    if text in {"STRONG", "LEVEL 1"}:
-        return 78.0
-    if text in {"AVERAGE", "LEVEL 2"}:
-        return 58.0
-    if text in {"WEAK", "LEVEL 3"}:
-        return 34.0
-    if text in {"VERY WEAK", "LEVEL 4"}:
-        return 20.0
-    try:
-        n = float(text)
-        if n <= 5:
-            return max(0.0, min(100.0, n * 20.0))
-        return max(0.0, min(100.0, n))
-    except Exception:
-        return 50.0
-
-
-def _compute_livability_score(
-    *,
-    disruption_score: int,
-    neighborhood_context: dict | None,
-    lat: float,
-    lon: float,
-    conn,
-    zip_code: str | None = None,
-) -> tuple[int, dict]:
-    neighborhood_context = neighborhood_context or {}
-    weights = _LIVABILITY_WEIGHTS
-
-    # 1) disruption risk (inverted)
-    disruption_component = max(0.0, min(100.0, 100.0 - float(disruption_score)))
-
-    # 2) crime trend
-    trend = str(neighborhood_context.get("crime_trend") or "").upper()
-    crime_component = {"DECREASING": 85.0, "STABLE": 60.0, "INCREASING": 25.0}.get(trend, 50.0)
-    trend_pct = neighborhood_context.get("crime_trend_pct")
-    if trend_pct is not None:
-        crime_component = max(0.0, min(100.0, crime_component + float(trend_pct) * -0.4))
-
-    # 3) school rating (nearest school from neighborhood_quality)
-    school_component = 50.0
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT school_rating
-                FROM neighborhood_quality
-                WHERE region_type = 'school' AND geom IS NOT NULL
-                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (lon, lat),
-            )
-            row = cur.fetchone()
-            if row:
-                school_component = _school_rating_to_score(row[0])
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-    # 4) demographics/stability (income percentile + low vacancy)
-    demo_component = 50.0
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT income_percentile, vacancy_rate
-                FROM (
-                    SELECT
-                        region_id,
-                        median_income,
-                        vacancy_rate,
-                        cume_dist() OVER (ORDER BY median_income) AS income_percentile,
-                        geom
-                    FROM neighborhood_quality
-                    WHERE region_type = 'census_tract'
-                      AND geom IS NOT NULL
-                      AND median_income IS NOT NULL
-                ) q
-                ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (lon, lat),
-            )
-            row = cur.fetchone()
-            if row:
-                income_pct = float(row[0]) if row[0] is not None else 0.5
-                vacancy = float(row[1]) if row[1] is not None else 8.0
-                vacancy_score = max(0.0, min(100.0, 100.0 - (vacancy * 8.0)))
-                demo_component = max(0.0, min(100.0, (income_pct * 100.0 * 0.65) + (vacancy_score * 0.35)))
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-
-    # 5) flood/environment
-    flood_risk = str(neighborhood_context.get("flood_risk") or "").upper()
-    flood_component = {"MINIMAL": 90.0, "MODERATE": 65.0, "HIGH": 25.0}.get(flood_risk, 50.0)
-
-    # 6) HPI price trend bonus/penalty (up to ±5 points)
-    hpi_bonus = 0.0
-    hpi_data: dict | None = None
-    if zip_code and conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
-                           hpi_10yr_change, hpi_period
-                    FROM neighborhood_quality
-                    WHERE region_type = 'zip' AND region_id = %s
-                    LIMIT 1
-                    """,
-                    (zip_code,),
-                )
-                row = cur.fetchone()
-                if row and row[1] is not None:
-                    hpi_data = {
-                        "hpi_index_value": float(row[0]) if row[0] else None,
-                        "hpi_1yr_change": float(row[1]) if row[1] else None,
-                        "hpi_5yr_change": float(row[2]) if row[2] else None,
-                        "hpi_10yr_change": float(row[3]) if row[3] else None,
-                        "hpi_period": row[4],
-                    }
-                    # Positive 1yr change → bonus (capped at +5), negative → penalty (capped at -5)
-                    yr1 = float(row[1])
-                    hpi_bonus = max(-5.0, min(5.0, yr1 * 0.3))
-        except Exception:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-    components = {
-        "disruption_risk": disruption_component,
-        "crime_trend": crime_component,
-        "school_rating": school_component,
-        "demographics_stability": demo_component,
-        "flood_environmental": flood_component,
-    }
-    weighted = {
-        k: round(v * weights[k], 1)
-        for k, v in components.items()
-    }
-    livability_score = int(round(sum(weighted.values()) + hpi_bonus))
-    livability_score = max(0, min(100, livability_score))
-
-    breakdown: dict = {
-        "weights": weights,
-        "components": {
-            k: {"raw_score": round(components[k], 1), "weighted_contribution": weighted[k]}
-            for k in components
-        },
-    }
-    if hpi_bonus != 0.0:
-        breakdown["hpi_bonus"] = round(hpi_bonus, 1)
-    if hpi_data:
-        breakdown["hpi"] = hpi_data
-
-    return livability_score, breakdown
+# _school_rating_to_score, _compute_livability_score imported above from services.livability
 
 
 # _is_db_configured, API key auth, _generate_api_key moved to backend.app.deps
@@ -1774,9 +1606,7 @@ def _normalize_address_text(raw: str) -> str:
     return normalize_address_query(raw)
 
 
-def _extract_zip(raw: str) -> str | None:
-    m = re.search(r"\b(\d{5})(?:-\d{4})?\b", raw)
-    return m.group(1) if m else None
+# _extract_zip imported above from services.livability
 
 
 def _address_features(display_address: str) -> dict:
@@ -3764,149 +3594,8 @@ def export_csv(
 # This requires no new dependencies — only stdlib base64/json + requests.
 # ---------------------------------------------------------------------------
 
-def _jwks_b64decode(s: str) -> bytes:
-    """URL-safe base64 decode with automatic padding."""
-    return base64.urlsafe_b64decode(s + "=" * ((4 - len(s) % 4) % 4))
-
-
-def _fetch_jwks(issuer: str) -> dict:
-    """
-    Fetch Clerk's public JWKS from <issuer>/.well-known/jwks.json.
-    This endpoint is public — no auth header required.
-    Result is cached in _JWKS_CACHE for _JWKS_CACHE_TTL seconds.
-    """
-    now = time.monotonic()
-    cached = _JWKS_CACHE.get(issuer)
-    if cached and (now - cached["fetched_at"]) < _JWKS_CACHE_TTL:
-        log.debug("clerk_jwks: using cached keys for iss=%s", issuer)
-        return cached["keys"]
-
-    jwks_url = f"{issuer}/.well-known/jwks.json"
-    log.info("clerk_jwks: fetching %s", jwks_url)
-    try:
-        resp = _requests.get(jwks_url, timeout=10)
-    except Exception as exc:
-        log.exception("clerk_jwks: network error fetching %s: %s", jwks_url, exc)
-        raise HTTPException(
-            status_code=503, detail=f"Could not fetch Clerk JWKS ({exc})"
-        ) from exc
-
-    log.info("clerk_jwks: response status=%d url=%s", resp.status_code, jwks_url)
-    if not resp.ok:
-        log.error("clerk_jwks: non-OK response status=%d body=%s", resp.status_code, resp.text[:300])
-        raise HTTPException(
-            status_code=503, detail=f"Clerk JWKS returned {resp.status_code}"
-        )
-
-    keys = resp.json()
-    num_keys = len(keys.get("keys", []))
-    log.info("clerk_jwks: cached %d key(s) for iss=%s", num_keys, issuer)
-    _JWKS_CACHE[issuer] = {"keys": keys, "fetched_at": now}
-    return keys
-
-
-def _verify_clerk_jwt(authorization: str | None) -> str:
-    """
-    Verify a Clerk frontend session token locally via RS256 + JWKS.
-
-    Strategy:
-      1. Decode the JWT header/payload (unverified) to get kid, alg, iss, exp.
-      2. Fetch Clerk's public JWKS from <iss>/.well-known/jwks.json (cached 1h).
-      3. Find the matching public key by kid.
-      4. Verify the JWT signature + expiry with PyJWT (RS256, local — no network call).
-      5. Return payload["sub"] as the Clerk user_id.
-
-    This replaces the per-request GET /v1/sessions/{sid} call which caused
-    timeouts on Railway when api.clerk.com egress was slow.
-
-    Raises HTTP 401 if the token is missing, malformed, expired, or signature invalid.
-    Raises HTTP 503 if CLERK_SECRET_KEY is not configured or JWKS is unreachable.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    token = authorization[7:]
-    log.info("clerk_jwt: verifying token (len=%d)", len(token))
-
-    # ── Step 1: decode header and payload without signature verification ──────
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            raise ValueError("not a 3-part JWT")
-        header = json.loads(_jwks_b64decode(parts[0]))
-        payload_unverified = json.loads(_jwks_b64decode(parts[1]))
-        kid = header.get("kid")
-        alg = header.get("alg", "RS256")
-        iss = payload_unverified.get("iss", "").rstrip("/")
-        if not kid:
-            raise ValueError("missing kid in JWT header")
-        if not iss:
-            raise ValueError("missing iss in JWT payload")
-        if alg != "RS256":
-            raise ValueError(f"unsupported algorithm: {alg!r}")
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("clerk_jwt: decode error: %s", exc)
-        raise HTTPException(status_code=401, detail="Invalid token format")
-
-    log.info("clerk_jwt: header kid=%s alg=%s iss=%s", kid, alg, iss)
-
-    # ── Step 2: require CLERK_SECRET_KEY as a config guard ────────────────────
-    if not os.environ.get("CLERK_SECRET_KEY", ""):
-        log.error("clerk_jwt: CLERK_SECRET_KEY is not set")
-        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured on backend")
-
-    # ── Step 3: get JWKS and find the matching public key ─────────────────────
-    try:
-        jwks = _fetch_jwks(iss)
-    except HTTPException:
-        raise
-
-    def _find_key(jwks_data: dict) -> dict | None:
-        for k in jwks_data.get("keys", []):
-            if k.get("kid") == kid:
-                log.info("clerk_jwt: found key kid=%s kty=%s", kid, k.get("kty"))
-                return k
-        return None
-
-    key_dict = _find_key(jwks)
-    if key_dict is None:
-        # kid not in cache — key may have rotated; force re-fetch once
-        log.warning("clerk_jwt: kid=%s not in cached JWKS, forcing re-fetch for iss=%s", kid, iss)
-        _JWKS_CACHE.pop(iss, None)
-        try:
-            jwks = _fetch_jwks(iss)
-        except HTTPException:
-            raise
-        key_dict = _find_key(jwks)
-
-    if key_dict is None:
-        log.error("clerk_jwt: kid=%s not found after re-fetch for iss=%s", kid, iss)
-        raise HTTPException(status_code=401, detail="JWT signing key not found in JWKS")
-
-    # ── Step 4: verify signature + expiry locally (no network call) ───────────
-    try:
-        payload = _jose_jwt.decode(
-            token,
-            key_dict,
-            algorithms=["RS256"],
-            options={"verify_aud": False},  # Clerk JWTs use azp, not aud
-        )
-    except _JoseExpired:
-        log.warning("clerk_jwt: token expired for iss=%s", iss)
-        raise HTTPException(status_code=401, detail="Token expired")
-    except _JoseJWTError as exc:
-        log.error("clerk_jwt: signature/claim validation failed: %s", exc)
-        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
-
-    # ── Step 5: extract user_id ───────────────────────────────────────────────
-    user_id = payload.get("sub")
-    if not user_id:
-        log.error("clerk_jwt: no sub claim in verified payload keys=%s", list(payload.keys()))
-        raise HTTPException(status_code=401, detail="Could not resolve user from token")
-
-    log.info("clerk_jwt: OK user_id=%r iss=%s", user_id, iss)
-    return user_id
+# Clerk JWT functions (_jwks_b64decode, _fetch_jwks, _verify_clerk_jwt)
+# moved to backend.app.services.clerk
 
 
 # ---------------------------------------------------------------------------
