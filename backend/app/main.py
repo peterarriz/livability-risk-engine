@@ -75,6 +75,12 @@ def _debug_search_flow(stage: str, **payload) -> None:
 
 app = FastAPI(title="Livability Risk Engine")
 
+# ---------------------------------------------------------------------------
+# Router includes — extracted route modules
+# ---------------------------------------------------------------------------
+from backend.app.routes.auth import router as _auth_router
+app.include_router(_auth_router)
+
 # Log env var configuration state at startup so Railway logs surface
 # missing-variable problems immediately (values are never logged).
 logging.basicConfig(level=logging.INFO)
@@ -4291,59 +4297,7 @@ def revoke_user_key(
 # ---------------------------------------------------------------------------
 
 
-class _ClerkSyncBody(BaseModel):
-    clerk_user_id: str
-    email: str
-
-
-@app.post("/auth/sync", status_code=200)
-def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
-    """
-    Upsert a Clerk user record into the users table.
-    task: app-024
-
-    Called from the frontend after first Clerk sign-in to ensure a minimal
-    user row exists in Postgres. Idempotent — safe to call on every sign-in.
-
-    Request body: { clerk_user_id, email }
-    Response:     { id, email, subscription_tier, created_at }
-    """
-    try:
-        if not _is_db_configured():
-            raise HTTPException(status_code=503, detail="DB not configured")
-
-        from backend.scoring.query import get_db_connection
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO users (id, email)
-                    VALUES (%s, %s)
-                    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email
-                    RETURNING id, email, subscription_tier, created_at
-                    """,
-                    (body.clerk_user_id, body.email),
-                )
-                row = cur.fetchone()
-            conn.commit()
-        finally:
-            conn.close()
-
-        if row is None:
-            raise HTTPException(status_code=500, detail="User upsert returned no row")
-
-        return {
-            "id": row[0],
-            "email": row[1],
-            "subscription_tier": row[2],
-            "created_at": row[3].isoformat() if row[3] else None,
-        }
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("auth_clerk_sync unhandled error: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"auth_clerk_sync failed: {exc}") from exc
+# /auth/sync endpoint moved to backend/app/routes/auth.py
 
 
 # /auth/me removed (2026-03-30) — used custom JWT, replaced by Clerk session.
