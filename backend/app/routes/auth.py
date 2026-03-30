@@ -33,7 +33,7 @@ def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
     Response:     { id, email, subscription_tier, created_at }
     """
     # Import here to avoid circular imports during module loading
-    from backend.app.main import _is_db_configured
+    from backend.app.deps import _is_db_configured
 
     try:
         if not _is_db_configured():
