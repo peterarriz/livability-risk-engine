@@ -384,7 +384,8 @@ def check_commute(body: CommuteRequest) -> dict:
         max_lon = max(home_lon, work_lon) + pad
 
         # Import shared helpers from main (they are also used by /neighborhood)
-        from backend.app.main import _get_projects_in_bbox, _BLOCK_IMPACT_WEIGHTS
+        from backend.app.routes.dashboard import _get_projects_in_bbox
+        from backend.app.routes.neighborhood import _BLOCK_IMPACT_WEIGHTS
 
         projects = _get_projects_in_bbox(min_lat, min_lon, max_lat, max_lon)
 
