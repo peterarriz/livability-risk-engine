@@ -25,7 +25,6 @@ import io
 import json
 from jose import jwt as _jose_jwt
 from jose.exceptions import ExpiredSignatureError as _JoseExpired, JWTError as _JoseJWTError
-import math
 import logging
 import math
 import os
@@ -146,7 +145,7 @@ if _frontend_origin and _frontend_origin not in _allowed_origins:
 
 # Allow all Vercel preview/production deployments automatically so the
 # frontend works before FRONTEND_ORIGIN is explicitly configured in Railway.
-_allow_origin_regex = r"https://.*\.vercel\.app"
+_allow_origin_regex = r"https://livability-risk-engine.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
@@ -3824,58 +3823,6 @@ def check_watchlist() -> dict:
     except Exception as exc:
         log.error("get_report report_id=%r error: %s", report_id, exc)
         raise HTTPException(status_code=503, detail="Could not retrieve report.") from exc
-
-
-# ---------------------------------------------------------------------------
-# /export/csv endpoint (data-029)
-# Returns a CSV download for a scored address.
-# ---------------------------------------------------------------------------
-
-@app.get("/export/csv")
-def export_csv(
-    address: str = Query(..., description="Chicago address to export"),
-) -> Response:
-    """
-    Return a CSV download for a scored address.
-    Calls live scoring when DB is configured; falls back to demo data otherwise.
-    """
-    return {
-        "title": "Livability Risk Engine API",
-        "version": "1.0",
-        "description": (
-            "Programmatic access to Chicago disruption scoring. "
-            "Query /score with any Chicago address to get a 0-100 disruption score, "
-            "severity breakdown, and top risk signals."
-        ),
-        "auth": {
-            "required": _REQUIRE_API_KEY,
-            "method": "Pass your API key in the X-Api-Key header or ?api_key= query param.",
-            "request_access": "Contact the operator to request an API key.",
-        },
-        "endpoints": [
-            {"method": "GET", "path": "/score", "description": "Score a Chicago address (0–100)"},
-            {"method": "GET", "path": "/suggest", "description": "Address autocomplete"},
-            {"method": "GET", "path": "/history", "description": "Score history for an address"},
-            {"method": "GET", "path": "/neighborhood/{slug}", "description": "Projects in a named neighborhood"},
-            {"method": "POST", "path": "/save", "description": "Save a score result for sharing"},
-            {"method": "GET", "path": "/report/{report_id}", "description": "Fetch a saved report"},
-            {"method": "GET", "path": "/health", "description": "Backend readiness check"},
-            {"method": "GET", "path": "/export/csv", "description": "Download score and nearby projects as CSV"},
-        ],
-        "rate_limits": "Unauthenticated requests are rate-limited at the infrastructure level.",
-        "example": {
-            "request": "GET /score?address=100+W+Randolph+St+Chicago+IL",
-            "response_shape": {
-                "address": "string",
-                "disruption_score": "0–100 integer",
-                "confidence": "LOW | MEDIUM | HIGH",
-                "severity": {"noise": "...", "traffic": "...", "dust": "..."},
-                "top_risks": ["string", "string", "string"],
-                "explanation": "string",
-                "mode": "live | demo",
-            },
-        },
-    }
 
 
 # ---------------------------------------------------------------------------
