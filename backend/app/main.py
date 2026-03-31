@@ -41,7 +41,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from backend.app.deps import _is_db_configured
+from backend.app.deps import _is_db_configured, require_api_key, verify_api_key, _build_demo_response, DEMO_RESPONSE, _require_api_key_enabled, _hash_key, _generate_api_key
 
 log = logging.getLogger(__name__)
 
