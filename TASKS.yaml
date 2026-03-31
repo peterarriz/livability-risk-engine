@@ -46,19 +46,26 @@ tasks:
 
   - id: data-083
     title: Wire FHFA HPI data into neighborhood trajectory score
-    status: backlog
+    status: done
     priority: medium
-    github_issue: null
+    github_issue: 312
     files:
-      - backend/app/main.py
+      - backend/scoring/query.py
+      - backend/app/routes/score.py
       - TASKS.yaml
     notes_for_next_agent: >
-      data-083: expose HPI data from neighborhood_quality via the /score endpoint.
-      Query neighborhood_quality WHERE region_type='zip' AND region_id=<zip5>.
-      Fallback to region_type='metro' if zip-level not found.
-      Fields to expose: hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period.
-      This requires data-081 to have run so staging files and DB rows are populated.
-      Create GitHub issue [data-083] before starting.
+      data-083 complete (issue #312).
+      Added zip_code param to get_neighborhood_context() in backend/scoring/query.py.
+      Added NEIGHBORHOOD_CONTEXT_SQL entries "hpi_zip" and "hpi_metro".
+      HPI lookup: tries region_type='zip' AND region_id=zip5 first; falls back to
+      region_type='metro' (ordered by hpi_period DESC) if zip row is missing or
+      hpi_1yr_change is null. Non-fatal — HPI block is wrapped in its own try/except
+      so missing columns (pre data-081 schema) are silently skipped.
+      Fields exposed in neighborhood_context: hpi_index_value, hpi_1yr_change,
+      hpi_5yr_change, hpi_10yr_change, hpi_period.
+      In backend/app/routes/score.py: moved _extract_zip(address) call before
+      get_neighborhood_context so zip_code can be passed in.
+      Depends on data-081 ingest having run to populate HPI rows in DB.
 
   - id: data-082
     title: Verify Detroit permit field names + add Dallas Socrata permits

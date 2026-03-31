@@ -587,6 +587,21 @@ NEIGHBORHOOD_CONTEXT_SQL = {
         ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
         LIMIT 1;
     """,
+    "hpi_zip": """
+        SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
+               hpi_10yr_change, hpi_period
+        FROM neighborhood_quality
+        WHERE region_type = 'zip' AND region_id = %s
+        LIMIT 1;
+    """,
+    "hpi_metro": """
+        SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
+               hpi_10yr_change, hpi_period
+        FROM neighborhood_quality
+        WHERE region_type = 'metro' AND hpi_index_value IS NOT NULL
+        ORDER BY hpi_period DESC NULLS LAST
+        LIMIT 1;
+    """,
 }
 
 
@@ -594,14 +609,16 @@ def get_neighborhood_context(
     lat: float,
     lon: float,
     db_conn,
+    zip_code: Optional[str] = None,
 ) -> dict | None:
     """
     Return neighborhood quality context for a lat/lon coordinate.
 
-    Performs three KNN spatial queries against the neighborhood_quality table:
+    Performs KNN spatial queries against the neighborhood_quality table:
       1. Nearest flood zone record (FEMA flood risk)
       2. Nearest community area record (Chicago crime trend)
       3. Nearest census tract record (Census ACS demographics)
+      4. FHFA HPI fields by zip code, falling back to metro (data-083)
 
     Returns a dict with all available fields, or None if the table is empty
     or does not exist yet (graceful degradation before data-040 ingest runs).
@@ -610,6 +627,7 @@ def get_neighborhood_context(
         lat: Query latitude (WGS84).
         lon: Query longitude (WGS84).
         db_conn: An open psycopg2 connection.
+        zip_code: 5-digit ZIP code string for HPI lookup (optional).
 
     Returns:
         Dict with neighborhood context fields, or None.
@@ -657,6 +675,53 @@ def get_neighborhood_context(
         # neighborhood_quality table may not exist yet (pre data-040 schema).
         # Return None so the /score endpoint degrades gracefully.
         return None
+
+    # FHFA HPI lookup (data-083): zip-level first, metro fallback.
+    # Non-fatal: skip if table/columns are absent or zip_code not provided.
+    if zip_code:
+        try:
+            with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                hpi_row = None
+
+                # Try zip-level first
+                cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"], (zip_code,))
+                row = cur.fetchone()
+                if row and row["hpi_1yr_change"] is not None:
+                    hpi_row = row
+
+                # Fall back to metro if zip-level missing or HPI columns null
+                if hpi_row is None:
+                    cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_metro"])
+                    row = cur.fetchone()
+                    if row and row["hpi_1yr_change"] is not None:
+                        hpi_row = row
+
+                if hpi_row is not None:
+                    context["hpi_index_value"] = (
+                        float(hpi_row["hpi_index_value"])
+                        if hpi_row["hpi_index_value"] is not None
+                        else None
+                    )
+                    context["hpi_1yr_change"] = (
+                        float(hpi_row["hpi_1yr_change"])
+                        if hpi_row["hpi_1yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_5yr_change"] = (
+                        float(hpi_row["hpi_5yr_change"])
+                        if hpi_row["hpi_5yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_10yr_change"] = (
+                        float(hpi_row["hpi_10yr_change"])
+                        if hpi_row["hpi_10yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_period"] = hpi_row["hpi_period"]
+        except Exception:
+            # HPI columns may not exist yet (pre data-081 schema).
+            # Skip gracefully; neighborhood_context still returns other fields.
+            pass
 
     return context if context else None
 
