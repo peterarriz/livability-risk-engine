@@ -46,19 +46,27 @@ tasks:
 
   - id: data-083
     title: Wire FHFA HPI data into neighborhood trajectory score
-    status: backlog
+    status: done
     priority: medium
-    github_issue: null
+    github_issue: 312
     files:
-      - backend/app/main.py
+      - backend/scoring/query.py
+      - backend/app/routes/score.py
       - TASKS.yaml
     notes_for_next_agent: >
-      data-083: expose HPI data from neighborhood_quality via the /score endpoint.
-      Query neighborhood_quality WHERE region_type='zip' AND region_id=<zip5>.
-      Fallback to region_type='metro' if zip-level not found.
-      Fields to expose: hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period.
-      This requires data-081 to have run so staging files and DB rows are populated.
-      Create GitHub issue [data-083] before starting.
+      data-083 complete (issue #312).
+      Added NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"] and ["hpi_metro"] to query.py —
+      zip-level lookup keyed on region_type='zip', metro fallback uses CBSA 16980
+      (Chicago-Naperville-Elgin MSA).
+      Added get_hpi_context(zip_code, conn) to query.py — returns dict of
+      hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period
+      as floats (hpi_period as str). Non-fatal: returns None on any error.
+      In score.py _score_live: HPI lookup runs after address_zip is computed,
+      results merged into result_dict["neighborhood_context"]. Non-fatal step,
+      safe to deploy before data-081 ingest has run (degrades to no HPI data).
+      NEXT: run data-081 ingest (python backend/ingest/fhfa_hpi.py) so DB has
+      HPI rows, then verify via GET /score?address=<Chicago address> that
+      neighborhood_context includes hpi_1yr_change etc.
 
   - id: data-082
     title: Verify Detroit permit field names + add Dallas Socrata permits
