@@ -564,8 +564,6 @@ export default function HomePage() {
         canonicalId: selectedAddress?.id ?? null,
         lat: typeof selectedAddress?.lat === "number" ? selectedAddress.lat : undefined,
         lon: typeof selectedAddress?.lon === "number" ? selectedAddress.lon : undefined,
-        lat: selectedAddress?.lat ?? null,
-        lon: selectedAddress?.lon ?? null,
       });
       setResult(scoreResult.score);
       setScoredAt(new Date());
