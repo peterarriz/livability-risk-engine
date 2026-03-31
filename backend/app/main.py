@@ -229,31 +229,34 @@ def health_db() -> dict:
             try:
                 with conn.cursor() as cur:
                     cur.execute(
-                        """
-                        INSERT INTO score_history (
-                            address, disruption_score, livability_score, livability_breakdown,
-                            confidence, mode, batch_id, latitude, longitude
-                        )
-                        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            r["address"],
-                            r["disruption_score"],
-                            r.get("livability_score", r["disruption_score"]),
-                            json.dumps(r.get("livability_breakdown") or {}),
-                            r["confidence"],
-                            r["mode"],
-                            batch_id,
-                            r.get("latitude"),
-                            r.get("longitude"),
-                        ),
+                        """SELECT finished_at, status, record_count
+                           FROM ingest_runs
+                           WHERE finished_at IS NOT NULL
+                           ORDER BY finished_at DESC LIMIT 1"""
                     )
-            conn.commit()
-        finally:
-            conn.close()
-        log.info("batch_history written batch_id=%s count=%d", batch_id, len(live_results))
-    except Exception as exc:
-        log.warning("batch_history write failed batch_id=%s error=%s", batch_id, exc)
+                    row = cur.fetchone()
+                    if row:
+                        last_ingest_at = row[0].isoformat() if row[0] else None
+                        last_ingest_status = row[1]
+                        last_ingest_count = row[2]
+            except Exception:
+                pass  # ingest_runs table may not exist on first deploy
+            finally:
+                conn.close()
+        except Exception as exc:
+            db_error = str(exc)
+            db_connection = False
+    response: dict = {
+        "status": "ok",
+        "db_configured": db_configured,
+        "db_connection": db_connection,
+        "last_ingest_at": last_ingest_at,
+        "last_ingest_status": last_ingest_status,
+        "last_ingest_count": last_ingest_count,
+    }
+    if db_error is not None:
+        response["db_error"] = db_error
+    return response
 
 
 @app.post("/score/batch", dependencies=[Depends(require_api_key)])
