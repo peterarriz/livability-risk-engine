@@ -111,3 +111,4 @@ When `REQUIRE_API_KEY=true` is set:
 | `NEXT_PUBLIC_API_URL` | Railway backend URL |
 
 > **Production Clerk keys**: Clerk issues two key pairs — test (`pk_test_` / `sk_test_`) and production (`pk_live_` / `sk_live_`). Always use production keys in Vercel and Railway deployments. Test keys trigger a "Clerk: Development mode" warning banner in the browser and may have reduced functionality.
+# Tue Mar 31 17:05:40 EDT 2026
