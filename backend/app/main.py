@@ -273,6 +273,9 @@ def health_db() -> dict:
 
 
 @app.post("/score/batch", dependencies=[Depends(require_api_key)])
+class BatchScoreRequest(BaseModel):
+    addresses: list[str]
+
 def post_score_batch(
     body: BatchScoreRequest,
     background_tasks: BackgroundTasks,
