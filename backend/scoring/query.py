@@ -727,6 +727,60 @@ def get_neighborhood_context(
 
 
 # ---------------------------------------------------------------------------
+# FHFA HPI context  (data-083)
+# ---------------------------------------------------------------------------
+
+def get_hpi_context(zip_code: str | None, conn) -> dict | None:
+    """
+    Return FHFA House Price Index fields for a zip code.
+
+    Queries neighborhood_quality for region_type='zip' first; falls back to
+    region_type='metro' with the Chicago MSA code (16980) when no zip-level
+    row is found.  Returns None if the table/columns are absent or zip is None.
+
+    Args:
+        zip_code: 5-digit zip string, or None.
+        conn: An open psycopg2 connection.
+
+    Returns:
+        Dict with hpi_* fields, or None.
+    """
+    if not HAS_PSYCOPG2 or not zip_code:
+        return None
+
+    _HPI_FIELDS = (
+        "hpi_index_value", "hpi_1yr_change", "hpi_5yr_change",
+        "hpi_10yr_change", "hpi_period",
+    )
+
+    def _row_to_hpi(row) -> dict | None:
+        if row is None:
+            return None
+        result = {}
+        for field in _HPI_FIELDS:
+            val = row[field]
+            if val is not None:
+                result[field] = float(val) if field != "hpi_period" else val
+        return result if result else None
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Zip-level lookup
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"], (zip_code,))
+            hpi = _row_to_hpi(cur.fetchone())
+            if hpi:
+                return hpi
+
+            # Metro fallback: Chicago-Naperville-Elgin MSA (CBSA 16980)
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_metro"], ("16980",))
+            return _row_to_hpi(cur.fetchone())
+
+    except Exception as exc:
+        log.debug("get_hpi_context skipped: %s", exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Crime trend map signals  (data-054)
 # ---------------------------------------------------------------------------
 
