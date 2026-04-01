@@ -55,6 +55,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     from backend.scoring.query import (
         compute_score,
         get_db_connection,
+        get_hpi_context,
         get_nearby_crime_signals,
         get_nearby_projects,
         get_nearby_schools,
@@ -73,11 +74,12 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         lat, lon = resolved_coords
         nearby = get_nearby_projects(lat, lon, conn)
 
-        # Neighborhood quality context (data-040).
+        # Neighborhood quality context (data-040, data-083).
         # Non-fatal: returns None if neighborhood_quality table is not yet populated.
+        address_zip = _extract_zip(address)
         neighborhood_context = None
         try:
-            neighborhood_context = get_neighborhood_context(lat, lon, conn)
+            neighborhood_context = get_neighborhood_context(lat, lon, conn, zip_code=address_zip)
         except Exception as nq_exc:
             log.debug("neighborhood_context lookup skipped: %s", nq_exc)
             try:
@@ -86,7 +88,6 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 pass
 
         result = compute_score(nearby, address)
-        address_zip = _extract_zip(address)
         livability_score, livability_breakdown = _compute_livability_score(
             disruption_score=result.disruption_score,
             neighborhood_context=neighborhood_context,
@@ -105,6 +106,20 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
             "longitude": lon,
             "neighborhood_context": neighborhood_context,
         }
+
+        # FHFA HPI context (data-083). Non-fatal; merges into neighborhood_context.
+        try:
+            hpi = get_hpi_context(address_zip, conn)
+            if hpi:
+                if result_dict["neighborhood_context"] is None:
+                    result_dict["neighborhood_context"] = {}
+                result_dict["neighborhood_context"].update(hpi)
+        except Exception as hpi_exc:
+            log.debug("hpi_context lookup skipped: %s", hpi_exc)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
         # Crime trend map signal (data-054). Non-fatal if table absent.
         try:

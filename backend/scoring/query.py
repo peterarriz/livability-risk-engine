@@ -587,6 +587,21 @@ NEIGHBORHOOD_CONTEXT_SQL = {
         ORDER BY geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
         LIMIT 1;
     """,
+    "hpi_zip": """
+        SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
+               hpi_10yr_change, hpi_period
+        FROM neighborhood_quality
+        WHERE region_type = 'zip' AND region_id = %s
+        LIMIT 1;
+    """,
+    "hpi_metro": """
+        SELECT hpi_index_value, hpi_1yr_change, hpi_5yr_change,
+               hpi_10yr_change, hpi_period
+        FROM neighborhood_quality
+        WHERE region_type = 'metro' AND hpi_index_value IS NOT NULL
+        ORDER BY hpi_period DESC NULLS LAST
+        LIMIT 1;
+    """,
 }
 
 
@@ -594,14 +609,16 @@ def get_neighborhood_context(
     lat: float,
     lon: float,
     db_conn,
+    zip_code: Optional[str] = None,
 ) -> dict | None:
     """
     Return neighborhood quality context for a lat/lon coordinate.
 
-    Performs three KNN spatial queries against the neighborhood_quality table:
+    Performs KNN spatial queries against the neighborhood_quality table:
       1. Nearest flood zone record (FEMA flood risk)
       2. Nearest community area record (Chicago crime trend)
       3. Nearest census tract record (Census ACS demographics)
+      4. FHFA HPI fields by zip code, falling back to metro (data-083)
 
     Returns a dict with all available fields, or None if the table is empty
     or does not exist yet (graceful degradation before data-040 ingest runs).
@@ -610,6 +627,7 @@ def get_neighborhood_context(
         lat: Query latitude (WGS84).
         lon: Query longitude (WGS84).
         db_conn: An open psycopg2 connection.
+        zip_code: 5-digit ZIP code string for HPI lookup (optional).
 
     Returns:
         Dict with neighborhood context fields, or None.
@@ -658,7 +676,108 @@ def get_neighborhood_context(
         # Return None so the /score endpoint degrades gracefully.
         return None
 
+    # FHFA HPI lookup (data-083): zip-level first, metro fallback.
+    # Non-fatal: skip if table/columns are absent or zip_code not provided.
+    if zip_code:
+        try:
+            with db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                hpi_row = None
+
+                # Try zip-level first
+                cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"], (zip_code,))
+                row = cur.fetchone()
+                if row and row["hpi_1yr_change"] is not None:
+                    hpi_row = row
+
+                # Fall back to metro if zip-level missing or HPI columns null
+                if hpi_row is None:
+                    cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_metro"])
+                    row = cur.fetchone()
+                    if row and row["hpi_1yr_change"] is not None:
+                        hpi_row = row
+
+                if hpi_row is not None:
+                    context["hpi_index_value"] = (
+                        float(hpi_row["hpi_index_value"])
+                        if hpi_row["hpi_index_value"] is not None
+                        else None
+                    )
+                    context["hpi_1yr_change"] = (
+                        float(hpi_row["hpi_1yr_change"])
+                        if hpi_row["hpi_1yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_5yr_change"] = (
+                        float(hpi_row["hpi_5yr_change"])
+                        if hpi_row["hpi_5yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_10yr_change"] = (
+                        float(hpi_row["hpi_10yr_change"])
+                        if hpi_row["hpi_10yr_change"] is not None
+                        else None
+                    )
+                    context["hpi_period"] = hpi_row["hpi_period"]
+        except Exception:
+            # HPI columns may not exist yet (pre data-081 schema).
+            # Skip gracefully; neighborhood_context still returns other fields.
+            pass
+
     return context if context else None
+
+
+# ---------------------------------------------------------------------------
+# FHFA HPI context  (data-083)
+# ---------------------------------------------------------------------------
+
+def get_hpi_context(zip_code: str | None, conn) -> dict | None:
+    """
+    Return FHFA House Price Index fields for a zip code.
+
+    Queries neighborhood_quality for region_type='zip' first; falls back to
+    region_type='metro' with the Chicago MSA code (16980) when no zip-level
+    row is found.  Returns None if the table/columns are absent or zip is None.
+
+    Args:
+        zip_code: 5-digit zip string, or None.
+        conn: An open psycopg2 connection.
+
+    Returns:
+        Dict with hpi_* fields, or None.
+    """
+    if not HAS_PSYCOPG2 or not zip_code:
+        return None
+
+    _HPI_FIELDS = (
+        "hpi_index_value", "hpi_1yr_change", "hpi_5yr_change",
+        "hpi_10yr_change", "hpi_period",
+    )
+
+    def _row_to_hpi(row) -> dict | None:
+        if row is None:
+            return None
+        result = {}
+        for field in _HPI_FIELDS:
+            val = row[field]
+            if val is not None:
+                result[field] = float(val) if field != "hpi_period" else val
+        return result if result else None
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Zip-level lookup
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"], (zip_code,))
+            hpi = _row_to_hpi(cur.fetchone())
+            if hpi:
+                return hpi
+
+            # Metro fallback: Chicago-Naperville-Elgin MSA (CBSA 16980)
+            cur.execute(NEIGHBORHOOD_CONTEXT_SQL["hpi_metro"], ("16980",))
+            return _row_to_hpi(cur.fetchone())
+
+    except Exception as exc:
+        log.debug("get_hpi_context skipped: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
