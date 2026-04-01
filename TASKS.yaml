@@ -55,18 +55,17 @@ tasks:
       - TASKS.yaml
     notes_for_next_agent: >
       data-083 complete (issue #312).
-      Added NEIGHBORHOOD_CONTEXT_SQL["hpi_zip"] and ["hpi_metro"] to query.py —
-      zip-level lookup keyed on region_type='zip', metro fallback uses CBSA 16980
-      (Chicago-Naperville-Elgin MSA).
-      Added get_hpi_context(zip_code, conn) to query.py — returns dict of
-      hpi_index_value, hpi_1yr_change, hpi_5yr_change, hpi_10yr_change, hpi_period
-      as floats (hpi_period as str). Non-fatal: returns None on any error.
-      In score.py _score_live: HPI lookup runs after address_zip is computed,
-      results merged into result_dict["neighborhood_context"]. Non-fatal step,
-      safe to deploy before data-081 ingest has run (degrades to no HPI data).
-      NEXT: run data-081 ingest (python backend/ingest/fhfa_hpi.py) so DB has
-      HPI rows, then verify via GET /score?address=<Chicago address> that
-      neighborhood_context includes hpi_1yr_change etc.
+      Added zip_code param to get_neighborhood_context() in backend/scoring/query.py.
+      Added NEIGHBORHOOD_CONTEXT_SQL entries "hpi_zip" and "hpi_metro".
+      HPI lookup: tries region_type='zip' AND region_id=zip5 first; falls back to
+      region_type='metro' (ordered by hpi_period DESC) if zip row is missing or
+      hpi_1yr_change is null. Non-fatal — HPI block is wrapped in its own try/except
+      so missing columns (pre data-081 schema) are silently skipped.
+      Fields exposed in neighborhood_context: hpi_index_value, hpi_1yr_change,
+      hpi_5yr_change, hpi_10yr_change, hpi_period.
+      In backend/app/routes/score.py: moved _extract_zip(address) call before
+      get_neighborhood_context so zip_code can be passed in.
+      Depends on data-081 ingest having run to populate HPI rows in DB.
 
   - id: data-082
     title: Verify Detroit permit field names + add Dallas Socrata permits

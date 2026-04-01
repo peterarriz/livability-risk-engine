@@ -74,11 +74,12 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         lat, lon = resolved_coords
         nearby = get_nearby_projects(lat, lon, conn)
 
-        # Neighborhood quality context (data-040).
+        # Neighborhood quality context (data-040, data-083).
         # Non-fatal: returns None if neighborhood_quality table is not yet populated.
+        address_zip = _extract_zip(address)
         neighborhood_context = None
         try:
-            neighborhood_context = get_neighborhood_context(lat, lon, conn)
+            neighborhood_context = get_neighborhood_context(lat, lon, conn, zip_code=address_zip)
         except Exception as nq_exc:
             log.debug("neighborhood_context lookup skipped: %s", nq_exc)
             try:
@@ -87,7 +88,6 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 pass
 
         result = compute_score(nearby, address)
-        address_zip = _extract_zip(address)
         livability_score, livability_breakdown = _compute_livability_score(
             disruption_score=result.disruption_score,
             neighborhood_context=neighborhood_context,
