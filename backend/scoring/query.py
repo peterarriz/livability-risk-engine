@@ -413,64 +413,118 @@ def _build_top_risk_details(
     return details
 
 
+def _clean_signal_name(title: str, address: str | None) -> str:
+    """
+    Extract a short, plain-English location reference for use in the
+    explanation sentence.  Strips parenthetical permit types, street
+    number ranges, and falls back to the project address if the title
+    is still noisy.
+
+    Examples:
+        "Ohio between 713-733 (Opening in the Public Way) closure"
+            → "W Ohio St"  (from address fallback)
+        "161 N Clark St building renovation"
+            → "161 N Clark St"
+    """
+    import re as _re
+
+    # Prefer the address field if it looks like a street address — it's
+    # cleaner than the raw permit title.
+    if address:
+        addr = address.strip()
+        # Use address if it starts with a number or directional
+        if _re.match(r"^(\d|[NSEW]\s)", addr):
+            # Take just the street portion (before any city/state)
+            street_part = addr.split(",")[0].strip()
+            if street_part:
+                return street_part
+
+    cleaned = sanitize_title(title)
+    # Strip parenthetical noise: "(Opening in the Public Way)", etc.
+    cleaned = _re.sub(r"\s*\([^)]*\)", "", cleaned)
+    # Strip street number ranges like "between 713-733" or "713–733"
+    cleaned = _re.sub(r"\s*between\s+\d+[\-–]\d+", "", cleaned)
+    # Collapse whitespace
+    cleaned = _re.sub(r"\s{2,}", " ", cleaned).strip()
+    return cleaned or sanitize_title(title)
+
+
+# Plain-English cause labels keyed by impact_type.
+# "verdict_cause" reads after "from" in sentence 1 (e.g. "from nearby lane closures").
+# "signal_cause" reads after "is" in sentence 2 (e.g. "is a lane closure on…").
+_CAUSE_VERDICT: dict[str | None, str] = {
+    IMPACT_FULL_CLOSURE: "street closures",
+    IMPACT_MULTI_LANE: "lane closures",
+    IMPACT_SINGLE_LANE: "lane closures",
+    IMPACT_ROAD_CONSTRUCTION: "road construction",
+    IMPACT_DEMOLITION: "demolition activity",
+    IMPACT_CONSTRUCTION: "active construction",
+    IMPACT_UTILITY_OUTAGE: "a utility emergency",
+}
+_CAUSE_SIGNAL: dict[str | None, str] = {
+    IMPACT_FULL_CLOSURE: "a full street closure",
+    IMPACT_MULTI_LANE: "a multi-lane closure",
+    IMPACT_SINGLE_LANE: "a lane closure",
+    IMPACT_ROAD_CONSTRUCTION: "road construction",
+    IMPACT_DEMOLITION: "demolition work",
+    IMPACT_CONSTRUCTION: "a construction project",
+    IMPACT_UTILITY_OUTAGE: "a utility emergency",
+}
+
+# Disruption category per impact type, used in sentence 1.
+_DISRUPTION_CATEGORIES: dict[str | None, str] = {
+    IMPACT_FULL_CLOSURE: "traffic disruption",
+    IMPACT_MULTI_LANE: "traffic disruption",
+    IMPACT_SINGLE_LANE: "traffic disruption",
+    IMPACT_ROAD_CONSTRUCTION: "traffic and access disruption",
+    IMPACT_DEMOLITION: "noise and dust disruption",
+    IMPACT_CONSTRUCTION: "noise disruption",
+    IMPACT_UTILITY_OUTAGE: "traffic and service disruption",
+}
+
+
 def _build_explanation(
     contributions: list[tuple[NearbyProject, float]],
     severity: dict,
 ) -> str:
     """
-    Build the deterministic explanation paragraph.
-    Per explanation generation rules in docs/03_scoring_model.md.
+    Build a concise 2-sentence explanation.
+
+    Sentence 1: Verdict — what's happening and what it means.
+    Sentence 2: Strongest evidence — the single most impactful signal, simplified.
     """
     if not contributions:
         return (
-            "No significant construction or closure activity was found "
-            "near this address within the near-term window."
+            "Low disruption risk — no significant construction or closures "
+            "detected nearby. The nearest signals are minor permits with "
+            "limited impact."
         )
 
-    top_np, top_w = contributions[0]
+    top_np, _ = contributions[0]
     p = top_np.project
-    title = sanitize_title(p.title)
-    dist_str = f"within roughly {int(top_np.distance_m)} meters"
 
-    # Select explanation pattern based on dominant impact type.
-    if p.impact_type in (IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE):
-        lead = f"A nearby lane or street closure ({title}, {dist_str}) is the main driver"
-        category = "traffic disruption"
-    elif p.impact_type == IMPACT_ROAD_CONSTRUCTION:
-        lead = f"Nearby road reconstruction or resurfacing work ({title}, {dist_str}) is the main driver"
-        category = "traffic and access disruption"
-    elif p.impact_type == IMPACT_DEMOLITION:
-        lead = f"Nearby demolition or excavation ({title}, {dist_str}) is the main driver"
-        category = "noise and dust disruption"
-    elif p.impact_type == IMPACT_CONSTRUCTION:
-        lead = f"Nearby construction activity ({title}, {dist_str}) is the main driver"
-        category = "noise disruption"
-    elif p.impact_type == IMPACT_UTILITY_OUTAGE:
-        lead = f"An active utility emergency ({title}, {dist_str}) is the main driver"
-        category = "traffic and service disruption"
-    else:
-        lead = f"Nearby permitted work ({title}, {dist_str}) is contributing"
-        category = "minor disruption"
+    verdict_cause = _CAUSE_VERDICT.get(p.impact_type, "permitted work")
+    signal_cause = _CAUSE_SIGNAL.get(p.impact_type, "permitted work")
+    category = _DISRUPTION_CATEGORIES.get(p.impact_type, "minor disruption")
+    location = _clean_signal_name(p.title, p.address)
 
-    # Add timing detail — human-readable date, not ISO.
-    timing = ""
+    # Sentence 1: verdict
+    sentence1 = (
+        f"This address has elevated short-term {category} from nearby {verdict_cause}."
+    )
+
+    # Sentence 2: strongest signal with optional timing
     if p.end_date:
-        timing = f" The active window runs through {format_date(p.end_date)}."
-
-    # Mention secondary driver only if it is meaningfully different in category.
-    secondary = ""
-    if len(contributions) > 1:
-        sec_np, sec_w = contributions[1]
-        _traffic_types = (
-            IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
-            IMPACT_ROAD_CONSTRUCTION,
+        sentence2 = (
+            f"The strongest signal is {signal_cause} on {location}, "
+            f"active through {format_date(p.end_date)}."
         )
-        sec_cat = "traffic" if sec_np.project.impact_type in _traffic_types else "construction"
-        top_cat = "traffic" if p.impact_type in _traffic_types else "construction"
-        if sec_cat != top_cat and sec_w >= top_w * 0.50:
-            secondary = f" A secondary {sec_cat} signal nearby adds further context."
+    else:
+        sentence2 = (
+            f"The strongest signal is {signal_cause} on {location}."
+        )
 
-    return f"{lead}, so this address has elevated short-term {category}.{timing}{secondary}"
+    return f"{sentence1} {sentence2}"
 
 
 def compute_score(
@@ -500,8 +554,9 @@ def compute_score(
             severity={"noise": "LOW", "traffic": "LOW", "dust": "LOW"},
             top_risks=["No significant construction or closure activity found nearby."],
             explanation=(
-                "No significant construction or closure activity was found "
-                "near this address within the near-term window."
+                "Low disruption risk — no significant construction or closures "
+                "detected nearby. The nearest signals are minor permits with "
+                "limited impact."
             ),
             top_risk_details=[],
         )
