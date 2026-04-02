@@ -155,6 +155,37 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     finally:
         conn.close()
 
+    # Evidence quality assessment (data-085)
+    nearby_signals = result_dict.get("nearby_signals") or []
+    strong_signals = [
+        s for s in nearby_signals
+        if s.get("impact_type") not in (
+            "light_permit", "crime_trend_stable",
+            "crime_trend_decreasing", "crime_trend_increasing",
+        )
+    ]
+    evidence_strength = (
+        "strong" if len(strong_signals) >= 3
+        else "moderate" if len(strong_signals) >= 1
+        else "limited"
+    )
+    has_neighborhood = neighborhood_context is not None and any(
+        v is not None for v in [
+            neighborhood_context.get("crime_trend"),
+            neighborhood_context.get("median_income"),
+            neighborhood_context.get("fema_flood_zone"),
+        ]
+    )
+    if evidence_strength == "limited" and not has_neighborhood:
+        evidence_quality = "insufficient"
+    elif evidence_strength == "limited":
+        evidence_quality = "contextual_only"
+    else:
+        evidence_quality = evidence_strength
+
+    result_dict["evidence_quality"] = evidence_quality
+    result_dict["strong_signal_count"] = len(strong_signals)
+
     return result_dict
 
 

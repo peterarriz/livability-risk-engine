@@ -76,6 +76,15 @@ const SCORE_COPY = [
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** Human-readable names for livability breakdown component keys. */
+const BREAKDOWN_LABELS: Record<string, string> = {
+  disruption_risk: "Disruption risk",
+  crime_trend: "Crime trend",
+  school_rating: "School quality",
+  demographics_stability: "Demographics stability",
+  flood_environmental: "Flood & environment",
+};
+
 function getScoreMessage(score: number) {
   return SCORE_COPY.find((entry) => score <= entry.max) ?? SCORE_COPY[SCORE_COPY.length - 1];
 }
@@ -545,18 +554,58 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <strong>{result.top_risks.length} detected</strong>
           </div>
         </div>
+        {/* Evidence quality badge */}
+        {result.evidence_quality && (
+          <p
+            className="evidence-badge"
+            style={{
+              display: "inline-block",
+              marginTop: "0.75rem",
+              padding: "0.25rem 0.75rem",
+              borderRadius: "999px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              color: result.evidence_quality === "strong" ? "#166534"
+                : result.evidence_quality === "moderate" ? "#92400e"
+                : "#991b1b",
+              background: result.evidence_quality === "strong" ? "#dcfce7"
+                : result.evidence_quality === "moderate" ? "#fef3c7"
+                : "#fee2e2",
+            }}
+          >
+            {result.evidence_quality === "strong"
+              ? "Strong address-level evidence"
+              : result.evidence_quality === "moderate"
+              ? "Moderate evidence — some data gaps"
+              : result.evidence_quality === "contextual_only"
+              ? "Limited direct evidence — score based on area context"
+              : "Insufficient data — treat score as directional only"}
+          </p>
+        )}
+
+        {/* Livability breakdown bars */}
         {Object.keys(breakdown).length > 0 && (
-          <details className="score-breakdown-details">
-            <summary>Show score breakdown</summary>
-            <div className="score-hero-meta-stack" style={{ marginTop: "0.5rem" }}>
-              {Object.entries(breakdown).map(([k, v]) => (
-                <div key={k}>
-                  <span>{k.replace(/_/g, " ")}</span>
-                  <strong>{v.weighted_contribution > 10 ? "High" : v.weighted_contribution >= 5 ? "Medium" : "Low"}</strong>
+          <div className="score-breakdown" style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <p className="score-meta" style={{ marginBottom: "0.25rem" }}>Score breakdown</p>
+            {Object.entries(breakdown).map(([k, v]) => {
+              const label = BREAKDOWN_LABELS[k] ?? k.replace(/_/g, " ");
+              const weight = result.livability_breakdown?.weights?.[k];
+              const raw = v.raw_score;
+              const barColor = raw >= 70 ? "#16a34a" : raw >= 40 ? "#ca8a04" : "#dc2626";
+              return (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem" }}>
+                  <span style={{ width: "11rem", flexShrink: 0, color: "var(--color-text-secondary, #6b7280)" }}>{label}</span>
+                  <div style={{ flex: 1, height: "0.5rem", borderRadius: "4px", background: "var(--color-surface-alt, #e5e7eb)" }}>
+                    <div style={{ width: `${Math.max(raw, 2)}%`, height: "100%", borderRadius: "4px", background: barColor, transition: "width 0.4s ease" }} />
+                  </div>
+                  <span style={{ width: "2.5rem", textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{Math.round(raw)}</span>
+                  {weight != null && (
+                    <span style={{ width: "2.5rem", textAlign: "right", color: "var(--color-text-secondary, #9ca3af)", fontSize: "0.75rem" }}>{Math.round(weight * 100)}%</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </details>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

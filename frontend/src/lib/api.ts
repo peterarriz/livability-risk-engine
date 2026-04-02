@@ -162,6 +162,9 @@ export type ScoreResponse = {
     fema_flood_zone?: string | null;
     amenities?: Record<string, NearbyAmenity[]> | null;
   } | null;
+  // Evidence quality assessment (data-085).
+  evidence_quality?: "strong" | "moderate" | "contextual_only" | "insufficient" | null;
+  strong_signal_count?: number | null;
 };
 
 export type ScoreSource = ScoreMode;
