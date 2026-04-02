@@ -234,14 +234,29 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 }
 
 function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
-  return result.top_risks.slice(0, 3).map((risk, index) => {
+  const ranked = result.top_risks
+    .slice(0, 3)
+    .map((risk, index) => ({ risk, index, detail: result.top_risk_details?.[index] }))
+    .sort((a, b) => {
+      const priority = (impactType?: string | null): number => {
+        const normalized = (impactType ?? "").toLowerCase();
+        if (/closure|lane|traffic/.test(normalized)) return 0;
+        if (/construction|demolition|permit|road_construction/.test(normalized)) return 1;
+        if (/utility|transit|cta/.test(normalized)) return 2;
+        return 3;
+      };
+      const byType = priority(a.detail?.impact_type) - priority(b.detail?.impact_type);
+      if (byType !== 0) return byType;
+      return a.index - b.index;
+    });
+
+  return ranked.map(({ risk, index, detail }) => {
     const humanized = humanizeRiskText(risk);
     const impact = inferImpact(humanized, index);
 
     // data-043: prefer the richer 4-field display card when available.
     // Falls back through: display_title → rewritten_title → heuristic.
     // top_risk_details is parallel to top_risks (same index order).
-    const detail = result.top_risk_details?.[index];
     const displayTitle = detail?.display_title ?? detail?.rewritten_title ?? null;
     const description = detail?.description ?? detail?.rewritten_description ?? null;
     const whyItMatters = detail?.why_it_matters ?? null;
@@ -269,11 +284,11 @@ function inferConfidenceReasons(result: ScoreResponse): string[] {
   const combinedText = [...result.top_risks, result.explanation].join(" ").toLowerCase();
 
   if (result.top_risks.length >= 3) {
-    reasons.push("Multiple nearby signals reinforce the score.");
+    reasons.push("Multiple nearby signals support this broker-facing read.");
   } else if (result.top_risks.length === 2) {
-    reasons.push("More than one supporting signal is present.");
+    reasons.push("Two independent signals support the score direction.");
   } else {
-    reasons.push("The score is driven by a small number of visible signals.");
+    reasons.push("The score is currently driven by one primary signal.");
   }
 
   if (/through\s+\d{4}-\d{2}-\d{2}|next\s+\d+\s+days|active\s+closure\s+window|window/i.test(combinedText)) {
@@ -285,11 +300,11 @@ function inferConfidenceReasons(result: ScoreResponse): string[] {
   }
 
   if (result.confidence === "HIGH") {
-    reasons.push("Evidence is specific enough for a high-confidence read.");
+    reasons.push("Signal precision is strong enough to use in client-facing guidance.");
   } else if (result.confidence === "MEDIUM") {
-    reasons.push("Evidence is credible, but still directional rather than exact site truth.");
+    reasons.push("Evidence is credible for screening, with normal on-site verification still advised.");
   } else {
-    reasons.push("Evidence should be treated as directional until stronger confirmation appears.");
+    reasons.push("Treat as directional and pair with field verification before commitment.");
   }
 
   return reasons.slice(0, 3);
@@ -300,23 +315,23 @@ function inferMeaning(result: ScoreResponse): string[] {
   const combinedText = [...result.top_risks, result.explanation].join(" ").toLowerCase();
 
   if (result.severity.traffic === "HIGH" || /closure|traffic|curb access|parking|loading/i.test(combinedText)) {
-    insights.push("Expect slower arrivals, pickup friction, or weaker curb access during the active window.");
+    insights.push("Access and curb friction are likely to affect tours, move-ins, and delivery timing.");
   }
 
   if (result.severity.noise !== "LOW" || /noise|construction|renovation|site work/i.test(combinedText)) {
     insights.push(
       result.severity.noise === "HIGH"
-        ? "Daytime construction noise is likely to be consistently noticeable near the address."
-        : "Some daytime construction noise is possible, but it is not the dominant issue here."
+        ? "Daytime construction noise may materially affect tenant experience during business hours."
+        : "Some daytime construction noise is possible, but access remains the primary leasing consideration."
     );
   }
 
   if (result.severity.dust === "HIGH" || /dust|excavation|demolition|vibration/i.test(combinedText)) {
-    insights.push("Excavation or site activity may create localized dust or vibration sensitivity.");
+    insights.push("Excavation activity may create localized dust/vibration risk for sensitive occupiers.");
   }
 
   if (insights.length === 0) {
-    insights.push("Available city signals suggest normal day-to-day access for most visits in the near term.");
+    insights.push("Current city signals suggest normal showing and access conditions in the near term.");
   }
 
   return insights.slice(0, 3);
@@ -424,10 +439,33 @@ function getBenchmarkText(score: number): string {
   return "This address scores above the typical Chicago range of 20–40.";
 }
 
+function getDisruptionFraming(score: number): { label: string; explanation: string } {
+  if (score <= 30) {
+    return {
+      label: "Low disruption risk",
+      explanation:
+        "Low risk means current nearby activity is unlikely to materially disrupt tours or day-to-day access. Keep normal scheduling, with only light contingency planning.",
+    };
+  }
+  if (score <= 60) {
+    return {
+      label: "Moderate disruption risk",
+      explanation:
+        "Moderate risk means disruption signals are present and may create occasional friction for access, parking, or noise. Confirm timing before tours and set expectations with clients.",
+    };
+  }
+  return {
+    label: "High disruption risk",
+    explanation:
+      "High risk means multiple strong nearby signals are likely to affect access and visit experience in the near term. Expect delays or route changes and plan tours around lower-impact windows.",
+  };
+}
+
 export function ScoreHero({ result }: ScoreHeroProps) {
   const headlineScore = getHeadlineScore(result);
   const displayScore = useAnimatedScore(headlineScore);
   const scoreMessage = getScoreMessage(headlineScore);
+  const disruptionFraming = getDisruptionFraming(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
   const action = useMemo(
     () => recommendedAction(headlineScore, result.nearby_signals ?? []),
@@ -440,6 +478,14 @@ export function ScoreHero({ result }: ScoreHeroProps) {
     : undefined;
   const gaugeBand = getGaugeBand(headlineScore);
   const breakdown = result.livability_breakdown?.components ?? {};
+  const signalCount = (result.nearby_signals ?? []).length;
+  const signalRadiusMeters = useMemo(() => {
+    const distances = (result.nearby_signals ?? [])
+      .map((s) => Number(s.distance_m))
+      .filter((d) => Number.isFinite(d) && d > 0);
+    if (distances.length === 0) return 500;
+    return Math.round(Math.max(...distances));
+  }, [result.nearby_signals]);
 
   return (
     <div className="score-hero">
@@ -471,13 +517,20 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         </div>
         <p className="score-benchmark">{getBenchmarkText(headlineScore)}</p>
 
-        <h2 className="score-hero-title">{scoreMessage.label}</h2>
+        <p className="score-hero-kicker">Disruption framing</p>
+        <h2 className="score-hero-title">{disruptionFraming.label}</h2>
+        <p className="score-hero-summary">{disruptionFraming.explanation}</p>
+
+        <h3 className="score-hero-title">{scoreMessage.label}</h3>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
       </div>
 
       <div className="score-hero-sidecar">
         <p className="score-meta">Address assessed</p>
         <p className="score-hero-address">{result.address}</p>
+        <p className="score-meta">
+          Analyzed {signalCount} signals within {signalRadiusMeters} meters
+        </p>
         <div className="score-hero-meta-stack">
           <div>
             <span>Confidence</span>

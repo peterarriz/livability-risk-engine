@@ -1137,6 +1137,304 @@ tasks:
       - /dashboard endpoint + frontend /dashboard page show saved reports, watchlist scores, and score-diff badges.
       - Anonymous users keep localStorage fallback behavior.
     notes_for_next_agent: Completed. Added authenticated /watchlist and /dashboard backend paths, attached account_id in watchlist + score_history writes during save flow, and introduced a new /dashboard page with localStorage fallback when no logged-in backend token is available.
+  - id: app-030
+    lane: app
+    type: feature
+    title: Split landing page and scoring workspace routes
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-029
+    acceptance_criteria:
+      - Root route (/) is a lean marketing landing page with minimal navbar and a CTA or address handoff into /app.
+      - Dedicated /app route hosts the full scoring workspace with existing score/result components.
+      - Existing score flow, explanation, severity, top drivers, and map behavior are preserved.
+      - Frontend build passes after route split.
+    notes_for_next_agent: Completed. Moved the full scoring shell from frontend/src/app/page.tsx into frontend/src/components/app-workspace.tsx and mounted it at /app via frontend/src/app/app/page.tsx. Replaced / with a minimal landing page (navbar, value prop, one address CTA form, and two proof sections). Added small landing-only styles and query-param address handoff so /?address=... routes cleanly into /app without changing scoring logic.
+
+  - id: app-031
+    lane: app
+    type: polish
+    title: Reframe app workspace for commercial real estate brokers
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-030
+    acceptance_criteria:
+      - Broker-focused copy is used in workspace hero, section labels, and interpretation language.
+      - Primary result flow prioritizes top deal-impact drivers before secondary context modules.
+      - Non-primary context remains accessible via expandable or secondary UI, not removed.
+      - No backend data sources/capabilities or scoring inputs are removed or changed.
+    notes_for_next_agent: Completed. Updated workspace narrative and navigation for broker workflows (tours/proposals/LOIs), prioritized top drivers immediately after score brief, and moved timeline/impact window/neighborhood/commute modules into an expandable full-diligence section. Signal cards now rank traffic/closure and construction-related impacts first for display priority while preserving original underlying score data.
+
+  - id: app-032
+    lane: app
+    type: content
+    title: Sharpen broker mental model positioning across hero surfaces
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+    dependencies:
+      - app-031
+    acceptance_criteria:
+      - Positioning statement follows the pattern "helps X do Y before Z happens" and stays under 12 words.
+      - Landing hero headline and subheadline align to the same positioning model.
+      - Workspace hero headline/subheadline mirror the same mental model for continuity.
+      - Change reflects current real product usage.
+    notes_for_next_agent: Completed with shared broker positioning statement: "Helps brokers spot disruption risk before tenant tours and lease commitments." (11 words). Updated landing and workspace hero headline/subheadline to reinforce the same model consistently.
+
+  - id: app-033
+    lane: app
+    type: content
+    title: Add 30-second broker demo script with high/low risk examples
+    owner: app
+    status: done
+    priority: high
+    files:
+      - docs/handoffs/app.md
+    dependencies:
+      - app-032
+    acceptance_criteria:
+      - Demo flow includes one high-risk and one low-risk address.
+      - Each step states what appears on screen and the broker decision made.
+      - Script is concise enough for a ~30 second live walkthrough.
+      - Copy is suitable for live demo or YC interview context.
+    notes_for_next_agent: Completed. Added a timed 30-second demo script to docs/handoffs/app.md with high-risk (1600 W Chicago Ave) and low-risk (11900 S Morgan St) examples, including on-screen outcomes and explicit broker decisions.
+
+  - id: app-034
+    lane: app
+    type: feature
+    title: Add high/low example address shortcuts to frontend as "Try an example"
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-033
+    acceptance_criteria:
+      - UI surfaces "Try an example" shortcuts with 2-3 addresses.
+      - Examples include at least one high-disruption and one low-disruption address.
+      - Example shortcuts are frontend-only and trigger existing lookup flow with no backend changes.
+      - Example actions reduce user effort to see value immediately.
+    notes_for_next_agent: Completed. Added "Try an example" chips to landing and workspace using high (1600 W Chicago Ave), low (11900 S Morgan St), and moderate (3150 N Southport Ave) addresses. Chips prefill/submit through existing frontend lookup and /app query-param handoff only; no backend/scoring changes.
+
+  - id: app-035
+    lane: app
+    type: feature
+    title: Move marketing content out of /app and into landing surface
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+    dependencies:
+      - app-034
+    acceptance_criteria:
+      - /app navigation and body focus on product scoring workflow only.
+      - Pricing/examples/docs/methodology references are removed from the main /app surface.
+      - Marketing route (/) contains access points for pricing, examples, docs, and methodology.
+      - No backend routes are changed.
+    notes_for_next_agent: Completed. Removed pricing/examples sections and docs/methodology links from app workspace surface, and moved those entry points to the landing route with anchored Examples/Pricing sections plus links to /api-docs and /methodology. Backend routes unchanged.
+
+  - id: app-036
+    lane: app
+    type: polish
+    title: Tighten homepage narrative to five sections
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-035
+    acceptance_criteria:
+      - Homepage sections are reduced to hero, example result, proof, how it works, and final CTA.
+      - Redundant pricing/resource sections are merged or removed.
+      - Narrative order feels tighter and conversion-focused.
+      - No backend route changes.
+    notes_for_next_agent: Completed. Homepage now follows a strict 5-section narrative (hero → example result → proof → how it works → CTA), removed redundant pricing/resources blocks, and preserved direct links to /app, /api-docs, and /methodology via nav and CTA.
+
+  - id: app-037
+    lane: app
+    type: content
+    title: Rewrite homepage feature sections with outcome-driven concrete phrasing
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+    dependencies:
+      - app-036
+    acceptance_criteria:
+      - Feature/proof sections use concrete outcomes rather than abstract capability claims.
+      - Copy references real usage signals (score/severity/driver outcomes) in broker context.
+      - Narrative remains within the 5-section homepage structure.
+      - No backend changes are introduced.
+    notes_for_next_agent: Completed. Rewrote proof/how-it-works/CTA copy into concrete outcomes (e.g., high score 62 vs low score 8 and associated tour decisions) so the product reads as immediately useful, not abstract capability marketing.
+
+  - id: app-038
+    lane: app
+    type: content
+    title: Remove vague and banned copy terms from landing/workspace messaging
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+    dependencies:
+      - app-037
+    acceptance_criteria:
+      - Remove occurrences of "platform", "powered by AI", and "intelligence" from user-facing copy.
+      - Replace vague claims with concrete, verifiable wording tied to actual output/data.
+      - Keep scope frontend-only with no backend route or scoring changes.
+    notes_for_next_agent: Completed. Replaced banned/vague phrasing across landing/workspace (brand/eyebrow/disclaimers/empty state) with concrete statements about city permit + planned closure records and explicit score output fields.
+
+  - id: app-039
+    lane: app
+    type: feature
+    title: Remove pricing from homepage narrative and expose via dedicated route
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/pricing/page.tsx
+    dependencies:
+      - app-038
+    acceptance_criteria:
+      - Homepage primary narrative contains no pricing section.
+      - Pricing remains accessible through navigation.
+      - Change is frontend-only with no backend route changes.
+    notes_for_next_agent: Completed. Kept homepage focused on value narrative and added a dedicated /pricing page with simple tier summary; homepage nav now links to /pricing so monetization info is accessible but no longer in the primary homepage flow.
+
+  - id: app-040
+    lane: app
+    type: polish
+    title: Compress navbar height and controls for cleaner top rail
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-039
+    acceptance_criteria:
+      - Navbar height constrained to ~60-64px.
+      - Header avoids stacked lockup/nav rows in standard layout.
+      - Padding and control sizes reduced for a compact top rail.
+      - Mobile behavior keeps nav usable without multi-row stacking.
+    notes_for_next_agent: Completed. Updated shell/topbar/nav CSS to a compact 62px rail, removed nav wrap, reduced paddings/button chip sizes, and made brand lockup inline (title + subtitle) to avoid stacked header presentation.
+
+  - id: app-041
+    lane: app
+    type: polish
+    title: Flatten navbar visual style to reduce visual competition
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-040
+    acceptance_criteria:
+      - Remove rounded nav container treatment.
+      - Remove gradients and glow/shadow effects from navbar visual elements.
+      - Replace with a flat minimal top rail that keeps focus on page content.
+    notes_for_next_agent: Completed. Navbar/topbar now use flat dark surfaces with no glow/shadow, no gradient brand mark, no rounded-pill nav container, and minimal hover states so the header reads as secondary chrome rather than a hero element.
+
+  - id: app-042
+    lane: app
+    type: polish
+    title: Add scroll-responsive shrinking navbar with smooth transition
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/scroll-nav-state.tsx
+      - frontend/src/app/layout.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-041
+    acceptance_criteria:
+      - Navbar renders larger at top of page and shrinks after scrolling.
+      - Transition is smooth and avoids abrupt resizing.
+      - Background shifts subtly when compact state is active.
+      - Works without backend changes.
+    notes_for_next_agent: Completed. Added ScrollNavState client hook in layout that toggles body data attribute on scroll; CSS now transitions navbar dimensions/typography and applies a subtle compact-state background + spacing adjustment once scrollY > 24.
+
+  - id: app-043
+    lane: app
+    type: polish
+    title: Simplify nav items to Docs API and Sign in only
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/components/app-workspace.tsx
+    dependencies:
+      - app-042
+    acceptance_criteria:
+      - Navbar contains only logo area, Docs, API, and Sign in actions.
+      - Remove section-anchor links and extra CTA/navigation items.
+      - Reduce cognitive load by keeping nav minimal on landing and app surfaces.
+    notes_for_next_agent: Completed. Landing and workspace navs now expose only Docs, API, and Sign in (plus logo lockup). Removed section anchors, pricing/open-workspace/portfolio/account links, and history/recent controls from nav.
+
+  - id: app-044
+    lane: app
+    type: polish
+    title: De-emphasize nav when score results are visible
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/app/globals.css
+    dependencies:
+      - app-043
+    acceptance_criteria:
+      - Navbar shrinks further when result content is visible.
+      - Visual prominence of nav is reduced compared with output modules.
+      - Behavior is reversible when no result is shown.
+    notes_for_next_agent: Completed. app-workspace now toggles body[data-results-visible] based on result presence; CSS applies a smaller/softer topbar, reduced nav opacity, and tighter nav control sizing when results are visible to keep focus on output.
+
+  - id: app-045
+    lane: app
+    type: polish
+    title: Speed up autocomplete and auto-run searches on selection handoff
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/app-workspace.tsx
+    dependencies:
+      - app-044
+    acceptance_criteria:
+      - Autocomplete suggestions return faster with lower perceived latency.
+      - Selecting an example/search suggestion auto-runs scoring without extra click.
+      - Landing query-param handoff auto-runs search when /app opens with address.
+      - No backend changes.
+    notes_for_next_agent: Completed. Reduced debounce from 150ms to 80ms, added cached popular-suggestions prefetch to avoid repeat requests, reused cache on focus/short queries, and auto-submitted score lookup on /app?address handoff to cut clicks and time-to-result.
+
   - id: data-043
     lane: data
     type: feature
