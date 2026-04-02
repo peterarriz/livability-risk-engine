@@ -24,6 +24,37 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - `app-019`–`app-024` add observability, mode transparency, and this runbook.
 - `app-007` (map view) remains backlog — defer unless demo polish is explicitly prioritised.
 
+## 30-second broker demo flow (high-risk + low-risk)
+
+Use this exact sequence in live demos, investor calls, and YC-style interviews.
+
+### Setup
+- Open `/app`.
+- Narrate the positioning in one line: **“Helps brokers spot disruption risk before tenant tours and lease commitments.”**
+
+### Step 1 (0:00–0:15) — High-risk address
+- Enter: **1600 W Chicago Ave, Chicago, IL**.
+- What appears on screen:
+  - Elevated score band (high-risk profile).
+  - Top drivers prioritize lane/closure + construction signals.
+  - Severity shows stronger traffic/access friction.
+  - Map highlights nearby signals around the address.
+- Broker decision:
+  - “I won’t schedule a peak-hour tenant tour until we validate access windows and loading conditions.”
+
+### Step 2 (0:15–0:30) — Low-risk address
+- Enter: **11900 S Morgan St, Chicago, IL**.
+- What appears on screen:
+  - Low score band with limited near-term disruption signals.
+  - Drivers are weaker/minimal; severity remains low.
+  - Map shows sparse nearby disruption context.
+- Broker decision:
+  - “This is safer for near-term touring and move-in timing, so we can prioritize it in this week’s showing plan.”
+
+### Why this lands in interviews
+- Same workflow, two outcomes, immediate action difference.
+- Shows the product is not just analytics — it changes broker behavior in under 30 seconds.
+
 ## Mocked `/score` smoke-check handoff
 - Start the mocked backend with `cd backend && uvicorn app.main:app --reload`.
 - Verify the contract directly with `curl "http://127.0.0.1:8000/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL"`.
