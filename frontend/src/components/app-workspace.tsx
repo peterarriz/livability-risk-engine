@@ -119,6 +119,8 @@ export default function HomePage() {
   const [isFocused, setIsFocused] = useState(false);
   // Debug mode: visible only when ?debug=true is in the URL. Never shown to users.
   const [isDebugMode, setIsDebugMode] = useState(false);
+  // Commute feature flag: visible only when ?features=commute is in the URL.
+  const [showCommute, setShowCommute] = useState(false);
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
   const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
@@ -376,7 +378,9 @@ export default function HomePage() {
 
   // Read ?debug=true from URL after mount (client-side only).
   useEffect(() => {
-    setIsDebugMode(new URLSearchParams(window.location.search).get("debug") === "true");
+    const params = new URLSearchParams(window.location.search);
+    setIsDebugMode(params.get("debug") === "true");
+    setShowCommute(params.get("features")?.includes("commute") ?? false);
     // Load lookup usage from localStorage
     setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
   }, [isSignedIn, isPro]);
@@ -1329,11 +1333,6 @@ export default function HomePage() {
                 <details id="secondary-details" className="secondary-details">
                   <summary>Open full analysis</summary>
                   <div className="secondary-details-body">
-                  {/* ── Monitor this address — shown for score >= 50 ─────────── */}
-                  {headlineScore(result) >= 50 && (
-                    <WatchlistForm address={result.address} score={headlineScore(result)} />
-                  )}
-
                   <div id="signals-section" className="anchor-target" />
                   <Section
                     eyebrow="Signal analysis"
@@ -1422,8 +1421,18 @@ export default function HomePage() {
                     />
                   </Card>
 
-                  <CommuteChecker homeAddress={result.address} />
+                  {/* ── Monitor this address — moved below map & signals ─────── */}
+                  {headlineScore(result) >= 50 && (
+                    <WatchlistForm address={result.address} score={headlineScore(result)} />
+                  )}
 
+                  {/* ── Commute checker — hidden unless ?features=commute ────── */}
+                  {showCommute && (
+                    <CommuteChecker homeAddress={result.address} />
+                  )}
+
+                  {/* ── Internal QA panel — hidden unless ?debug=true ────────── */}
+                  {isDebugMode && (
                   <Card className="detail-card">
                     <p className="supporting-kicker">Internal QA panel</p>
                     <h2>Compare addresses + flag incorrect scores</h2>
@@ -1472,6 +1481,7 @@ export default function HomePage() {
                       </div>
                     )}
                   </Card>
+                  )}
                   </div>
                 </details>
               )}
