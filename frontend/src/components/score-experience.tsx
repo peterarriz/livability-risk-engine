@@ -642,6 +642,39 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             {result.recommended_action}
           </div>
         )}
+
+        {/* What this score covers — collapsed by default */}
+        <details style={{ marginTop: "0.75rem" }}>
+          <summary style={{
+            cursor: "pointer",
+            fontSize: "0.78rem",
+            fontWeight: 600,
+            color: "var(--color-text-secondary, #94a3b8)",
+            listStyle: "disclosure-closed",
+          }}>
+            What this score covers
+          </summary>
+          <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.76rem", lineHeight: 1.55, color: "var(--color-text-secondary, #94a3b8)" }}>
+            <div style={{ paddingLeft: "0.6rem", borderLeft: "2px solid rgba(34, 197, 94, 0.3)" }}>
+              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #e2e8f0)", marginBottom: "0.2rem" }}>Best used for</p>
+              <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+                <li>Screening addresses before tours or lease commitments</li>
+                <li>Setting access and noise expectations with clients</li>
+                <li>Identifying active construction and closure windows nearby</li>
+                <li>Comparing relative disruption between candidate addresses</li>
+              </ul>
+            </div>
+            <div style={{ paddingLeft: "0.6rem", borderLeft: "2px solid rgba(148, 163, 184, 0.3)" }}>
+              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #e2e8f0)", marginBottom: "0.2rem" }}>Not designed for</p>
+              <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+                <li>Predicting future property values or appreciation</li>
+                <li>Assessing indoor building condition, pests, or maintenance</li>
+                <li>Detecting unpermitted work or informal nuisances</li>
+                <li>Replacing a professional site inspection</li>
+              </ul>
+            </div>
+          </div>
+        </details>
       </div>
 
       <div className="score-hero-sidecar">
