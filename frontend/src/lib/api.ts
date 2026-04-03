@@ -173,6 +173,8 @@ export type ScoreResponse = {
   // Evidence quality assessment (data-085).
   evidence_quality?: "strong" | "moderate" | "contextual_only" | "insufficient" | null;
   strong_signal_count?: number | null;
+  // Actionable recommendation based on score + evidence + signal types.
+  recommended_action?: string | null;
 };
 
 export type ScoreSource = ScoreMode;
