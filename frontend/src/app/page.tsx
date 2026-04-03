@@ -1,4 +1,8 @@
+"use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useRef } from "react";
+import AddressAutocomplete from "@/components/address-autocomplete";
 
 const EXAMPLE_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const EXAMPLE_ADDRESSES = [
@@ -11,6 +15,9 @@ const font = "Inter, system-ui, -apple-system, sans-serif";
 
 export default function LandingPage() {
   const featured = EXAMPLE_ADDRESSES[0];
+  const router = useRouter();
+  const heroAddrRef = useRef(EXAMPLE_ADDRESS);
+  const ctaAddrRef = useRef("");
 
   return (
     <main style={{ background: "#FFFFFF", minHeight: "100vh", position: "relative", zIndex: 1, fontFamily: font, color: "#111827" }}>
@@ -47,13 +54,13 @@ export default function LandingPage() {
         <p style={{ fontSize: "1.05rem", lineHeight: 1.6, color: "#6B7280", margin: "0 0 2rem" }}>
           Built from public permit, closure, crime, school, and flood datasets. Best for near-term address screening in major US metros. Coverage varies by city.
         </p>
-        <form action="/app" method="get" style={{ display: "flex", gap: "0.5rem", maxWidth: "520px", margin: "0 auto" }}>
-          <input
-            type="text"
-            name="address"
+        <form onSubmit={(e) => { e.preventDefault(); const a = heroAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "520px", margin: "0 auto" }}>
+          <AddressAutocomplete
             defaultValue={EXAMPLE_ADDRESS}
-            aria-label="US address"
-            style={{
+            onSelect={(a) => { heroAddrRef.current = a; }}
+            onChange={(a) => { heroAddrRef.current = a; }}
+            ariaLabel="US address"
+            inputStyle={{
               flex: 1, padding: "0.65rem 0.9rem", fontSize: "0.9rem",
               border: "1px solid #D1D5DB", borderRadius: "8px", outline: "none",
               color: "#111827", background: "#FFFFFF", fontFamily: font,
@@ -183,13 +190,13 @@ export default function LandingPage() {
           <p style={{ fontSize: "0.95rem", color: "#6B7280", margin: "0 0 1.5rem" }}>
             No signup required. Results in under 10 seconds.
           </p>
-          <form action="/app" method="get" style={{ display: "flex", gap: "0.5rem", maxWidth: "480px", margin: "0 auto" }}>
-            <input
-              type="text"
-              name="address"
+          <form onSubmit={(e) => { e.preventDefault(); const a = ctaAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "480px", margin: "0 auto" }}>
+            <AddressAutocomplete
               placeholder="Enter any US address…"
-              aria-label="US address"
-              style={{
+              onSelect={(a) => { ctaAddrRef.current = a; }}
+              onChange={(a) => { ctaAddrRef.current = a; }}
+              ariaLabel="US address"
+              inputStyle={{
                 flex: 1, padding: "0.65rem 0.9rem", fontSize: "0.9rem",
                 border: "1px solid #BFDBFE", borderRadius: "8px", outline: "none",
                 color: "#111827", background: "#FFFFFF", fontFamily: font,

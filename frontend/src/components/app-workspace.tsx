@@ -376,6 +376,34 @@ export default function HomePage() {
     setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
   }, [isSignedIn, isPro]);
 
+  // Google Places Autocomplete on the search input (enhances existing suggestions).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    let ac: google.maps.places.Autocomplete | null = null;
+    let attempts = 0;
+    function tryInit() {
+      if (ac) return;
+      if (!window.google?.maps?.places) {
+        if (++attempts < 20) setTimeout(tryInit, 250);
+        return;
+      }
+      ac = new window.google.maps.places.Autocomplete(el!, {
+        types: ["address"],
+        componentRestrictions: { country: "us" },
+      });
+      ac.addListener("place_changed", () => {
+        const place = ac!.getPlace();
+        if (place.formatted_address) {
+          setAddress(place.formatted_address);
+          void submitAddress(place.formatted_address);
+        }
+      });
+    }
+    tryInit();
+    return () => { if (ac) google.maps.event.clearInstanceListeners(ac); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
