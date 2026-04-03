@@ -498,6 +498,20 @@ export function MapView({
             signalMarkersRef.current.set(s.project_id, { marker: cm, defaultStyle: defaultCircleStyle, isPolyline: false });
           }
         } else {
+          // Construction influence radius: show the affected area
+          const isConstruction = s.impact_type === "construction" || s.impact_type === "road_construction" || s.impact_type === "demolition";
+          if (isConstruction) {
+            const influenceRadius = Math.max(40, Math.min(100, s.weight * 5));
+            L.circle([s.lat, s.lon], {
+              radius: influenceRadius,
+              color,
+              weight: 0.5,
+              fillColor: color,
+              fillOpacity: 0.06,
+              opacity: 0.3,
+              dashArray: "4,4",
+            }).addTo(signalGroup);
+          }
           const defaultCircleStyle = {
             radius,
             color: isCrimeTrend ? color : "#ffffff",
@@ -538,6 +552,19 @@ export function MapView({
             opacity: 0.2,
           }).addTo(signalGroup);
         } else {
+          const isFadedConstruction = s.impact_type === "construction" || s.impact_type === "road_construction" || s.impact_type === "demolition";
+          if (isFadedConstruction) {
+            const influenceRadius = Math.max(40, Math.min(100, s.weight * 5));
+            L.circle([s.lat, s.lon], {
+              radius: influenceRadius,
+              color,
+              weight: 0.5,
+              fillColor: color,
+              fillOpacity: 0.03,
+              opacity: 0.15,
+              dashArray: "4,4",
+            }).addTo(signalGroup);
+          }
           L.circleMarker([s.lat, s.lon], {
             radius: signalPixelRadius(s.weight),
             color,
