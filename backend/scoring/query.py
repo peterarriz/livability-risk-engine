@@ -388,6 +388,26 @@ def _build_top_risks(
     return risks
 
 
+def _temporal_status(start_date_str: str | None, end_date_str: str | None) -> str:
+    """Classify a signal's temporal status relative to today."""
+    today = date.today()
+    start = date.fromisoformat(start_date_str) if start_date_str else None
+    end = date.fromisoformat(end_date_str) if end_date_str else None
+
+    if end and end < today:
+        return "recently_ended"
+    if start and start > today:
+        days_until = (start - today).days
+        if days_until <= 7:
+            return "starts_soon"
+        return "upcoming"
+    if end:
+        days_left = (end - today).days
+        if days_left <= 7:
+            return "ending_soon"
+    return "active_now"
+
+
 # Attribution strength ranking: lower = stronger.
 _ATTRIBUTION_RANK = {"direct": 0, "nearby": 1, "area_context": 2}
 
@@ -433,6 +453,10 @@ def _build_top_risk_details(
             "distance_m": round(nearby.distance_m),
             "weighted_score": round(weight, 1),
             "attribution": attribution,
+            "temporal_status": _temporal_status(
+                p.start_date.isoformat() if p.start_date else None,
+                p.end_date.isoformat() if p.end_date else None,
+            ),
             # Temporary: used for clustering distance calc, stripped later.
             "_lat": p.latitude,
             "_lon": p.longitude,
@@ -917,6 +941,10 @@ def compute_score(
             "distance_m": round(np.distance_m),
             "severity_hint": p.severity_hint,
             "weight": round(weight, 1),
+            "temporal_status": _temporal_status(
+                p.start_date.isoformat() if p.start_date else None,
+                p.end_date.isoformat() if p.end_date else None,
+            ),
         }
         # Add estimated line geometry for closure signals.
         if p.impact_type in _CLOSURE_TYPES:

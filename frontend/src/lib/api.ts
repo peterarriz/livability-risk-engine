@@ -39,6 +39,8 @@ export type TopRiskDetail = {
   why_it_matters?: string | null;  // practical impact explanation
   // Signal attribution: how directly the signal relates to the scored address.
   attribution?: "direct" | "nearby" | "area_context" | null;
+  // Temporal status classification.
+  temporal_status?: "active_now" | "ending_soon" | "starts_soon" | "upcoming" | "recently_ended" | null;
   // Signal clustering (data-012): parent cards group nearby same-street signals.
   children?: TopRiskDetail[] | null;
   cluster_count?: number;
@@ -78,6 +80,8 @@ export type NearbySignal = {
   // Estimated line geometry for closure signals (street segment rendering).
   line_start?: [number, number] | null;
   line_end?: [number, number] | null;
+  // Temporal status classification.
+  temporal_status?: "active_now" | "ending_soon" | "starts_soon" | "upcoming" | "recently_ended" | null;
 };
 
 export type NearbySchool = {
