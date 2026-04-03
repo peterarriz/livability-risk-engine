@@ -25,6 +25,7 @@ import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScor
 import { headlineScore } from "@/lib/score-utils";
 import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
 import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
+import AddressAutocomplete from "@/components/address-autocomplete";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -884,137 +885,18 @@ export default function HomePage() {
               <label htmlFor="address" className="input-label">
                 {workspaceMode ? "Search another property address" : "Enter a Chicago property address"}
               </label>
-              <div ref={searchShellRef} className={`search-shell ${workspaceMode ? "search-shell--workspace" : ""}`}>
-                <div className="search-input-stack">
-                  <input
-                    ref={inputRef}
-                    id="address"
-                    name="address"
-                    type="text"
-                    value={address}
-                    onChange={(event) => {
-                      hasUserTyped.current = true;
-                      setSelectedAddress(null);
-                      setError(null);
-                      setDashboardUnavailableReason(null);
-                      setDashboardHydrationStatus(null);
-                      debugSearchFlow("SEARCH_INPUT", {
-                        typed_query: event.target.value,
-                        debounced_query: null,
-                        request_fired: false,
-                      });
-                      setAddress(event.target.value);
-                    }}
-                    onFocus={() => {
-                      setIsFocused(true);
-                      if (address.trim().length < 3) {
-                        if (popularSuggestionsRef.current.length > 0) {
-                          setSuggestions(popularSuggestionsRef.current);
-                          setShowSuggestions(true);
-                          setActiveSuggestionIndex(-1);
-                        } else {
-                          setSuggestionsLoading(true);
-                          setSuggestionsError(null);
-                          fetchAddressSuggestions("", { popular: true, limit: 5 })
-                            .then((results) => {
-                              popularSuggestionsRef.current = results;
-                              setSuggestions(results);
-                              setShowSuggestions(true);
-                              setActiveSuggestionIndex(-1);
-                            })
-                            .catch(() => {
-                              setSuggestionsError("Could not load suggestions.");
-                            })
-                            .finally(() => setSuggestionsLoading(false));
-                        }
-                      }
-                    }}
-                    onBlur={() => {
-                      setIsFocused(false);
-                      setTimeout(() => setShowSuggestions(false), 150);
-                    }}
-                    onKeyDown={handleInputKeyDown}
-                    placeholder="Search a Chicago address"
-                    autoComplete="off"
-                    role="combobox"
-                    aria-expanded={hasSuggestionPanel}
-                    aria-controls="address-suggestions"
-                    aria-activedescendant={activeSuggestionId}
-                    aria-autocomplete="list"
-                    required
-                    style={address.length > 0 && !isLoading ? { paddingRight: "44px" } : undefined}
-                  />
-                  {address.length > 0 && !isLoading && (
-                    <button
-                      type="button"
-                      className="input-clear-btn"
-                      aria-label="Clear address"
-                      onClick={() => {
-                        setAddress("");
-                        setSuggestions([]);
-                        setShowSuggestions(false);
-                        setError(null);
-                        setDashboardUnavailableReason(null);
-                        setDashboardHydrationStatus(null);
-                        hasUserTyped.current = false;
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
-                  {showSuggestions ? (
-                    <ul id="address-suggestions" className="suggestion-list" role="listbox" aria-label="Address suggestions">
-                      {suggestionsLoading ? (
-                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
-                          <span className="suggestion-loading-dot" aria-hidden="true" />
-                          <span className="suggestion-item-label">Finding closest matches…</span>
-                          <span className="suggestion-item-meta">Searching trusted backend addresses</span>
-                        </li>
-                      ) : suggestionsError ? (
-                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
-                          <span className="suggestion-item-label">{suggestionsError}</span>
-                          <span className="suggestion-item-meta">Try again or continue with full address + ZIP</span>
-                        </li>
-                      ) : suggestions.length === 0 ? (
-                        <li className="suggestion-item suggestion-item--status" role="option" aria-disabled="true">
-                          <span className="suggestion-item-label">
-                            {address.trim().length < 3 ? "Start typing to search addresses" : "No trusted matches found yet"}
-                          </span>
-                          <span className="suggestion-item-meta">
-                            {address.trim().length < 3
-                              ? "Use street number + street name (for example: 1600 W Chicago Ave)"
-                              : `Try adding city/state or ZIP for “${address.trim()}”`}
-                          </span>
-                        </li>
-                      ) : suggestions.map((suggestion, index) => (
-                        (() => {
-                          const addr = getSuggestionAddressParts(suggestion);
-                          const locality = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ").replace(", ,", ",");
-                          const isActive = index === activeSuggestionIndex;
-                          const isSelected = Boolean(selectedAddress?.id) && selectedAddress?.id === suggestion.canonical_id;
-                          return (
-                        <li
-                          key={suggestion.canonical_id ?? `${suggestion.display_address}-${index}`}
-                          id={`address-suggestion-${index}`}
-                          role="option"
-                          aria-selected={isActive}
-                          className={`suggestion-item ${isActive ? "suggestion-item--active" : ""} ${isSelected ? "suggestion-item--selected" : ""}`}
-                          onMouseDown={() => handleSuggestionSelect(suggestion)}
-                          onMouseEnter={() => setActiveSuggestionIndex(index)}
-                        >
-                          <span className="suggestion-item-label">{highlightMatch(addr.street, address)}</span>
-                          <span className="suggestion-item-subline">{highlightMatch(locality || suggestion.display_address, address)}</span>
-                          <span className="suggestion-item-meta">{isSelected ? "Selected" : "Indexed address"}</span>
-                        </li>
-                        );
-                        })()
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
+              <div ref={searchShellRef} className={"search-shell" + (workspaceMode ? " search-shell--workspace" : "")}>
+                <AddressAutocomplete
+                  defaultValue={address}
+                  placeholder={workspaceMode ? "Search another property address" : "Enter any US address"}
+                  onSelect={(addr: string) => { setAddress(addr); void submitAddress(addr); }}
+                  onChange={(addr: string) => { setAddress(addr); }}
+                  ariaLabel="US address"
+                  dropdownDark={false}
+                  inputStyle={{ width: "100%", padding: "18px 20px", border: "1px solid #D1D5DB", borderRadius: "12px", background: "#FFFFFF", color: "#111827", fontSize: "1rem", outline: "none", fontFamily: "Inter, system-ui, sans-serif" }}
+                />
                 <button type="submit" disabled={isLoading}>
-                  {isLoading ? "Analyzing…" : "Analyze address"}
+                  {isLoading ? "Analyzing\u2026" : "Analyze address"}
                 </button>
               </div>
               <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
