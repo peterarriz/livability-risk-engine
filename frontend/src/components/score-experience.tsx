@@ -532,15 +532,69 @@ export function ScoreHero({ result }: ScoreHeroProps) {
     return Math.round(Math.max(...distances));
   }, [result.nearby_signals]);
 
+  const evidenceQuality = result.evidence_quality ?? null;
+  const isWeakEvidence = evidenceQuality === "contextual_only" || evidenceQuality === "insufficient";
+  const isInsufficient = evidenceQuality === "insufficient";
+
   return (
     <div className="score-hero">
       <div className="score-hero-copy">
+        {/* Coverage notice banner for weak-evidence areas */}
+        {evidenceQuality === "contextual_only" && (
+          <div style={{
+            marginBottom: "0.75rem",
+            padding: "0.6rem 0.75rem",
+            borderRadius: "6px",
+            borderLeft: "3px solid #f59e0b",
+            background: "rgba(245, 158, 11, 0.06)",
+            fontSize: "0.82rem",
+            lineHeight: 1.55,
+          }}>
+            <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#f59e0b" }}>Limited coverage area</p>
+            <p style={{ color: "var(--color-text-secondary, #94a3b8)" }}>
+              This address has limited direct signal data. The score reflects neighborhood-level context
+              (crime trends, school ratings, flood risk) but lacks address-specific permit and closure data.{" "}
+              <a href="/methodology" style={{ color: "#f59e0b", textDecoration: "underline" }}>Learn more</a>
+            </p>
+          </div>
+        )}
+        {evidenceQuality === "insufficient" && (
+          <div style={{
+            marginBottom: "0.75rem",
+            padding: "0.6rem 0.75rem",
+            borderRadius: "6px",
+            borderLeft: "3px solid #ef4444",
+            background: "rgba(239, 68, 68, 0.06)",
+            fontSize: "0.82rem",
+            lineHeight: 1.55,
+          }}>
+            <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#ef4444" }}>Outside coverage area</p>
+            <p style={{ color: "var(--color-text-secondary, #94a3b8)" }}>
+              We don&rsquo;t have enough data to produce a reliable score for this address.
+              The result below is directional only and should not be used for decision-making.{" "}
+              <a href="/methodology" style={{ color: "#ef4444", textDecoration: "underline" }}>Learn more</a>
+            </p>
+          </div>
+        )}
+
         <p className="score-hero-kicker">Headline assessment</p>
         <div className="score-hero-topline">
           <p className="score-label">Livability Score</p>
           <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
         </div>
-        <div className="score-value score-value--animated">{displayScore}</div>
+        <div className="score-value score-value--animated" style={isInsufficient ? { opacity: 0.5 } : undefined}>
+          {displayScore}
+        </div>
+        {isInsufficient && (
+          <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "#ef4444", marginTop: "-0.25rem", marginBottom: "0.25rem" }}>
+            Directional only
+          </p>
+        )}
+        {evidenceQuality === "contextual_only" && (
+          <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "#f59e0b", marginTop: "-0.25rem", marginBottom: "0.25rem" }}>
+            Based on area data
+          </p>
+        )}
 
         <div className={`score-action-row score-action-row--${action.tone}`}>
           <span className="score-action-icon" aria-hidden="true">{action.icon}</span>
