@@ -186,6 +186,30 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     result_dict["evidence_quality"] = evidence_quality
     result_dict["strong_signal_count"] = len(strong_signals)
 
+    # Downgrade explanation language when evidence is thin.
+    if evidence_quality == "insufficient":
+        result_dict["explanation"] = (
+            "Insufficient address-level data to assess disruption risk. "
+            "This score should be treated as directional only."
+        )
+    elif evidence_quality == "contextual_only":
+        # Reference the top signal if one exists, otherwise keep generic.
+        top_details = result_dict.get("top_risk_details") or []
+        if top_details:
+            top = top_details[0]
+            from backend.scoring.sanitize import sanitize_title
+            title = top.get("display_title") or sanitize_title(top.get("title", ""))
+            result_dict["explanation"] = (
+                "Limited direct evidence for this address — the score is "
+                "based primarily on neighborhood-level data. "
+                f"The nearest relevant signal is {title.lower()}."
+            )
+        else:
+            result_dict["explanation"] = (
+                "Limited direct evidence for this address — the score is "
+                "based primarily on neighborhood-level data."
+            )
+
     return result_dict
 
 
