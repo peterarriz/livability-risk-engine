@@ -826,7 +826,7 @@ export function MapView({
 
         {!isPro && (
           <a
-            href="#pricing-section"
+            href="/pricing"
             style={{
               fontSize: "0.71rem", color: "#a78bfa",
               textDecoration: "none", fontWeight: 500,

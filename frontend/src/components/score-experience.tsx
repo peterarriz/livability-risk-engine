@@ -2206,7 +2206,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
           <span className="watch-pro-badge">Pro</span>
           <span>
             Email delivery is available on the Pro plan.{" "}
-            Your address is saved — <a href="#pricing-section" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a>.
+            Your address is saved — <a href="/pricing" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a>.
           </span>
         </div>
 

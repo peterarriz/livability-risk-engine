@@ -208,7 +208,7 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
           </table>
           <p className="docs-note">
             Rate limits are tracked per API key. Exceeding your plan&rsquo;s limits returns HTTP 429.
-            <a href="#pricing-section"> Upgrade your plan</a> for higher limits.
+            <a href="/pricing"> Upgrade your plan</a> for higher limits.
           </p>
         </section>
 

@@ -1061,7 +1061,7 @@ export default function HomePage() {
                   </p>
                   <div className="gate-overlay-actions">
                     {isSignedIn ? (
-                      <a href="/#pricing" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
+                      <a href="/pricing" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
                         See Pro plan
                       </a>
                     ) : (
@@ -1212,7 +1212,7 @@ export default function HomePage() {
           }
           headerAction={workspaceMode && result ? (
             <a
-              href="/#pricing"
+              href="/pricing"
               className="icon-btn"
               title="PDF export is available on the Pro plan"
             >
@@ -1269,7 +1269,7 @@ export default function HomePage() {
                   <span className="pro-badge-icon">⚠</span>
                   <span>
                     <strong>High-risk address detected.</strong> Pro users get 30-day forecasts and permit detail exports.{" "}
-                    <a href="/#pricing" className="pro-badge-link">See Pro plan →</a>
+                    <a href="/pricing" className="pro-badge-link">See Pro plan →</a>
                   </span>
                 </div>
               )}

@@ -589,7 +589,7 @@ export default function PortfolioPage() {
             {atLimit && (
               <div className="portfolio-limit-banner">
                 <span>Free plan limit reached ({FREE_LIMIT} addresses).</span>
-                <a href="/#pricing-section" className="portfolio-upgrade-link">
+                <a href="/pricing" className="portfolio-upgrade-link">
                   Upgrade to Pro for unlimited →
                 </a>
               </div>
@@ -879,7 +879,7 @@ export default function PortfolioPage() {
                 <span className="portfolio-pro-badge">Pro</span>
                 <span>
                   Unlimited addresses, database sync, and webhook alerts.{" "}
-                  <a href="/#pricing-section" className="portfolio-upgrade-link">
+                  <a href="/pricing" className="portfolio-upgrade-link">
                     See Pro plan →
                   </a>
                 </span>
