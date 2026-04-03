@@ -215,33 +215,20 @@ export default function HomePage() {
   type DetailItem = { label: string; value: string; isConfidence?: boolean };
   const supportingDetails = useMemo((): DetailItem[] => {
     if (!result) return [];
+    const evidenceLabel: Record<string, string> = {
+      strong: "Strong", moderate: "Moderate",
+      contextual_only: "Limited", insufficient: "Insufficient",
+    };
     const timeStr = scoredAt
       ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
       : null;
     return [
-      { label: "Data mode", value: isDemoResult ? "Limited data coverage" : "Live Chicago feed" },
+      { label: "Evidence strength", value: evidenceLabel[result.evidence_quality ?? ""] ?? "Unknown" },
+      { label: "Active signals", value: String(result.strong_signal_count ?? 0) },
       { label: "Confidence", value: result.confidence, isConfidence: true },
-      { label: "Active signals detected", value: String(result.top_risks.length) },
-      { label: "Sources", value: (() => {
-        const IMPACT_LABELS: Record<string, string> = {
-          closure_full: "Full street closure",
-          closure_multi_lane: "Multi-lane closure",
-          closure_single_lane: "Lane closure",
-          demolition: "Demolition permit",
-          construction: "Construction permit",
-          light_permit: "Minor permit",
-        };
-        const signals = result.nearby_signals ?? [];
-        const details = result.top_risk_details ?? [];
-        const types = new Set<string>();
-        for (const s of signals) if (s.impact_type) types.add(s.impact_type);
-        for (const d of details) if (d.impact_type) types.add(d.impact_type);
-        if (types.size === 0) return "Chicago permits • Street closures";
-        return [...types].map(t => IMPACT_LABELS[t] ?? t).join(" • ");
-      })() },
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
-  }, [isDemoResult, result, scoredAt]);
+  }, [result, scoredAt]);
   const quickExplanation = useMemo(() => {
     if (!result) return "";
     const score = headlineScore(result);
