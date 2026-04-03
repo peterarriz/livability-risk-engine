@@ -424,13 +424,6 @@ export function MapView({
       ? filteredSignals.filter((s) => !isSignalActiveOnDay(s, forecastDate))
       : [];
 
-    // ── Debug: log signals to console so devtools can confirm data is present ──
-    console.debug(
-      "[MapView] rendering signals mode=%s active=%d faded=%d total=%d",
-      mapMode, active.length, faded.length, filteredSignals.length,
-      active.slice(0, 3).map((s) => ({ lat: s.lat, lon: s.lon, type: s.impact_type, weight: s.weight })),
-    );
-
     if (mapMode === "signals") {
       // ── Signal-circles mode — L.circleMarker (fixed pixel radius) ────────
       for (const s of active) {

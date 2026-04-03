@@ -866,18 +866,21 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
   );
 }
 
-const IMPACT_TYPE_LABELS: Record<string, string> = {
-  closure_full: "Full street closure",
-  closure_multi_lane: "Multi-lane closure",
-  closure_single_lane: "Single-lane closure",
-  demolition: "Demolition / excavation",
-  construction: "Construction permit",
-  light_permit: "Light permit",
-};
-
+/** Source field → plain-English label for the permit detail panel. */
 const SOURCE_LABELS: Record<string, string> = {
-  chicago_closures: "CDOT Street Closures",
-  chicago_permits: "Chicago Building Permits",
+  chicago_closures: "Street closures",
+  chicago_permits: "Building permits",
+  idot_road_projects: "Road construction",
+  chicago_311_requests: "311 reports",
+  chicago_film_permits: "Film permits",
+  chicago_special_events: "Special events",
+  cta_alerts: "CTA alerts",
+  chicago_traffic_crashes: "Traffic incidents",
+  chicago_divvy_stations: "Bike stations",
+  chicago_crime_trends: "Crime trends",
+  chicago_excavation: "Excavation permits",
+  chicago_sidewalk_cafes: "Sidewalk permits",
+  cook_county_permits: "County permits",
 };
 
 function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose: () => void }) {
@@ -932,7 +935,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
         </div>
         <div>
           <dt>Source</dt>
-          <dd>{SOURCE_LABELS[detail.source] ?? detail.source}</dd>
+          <dd>{SOURCE_LABELS[detail.source] ?? detail.source.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase())}</dd>
         </div>
         <div>
           <dt>Type</dt>
@@ -2665,7 +2668,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
     <div className="msv" aria-label="Mobile score summary">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <div className="msv-hero" style={{ "--msv-band-color": band.color } as React.CSSProperties}>
-        <p className="msv-eyebrow">Disruption Score</p>
+        <p className="msv-eyebrow">Livability Score</p>
         <div className="msv-score" style={{ color: band.color }}>
           {_headline}
         </div>
@@ -2674,7 +2677,48 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
         {result.mode === "demo" && (
           <span className="msv-demo-badge">Demo data</span>
         )}
+        {result.city_baseline_diff != null && (
+          <p style={{
+            fontSize: "0.72rem", fontWeight: 500, marginTop: "0.25rem",
+            color: result.city_baseline_diff > 0 ? "#22c55e" : result.city_baseline_diff < 0 ? "#f59e0b" : "#94a3b8",
+          }}>
+            {result.city_baseline_diff > 0
+              ? `↑ ${result.city_baseline_diff} above ${result.city_baseline_label ?? "city"} avg`
+              : result.city_baseline_diff < 0
+              ? `↓ ${Math.abs(result.city_baseline_diff)} below ${result.city_baseline_label ?? "city"} avg`
+              : `At ${result.city_baseline_label ?? "city"} avg`}
+          </p>
+        )}
+        {result.evidence_quality && (
+          <span style={{
+            display: "inline-block", marginTop: "0.35rem",
+            padding: "1px 8px", borderRadius: "999px",
+            fontSize: "0.68rem", fontWeight: 600,
+            color: result.evidence_quality === "strong" ? "#166534"
+              : result.evidence_quality === "moderate" ? "#92400e" : "#991b1b",
+            background: result.evidence_quality === "strong" ? "#dcfce7"
+              : result.evidence_quality === "moderate" ? "#fef3c7" : "#fee2e2",
+          }}>
+            {result.evidence_quality === "strong" ? "Strong evidence"
+              : result.evidence_quality === "moderate" ? "Moderate evidence"
+              : result.evidence_quality === "contextual_only" ? "Limited evidence"
+              : "Insufficient data"}
+          </span>
+        )}
       </div>
+
+      {/* ── Recommended action ─────────────────────────────────────────── */}
+      {result.recommended_action && (
+        <div style={{
+          margin: "0 1rem", padding: "0.4rem 0.6rem", borderRadius: "6px",
+          borderLeft: `3px solid ${_headline <= 50 ? "#f59e0b" : "#3b82f6"}`,
+          background: _headline <= 50 ? "rgba(251,191,36,0.08)" : "rgba(59,130,246,0.08)",
+          fontSize: "0.75rem", lineHeight: 1.45,
+        }}>
+          <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
+          {result.recommended_action}
+        </div>
+      )}
 
       {/* ── Signal pills ──────────────────────────────────────────────────── */}
       {pills.length > 0 && (
