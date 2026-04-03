@@ -1325,7 +1325,7 @@ export default function HomePage() {
                   <summary>Open full analysis</summary>
                   <div className="secondary-details-body">
                   {/* ── Tab bar ──────────────────────────────────────────────── */}
-                  <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: "1rem" }}>
+                  <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: "1rem" }}>
                     {(["signals", "map", "neighborhood", ...(headlineScore(result) >= 50 ? ["monitor"] : [])] as const).map((tab) => (
                       <button
                         key={tab}
@@ -1335,10 +1335,10 @@ export default function HomePage() {
                           padding: "0.5rem 1rem",
                           fontSize: "0.82rem",
                           fontWeight: activeTab === tab ? 600 : 400,
-                          color: activeTab === tab ? "#60a5fa" : "#94a3b8",
+                          color: activeTab === tab ? "#2563EB" : "#6B7280",
                           background: "transparent",
                           border: "none",
-                          borderBottom: activeTab === tab ? "2px solid #60a5fa" : "2px solid transparent",
+                          borderBottom: activeTab === tab ? "2px solid #2563EB" : "2px solid transparent",
                           cursor: "pointer",
                           textTransform: "capitalize",
                         }}
@@ -1359,7 +1359,7 @@ export default function HomePage() {
                         className="workspace-subsection"
                       >
                         {result.signal_summary && (
-                          <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #94a3b8)", margin: "0 0 0.75rem" }}>
+                          <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #6B7280)", margin: "0 0 0.75rem" }}>
                             {result.signal_summary}
                           </p>
                         )}
@@ -1376,7 +1376,7 @@ export default function HomePage() {
                       <div className="detail-grid detail-grid--balanced">
                         <Card className="detail-card">
                           <details>
-                            <summary style={{ cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
+                            <summary style={{ cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-secondary, #6B7280)" }}>
                               Severity breakdown
                             </summary>
                             <div style={{ marginTop: "0.5rem" }}>
@@ -1398,7 +1398,7 @@ export default function HomePage() {
                                       {item.value}
                                     </strong>
                                     {result?.confidence_reason && (
-                                      <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px", lineHeight: 1.4 }}>
+                                      <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #6B7280)", marginTop: "2px", lineHeight: 1.4 }}>
                                         {result.confidence_reason}
                                       </span>
                                     )}

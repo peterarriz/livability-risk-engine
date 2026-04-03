@@ -555,7 +555,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             lineHeight: 1.55,
           }}>
             <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#f59e0b" }}>Limited coverage area</p>
-            <p style={{ color: "var(--color-text-secondary, #94a3b8)" }}>
+            <p style={{ color: "var(--color-text-secondary, #6B7280)" }}>
               This address has limited direct signal data. The score reflects neighborhood-level context
               (crime trends, school ratings, flood risk) but lacks address-specific permit and closure data.{" "}
               <a href="/methodology" style={{ color: "#f59e0b", textDecoration: "underline" }}>Learn more</a>
@@ -573,7 +573,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             lineHeight: 1.55,
           }}>
             <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#ef4444" }}>Outside coverage area</p>
-            <p style={{ color: "var(--color-text-secondary, #94a3b8)" }}>
+            <p style={{ color: "var(--color-text-secondary, #6B7280)" }}>
               We don&rsquo;t have enough data to produce a reliable score for this address.
               The result below is directional only and should not be used for decision-making.{" "}
               <a href="/methodology" style={{ color: "#ef4444", textDecoration: "underline" }}>Learn more</a>
@@ -654,7 +654,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               borderLeft: `3px solid ${headlineScore <= 50 ? "#f59e0b" : "#3b82f6"}`,
               fontSize: "0.82rem",
               lineHeight: 1.5,
-              color: "var(--color-text-primary, #e2e8f0)",
+              color: "var(--color-text-primary, #111827)",
             }}
           >
             <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
@@ -668,14 +668,14 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             cursor: "pointer",
             fontSize: "0.78rem",
             fontWeight: 600,
-            color: "var(--color-text-secondary, #94a3b8)",
+            color: "var(--color-text-secondary, #6B7280)",
             listStyle: "disclosure-closed",
           }}>
             What this score covers
           </summary>
-          <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.76rem", lineHeight: 1.55, color: "var(--color-text-secondary, #94a3b8)" }}>
+          <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.76rem", lineHeight: 1.55, color: "var(--color-text-secondary, #6B7280)" }}>
             <div style={{ paddingLeft: "0.6rem", borderLeft: "2px solid rgba(34, 197, 94, 0.3)" }}>
-              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #e2e8f0)", marginBottom: "0.2rem" }}>Best used for</p>
+              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: "0.2rem" }}>Best used for</p>
               <ul style={{ margin: 0, paddingLeft: "1rem" }}>
                 <li>Screening addresses before tours or lease commitments</li>
                 <li>Setting access and noise expectations with clients</li>
@@ -684,7 +684,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               </ul>
             </div>
             <div style={{ paddingLeft: "0.6rem", borderLeft: "2px solid rgba(148, 163, 184, 0.3)" }}>
-              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #e2e8f0)", marginBottom: "0.2rem" }}>Not designed for</p>
+              <p style={{ fontWeight: 700, color: "var(--color-text-primary, #111827)", marginBottom: "0.2rem" }}>Not designed for</p>
               <ul style={{ margin: 0, paddingLeft: "1rem" }}>
                 <li>Predicting future property values or appreciation</li>
                 <li>Assessing indoor building condition, pests, or maintenance</li>
@@ -757,12 +757,12 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               return (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem" }}>
                   <span style={{ width: "11rem", flexShrink: 0, color: "var(--color-text-secondary, #6b7280)" }}>{label}</span>
-                  <div style={{ flex: 1, height: "0.5rem", borderRadius: "4px", background: "var(--color-surface-alt, #e5e7eb)" }}>
+                  <div style={{ flex: 1, height: "0.5rem", borderRadius: "4px", background: "var(--color-surface-alt, #F3F4F6)" }}>
                     <div style={{ width: `${Math.max(raw, 2)}%`, height: "100%", borderRadius: "4px", background: barColor, transition: "width 0.4s ease" }} />
                   </div>
                   <span style={{ width: "2.5rem", textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{Math.round(raw)}</span>
                   {weight != null && (
-                    <span style={{ width: "2.5rem", textAlign: "right", color: "var(--color-text-secondary, #9ca3af)", fontSize: "0.75rem" }}>{Math.round(weight * 100)}%</span>
+                    <span style={{ width: "2.5rem", textAlign: "right", color: "var(--color-text-secondary, #6B7280)", fontSize: "0.75rem" }}>{Math.round(weight * 100)}%</span>
                   )}
                 </div>
               );
@@ -1021,7 +1021,7 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
                   <p className="risk-card-index">{risk.eyebrow}</p>
                   <h3>{risk.title}</h3>
                   {risk.clusterCount > 1 && (
-                    <p style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                    <p style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #6B7280)", marginTop: "2px" }}>
                       {risk.clusterCount} signals grouped
                     </p>
                   )}
@@ -1115,7 +1115,7 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
             {/* Clustered child signals */}
             {expandedCard.children && expandedCard.children.length > 1 && (
               <details className="risk-detail-section" style={{ marginTop: "0.5rem" }}>
-                <summary style={{ cursor: "pointer", fontSize: "0.78rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
+                <summary style={{ cursor: "pointer", fontSize: "0.78rem", fontWeight: 600, color: "var(--color-text-secondary, #6B7280)" }}>
                   Show {expandedCard.children.length} individual signals
                 </summary>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
@@ -1125,21 +1125,21 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
                       style={{
                         padding: "0.5rem 0.75rem",
                         borderRadius: "6px",
-                        background: "var(--color-surface-alt, rgba(255,255,255,0.04))",
+                        background: "var(--color-surface-alt, #F3F4F6)",
                         fontSize: "0.78rem",
                         lineHeight: 1.45,
                       }}
                     >
-                      <p style={{ fontWeight: 600, color: "var(--color-text-primary, #e2e8f0)" }}>
+                      <p style={{ fontWeight: 600, color: "var(--color-text-primary, #111827)" }}>
                         {child.display_title ?? child.title}
                       </p>
                       {child.distance && (
-                        <p style={{ color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                        <p style={{ color: "var(--color-text-secondary, #6B7280)", marginTop: "2px" }}>
                           {child.distance}
                         </p>
                       )}
                       {child.start_date && (
-                        <p style={{ color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                        <p style={{ color: "var(--color-text-secondary, #6B7280)", marginTop: "2px" }}>
                           {child.start_date}{child.end_date ? ` — ${child.end_date}` : ""}
                         </p>
                       )}
@@ -2749,7 +2749,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
                 type="button"
                 className="msv-pill msv-pill--more"
                 onClick={onShowFull}
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#94a3b8" }}
+                style={{ background: "#F3F4F6", border: "1px solid #E5E7EB", color: "#6B7280" }}
               >
                 +{extraCount} more
               </button>
