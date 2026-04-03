@@ -175,6 +175,8 @@ export type ScoreResponse = {
   strong_signal_count?: number | null;
   // Actionable recommendation based on score + evidence + signal types.
   recommended_action?: string | null;
+  // Signal synthesis summary for the timeline section.
+  signal_summary?: string | null;
 };
 
 export type ScoreSource = ScoreMode;

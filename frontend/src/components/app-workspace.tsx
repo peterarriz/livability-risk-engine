@@ -1340,6 +1340,11 @@ export default function HomePage() {
                     description="Top cards and timeline are grouped together so you can read what matters first."
                     className="workspace-subsection"
                   >
+                    {result.signal_summary && (
+                      <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #94a3b8)", margin: "0 0 0.75rem" }}>
+                        {result.signal_summary}
+                      </p>
+                    )}
                     <Card className="detail-card drivers-card">
                       <TopRiskGrid result={result} />
                     </Card>
