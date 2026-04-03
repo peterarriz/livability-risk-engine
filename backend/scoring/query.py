@@ -135,6 +135,7 @@ NEARBY_PROJECTS_SQL = """
     FROM projects
     WHERE
         status = ANY(%s)
+        AND (end_date IS NULL OR end_date >= CURRENT_DATE - INTERVAL '30 days')
         AND latitude  IS NOT NULL
         AND longitude IS NOT NULL
         AND latitude  BETWEEN %s AND %s
