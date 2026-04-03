@@ -21,6 +21,8 @@ type MapViewProps = {
   floodRisk?: string | null;
   femaZone?: string | null;
   isPro?: boolean;
+  hoveredSignalId?: string | null;
+  onHoverSignal?: (projectId: string | null) => void;
 };
 
 // ─── Impact-type colour palette (per design spec) ─────────────────────────────
@@ -259,6 +261,8 @@ export function MapView({
   floodRisk = null,
   femaZone = null,
   isPro = false,
+  hoveredSignalId = null,
+  onHoverSignal,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,6 +275,9 @@ export function MapView({
   const leafletRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ringGroupRef = useRef<any>(null);
+  // Map of project_id → marker/polyline references for hover highlighting.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const signalMarkersRef = useRef<Map<string, { marker: any; defaultStyle: any; isPolyline: boolean }>>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const schoolGroupRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -395,6 +402,7 @@ export function MapView({
 
     signalGroup.clearLayers();
     heatGroup.clearLayers();
+    signalMarkersRef.current.clear();
 
     // Compute which signals are active for the current forecast day.
     const baseDate = new Date();
@@ -432,13 +440,21 @@ export function MapView({
 
         // Closure signals with line geometry: render as dashed polyline + small center dot.
         const hasLine = s.line_start && s.line_end && s.impact_type.startsWith("closure");
+        const handleClick = () => {
+          setPendingNarration({ type: "signal_click", clicked: s });
+          if (s.project_id) onHoverSignal?.(s.project_id);
+        };
         if (hasLine) {
-          L.polyline(
+          const defaultLineStyle = { color: "#ef4444", weight: 5, opacity: 0.85, dashArray: "10,6" };
+          const line = L.polyline(
             [s.line_start as [number, number], s.line_end as [number, number]],
-            { color: "#ef4444", weight: 5, opacity: 0.85, dashArray: "10,6" },
+            defaultLineStyle,
           ).bindPopup(popup, { maxWidth: 280 })
-            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+            .on("click", handleClick)
             .addTo(signalGroup);
+          if (s.project_id) {
+            signalMarkersRef.current.set(s.project_id, { marker: line, defaultStyle: defaultLineStyle, isPolyline: true });
+          }
           // Small center marker for click target and visual anchor
           L.circleMarker([s.lat, s.lon], {
             radius: 4,
@@ -448,10 +464,10 @@ export function MapView({
             fillOpacity: 0.9,
             opacity: 0.9,
           }).bindPopup(popup, { maxWidth: 280 })
-            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+            .on("click", handleClick)
             .addTo(signalGroup);
         } else {
-          L.circleMarker([s.lat, s.lon], {
+          const defaultCircleStyle = {
             radius,
             color: isCrimeTrend ? color : "#ffffff",
             weight: isCrimeTrend ? 2 : 1,
@@ -459,9 +475,14 @@ export function MapView({
             fillColor: color,
             fillOpacity: isCrimeTrend ? 0.12 : 0.7,
             opacity: isCrimeTrend ? 0.8 : 0.9,
-          }).bindPopup(popup, { maxWidth: 280 })
-            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+          };
+          const cm = L.circleMarker([s.lat, s.lon], defaultCircleStyle)
+            .bindPopup(popup, { maxWidth: 280 })
+            .on("click", handleClick)
             .addTo(signalGroup);
+          if (s.project_id) {
+            signalMarkersRef.current.set(s.project_id, { marker: cm, defaultStyle: defaultCircleStyle, isPolyline: false });
+          }
         }
       }
 
@@ -672,6 +693,27 @@ export function MapView({
       ? `\u2713 Done \u2014 click to replay`
       : `\u25fc Stop  \u00b7  ${forecastDateLabel}`
     : "\u25b6 30-day forecast";
+
+  // ── Hover highlight: update marker styles when hoveredSignalId changes ─────
+  useEffect(() => {
+    const markers = signalMarkersRef.current;
+    for (const [id, entry] of markers) {
+      if (id === hoveredSignalId) {
+        if (entry.isPolyline) {
+          entry.marker.setStyle({ weight: 8, opacity: 1.0, color: "#ffffff" });
+        } else {
+          entry.marker.setStyle({
+            ...entry.defaultStyle,
+            radius: (entry.defaultStyle.radius ?? 6) + 4,
+            weight: 3,
+            color: "#ffffff",
+          });
+        }
+      } else {
+        entry.marker.setStyle(entry.defaultStyle);
+      }
+    }
+  }, [hoveredSignalId]);
 
   // ── Signal counts per type (for legend badges) ────────────────────────────
   const displayedSignals = useMemo(
