@@ -599,6 +599,21 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             Based on area data
           </p>
         )}
+        {result.city_baseline_diff != null && (
+          <p style={{
+            fontSize: "0.75rem",
+            fontWeight: 500,
+            color: result.city_baseline_diff > 0 ? "#22c55e" : result.city_baseline_diff < 0 ? "#f59e0b" : "#94a3b8",
+            marginTop: "0.1rem",
+            marginBottom: "0.25rem",
+          }}>
+            {result.city_baseline_diff > 0
+              ? `↑ ${result.city_baseline_diff} points above ${result.city_baseline_label ?? "city"} average`
+              : result.city_baseline_diff < 0
+              ? `↓ ${Math.abs(result.city_baseline_diff)} points below ${result.city_baseline_label ?? "city"} average`
+              : `At ${result.city_baseline_label ?? "city"} average`}
+          </p>
+        )}
 
         <div className={`score-action-row score-action-row--${action.tone}`}>
           <span className="score-action-icon" aria-hidden="true">{action.icon}</span>
