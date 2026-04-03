@@ -12,7 +12,7 @@ export default function LandingPage() {
   const featured = EXAMPLE_ADDRESSES[0];
 
   return (
-    <main className="page">
+    <main className="page" style={{ background: "#FFFFFF", minHeight: "100vh", position: "relative", zIndex: 1 }}>
       <div className="shell-container landing-shell">
         <header className="topbar landing-topbar">
           <div className="brand-lockup">
