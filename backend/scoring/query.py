@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
@@ -426,14 +427,12 @@ def _clean_signal_name(title: str, address: str | None) -> str:
         "161 N Clark St building renovation"
             → "161 N Clark St"
     """
-    import re as _re
-
     # Prefer the address field if it looks like a street address — it's
     # cleaner than the raw permit title.
     if address:
         addr = address.strip()
         # Use address if it starts with a number or directional
-        if _re.match(r"^(\d|[NSEW]\s)", addr):
+        if re.match(r"^(\d|[NSEW]\s)", addr):
             # Take just the street portion (before any city/state)
             street_part = addr.split(",")[0].strip()
             if street_part:
@@ -441,11 +440,11 @@ def _clean_signal_name(title: str, address: str | None) -> str:
 
     cleaned = sanitize_title(title)
     # Strip parenthetical noise: "(Opening in the Public Way)", etc.
-    cleaned = _re.sub(r"\s*\([^)]*\)", "", cleaned)
+    cleaned = re.sub(r"\s*\([^)]*\)", "", cleaned)
     # Strip street number ranges like "between 713-733" or "713–733"
-    cleaned = _re.sub(r"\s*between\s+\d+[\-–]\d+", "", cleaned)
+    cleaned = re.sub(r"\s*between\s+\d+[\-–]\d+", "", cleaned)
     # Collapse whitespace
-    cleaned = _re.sub(r"\s{2,}", " ", cleaned).strip()
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
     return cleaned or sanitize_title(title)
 
 
@@ -527,6 +526,98 @@ def _build_explanation(
     return f"{sentence1} {sentence2}"
 
 
+# ---------------------------------------------------------------------------
+# Closure line geometry estimation
+# ---------------------------------------------------------------------------
+
+_RANGE_RE = re.compile(
+    r"(?:from\s+(\d+)\s+to\s+(\d+))"   # "from 4306 to 4354"
+    r"|(?:(\d+)\s*[-–]\s*(\d+))",        # "4306-4354" or "4306–4354"
+)
+
+_CLOSURE_TYPES = frozenset({
+    IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
+})
+
+# Chicago grid: ~800 address numbers = 1 mile = 1609m
+_ADDR_PER_MILE = 800
+_METERS_PER_MILE = 1609.0
+_MIN_SEGMENT_M = 50.0
+_MAX_SEGMENT_M = 500.0
+_METERS_PER_LAT_DEG = 111_000.0
+
+
+def _estimate_closure_geometry(
+    title: str,
+    address: str | None,
+    lat: float,
+    lon: float,
+) -> dict | None:
+    """
+    Estimate line_start/line_end for a closure signal using Chicago's
+    address grid system.  Returns {"line_start": [lat,lon], "line_end": [lat,lon]}
+    or None if the signal can't be mapped to a line.
+    """
+    import math
+
+    # 1. Parse address range from title
+    m = _RANGE_RE.search(title or "")
+    if m:
+        lo = int(m.group(1) or m.group(3))
+        hi = int(m.group(2) or m.group(4))
+        length_m = abs(hi - lo) / _ADDR_PER_MILE * _METERS_PER_MILE
+    else:
+        # No range found — use a sensible default for closures
+        length_m = 120.0
+
+    # 2. Clamp
+    length_m = max(_MIN_SEGMENT_M, min(_MAX_SEGMENT_M, length_m))
+
+    # 3. Determine orientation from address or title
+    #    N/S addresses → street runs north-south → offset latitude
+    #    W/E addresses → street runs east-west → offset longitude
+    orientation = _detect_orientation(address, title)
+
+    # 4. Compute start/end by offsetting from center
+    half = length_m / 2.0
+    if orientation == "ns":
+        # North-south street: offset latitude
+        delta_lat = half / _METERS_PER_LAT_DEG
+        return {
+            "line_start": [lat - delta_lat, lon],
+            "line_end": [lat + delta_lat, lon],
+        }
+    else:
+        # East-west street: offset longitude
+        meters_per_lon_deg = _METERS_PER_LAT_DEG * math.cos(math.radians(lat))
+        delta_lon = half / meters_per_lon_deg
+        return {
+            "line_start": [lat, lon - delta_lon],
+            "line_end": [lat, lon + delta_lon],
+        }
+
+
+def _detect_orientation(address: str | None, title: str | None) -> str:
+    """Return 'ns' for north-south streets, 'ew' for east-west (default)."""
+    for text in (address, title):
+        if not text:
+            continue
+        stripped = text.strip()
+        # Check leading directional: "N ", "S " → NS; "W ", "E " → EW
+        if stripped[:2] in ("N ", "S "):
+            return "ns"
+        if stripped[:2] in ("W ", "E "):
+            return "ew"
+        # Check after street number: "123 N Clark" or "4306 N LEXINGTON"
+        parts = stripped.split(None, 2)
+        if len(parts) >= 2 and parts[0].isdigit():
+            if parts[1] in ("N", "S", "North", "South"):
+                return "ns"
+            if parts[1] in ("W", "E", "West", "East"):
+                return "ew"
+    return "ew"  # Default: east-west
+
+
 def compute_score(
     nearby: list[NearbyProject],
     address: str,
@@ -585,7 +676,7 @@ def compute_score(
         p = np.project
         if p.latitude is None or p.longitude is None:
             continue
-        nearby_signals.append({
+        signal: dict = {
             "lat": p.latitude,
             "lon": p.longitude,
             "impact_type": p.impact_type,
@@ -597,12 +688,15 @@ def compute_score(
             "distance_m": round(np.distance_m),
             "severity_hint": p.severity_hint,
             "weight": round(weight, 1),
-            # Include source + dates so map popups show the correct
-            # data provider (e.g. "CTA Service Alerts") and date range.
-            "source": p.source,
-            "start_date": p.start_date.isoformat() if p.start_date else None,
-            "end_date": p.end_date.isoformat() if p.end_date else None,
-        })
+        }
+        # Add estimated line geometry for closure signals.
+        if p.impact_type in _CLOSURE_TYPES:
+            geom = _estimate_closure_geometry(
+                p.title, p.address, p.latitude, p.longitude,
+            )
+            if geom:
+                signal.update(geom)
+        nearby_signals.append(signal)
 
     return ScoreResult(
         address=address,

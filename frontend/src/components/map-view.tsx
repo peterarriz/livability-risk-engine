@@ -430,30 +430,60 @@ export function MapView({
             </table>
           </div>`;
 
-        L.circleMarker([s.lat, s.lon], {
-          radius,
-          color: isCrimeTrend ? color : "#ffffff",
-          weight: isCrimeTrend ? 2 : 1,
-          dashArray: isCrimeTrend ? "4 3" : undefined,
-          fillColor: color,
-          fillOpacity: isCrimeTrend ? 0.12 : 0.7,
-          opacity: isCrimeTrend ? 0.8 : 0.9,
-        }).bindPopup(popup, { maxWidth: 260 })
-          .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
-          .addTo(signalGroup);
+        // Closure signals with line geometry: render as dashed polyline + small center dot.
+        const hasLine = s.line_start && s.line_end && s.impact_type.startsWith("closure");
+        if (hasLine) {
+          L.polyline(
+            [s.line_start as [number, number], s.line_end as [number, number]],
+            { color: "#ef4444", weight: 5, opacity: 0.85, dashArray: "10,6" },
+          ).bindPopup(popup, { maxWidth: 260 })
+            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+            .addTo(signalGroup);
+          // Small center marker for click target and visual anchor
+          L.circleMarker([s.lat, s.lon], {
+            radius: 4,
+            color: "#ef4444",
+            weight: 1,
+            fillColor: "#ef4444",
+            fillOpacity: 0.9,
+            opacity: 0.9,
+          }).bindPopup(popup, { maxWidth: 260 })
+            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+            .addTo(signalGroup);
+        } else {
+          L.circleMarker([s.lat, s.lon], {
+            radius,
+            color: isCrimeTrend ? color : "#ffffff",
+            weight: isCrimeTrend ? 2 : 1,
+            dashArray: isCrimeTrend ? "4 3" : undefined,
+            fillColor: color,
+            fillOpacity: isCrimeTrend ? 0.12 : 0.7,
+            opacity: isCrimeTrend ? 0.8 : 0.9,
+          }).bindPopup(popup, { maxWidth: 260 })
+            .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
+            .addTo(signalGroup);
+        }
       }
 
       // Faded (out-of-window) signals shown as ghost outlines.
       for (const s of faded) {
         const color = impactColor(s.impact_type);
-        L.circleMarker([s.lat, s.lon], {
-          radius: signalPixelRadius(s.weight),
-          color,
-          weight: 1,
-          fillColor: color,
-          fillOpacity: 0.12,
-          opacity: 0.25,
-        }).addTo(signalGroup);
+        const fadedHasLine = s.line_start && s.line_end && s.impact_type.startsWith("closure");
+        if (fadedHasLine) {
+          L.polyline(
+            [s.line_start as [number, number], s.line_end as [number, number]],
+            { color, weight: 3, opacity: 0.2, dashArray: "10,6" },
+          ).addTo(signalGroup);
+        } else {
+          L.circleMarker([s.lat, s.lon], {
+            radius: signalPixelRadius(s.weight),
+            color,
+            weight: 1,
+            fillColor: color,
+            fillOpacity: 0.12,
+            opacity: 0.25,
+          }).addTo(signalGroup);
+        }
       }
 
       if (!map.hasLayer(signalGroup)) signalGroup.addTo(map);
