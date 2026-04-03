@@ -282,6 +282,25 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 
     result_dict["signal_summary"] = signal_summary
 
+    # Confidence explanation.
+    confidence = result_dict.get("confidence", "LOW")
+    signal_count = result_dict.get("strong_signal_count", 0)
+
+    if confidence == "HIGH":
+        confidence_reason = f"Based on {signal_count} strong signals with direct address-level evidence."
+    elif confidence == "MEDIUM":
+        if signal_count >= 2:
+            confidence_reason = f"{signal_count} nearby signals detected, but none are a direct address match."
+        else:
+            confidence_reason = "Some supporting evidence, but limited signal density in this area."
+    else:
+        if evidence_quality in ("insufficient", "contextual_only"):
+            confidence_reason = "Score relies on neighborhood-level data. Address-specific signals are unavailable."
+        else:
+            confidence_reason = "Few signals detected nearby. Score may change as new data becomes available."
+
+    result_dict["confidence_reason"] = confidence_reason
+
     return result_dict
 
 
