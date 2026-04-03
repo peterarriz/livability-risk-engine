@@ -52,6 +52,9 @@ type RiskCardModel = {
   evidence: string;
   chips: string[];
   rawText: string;          // original humanized text (fallback)
+  // Signal clustering (data-012): clustered cards have children.
+  clusterCount: number;
+  children: TopRiskDetail[] | null;
 };
 
 type TimelineSummary = {
@@ -271,10 +274,19 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
     const whyItMatters = detail?.why_it_matters ?? null;
     const distanceLabel = detail?.distance ?? null;
 
+    // Signal clustering (data-012): pass through cluster info.
+    const clusterCount = detail?.cluster_count ?? 1;
+    const children = detail?.children ?? null;
+
+    // For clustered cards, use the synthesized title from the backend.
+    const title = clusterCount > 1
+      ? (detail?.title ?? displayTitle ?? inferDriverTitle(humanized))
+      : (displayTitle ?? inferDriverTitle(humanized));
+
     return {
       id: `${risk}-${index}`,
       eyebrow: inferDriverEyebrow(humanized, detail?.impact_type),
-      title: displayTitle ?? inferDriverTitle(humanized),
+      title,
       distance: distanceLabel,
       impact,
       // "Signal detail" section: use Claude description, fall back to rawText
@@ -284,6 +296,8 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,
+      clusterCount,
+      children,
     };
   });
 }
@@ -848,6 +862,11 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
                 <div className="risk-card-head-text">
                   <p className="risk-card-index">{risk.eyebrow}</p>
                   <h3>{risk.title}</h3>
+                  {risk.clusterCount > 1 && (
+                    <p style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                      {risk.clusterCount} signals grouped
+                    </p>
+                  )}
                 </div>
                 <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
               </div>
@@ -906,6 +925,43 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
               <p className="risk-detail-label">Data source</p>
               <p className="risk-detail-text">{expandedCard.evidence}</p>
             </div>
+
+            {/* Clustered child signals */}
+            {expandedCard.children && expandedCard.children.length > 1 && (
+              <details className="risk-detail-section" style={{ marginTop: "0.5rem" }}>
+                <summary style={{ cursor: "pointer", fontSize: "0.78rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
+                  Show {expandedCard.children.length} individual signals
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {expandedCard.children.map((child, i) => (
+                    <div
+                      key={child.project_id ?? i}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: "6px",
+                        background: "var(--color-surface-alt, rgba(255,255,255,0.04))",
+                        fontSize: "0.78rem",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <p style={{ fontWeight: 600, color: "var(--color-text-primary, #e2e8f0)" }}>
+                        {child.display_title ?? child.title}
+                      </p>
+                      {child.distance && (
+                        <p style={{ color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                          {child.distance}
+                        </p>
+                      )}
+                      {child.start_date && (
+                        <p style={{ color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px" }}>
+                          {child.start_date}{child.end_date ? ` — ${child.end_date}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
 
           <button
