@@ -181,6 +181,8 @@ export type ScoreResponse = {
   recommended_action?: string | null;
   // Signal synthesis summary for the timeline section.
   signal_summary?: string | null;
+  // Confidence explanation.
+  confidence_reason?: string | null;
 };
 
 export type ScoreSource = ScoreMode;

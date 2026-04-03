@@ -1355,10 +1355,17 @@ export default function HomePage() {
                           <li key={item.label}>
                             <span>{item.label}</span>
                             {"isConfidence" in item && item.isConfidence ? (
-                              <strong className="confidence-value">
-                                <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
-                                {item.value}
-                              </strong>
+                              <>
+                                <strong className="confidence-value">
+                                  <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
+                                  {item.value}
+                                </strong>
+                                {result?.confidence_reason && (
+                                  <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px", lineHeight: 1.4 }}>
+                                    {result.confidence_reason}
+                                  </span>
+                                )}
+                              </>
                             ) : (
                               <strong>{item.value}</strong>
                             )}
