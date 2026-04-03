@@ -70,6 +70,9 @@ export type NearbySignal = {
   source?: string;
   start_date?: string | null;
   end_date?: string | null;
+  // Estimated line geometry for closure signals (street segment rendering).
+  line_start?: [number, number] | null;
+  line_end?: [number, number] | null;
 };
 
 export type NearbySchool = {
