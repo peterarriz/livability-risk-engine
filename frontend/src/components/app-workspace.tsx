@@ -701,6 +701,15 @@ export default function HomePage() {
         lat: typeof selectedAddress?.lat === "number" ? selectedAddress.lat : undefined,
         lon: typeof selectedAddress?.lon === "number" ? selectedAddress.lon : undefined,
       });
+      // Handle graceful "address not found" from the backend.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = scoreResult.score as any;
+      if (raw.error === "address_not_found") {
+        setError(raw.message || "We couldn't find data for this address. Try including the full street, city, and state.");
+        setResult(null);
+        setIsLoading(false);
+        return;
+      }
       setResult(scoreResult.score);
       const finishedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
       const durationMs = searchStartedAtRef.current ? Math.round(finishedAt - searchStartedAtRef.current) : null;
@@ -964,18 +973,25 @@ export default function HomePage() {
             ) : null}
 
             {error ? (
-              <div className="feedback-banner" role="alert">
-                <p className="feedback-title">
-                  {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
+              <div
+                role="alert"
+                style={{
+                  padding: "1rem 1.25rem",
+                  borderRadius: "10px",
+                  borderLeft: "3px solid #F59E0B",
+                  background: "#FFFBEB",
+                  color: "#92400E",
+                  fontSize: "0.9rem",
+                  lineHeight: 1.55,
+                }}
+              >
+                <p style={{ fontWeight: 700, marginBottom: "0.25rem", fontSize: "0.95rem" }}>
+                  {error.toLowerCase().includes("couldn't") || error.toLowerCase().includes("not found")
                     ? "Address not found"
-                    : "Lookup unavailable"}
+                    : "Scoring unavailable"}
                 </p>
-                <p>
-                  {error.toLowerCase().includes("not found") || error.toLowerCase().includes("couldn't find")
-                    ? "We couldn't find that address in Illinois. Try including a ZIP code."
-                    : error.toLowerCase().includes("not configured") || error.toLowerCase().includes("next_public")
-                      ? "Scoring service is currently unavailable. Please try again later."
-                      : error}
+                <p style={{ margin: 0 }}>
+                  {error}
                 </p>
               </div>
             ) : null}
@@ -1202,13 +1218,36 @@ export default function HomePage() {
                 )}
               </div>
 
+              {/* ── Always-visible map ────────────────────────────────────── */}
+              {mapCoords && (
+                <div style={{ border: "1px solid #E5E7EB", borderRadius: "12px", overflow: "hidden", minHeight: "400px", marginTop: "16px" }}>
+                  <MapView
+                    latitude={mapCoords.lat}
+                    longitude={mapCoords.lon}
+                    address={result.address}
+                    disruptionScore={headlineScore(result)}
+                    signals={result.nearby_signals ?? []}
+                    schools={result.nearby_schools ?? []}
+                    amenities={amenities}
+                    topRiskDetails={result.top_risk_details ?? []}
+                    nearbySchools={result.nearby_schools ?? []}
+                    floodRisk={result.neighborhood_context?.flood_risk ?? null}
+                    femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
+                    isPro={false}
+                    hoveredSignalId={hoveredSignalId}
+                    onHoverSignal={setHoveredSignalId}
+                    isVisible={true}
+                  />
+                </div>
+              )}
+
               {revealPhase >= 3 && (
                 <details id="secondary-details" className="secondary-details">
                   <summary>Open full analysis</summary>
                   <div className="secondary-details-body">
                   {/* ── Tab bar ──────────────────────────────────────────────── */}
                   <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: "1rem" }}>
-                    {(["signals", "map", "neighborhood", ...(headlineScore(result) >= 50 ? ["monitor"] : [])] as const).map((tab) => (
+                    {(["signals", "neighborhood", ...(headlineScore(result) >= 50 ? ["monitor"] : [])] as const).map((tab) => (
                       <button
                         key={tab}
                         type="button"
@@ -1294,47 +1333,6 @@ export default function HomePage() {
                         </Card>
                       </div>
                     </>
-                  )}
-
-                  {/* ── Map tab ──────────────────────────────────────────────── */}
-                  {activeTab === "map" && (
-                    <Card className="detail-card map-card">
-                      <div className="map-card-head">
-                        <div>
-                          <p className="map-kicker">Spatial context</p>
-                          <h2>Address and nearby area</h2>
-                        </div>
-                        <span className="map-badge">CARTO Dark</span>
-                      </div>
-                      {mapCoords ? (
-                        <MapView
-                          latitude={mapCoords.lat}
-                          longitude={mapCoords.lon}
-                          address={result.address}
-                          disruptionScore={headlineScore(result)}
-                          signals={result.nearby_signals ?? []}
-                          schools={result.nearby_schools ?? []}
-                          amenities={amenities}
-                          topRiskDetails={result.top_risk_details ?? []}
-                          nearbySchools={result.nearby_schools ?? []}
-                          floodRisk={result.neighborhood_context?.flood_risk ?? null}
-                          femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
-                          isPro={false}
-                          hoveredSignalId={hoveredSignalId}
-                          onHoverSignal={setHoveredSignalId}
-                          isVisible={activeTab === "map"}
-                        />
-                      ) : (
-                        <div className="map-placeholder" aria-label="Locating address on map…">
-                          <div className="map-grid" />
-                          <div className="map-pin map-pin--primary" />
-                        </div>
-                      )}
-                      <p className="map-copy">
-                        Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
-                        Pro plan unlocks the 30-day forecast animation.
-                      </p>
-                    </Card>
                   )}
 
                   {/* ── Neighborhood tab ─────────────────────────────────────── */}

@@ -68,8 +68,24 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         resolved_coords = coords
         if resolved_coords is None:
             resolved_coords = geocode_address(address)
+        # Retry with ", USA" suffix if initial geocode fails.
+        if not resolved_coords and ", USA" not in address.upper():
+            resolved_coords = geocode_address(address + ", USA")
         if not resolved_coords:
-            raise ValueError(f"Could not geocode address: {address!r}")
+            return {
+                "address": address,
+                "error": "address_not_found",
+                "message": (
+                    "We couldn't locate this address. Please include the full "
+                    "street address, city, and state (e.g., '100 Main St, Chicago, IL')."
+                ),
+                "livability_score": None,
+                "disruption_score": None,
+                "confidence": None,
+                "severity": None,
+                "top_risks": [],
+                "explanation": None,
+            }
 
         lat, lon = resolved_coords
         nearby = get_nearby_projects(lat, lon, conn)
@@ -683,10 +699,20 @@ def get_score(
         raise
     except ValueError as exc:
         log.warning("score address=%r geocode_failed error=%s", resolved_address, exc)
-        raise HTTPException(
-            status_code=422,
-            detail=f"Could not geocode address: {exc}",
-        ) from exc
+        return {
+            "address": resolved_address,
+            "error": "address_not_found",
+            "message": (
+                "We couldn't locate this address. Please include the full "
+                "street address, city, and state (e.g., '100 Main St, Chicago, IL')."
+            ),
+            "livability_score": None,
+            "disruption_score": None,
+            "confidence": None,
+            "severity": None,
+            "top_risks": [],
+            "explanation": None,
+        }
     except Exception as exc:
         log.error("score address=%r unexpected scoring error: %s", resolved_address, exc)
         raise HTTPException(
