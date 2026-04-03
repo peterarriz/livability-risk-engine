@@ -930,6 +930,7 @@ def compute_score(
         if p.latitude is None or p.longitude is None:
             continue
         signal: dict = {
+            "project_id": p.project_id,
             "lat": p.latitude,
             "lon": p.longitude,
             "impact_type": p.impact_type,

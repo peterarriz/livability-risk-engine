@@ -30,6 +30,8 @@ type SeverityMetersProps = {
 
 type TopRiskGridProps = {
   result: ScoreResponse;
+  hoveredSignalId?: string | null;
+  onHoverSignal?: (projectId: string | null) => void;
 };
 
 type ExplanationPanelProps = {
@@ -43,6 +45,7 @@ type ImpactWindowProps = {
 
 type RiskCardModel = {
   id: string;
+  projectId: string | null;  // Links to nearby_signals project_id for map highlighting
   eyebrow: string;
   title: string;
   distance: string | null;  // data-043: pre-formatted "~N ft away" string
@@ -305,6 +308,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
 
     return {
       id: `${risk}-${index}`,
+      projectId: detail?.project_id ?? null,
       eyebrow: inferDriverEyebrow(humanized, detail?.impact_type),
       title,
       distance: distanceLabel,
@@ -956,7 +960,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
   );
 }
 
-export function TopRiskGrid({ result }: TopRiskGridProps) {
+export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskGridProps) {
   const riskCards = useMemo(() => buildRiskCards(result), [result]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const expandedCard = riskCards.find((r) => r.id === expandedId) ?? null;
@@ -984,8 +988,15 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
           return (
             <article
               key={risk.id}
-              className={`risk-card card-entrance${isOpen ? " risk-card--active" : ""}`}
-              style={{ animationDelay: `${index * 90}ms` }}
+              className={`risk-card card-entrance${isOpen ? " risk-card--active" : ""}${hoveredSignalId && risk.projectId === hoveredSignalId ? " risk-card--highlighted" : ""}`}
+              style={{
+                animationDelay: `${index * 90}ms`,
+                ...(hoveredSignalId && risk.projectId === hoveredSignalId
+                  ? { boxShadow: "0 0 0 2px rgba(96, 165, 250, 0.6)", transition: "box-shadow 0.15s ease" }
+                  : {}),
+              }}
+              onMouseEnter={() => risk.projectId && onHoverSignal?.(risk.projectId)}
+              onMouseLeave={() => onHoverSignal?.(null)}
             >
               <div className="risk-card-head">
                 <div className="risk-card-head-text">

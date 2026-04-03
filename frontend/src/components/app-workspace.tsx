@@ -121,6 +121,8 @@ export default function HomePage() {
   const [isDebugMode, setIsDebugMode] = useState(false);
   // Commute feature flag: visible only when ?features=commute is in the URL.
   const [showCommute, setShowCommute] = useState(false);
+  // Shared hover state for risk card ↔ map signal linkage.
+  const [hoveredSignalId, setHoveredSignalId] = useState<string | null>(null);
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
   const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
@@ -1333,7 +1335,7 @@ export default function HomePage() {
                       </p>
                     )}
                     <Card className="detail-card drivers-card">
-                      <TopRiskGrid result={result} />
+                      <TopRiskGrid result={result} hoveredSignalId={hoveredSignalId} onHoverSignal={setHoveredSignalId} />
                     </Card>
                     {(result.top_risk_details ?? []).length > 0 && (
                       <Card className="detail-card">
@@ -1404,6 +1406,8 @@ export default function HomePage() {
                         floodRisk={result.neighborhood_context?.flood_risk ?? null}
                         femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
                         isPro={false}
+                        hoveredSignalId={hoveredSignalId}
+                        onHoverSignal={setHoveredSignalId}
                       />
                     ) : (
                       <div className="map-placeholder" aria-label="Locating address on map…">

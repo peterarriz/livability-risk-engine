@@ -65,6 +65,7 @@ export type ImpactType =
   | "crime_trend_stable";
 
 export type NearbySignal = {
+  project_id?: string;
   lat: number;
   lon: number;
   impact_type: ImpactType;
