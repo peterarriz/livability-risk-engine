@@ -168,6 +168,39 @@ function formatDateRange(start?: string | null, end?: string | null): string {
   return `Until ${fmt(end!)}`;
 }
 
+const TEMPORAL_PILL: Record<string, { label: string; bg: string; color: string }> = {
+  active_now:      { label: "Active now",      bg: "#dcfce7", color: "#166534" },
+  ending_soon:     { label: "Ending soon",     bg: "#fef3c7", color: "#92400e" },
+  starts_soon:     { label: "Starts soon",     bg: "#dbeafe", color: "#1e40af" },
+  upcoming:        { label: "Upcoming",        bg: "#f1f5f9", color: "#475569" },
+  recently_ended:  { label: "Recently ended",  bg: "#f1f5f9", color: "#94a3b8" },
+};
+
+function buildSignalPopup(s: NearbySignal): string {
+  const color = impactColor(s.impact_type);
+  const typeLabel = impactLabel(s.impact_type);
+  const title = s.title.replace(/\s*\([^)]*\)/g, "").trim();
+  const dist = `~${Math.round(s.distance_m)}m away`;
+  const dates = formatDateRange(s.start_date, s.end_date);
+  const src = s.source ? sourceLabel(s.source) : "Public records";
+
+  const ts = s.temporal_status && TEMPORAL_PILL[s.temporal_status];
+  const pill = ts
+    ? `<span style="display:inline-block;font-size:0.62rem;font-weight:700;padding:1px 6px;border-radius:4px;background:${ts.bg};color:${ts.color};margin-top:4px">${ts.label}</span>`
+    : "";
+
+  return `<div style="font-family:system-ui,sans-serif;min-width:200px;max-width:280px;padding:2px 0">
+    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${color};margin-bottom:4px">${typeLabel}</div>
+    <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:6px;color:#f1f5f9">${title}</div>
+    <div style="font-size:0.72rem;color:#94a3b8;display:flex;flex-direction:column;gap:2px">
+      <div><span style="color:#cbd5e1">Distance</span> &nbsp;${dist}</div>
+      <div><span style="color:#cbd5e1">Active</span> &nbsp;${dates}</div>
+      <div><span style="color:#cbd5e1">Source</span> &nbsp;${src}</div>
+    </div>
+    ${pill}
+  </div>`;
+}
+
 function isSignalActiveOnDay(signal: NearbySignal, forecastDate: Date): boolean {
   const parse = (iso: string) => new Date(iso + "T00:00:00Z");
   if (signal.start_date && parse(signal.start_date) > forecastDate) return false;
@@ -395,24 +428,7 @@ export function MapView({
         // dashed outline so they're clearly distinct from disruption circles.
         const isCrimeTrend = s.impact_type.startsWith("crime_trend_");
         const radius = isCrimeTrend ? 18 : signalPixelRadius(s.weight);
-        const distFt = metersToFeet(s.distance_m);
-        const src    = s.source ? sourceLabel(s.source) : "City of Chicago";
-        const dates  = formatDateRange(s.start_date, s.end_date);
-
-        // Clean title: strip raw permit IDs (anything starting with "permit_"
-        // or ending with a long hex/numeric suffix) so popups read naturally.
-        const cleanTitle = s.title.replace(/\s*\(permit_\S+\)/gi, "").trim();
-
-        const popup = `
-          <div style="font-family:system-ui,sans-serif;min-width:200px;max-width:240px;padding:2px 0">
-            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">${impactLabel(s.impact_type)}</div>
-            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${cleanTitle}</div>
-            <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
-              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
-              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Active</td><td>${dates}</td></tr>
-              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Source</td><td>${src}</td></tr>
-            </table>
-          </div>`;
+        const popup = buildSignalPopup(s);
 
         // Closure signals with line geometry: render as dashed polyline + small center dot.
         const hasLine = s.line_start && s.line_end && s.impact_type.startsWith("closure");
@@ -420,7 +436,7 @@ export function MapView({
           L.polyline(
             [s.line_start as [number, number], s.line_end as [number, number]],
             { color: "#ef4444", weight: 5, opacity: 0.85, dashArray: "10,6" },
-          ).bindPopup(popup, { maxWidth: 260 })
+          ).bindPopup(popup, { maxWidth: 280 })
             .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
             .addTo(signalGroup);
           // Small center marker for click target and visual anchor
@@ -431,7 +447,7 @@ export function MapView({
             fillColor: "#ef4444",
             fillOpacity: 0.9,
             opacity: 0.9,
-          }).bindPopup(popup, { maxWidth: 260 })
+          }).bindPopup(popup, { maxWidth: 280 })
             .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
             .addTo(signalGroup);
         } else {
@@ -443,7 +459,7 @@ export function MapView({
             fillColor: color,
             fillOpacity: isCrimeTrend ? 0.12 : 0.7,
             opacity: isCrimeTrend ? 0.8 : 0.9,
-          }).bindPopup(popup, { maxWidth: 260 })
+          }).bindPopup(popup, { maxWidth: 280 })
             .on("click", () => setPendingNarration({ type: "signal_click", clicked: s }))
             .addTo(signalGroup);
         }
