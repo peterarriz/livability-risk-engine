@@ -389,13 +389,18 @@ def _build_top_risks(
 
 def _build_top_risk_details(
     contributions: list[tuple[NearbyProject, float]],
+    limit: int = 10,
 ) -> list[dict]:
     """
-    Build structured permit/closure detail dicts for the top risks (data-024).
-    Each dict gives the frontend enough data to render an expandable detail panel.
+    Build structured permit/closure detail dicts for scoring contributions.
+    Takes more than the final display count so clustering can group nearby
+    same-street signals before the top N are selected.
+
+    _lat/_lon are temporary fields used by _cluster_risk_details for
+    distance computation and stripped before the response is sent.
     """
     details = []
-    for nearby, weight in contributions[:3]:
+    for nearby, weight in contributions[:limit]:
         p = nearby.project
         details.append({
             "project_id": p.project_id,
@@ -410,8 +415,206 @@ def _build_top_risk_details(
             "address": p.address,
             "distance_m": round(nearby.distance_m),
             "weighted_score": round(weight, 1),
+            # Temporary: used for clustering distance calc, stripped later.
+            "_lat": p.latitude,
+            "_lon": p.longitude,
         })
     return details
+
+
+# ---------------------------------------------------------------------------
+# Signal clustering — group nearby same-street signals into parent cards
+# ---------------------------------------------------------------------------
+
+_CLOSURE_IMPACT_GROUP = frozenset({
+    IMPACT_FULL_CLOSURE, IMPACT_MULTI_LANE, IMPACT_SINGLE_LANE,
+})
+_CONSTRUCTION_IMPACT_GROUP = frozenset({
+    IMPACT_CONSTRUCTION, IMPACT_ROAD_CONSTRUCTION, IMPACT_DEMOLITION,
+})
+_UTILITY_IMPACT_GROUP = frozenset({
+    IMPACT_UTILITY_OUTAGE, IMPACT_UTILITY_REPAIR,
+})
+
+# Human-readable group names for synthesized cluster titles.
+_GROUP_LABELS = {
+    "closure": "closure",
+    "closures": "closures",
+    "construction": "construction permit",
+    "constructions": "construction permits",
+    "utility": "utility signal",
+    "utilities": "utility signals",
+    "other": "signal",
+    "others": "signals",
+}
+
+
+def _impact_group(impact_type: str) -> str:
+    """Return a group key for clustering compatibility."""
+    if impact_type in _CLOSURE_IMPACT_GROUP:
+        return "closure"
+    if impact_type in _CONSTRUCTION_IMPACT_GROUP:
+        return "construction"
+    if impact_type in _UTILITY_IMPACT_GROUP:
+        return "utility"
+    return "other"
+
+
+def _extract_street(address: str | None) -> str | None:
+    """
+    Extract a normalized street name from an address string.
+    "713 W Ohio St, Chicago, IL" → "W OHIO"
+    "4306 N Lexington St" → "N LEXINGTON"
+    """
+    if not address:
+        return None
+    # Take the portion before any comma (strip city/state).
+    street_part = address.split(",")[0].strip().upper()
+    # Remove leading street number.
+    parts = street_part.split(None, 1)
+    if len(parts) >= 2 and parts[0].isdigit():
+        street_part = parts[1]
+    # Strip common suffixes: ST, AVE, BLVD, DR, RD, CT, PL, WAY, LN, PKWY
+    street_part = re.sub(
+        r"\s+(ST|AVE|AVENUE|BLVD|BOULEVARD|DR|DRIVE|RD|ROAD|CT|COURT|PL|PLACE|WAY|LN|LANE|PKWY|PARKWAY|TER|TERRACE|CIR|CIRCLE)\b\.?$",
+        "",
+        street_part,
+    )
+    return street_part.strip() or None
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Quick haversine distance in meters between two points."""
+    R = 6_371_000.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _cluster_risk_details(details: list[dict], max_distance_m: float = 200.0) -> list[dict]:
+    """
+    Cluster nearby same-street signals into parent cards.
+
+    Two signals belong to the same cluster if:
+    - They share the same street name
+    - They are within max_distance_m of each other
+    - They have compatible impact types (same group)
+
+    Returns a new list where clustered signals are merged into parent
+    cards with children arrays.  Standalone signals get children=None,
+    cluster_count=1.
+    """
+    if len(details) <= 1:
+        for d in details:
+            d["children"] = None
+            d["cluster_count"] = 1
+        return details
+
+    # Assign each detail to a cluster.
+    n = len(details)
+    cluster_ids = list(range(n))  # union-find parent
+
+    def find(i: int) -> int:
+        while cluster_ids[i] != i:
+            cluster_ids[i] = cluster_ids[cluster_ids[i]]
+            i = cluster_ids[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            cluster_ids[ri] = rj
+
+    for i in range(n):
+        si = details[i]
+        street_i = _extract_street(si.get("address"))
+        group_i = _impact_group(si.get("impact_type", ""))
+        lat_i = si.get("_lat")
+        lon_i = si.get("_lon")
+
+        for j in range(i + 1, n):
+            sj = details[j]
+            # Same impact group?
+            if _impact_group(sj.get("impact_type", "")) != group_i:
+                continue
+            # Same street?
+            street_j = _extract_street(sj.get("address"))
+            if not street_i or not street_j or street_i != street_j:
+                continue
+            # Within distance?
+            lat_j = sj.get("_lat")
+            lon_j = sj.get("_lon")
+            if lat_i and lon_i and lat_j and lon_j:
+                dist = _haversine_m(lat_i, lon_i, lat_j, lon_j)
+                if dist > max_distance_m:
+                    continue
+            union(i, j)
+
+    # Group by cluster root.
+    from collections import defaultdict
+    groups: dict[int, list[int]] = defaultdict(list)
+    for i in range(n):
+        groups[find(i)].append(i)
+
+    result = []
+    for indices in groups.values():
+        members = [details[i] for i in indices]
+        if len(members) == 1:
+            m = members[0]
+            m.pop("_lat", None)
+            m.pop("_lon", None)
+            m["children"] = None
+            m["cluster_count"] = 1
+            result.append(m)
+        else:
+            # Build synthesized parent card.
+            group_key = _impact_group(members[0].get("impact_type", ""))
+            street = _extract_street(members[0].get("address"))
+            count = len(members)
+            plural_key = group_key + "s" if group_key in _GROUP_LABELS else "others"
+            type_label = _GROUP_LABELS.get(
+                plural_key if count > 1 else group_key,
+                "signals" if count > 1 else "signal",
+            )
+
+            # Clean up internal fields from children.
+            for m in members:
+                m.pop("_lat", None)
+                m.pop("_lon", None)
+                m["children"] = None
+                m["cluster_count"] = 1
+
+            # Synthesize parent fields.
+            start_dates = [m["start_date"] for m in members if m.get("start_date")]
+            end_dates = [m["end_date"] for m in members if m.get("end_date")]
+
+            parent = {
+                "project_id": members[0]["project_id"],
+                "source": members[0]["source"],
+                "source_id": members[0]["source_id"],
+                "impact_type": members[0]["impact_type"],
+                "title": f"{count} {type_label} on {street or 'nearby street'}",
+                "notes": None,
+                "status": members[0]["status"],
+                "start_date": min(start_dates) if start_dates else None,
+                "end_date": max(end_dates) if end_dates else None,
+                "address": members[0].get("address"),
+                "distance_m": min(m["distance_m"] for m in members),
+                "weighted_score": round(sum(m["weighted_score"] for m in members), 1),
+                "children": members,
+                "cluster_count": count,
+            }
+            result.append(parent)
+
+    # Sort by weighted_score descending to preserve ranking.
+    result.sort(key=lambda d: d.get("weighted_score", 0), reverse=True)
+    return result
 
 
 def _clean_signal_name(title: str, address: str | None) -> str:
@@ -666,7 +869,10 @@ def compute_score(
     severity = _derive_severity(top3)
     confidence = _derive_confidence(top3)
     top_risks = _build_top_risks(top3)
-    top_risk_details = _build_top_risk_details(top3)
+    # Build details from more signals (up to 10) so clustering can group
+    # same-street signals, then take the top 3 clusters for display.
+    top_risk_details_raw = _build_top_risk_details(scored, limit=10)
+    top_risk_details = _cluster_risk_details(top_risk_details_raw)[:3]
     explanation = _build_explanation(top3, severity)
 
     # Build nearby_signals for the map heat layer.

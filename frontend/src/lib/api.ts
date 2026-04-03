@@ -37,6 +37,9 @@ export type TopRiskDetail = {
   distance?: string | null;        // pre-formatted, e.g. "~1,100 ft away"
   description?: string | null;     // factual one-sentence description
   why_it_matters?: string | null;  // practical impact explanation
+  // Signal clustering (data-012): parent cards group nearby same-street signals.
+  children?: TopRiskDetail[] | null;
+  cluster_count?: number;
 };
 
 export type ImpactType =
