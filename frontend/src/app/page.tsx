@@ -35,7 +35,7 @@ export default function LandingPage() {
           <p className="eyebrow">1. Hero</p>
           <h1>Spot disruption risk before tenant tours and lease commitments.</h1>
           <p className="lede">
-            Score a Chicago address from city permit and planned closure records, then brief clients with concrete disruption signals.
+            Built from public permit, closure, crime, school, and flood datasets. Best for near-term address screening in major US metros. Coverage varies by city.
           </p>
           <form action="/app" method="get" className="landing-cta-row">
             <input
@@ -50,6 +50,13 @@ export default function LandingPage() {
             </button>
           </form>
         </section>
+
+        <div className="landing-trust-bar" style={{ display: "flex", justifyContent: "center", gap: "2rem", flexWrap: "wrap", padding: "0.75rem 0", fontSize: "0.78rem", color: "#94a3b8" }}>
+          <span><strong style={{ color: "#e2e8f0" }}>75+ cities</strong> with crime data</span>
+          <span><strong style={{ color: "#e2e8f0" }}>270K+</strong> data points</span>
+          <span><strong style={{ color: "#e2e8f0" }}>20+</strong> public data sources</span>
+          <span><strong style={{ color: "#e2e8f0" }}>Daily</strong> updates</span>
+        </div>
 
         <section className="surface-card landing-proof-card" aria-label="Example result">
           <p className="eyebrow">2. Example result</p>
@@ -77,19 +84,26 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="proof" className="landing-proof-grid" aria-label="Proof points">
+        <section id="proof" className="landing-proof-grid" aria-label="Use cases">
           <article className="surface-card landing-proof-card">
-            <p className="eyebrow">3. Proof</p>
-            <h2>High-risk addresses show multiple nearby disruptions</h2>
+            <p className="eyebrow">Due diligence</p>
+            <h2>Screen addresses before tours</h2>
             <p className="section-copy">
-              At 1600 W Chicago Ave, the brief surfaces a high-band score (62) with active closure/construction pressure near the address.
+              Screen any address for active disruption before scheduling tours or recommending terms.
             </p>
           </article>
           <article className="surface-card landing-proof-card">
-            <p className="eyebrow">Decision impact</p>
-            <h2>Low-risk addresses clear faster for tours</h2>
+            <p className="eyebrow">Portfolio monitoring</p>
+            <h2>Track conditions across addresses</h2>
             <p className="section-copy">
-              At 11900 S Morgan St, the score drops to 8 with low severity signals, making near-term showings easier to schedule.
+              Monitor addresses in your portfolio. Get notified when new permits, closures, or crime trends appear.
+            </p>
+          </article>
+          <article className="surface-card landing-proof-card">
+            <p className="eyebrow">Logistics</p>
+            <h2>Plan around active closures</h2>
+            <p className="section-copy">
+              Check for lane closures and construction before routing teams or scheduling deliveries.
             </p>
           </article>
         </section>
@@ -98,7 +112,7 @@ export default function LandingPage() {
           <article className="surface-card landing-proof-card">
             <p className="eyebrow">4. How it works</p>
             <h2>Enter one address and get score + severity in one response</h2>
-            <p className="section-copy">Each lookup returns disruption score, confidence, top drivers, and map context in the same brief.</p>
+            <p className="section-copy">Permits, street closures, crime trends, school ratings, flood zones, and census data — queried in real time within 500 meters of the address.</p>
           </article>
           <article className="surface-card landing-proof-card">
             <p className="eyebrow">Interpret</p>
@@ -110,7 +124,7 @@ export default function LandingPage() {
         <section className="surface-card landing-hero" aria-label="Final call to action">
           <p className="eyebrow">5. CTA</p>
           <h2>Run two listings in 30 seconds and compare risk immediately.</h2>
-          <p className="section-copy">Open the workspace and test one high-risk and one low-risk address before your next broker call.</p>
+          <p className="section-copy">No signup required. Results in under 10 seconds.</p>
           <p className="section-copy">
             <Link href="/app">Open /app →</Link>
           </p>
