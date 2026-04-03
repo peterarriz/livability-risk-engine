@@ -469,6 +469,25 @@ export function MapView({
           }).bindPopup(popup, { maxWidth: 280 })
             .on("click", handleClick)
             .addTo(signalGroup);
+        } else if (s.impact_type.startsWith("closure")) {
+          // Closure without line geometry: dashed border + larger radius to
+          // indicate approximate location (distinct from solid construction dots).
+          const defaultCircleStyle = {
+            radius: radius + 2,
+            color: "#ef4444",
+            weight: 2,
+            dashArray: "4,3",
+            fillColor: "#ef4444",
+            fillOpacity: 0.5,
+            opacity: 0.85,
+          };
+          const cm = L.circleMarker([s.lat, s.lon], defaultCircleStyle)
+            .bindPopup(popup, { maxWidth: 280 })
+            .on("click", handleClick)
+            .addTo(signalGroup);
+          if (s.project_id) {
+            signalMarkersRef.current.set(s.project_id, { marker: cm, defaultStyle: defaultCircleStyle, isPolyline: false });
+          }
         } else {
           const defaultCircleStyle = {
             radius,
@@ -498,6 +517,17 @@ export function MapView({
             [s.line_start as [number, number], s.line_end as [number, number]],
             { color, weight: 3, opacity: 0.2, dashArray: "10,6" },
           ).addTo(signalGroup);
+        } else if (s.impact_type.startsWith("closure")) {
+          // Faded closure without line geometry: dashed ghost circle
+          L.circleMarker([s.lat, s.lon], {
+            radius: signalPixelRadius(s.weight) + 2,
+            color,
+            weight: 1,
+            dashArray: "4,3",
+            fillColor: color,
+            fillOpacity: 0.08,
+            opacity: 0.2,
+          }).addTo(signalGroup);
         } else {
           L.circleMarker([s.lat, s.lon], {
             radius: signalPixelRadius(s.weight),
