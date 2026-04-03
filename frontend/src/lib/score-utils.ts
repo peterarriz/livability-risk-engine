@@ -31,33 +31,33 @@ export function headlineScore(result: ScoreSource): number {
 
 const IMPACT_TYPE_LABELS: Record<string, string> = {
   // Street closures
-  closure_full:          "Full street closure",
-  closure_multi_lane:    "Multi-lane closure",
-  closure_single_lane:   "Lane / curb closure",
+  closure_full:          "Full road closure",
+  closure_multi_lane:    "Road closure",
+  closure_single_lane:   "Road closure",
   // Construction & demolition
-  demolition:            "Demolition / excavation",
-  construction:          "Active construction",
+  demolition:            "Demolition",
+  construction:          "Construction",
   road_construction:     "Road construction",
-  light_permit:          "Permitted work",
+  light_permit:          "Minor permit",
   // Utility
   utility:               "Utility work",
   utility_outage:        "Utility outage",
   utility_repair:        "Utility repair",
   // Traffic
   traffic_signal_outage: "Traffic signal outage",
-  // Crime trends
-  crime_trend_increasing: "Crime trend: increasing",
-  crime_trend_stable:     "Crime trend: stable",
-  crime_trend_decreasing: "Crime trend: decreasing",
+  // Crime trends — collapsed to single label for legend
+  crime_trend_increasing: "Crime trend",
+  crime_trend_stable:     "Crime trend",
+  crime_trend_decreasing: "Crime trend",
   // Other signals
   film_permit:           "Film permit",
   special_event:         "Special event",
   bike_station_outage:   "Bike station outage",
   pothole:               "Pothole report",
   water_main:            "Water main break",
-  cave_in:               "Cave-in / sinkhole",
+  cave_in:               "Sinkhole",
   tree_emergency:        "Tree emergency",
-  traffic_crash:         "Traffic crash",
+  traffic_crash:         "Traffic incident",
   cta_service_alert:     "CTA service alert",
   flood_zone:            "Flood zone",
 };

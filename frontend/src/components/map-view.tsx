@@ -117,37 +117,21 @@ const HEAT_RADIUS: Record<string, number> = {
 };
 const DEFAULT_HEAT_RADIUS = 120;
 
-// ─── Labels ───────────────────────────────────────────────────────────────────
-const IMPACT_LABEL: Record<string, string> = {
-  closure_full:        "Full street closure",
-  closure_multi_lane:  "Multi-lane closure",
-  closure_single_lane: "Lane / curb closure",
-  demolition:          "Demolition / excavation",
-  construction:        "Active construction",
-  road_construction:   "Road construction",
-  light_permit:        "Permitted work",
-  // Utility disruption signals (data-060 / data-046)
-  utility_outage:        "Utility outage",
-  utility_repair:        "Utility repair",
-  // Traffic signal outage (data-038)
-  traffic_signal_outage: "Traffic signal outage",
-  // Crime trend signals (data-054)
-  crime_trend_increasing: "Crime trend: increasing",
-  crime_trend_stable:     "Crime trend: stable",
-  crime_trend_decreasing: "Crime trend: decreasing",
-};
 
 const SOURCE_LABEL: Record<string, string> = {
-  chicago_closures:        "CDOT Street Closures",
-  chicago_permits:         "Chicago Building Permits",
-  idot_road_projects:      "IDOT Road Construction",
-  chicago_311_requests:    "Chicago 311",
-  chicago_film_permits:    "Chicago Film Permits",
-  chicago_special_events:  "Chicago Special Events",
-  cta_alerts:              "CTA Service Alerts",
-  chicago_traffic_crashes: "Chicago Traffic Crashes",
-  chicago_divvy_stations:  "Divvy Bike Stations",
-  chicago_crime_trends:    "Chicago Crime Trends",
+  chicago_closures:        "Street closures",
+  chicago_permits:         "Building permits",
+  idot_road_projects:      "Road construction",
+  chicago_311_requests:    "311 reports",
+  chicago_film_permits:    "Film permits",
+  chicago_special_events:  "Special events",
+  cta_alerts:              "CTA alerts",
+  chicago_traffic_crashes: "Traffic incidents",
+  chicago_divvy_stations:  "Bike stations",
+  chicago_crime_trends:    "Crime trends",
+  chicago_excavation:      "Excavation permits",
+  chicago_sidewalk_cafes:  "Sidewalk permits",
+  cook_county_permits:     "County permits",
 };
 
 // Distance rings drawn around the searched address (meters)
@@ -966,27 +950,43 @@ export function MapView({
       {/* ── Legend with signal counts ─────────────────────────────────────── */}
       {displayedSignals.length > 0 && (
         <div className="map-legend" aria-label="Map legend">
-          {ALL_IMPACT_TYPES
-            .filter((t) => displayedSignals.some((s) => s.impact_type === t))
-            .map((t) => (
-              <span key={t} className="map-legend-item">
-                <span className="map-legend-dot" style={{ background: impactColor(t) }} />
-                {impactLabel(t)}
-                {typeCounts[t] != null && (
-                  <span style={{
-                    marginLeft: "4px",
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    background: "rgba(255,255,255,0.09)",
-                    borderRadius: "9px",
-                    padding: "0 5px",
-                    color: "#94a3b8",
-                  }}>
-                    {typeCounts[t]}
+          {(() => {
+            const seen = new Set<string>();
+            return ALL_IMPACT_TYPES
+              .filter((t) => displayedSignals.some((s) => s.impact_type === t))
+              .filter((t) => {
+                const label = impactLabel(t);
+                if (seen.has(label)) return false;
+                seen.add(label);
+                return true;
+              })
+              .map((t) => {
+                // Sum counts for types that share a label (e.g. crime trends).
+                const label = impactLabel(t);
+                const count = ALL_IMPACT_TYPES
+                  .filter((tt) => impactLabel(tt) === label && (typeCounts[tt] ?? 0) > 0)
+                  .reduce((sum, tt) => sum + (typeCounts[tt] ?? 0), 0);
+                return (
+                  <span key={t} className="map-legend-item">
+                    <span className="map-legend-dot" style={{ background: impactColor(t) }} />
+                    {label}
+                    {count > 0 && (
+                      <span style={{
+                        marginLeft: "4px",
+                        fontSize: "0.62rem",
+                        fontWeight: 700,
+                        background: "rgba(255,255,255,0.09)",
+                        borderRadius: "9px",
+                        padding: "0 5px",
+                        color: "#94a3b8",
+                      }}>
+                        {count}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-            ))}
+                );
+              });
+          })()}
         </div>
       )}
     </>
