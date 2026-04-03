@@ -210,6 +210,36 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 "based primarily on neighborhood-level data."
             )
 
+    # Recommended next step based on score, evidence, and signal types.
+    score = result_dict.get("livability_score") or result_dict.get("disruption_score", 50)
+    top_details = result_dict.get("top_risk_details") or []
+    has_closure = any("closure" in (d.get("impact_type") or "") for d in top_details)
+    has_construction = any(
+        d.get("impact_type") in ("construction", "road_construction", "demolition")
+        for d in top_details
+    )
+
+    if evidence_quality in ("insufficient", "contextual_only"):
+        action = "Review manually — address-level data is limited in this area."
+    elif score <= 30:
+        if has_closure:
+            action = "Confirm road access and parking before scheduling tours."
+        elif has_construction:
+            action = "Set noise and dust expectations with clients before site visits."
+        else:
+            action = "Defer if possible — multiple active disruptions overlap at this address."
+    elif score <= 50:
+        if has_closure:
+            action = "Check closure timing — access may be affected during active windows."
+        else:
+            action = "Proceed with awareness — moderate disruption is likely during the active window."
+    elif score <= 70:
+        action = "Proceed — minor nearby activity is unlikely to affect the experience."
+    else:
+        action = "Green light — no significant disruption detected in this area."
+
+    result_dict["recommended_action"] = action
+
     return result_dict
 
 

@@ -556,6 +556,26 @@ export function ScoreHero({ result }: ScoreHeroProps) {
 
         <h3 className="score-hero-title">{scoreMessage.label}</h3>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
+
+        {result.recommended_action && (
+          <div
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem 0.75rem",
+              borderRadius: "6px",
+              background: headlineScore <= 50
+                ? "rgba(251, 191, 36, 0.08)"
+                : "rgba(59, 130, 246, 0.08)",
+              borderLeft: `3px solid ${headlineScore <= 50 ? "#f59e0b" : "#3b82f6"}`,
+              fontSize: "0.82rem",
+              lineHeight: 1.5,
+              color: "var(--color-text-primary, #e2e8f0)",
+            }}
+          >
+            <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
+            {result.recommended_action}
+          </div>
+        )}
       </div>
 
       <div className="score-hero-sidecar">
