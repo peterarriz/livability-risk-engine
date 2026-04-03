@@ -184,6 +184,10 @@ export type ScoreResponse = {
   signal_summary?: string | null;
   // Confidence explanation.
   confidence_reason?: string | null;
+  // City baseline comparison.
+  city_baseline?: number | null;
+  city_baseline_diff?: number | null;
+  city_baseline_label?: string | null;
 };
 
 export type ScoreSource = ScoreMode;

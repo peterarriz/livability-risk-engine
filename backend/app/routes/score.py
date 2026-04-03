@@ -301,6 +301,26 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 
     result_dict["confidence_reason"] = confidence_reason
 
+    # City baseline comparison.
+    _CITY_BASELINES = {
+        "chicago": 55, "new york": 52, "los angeles": 54, "austin": 60,
+        "seattle": 58, "denver": 57, "portland": 56, "nashville": 57,
+        "phoenix": 56, "dallas": 54, "houston": 53, "philadelphia": 51,
+        "san francisco": 59, "minneapolis": 58, "columbus": 56,
+    }
+    address_lower = result_dict.get("address", "").lower()
+    city_key = "default"
+    for city in _CITY_BASELINES:
+        if city in address_lower:
+            city_key = city
+            break
+    baseline = _CITY_BASELINES.get(city_key, 55)
+    score_val = result_dict.get("livability_score") or result_dict.get("disruption_score", 50)
+    diff = score_val - baseline
+    result_dict["city_baseline"] = baseline
+    result_dict["city_baseline_diff"] = diff
+    result_dict["city_baseline_label"] = city_key.title() if city_key != "default" else "city"
+
     return result_dict
 
 
