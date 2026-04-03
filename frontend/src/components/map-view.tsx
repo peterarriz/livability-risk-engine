@@ -448,21 +448,30 @@ export function MapView({
           if (s.project_id) onHoverSignal?.(s.project_id);
         };
         if (hasLine) {
+          const positions: [number, number][] = [s.line_start as [number, number], s.line_end as [number, number]];
+          // Glow layer: wider semi-transparent line behind the main line
+          L.polyline(positions, { color: "#ef4444", weight: 12, opacity: 0.15 }).addTo(signalGroup);
+          // Main dashed line
           const defaultLineStyle = { color: "#ef4444", weight: 5, opacity: 0.85, dashArray: "10,6" };
-          const line = L.polyline(
-            [s.line_start as [number, number], s.line_end as [number, number]],
-            defaultLineStyle,
-          ).bindPopup(popup, { maxWidth: 280 })
+          const line = L.polyline(positions, defaultLineStyle)
+            .bindPopup(popup, { maxWidth: 280 })
             .on("click", handleClick)
             .addTo(signalGroup);
           if (s.project_id) {
             signalMarkersRef.current.set(s.project_id, { marker: line, defaultStyle: defaultLineStyle, isPolyline: true });
           }
-          // Small center marker for click target and visual anchor
+          // Endpoint caps at start and end of the closure segment
+          for (const pt of positions) {
+            L.circleMarker(pt, {
+              radius: 3, color: "#ef4444", weight: 0,
+              fillColor: "#ef4444", fillOpacity: 0.9,
+            }).addTo(signalGroup);
+          }
+          // Center click marker
           L.circleMarker([s.lat, s.lon], {
-            radius: 4,
-            color: "#ef4444",
-            weight: 1,
+            radius: 5,
+            color: "#ffffff",
+            weight: 1.5,
             fillColor: "#ef4444",
             fillOpacity: 0.9,
             opacity: 0.9,
