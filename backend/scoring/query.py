@@ -388,6 +388,21 @@ def _build_top_risks(
     return risks
 
 
+# Attribution strength ranking: lower = stronger.
+_ATTRIBUTION_RANK = {"direct": 0, "nearby": 1, "area_context": 2}
+
+
+def _signal_attribution(impact_type: str, distance_m: float) -> str:
+    """Classify how directly a signal relates to the scored address."""
+    if impact_type.startswith("crime_trend"):
+        return "area_context"
+    if distance_m < 50:
+        return "direct"
+    if distance_m <= 200:
+        return "nearby"
+    return "area_context"
+
+
 def _build_top_risk_details(
     contributions: list[tuple[NearbyProject, float]],
     limit: int = 10,
@@ -403,6 +418,7 @@ def _build_top_risk_details(
     details = []
     for nearby, weight in contributions[:limit]:
         p = nearby.project
+        attribution = _signal_attribution(p.impact_type, nearby.distance_m)
         details.append({
             "project_id": p.project_id,
             "source": p.source,
@@ -416,6 +432,7 @@ def _build_top_risk_details(
             "address": p.address,
             "distance_m": round(nearby.distance_m),
             "weighted_score": round(weight, 1),
+            "attribution": attribution,
             # Temporary: used for clustering distance calc, stripped later.
             "_lat": p.latitude,
             "_lon": p.longitude,
@@ -608,6 +625,11 @@ def _cluster_risk_details(details: list[dict], max_distance_m: float = 200.0) ->
                 "address": members[0].get("address"),
                 "distance_m": min(m["distance_m"] for m in members),
                 "weighted_score": round(sum(m["weighted_score"] for m in members), 1),
+                # Strongest child attribution wins (direct > nearby > area_context).
+                "attribution": min(
+                    (m.get("attribution", "area_context") for m in members),
+                    key=lambda a: _ATTRIBUTION_RANK.get(a, 99),
+                ),
                 "children": members,
                 "cluster_count": count,
             }

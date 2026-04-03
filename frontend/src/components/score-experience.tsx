@@ -52,6 +52,8 @@ type RiskCardModel = {
   evidence: string;
   chips: string[];
   rawText: string;          // original humanized text (fallback)
+  // Signal attribution: how directly the signal relates to the scored address.
+  attribution: "direct" | "nearby" | "area_context";
   // Signal clustering (data-012): clustered cards have children.
   clusterCount: number;
   children: TopRiskDetail[] | null;
@@ -86,6 +88,13 @@ const BREAKDOWN_LABELS: Record<string, string> = {
   school_rating: "School quality",
   demographics_stability: "Demographics stability",
   flood_environmental: "Flood & environment",
+};
+
+/** Attribution badge styles keyed by attribution value. */
+const ATTRIBUTION_STYLES: Record<string, { label: string; bg: string; color: string }> = {
+  direct: { label: "Direct match", bg: "#dcfce7", color: "#166534" },
+  nearby: { label: "Nearby signal", bg: "#dbeafe", color: "#1e40af" },
+  area_context: { label: "Area context", bg: "#f1f5f9", color: "#475569" },
 };
 
 function getScoreMessage(score: number) {
@@ -296,6 +305,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
       evidence: inferDataSource(risk),
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,
+      attribution: (detail?.attribution as RiskCardModel["attribution"]) ?? "area_context",
       clusterCount,
       children,
     };
@@ -868,7 +878,22 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
                     </p>
                   )}
                 </div>
-                <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
+                  <span className={`impact-badge impact-badge--${risk.impact.toLowerCase()}`}>{risk.impact}</span>
+                  {ATTRIBUTION_STYLES[risk.attribution] && (
+                    <span style={{
+                      fontSize: "0.68rem",
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      background: ATTRIBUTION_STYLES[risk.attribution].bg,
+                      color: ATTRIBUTION_STYLES[risk.attribution].color,
+                      whiteSpace: "nowrap",
+                    }}>
+                      {ATTRIBUTION_STYLES[risk.attribution].label}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="risk-chip-row" aria-label="Driver metadata">
