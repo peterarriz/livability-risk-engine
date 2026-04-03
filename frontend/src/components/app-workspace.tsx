@@ -1344,9 +1344,15 @@ export default function HomePage() {
 
                   <div className="detail-grid detail-grid--balanced">
                     <Card className="detail-card">
-                      <h2>Severity, confidence, and timing</h2>
-                      <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
-                      <ImpactWindow result={result} />
+                      <details>
+                        <summary style={{ cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
+                          Severity breakdown
+                        </summary>
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
+                          <ImpactWindow result={result} />
+                        </div>
+                      </details>
                     </Card>
                     <Card className="detail-card supporting-card">
                       <p className="supporting-kicker">Quick facts</p>
@@ -1417,6 +1423,7 @@ export default function HomePage() {
                       scoreHistory={scoreHistory}
                       lat={mapCoords?.lat ?? result.latitude}
                       lon={mapCoords?.lon ?? result.longitude}
+                      hideEstimates={!isDebugMode}
                     />
                   </Card>
 
