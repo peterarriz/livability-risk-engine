@@ -1550,9 +1550,11 @@ type NeighborhoodContextCardProps = {
   scoreTrend?: TrendDay[];
   lat?: number | null;
   lon?: number | null;
+  /** When true, hide calibrated/estimated sections (score trend, area trend, comparison blurb). */
+  hideEstimates?: boolean;
 };
 
-export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [], lat, lon }: NeighborhoodContextCardProps) {
+export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [], lat, lon, hideEstimates = false }: NeighborhoodContextCardProps) {
   const [hood, setHood] = useState<NeighborhoodResponse | null>(null);
   const [hoodLoading, setHoodLoading] = useState(false);
 
@@ -1638,7 +1640,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
       </div>
 
       {/* ── Per-address sparkline ────────────────────────────────────── */}
-      {hasHistory && (
+      {hasHistory && !hideEstimates && (
         <div style={{
           marginBottom: "16px", paddingTop: "14px",
           borderTop: "1px solid rgba(255,255,255,0.055)",
@@ -1654,7 +1656,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
       )}
 
       {/* ── Area trend sparkline (data-062) ──────────────────────────── */}
-      {hasTrend && (
+      {hasTrend && !hideEstimates && (
         <div style={{
           marginBottom: "16px", paddingTop: "14px",
           borderTop: "1px solid rgba(255,255,255,0.055)",
@@ -1673,7 +1675,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
       )}
 
       {/* ── Comparison blurb ─────────────────────────────────────────── */}
-      {(blurb || (!slugInfo && lat != null)) && (
+      {!hideEstimates && (blurb || (!slugInfo && lat != null)) && (
         <div style={{
           paddingTop: hasHistory ? "14px" : 0,
           borderTop: hasHistory ? "1px solid rgba(255,255,255,0.055)" : "none",
