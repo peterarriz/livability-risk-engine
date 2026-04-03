@@ -240,6 +240,48 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 
     result_dict["recommended_action"] = action
 
+    # Signal synthesis summary for the timeline section.
+    closure_count = sum(1 for s in nearby_signals if "closure" in (s.get("impact_type") or ""))
+    construction_count = sum(
+        1 for s in nearby_signals
+        if s.get("impact_type") in ("construction", "road_construction", "demolition")
+    )
+    total_active = closure_count + construction_count
+
+    _skip_types = (
+        "crime_trend_stable", "crime_trend_decreasing", "crime_trend_increasing", "light_permit",
+    )
+    distances = [
+        s.get("distance_m", 999)
+        for s in nearby_signals
+        if s.get("impact_type") not in _skip_types
+    ]
+    latest_end = max(
+        (s.get("end_date") for s in nearby_signals if s.get("end_date")),
+        default=None,
+    )
+
+    if total_active == 0:
+        signal_summary = "No active closures or construction detected nearby."
+    elif total_active == 1:
+        kind = "closure" if closure_count else "construction activity"
+        dist = min(distances) if distances else None
+        dist_str = f" within {int(dist)}m" if dist else ""
+        signal_summary = f"1 active {kind}{dist_str}."
+    else:
+        parts = []
+        if closure_count:
+            parts.append(f"{closure_count} closure{'s' if closure_count > 1 else ''}")
+        if construction_count:
+            parts.append(f"{construction_count} construction signal{'s' if construction_count > 1 else ''}")
+        kind_str = " and ".join(parts)
+        dist = min(distances) if distances else None
+        dist_str = f", nearest within {int(dist)}m" if dist else ""
+        end_str = f" through {latest_end}" if latest_end else ""
+        signal_summary = f"{total_active} active signals ({kind_str}){dist_str}{end_str}."
+
+    result_dict["signal_summary"] = signal_summary
+
     return result_dict
 
 
