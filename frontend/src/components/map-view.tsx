@@ -23,6 +23,8 @@ type MapViewProps = {
   isPro?: boolean;
   hoveredSignalId?: string | null;
   onHoverSignal?: (projectId: string | null) => void;
+  /** When true the map is visible; triggers invalidateSize on becoming true. */
+  isVisible?: boolean;
 };
 
 // ─── Impact-type colour palette (per design spec) ─────────────────────────────
@@ -263,6 +265,7 @@ export function MapView({
   isPro = false,
   hoveredSignalId = null,
   onHoverSignal,
+  isVisible = true,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -714,6 +717,13 @@ export function MapView({
       }
     }
   }, [hoveredSignalId]);
+
+  // ── Invalidate map size when tab becomes visible ───────────────────────────
+  useEffect(() => {
+    if (isVisible && mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 100);
+    }
+  }, [isVisible]);
 
   // ── Signal counts per type (for legend badges) ────────────────────────────
   const displayedSignals = useMemo(
