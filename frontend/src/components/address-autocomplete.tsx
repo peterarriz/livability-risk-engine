@@ -8,70 +8,77 @@ type Props = {
   placeholder?: string;
   onSelect: (address: string) => void;
   onChange?: (value: string) => void;
-  name?: string;
-  inputStyle?: React.CSSProperties;
-  dropdownStyle?: React.CSSProperties;
   ariaLabel?: string;
+  inputStyle?: React.CSSProperties;
+  dropdownDark?: boolean;
 };
+
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
 
 export default function AddressAutocomplete({
   defaultValue = "",
-  placeholder,
+  placeholder = "Enter any US address",
   onSelect,
   onChange,
-  name,
-  inputStyle,
-  dropdownStyle,
   ariaLabel,
+  inputStyle,
+  dropdownDark = false,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const serviceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [value, setValue] = useState(defaultValue);
   const [suggestions, setSuggestions] = useState<Prediction[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const [ready, setReady] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const abortRef = useRef<AbortController | null>(null);
 
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
-
-  // Poll for Google Maps API readiness.
-  useEffect(() => {
-    let attempts = 0;
-    function check() {
-      if (window.google?.maps?.places?.AutocompleteService) {
-        serviceRef.current = new window.google.maps.places.AutocompleteService();
-        setReady(true);
-      } else if (++attempts < 40) {
-        setTimeout(check, 250);
-      }
-    }
-    check();
-  }, []);
-
-  const fetchPredictions = useCallback((input: string) => {
-    if (!serviceRef.current || input.trim().length < 3) {
+  const fetchSuggestions = useCallback(async (input: string) => {
+    if (!input.trim() || input.length < 3 || !API_KEY) {
       setSuggestions([]);
       return;
     }
-    serviceRef.current.getPlacePredictions(
-      { input, componentRestrictions: { country: "us" }, types: ["address"] },
-      (predictions, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-          setSuggestions(
-            predictions.slice(0, 5).map((p) => ({
-              description: p.description,
-              place_id: p.place_id,
-            })),
-          );
-          setShowDropdown(true);
-          setActiveIdx(-1);
-        } else {
-          setSuggestions([]);
-        }
-      },
-    );
+    // Cancel any in-flight request.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": API_KEY,
+        },
+        body: JSON.stringify({
+          input,
+          includedRegionCodes: ["us"],
+          includedPrimaryTypes: ["street_address", "subpremise", "premise"],
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const preds: Prediction[] = (data.suggestions || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((s: any) => s.placePrediction)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .slice(0, 5)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((s: any) => ({
+          description:
+            s.placePrediction.text?.text ||
+            s.placePrediction.structuredFormat?.mainText?.text ||
+            "",
+          place_id: s.placePrediction.placeId || "",
+        }));
+      setSuggestions(preds);
+      setShowDropdown(preds.length > 0);
+      setActiveIndex(-1);
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setSuggestions([]);
+    }
   }, []);
 
   const handleChange = useCallback(
@@ -79,60 +86,64 @@ export default function AddressAutocomplete({
       const v = e.target.value;
       setValue(v);
       onChange?.(v);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => fetchPredictions(v), 200);
+      setActiveIndex(-1);
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => fetchSuggestions(v), 300);
     },
-    [onChange, fetchPredictions],
+    [onChange, fetchSuggestions],
   );
 
-  const handleSelect = useCallback((description: string) => {
-    setValue(description);
-    setSuggestions([]);
-    setShowDropdown(false);
-    onSelectRef.current(description);
-  }, []);
+  const handleSelect = useCallback(
+    (pred: Prediction) => {
+      setValue(pred.description);
+      onSelect(pred.description);
+      setSuggestions([]);
+      setShowDropdown(false);
+    },
+    [onSelect],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!showDropdown || suggestions.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveIdx((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+        setActiveIndex((i) => (i + 1) % suggestions.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveIdx((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
-      } else if (e.key === "Enter" && activeIdx >= 0) {
+        setActiveIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+      } else if (e.key === "Enter" && activeIndex >= 0) {
         e.preventDefault();
-        handleSelect(suggestions[activeIdx].description);
+        handleSelect(suggestions[activeIndex]);
       } else if (e.key === "Escape") {
         setShowDropdown(false);
       }
     },
-    [showDropdown, suggestions, activeIdx, handleSelect],
+    [showDropdown, suggestions, activeIndex, handleSelect],
   );
 
   // Close dropdown on outside click.
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (inputRef.current && !inputRef.current.parentElement?.contains(e.target as Node)) {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const dark = dropdownDark;
+
   return (
-    <div style={{ position: "relative", flex: 1 }}>
+    <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
       <input
-        ref={inputRef}
         type="text"
-        name={name}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
-        placeholder={placeholder ?? "Enter any US address"}
+        onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+        placeholder={placeholder}
         aria-label={ariaLabel}
         style={inputStyle}
         autoComplete="off"
@@ -151,33 +162,40 @@ export default function AddressAutocomplete({
             margin: "4px 0 0",
             padding: 0,
             listStyle: "none",
-            background: "#FFFFFF",
-            border: "1px solid #E5E7EB",
+            background: dark ? "#1a2236" : "#FFFFFF",
+            border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "#E5E7EB"}`,
             borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            zIndex: 10000,
+            boxShadow: dark ? "0 8px 24px rgba(0,0,0,0.3)" : "0 4px 12px rgba(0,0,0,0.08)",
+            zIndex: 9999,
             maxHeight: "240px",
             overflow: "auto",
-            ...dropdownStyle,
           }}
         >
-          {suggestions.map((s, i) => (
+          {suggestions.map((pred, i) => (
             <li
-              key={s.place_id}
+              key={pred.place_id || i}
               role="option"
-              aria-selected={i === activeIdx}
-              onMouseDown={() => handleSelect(s.description)}
-              onMouseEnter={() => setActiveIdx(i)}
+              aria-selected={i === activeIndex}
+              onMouseDown={() => handleSelect(pred)}
+              onMouseEnter={() => setActiveIndex(i)}
               style={{
-                padding: "8px 12px",
-                fontSize: "0.875rem",
-                color: "#374151",
+                padding: "10px 14px",
+                fontSize: "14px",
                 cursor: "pointer",
-                background: i === activeIdx ? "#F3F4F6" : "transparent",
-                borderTop: i > 0 ? "1px solid #F3F4F6" : undefined,
+                color: dark ? "#e2e8f0" : "#374151",
+                background:
+                  i === activeIndex
+                    ? dark
+                      ? "rgba(96,165,250,0.1)"
+                      : "#F9FAFB"
+                    : "transparent",
+                borderTop:
+                  i > 0
+                    ? `1px solid ${dark ? "rgba(255,255,255,0.05)" : "#F3F4F6"}`
+                    : "none",
               }}
             >
-              {s.description}
+              {pred.description}
             </li>
           ))}
         </ul>

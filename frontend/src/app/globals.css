@@ -5321,6 +5321,3 @@ button:disabled {
   display: grid;
   gap: 16px;
 }
-
-/* Hide any Google Places pac-container that might appear (we use a custom dropdown). */
-.pac-container { display: none !important; }
