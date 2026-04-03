@@ -54,6 +54,8 @@ type RiskCardModel = {
   rawText: string;          // original humanized text (fallback)
   // Signal attribution: how directly the signal relates to the scored address.
   attribution: "direct" | "nearby" | "area_context";
+  // Temporal status of the signal.
+  temporalStatus: string | null;
   // Signal clustering (data-012): clustered cards have children.
   clusterCount: number;
   children: TopRiskDetail[] | null;
@@ -95,6 +97,15 @@ const ATTRIBUTION_STYLES: Record<string, { label: string; bg: string; color: str
   direct: { label: "Direct match", bg: "#dcfce7", color: "#166534" },
   nearby: { label: "Nearby signal", bg: "#dbeafe", color: "#1e40af" },
   area_context: { label: "Area context", bg: "#f1f5f9", color: "#475569" },
+};
+
+/** Temporal status badge styles. */
+const TEMPORAL_STYLES: Record<string, { label: string; bg: string; color: string }> = {
+  active_now: { label: "Active now", bg: "#dcfce7", color: "#166534" },
+  ending_soon: { label: "Ending soon", bg: "#fef3c7", color: "#92400e" },
+  starts_soon: { label: "Starts soon", bg: "#dbeafe", color: "#1e40af" },
+  upcoming: { label: "Upcoming", bg: "#f1f5f9", color: "#475569" },
+  recently_ended: { label: "Recently ended", bg: "#f1f5f9", color: "#94a3b8" },
 };
 
 function getScoreMessage(score: number) {
@@ -306,6 +317,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
       chips: extractRiskChips(humanized, impact),
       rawText: humanized,
       attribution: (detail?.attribution as RiskCardModel["attribution"]) ?? "area_context",
+      temporalStatus: detail?.temporal_status ?? null,
       clusterCount,
       children,
     };
@@ -911,6 +923,19 @@ export function TopRiskGrid({ result }: TopRiskGridProps) {
                       whiteSpace: "nowrap",
                     }}>
                       {ATTRIBUTION_STYLES[risk.attribution].label}
+                    </span>
+                  )}
+                  {risk.temporalStatus && TEMPORAL_STYLES[risk.temporalStatus] && (
+                    <span style={{
+                      fontSize: "0.68rem",
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      background: TEMPORAL_STYLES[risk.temporalStatus].bg,
+                      color: TEMPORAL_STYLES[risk.temporalStatus].color,
+                      whiteSpace: "nowrap",
+                    }}>
+                      {TEMPORAL_STYLES[risk.temporalStatus].label}
                     </span>
                   )}
                 </div>
