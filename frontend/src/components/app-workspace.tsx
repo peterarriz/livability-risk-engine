@@ -123,6 +123,8 @@ export default function HomePage() {
   const [showCommute, setShowCommute] = useState(false);
   // Shared hover state for risk card ↔ map signal linkage.
   const [hoveredSignalId, setHoveredSignalId] = useState<string | null>(null);
+  // Tab state for the full analysis section.
+  const [activeTab, setActiveTab] = useState<string>("signals");
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
   const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
@@ -1322,127 +1324,162 @@ export default function HomePage() {
                 <details id="secondary-details" className="secondary-details">
                   <summary>Open full analysis</summary>
                   <div className="secondary-details-body">
-                  <div id="signals-section" className="anchor-target" />
-                  <Section
-                    eyebrow="Signal analysis"
-                    title="Primary deal-impact signals"
-                    description="Top cards and timeline are grouped together so you can read what matters first."
-                    className="workspace-subsection"
-                  >
-                    {result.signal_summary && (
-                      <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #94a3b8)", margin: "0 0 0.75rem" }}>
-                        {result.signal_summary}
-                      </p>
-                    )}
-                    <Card className="detail-card drivers-card">
-                      <TopRiskGrid result={result} hoveredSignalId={hoveredSignalId} onHoverSignal={setHoveredSignalId} />
-                    </Card>
-                    {(result.top_risk_details ?? []).length > 0 && (
-                      <Card className="detail-card">
-                        <SignalTimeline details={result.top_risk_details ?? []} />
-                      </Card>
-                    )}
-                  </Section>
-
-                  <div className="detail-grid detail-grid--balanced">
-                    <Card className="detail-card">
-                      <details>
-                        <summary style={{ cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
-                          Severity breakdown
-                        </summary>
-                        <div style={{ marginTop: "0.5rem" }}>
-                          <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
-                          <ImpactWindow result={result} />
-                        </div>
-                      </details>
-                    </Card>
-                    <Card className="detail-card supporting-card">
-                      <p className="supporting-kicker">Quick facts</p>
-                      <ul className="supporting-list supporting-list--compact">
-                        {supportingDetails.map((item) => (
-                          <li key={item.label}>
-                            <span>{item.label}</span>
-                            {"isConfidence" in item && item.isConfidence ? (
-                              <>
-                                <strong className="confidence-value">
-                                  <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
-                                  {item.value}
-                                </strong>
-                                {result?.confidence_reason && (
-                                  <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px", lineHeight: 1.4 }}>
-                                    {result.confidence_reason}
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <strong>{item.value}</strong>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </Card>
+                  {/* ── Tab bar ──────────────────────────────────────────────── */}
+                  <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: "1rem" }}>
+                    {(["signals", "map", "neighborhood", ...(headlineScore(result) >= 50 ? ["monitor"] : [])] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveTab(tab)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          fontSize: "0.82rem",
+                          fontWeight: activeTab === tab ? 600 : 400,
+                          color: activeTab === tab ? "#60a5fa" : "#94a3b8",
+                          background: "transparent",
+                          border: "none",
+                          borderBottom: activeTab === tab ? "2px solid #60a5fa" : "2px solid transparent",
+                          cursor: "pointer",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* ── Full-width map panel, pinned below the headline score ── */}
-                  <Card className="detail-card map-card">
-                    <div className="map-card-head">
-                      <div>
-                        <p className="map-kicker">Spatial context</p>
-                        <h2>Address and nearby area</h2>
+                  {/* ── Signals tab ──────────────────────────────────────────── */}
+                  {activeTab === "signals" && (
+                    <>
+                      <div id="signals-section" className="anchor-target" />
+                      <Section
+                        eyebrow="Signal analysis"
+                        title="Primary deal-impact signals"
+                        description="Top cards and timeline are grouped together so you can read what matters first."
+                        className="workspace-subsection"
+                      >
+                        {result.signal_summary && (
+                          <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #94a3b8)", margin: "0 0 0.75rem" }}>
+                            {result.signal_summary}
+                          </p>
+                        )}
+                        <Card className="detail-card drivers-card">
+                          <TopRiskGrid result={result} hoveredSignalId={hoveredSignalId} onHoverSignal={setHoveredSignalId} />
+                        </Card>
+                        {(result.top_risk_details ?? []).length > 0 && (
+                          <Card className="detail-card">
+                            <SignalTimeline details={result.top_risk_details ?? []} />
+                          </Card>
+                        )}
+                      </Section>
+
+                      <div className="detail-grid detail-grid--balanced">
+                        <Card className="detail-card">
+                          <details>
+                            <summary style={{ cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "var(--color-text-secondary, #94a3b8)" }}>
+                              Severity breakdown
+                            </summary>
+                            <div style={{ marginTop: "0.5rem" }}>
+                              <SeverityMeters severity={result.severity} confidence={result.confidence} confidenceReasons={confidenceReasons} />
+                              <ImpactWindow result={result} />
+                            </div>
+                          </details>
+                        </Card>
+                        <Card className="detail-card supporting-card">
+                          <p className="supporting-kicker">Quick facts</p>
+                          <ul className="supporting-list supporting-list--compact">
+                            {supportingDetails.map((item) => (
+                              <li key={item.label}>
+                                <span>{item.label}</span>
+                                {"isConfidence" in item && item.isConfidence ? (
+                                  <>
+                                    <strong className="confidence-value">
+                                      <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
+                                      {item.value}
+                                    </strong>
+                                    {result?.confidence_reason && (
+                                      <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #94a3b8)", marginTop: "2px", lineHeight: 1.4 }}>
+                                        {result.confidence_reason}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <strong>{item.value}</strong>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </Card>
                       </div>
-                      <span className="map-badge">CARTO Dark</span>
-                    </div>
-                    {mapCoords ? (
-                      <MapView
-                        latitude={mapCoords.lat}
-                        longitude={mapCoords.lon}
-                        address={result.address}
-                        disruptionScore={headlineScore(result)}
-                        signals={result.nearby_signals ?? []}
-                        schools={result.nearby_schools ?? []}
-                        amenities={amenities}
-                        topRiskDetails={result.top_risk_details ?? []}
-                        nearbySchools={result.nearby_schools ?? []}
-                        floodRisk={result.neighborhood_context?.flood_risk ?? null}
-                        femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
-                        isPro={false}
-                        hoveredSignalId={hoveredSignalId}
-                        onHoverSignal={setHoveredSignalId}
+                    </>
+                  )}
+
+                  {/* ── Map tab ──────────────────────────────────────────────── */}
+                  {activeTab === "map" && (
+                    <Card className="detail-card map-card">
+                      <div className="map-card-head">
+                        <div>
+                          <p className="map-kicker">Spatial context</p>
+                          <h2>Address and nearby area</h2>
+                        </div>
+                        <span className="map-badge">CARTO Dark</span>
+                      </div>
+                      {mapCoords ? (
+                        <MapView
+                          latitude={mapCoords.lat}
+                          longitude={mapCoords.lon}
+                          address={result.address}
+                          disruptionScore={headlineScore(result)}
+                          signals={result.nearby_signals ?? []}
+                          schools={result.nearby_schools ?? []}
+                          amenities={amenities}
+                          topRiskDetails={result.top_risk_details ?? []}
+                          nearbySchools={result.nearby_schools ?? []}
+                          floodRisk={result.neighborhood_context?.flood_risk ?? null}
+                          femaZone={result.neighborhood_context?.fema_flood_zone ?? null}
+                          isPro={false}
+                          hoveredSignalId={hoveredSignalId}
+                          onHoverSignal={setHoveredSignalId}
+                          isVisible={activeTab === "map"}
+                        />
+                      ) : (
+                        <div className="map-placeholder" aria-label="Locating address on map…">
+                          <div className="map-grid" />
+                          <div className="map-pin map-pin--primary" />
+                        </div>
+                      )}
+                      <p className="map-copy">
+                        Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
+                        Pro plan unlocks the 30-day forecast animation.
+                      </p>
+                    </Card>
+                  )}
+
+                  {/* ── Neighborhood tab ─────────────────────────────────────── */}
+                  {activeTab === "neighborhood" && (
+                    <Card className="detail-card">
+                      <NeighborhoodContextCard
+                        result={result}
+                        scoreHistory={scoreHistory}
+                        lat={mapCoords?.lat ?? result.latitude}
+                        lon={mapCoords?.lon ?? result.longitude}
+                        hideEstimates={!isDebugMode}
                       />
-                    ) : (
-                      <div className="map-placeholder" aria-label="Locating address on map…">
-                        <div className="map-grid" />
-                        <div className="map-pin map-pin--primary" />
-                      </div>
-                    )}
-                    <p className="map-copy">
-                      Toggle between signal circles (click for source, date range, and impact type) and the disruption heatmap.
-                      Pro plan unlocks the 30-day forecast animation.
-                    </p>
-                  </Card>
+                    </Card>
+                  )}
 
-                  <Card className="detail-card">
-                    <NeighborhoodContextCard
-                      result={result}
-                      scoreHistory={scoreHistory}
-                      lat={mapCoords?.lat ?? result.latitude}
-                      lon={mapCoords?.lon ?? result.longitude}
-                      hideEstimates={!isDebugMode}
-                    />
-                  </Card>
-
-                  {/* ── Monitor this address — moved below map & signals ─────── */}
-                  {headlineScore(result) >= 50 && (
+                  {/* ── Monitor tab ──────────────────────────────────────────── */}
+                  {activeTab === "monitor" && headlineScore(result) >= 50 && (
                     <WatchlistForm address={result.address} score={headlineScore(result)} />
                   )}
 
                   {/* ── Commute checker — hidden unless ?features=commute ────── */}
-                  {showCommute && (
+                  {showCommute && activeTab === "signals" && (
                     <CommuteChecker homeAddress={result.address} />
                   )}
 
                   {/* ── Internal QA panel — hidden unless ?debug=true ────────── */}
-                  {isDebugMode && (
+                  {isDebugMode && activeTab === "signals" && (
                   <Card className="detail-card">
                     <p className="supporting-kicker">Internal QA panel</p>
                     <h2>Compare addresses + flag incorrect scores</h2>
