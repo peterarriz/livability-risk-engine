@@ -3,9 +3,9 @@ import Link from "next/link";
 const EXAMPLE_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const POSITIONING = "Helps brokers spot disruption risk before tenant tours and lease commitments.";
 const EXAMPLE_ADDRESSES = [
-  { label: "High disruption", address: "1600 W Chicago Ave, Chicago, IL", score: "62", insight: "Traffic and curb access are the dominant short-term risk." },
-  { label: "Low disruption", address: "11900 S Morgan St, Chicago, IL", score: "8", insight: "No meaningful active closure or permit pressure nearby." },
-  { label: "Moderate disruption", address: "3150 N Southport Ave, Chicago, IL", score: "34", insight: "Nearby renovation activity may create manageable daytime noise." },
+  { label: "Active road closures", address: "1600 W Chicago Ave, Chicago, IL", score: "62", insight: "Traffic and curb access are the dominant short-term risk." },
+  { label: "Low disruption area", address: "233 S Wacker Dr, Chicago, IL", score: "12", insight: "No meaningful active closure or permit pressure nearby." },
+  { label: "Construction-heavy zone", address: "700 W Grand Ave, Chicago, IL", score: "48", insight: "Nearby construction activity may create manageable daytime noise." },
 ];
 
 export default function LandingPage() {
@@ -57,14 +57,20 @@ export default function LandingPage() {
           <p className="section-copy">Disruption score: <strong>{featured.score}</strong> · {featured.insight}</p>
           <div className="landing-example-row">
             <p className="example-label">Try an example</p>
-            <div className="example-chip-group">
+            <div className="example-chip-group" style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               {EXAMPLE_ADDRESSES.map((example) => (
                 <Link
                   key={example.address}
                   className="example-chip"
                   href={`/app?address=${encodeURIComponent(example.address)}`}
+                  style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "0.5rem 0.75rem", textDecoration: "none" }}
                 >
-                  {example.label} · {example.address}
+                  <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", opacity: 0.65 }}>
+                    {example.label}
+                  </span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 500 }}>
+                    {example.address}
+                  </span>
                 </Link>
               ))}
             </div>
