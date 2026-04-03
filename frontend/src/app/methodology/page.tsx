@@ -3,6 +3,7 @@
 const SECTIONS = [
   { id: "sources", label: "Data Sources" },
   { id: "scoring", label: "Score Calculation" },
+  { id: "evidence", label: "Evidence Quality" },
   { id: "coverage", label: "Coverage" },
   { id: "confidence", label: "Confidence Levels" },
   { id: "limitations", label: "Limitations" },
@@ -92,23 +93,66 @@ export default function MethodologyPage() {
             </tbody>
           </table>
 
+          <p>
+            An <strong>HPI bonus of &plusmn;5 points</strong> is applied based on the FHFA House Price Index
+            trend for the address ZIP code. Appreciating areas receive a small bonus; declining areas
+            receive a small penalty. The final score is clamped to 0&ndash;100.
+          </p>
+
           <h3>Calculation steps</h3>
           <ol className="docs-steps">
             <li>Geocode the input address to latitude/longitude.</li>
-            <li>Query all active projects, permits, and closures within a 500-meter radius.</li>
-            <li>Compute the raw disruption score (0&ndash;100) based on impact type weights, distance decay, and signal count.</li>
-            <li>Fetch the latest crime trend, school rating, census demographics, and flood zone for the address.</li>
-            <li>Score each dimension on a 0&ndash;100 scale, apply the weight, and sum to produce the composite Livability Score.</li>
-            <li>Determine confidence level based on signal proximity and data freshness.</li>
+            <li>Query all active projects, permits, and closures within a 500-meter radius (excluding signals that ended more than 30 days ago).</li>
+            <li>Compute the raw disruption score (0&ndash;100) based on impact type weights, distance decay, and time multiplier.</li>
+            <li>Fetch the latest crime trend, school rating, census demographics, flood zone, and HPI data for the address.</li>
+            <li>Score each dimension on a 0&ndash;100 scale, apply the weight, add HPI bonus, and clamp to produce the composite Livability Score.</li>
+            <li>Assess evidence quality and determine confidence level based on signal count, proximity, and data availability.</li>
           </ol>
+        </section>
+
+        {/* ── Evidence Quality ──────────────────────────────────── */}
+        <section id="evidence" className="docs-section">
+          <h2>Evidence Quality</h2>
+          <p>
+            Each score includes an evidence quality assessment that indicates how much
+            address-specific data backs the result. This helps users calibrate how much
+            weight to give the score.
+          </p>
+
+          <table className="docs-table">
+            <thead><tr><th>Level</th><th>Criteria</th><th>What it means</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Strong</strong></td>
+                <td>3 or more non-trivial signals (closures, construction, utility outages) detected nearby</td>
+                <td>The score is well-supported by multiple address-level data points. Suitable for decision-making.</td>
+              </tr>
+              <tr>
+                <td><strong>Moderate</strong></td>
+                <td>1&ndash;2 strong signals detected nearby</td>
+                <td>The score has direct evidence but limited signal density. Consider the top signal carefully.</td>
+              </tr>
+              <tr>
+                <td><strong>Limited</strong> (contextual only)</td>
+                <td>No strong address-level signals, but neighborhood-level data is available (crime trends, census, flood zones)</td>
+                <td>The score reflects area context rather than address-specific conditions. Useful for screening but not final decisions.</td>
+              </tr>
+              <tr>
+                <td><strong>Insufficient</strong></td>
+                <td>No strong signals and no neighborhood-level data available</td>
+                <td>The score is directional only and should not be used for decision-making. Manual review is recommended.</td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         {/* ── Coverage ──────────────────────────────────────────── */}
         <section id="coverage" className="docs-section">
           <h2>Coverage</h2>
           <p>
-            Data coverage varies by city and data type. Chicago has the deepest coverage
-            as the original MVP city. Other cities have been added progressively.
+            Data coverage varies by city and data type. Chicago has the deepest
+            permit and closure coverage. Other cities have been added progressively.
+            Census, school, flood, and HPI data are available nationwide.
           </p>
 
           <table className="docs-table docs-table--compact">
@@ -123,7 +167,7 @@ export default function MethodologyPage() {
               </tr>
               <tr>
                 <td>Crime trends</td>
-                <td>70+ cities with active Socrata/ArcGIS/CKAN endpoints including: Chicago, NYC, LA, Dallas, Austin, Seattle, Denver, SF, Baltimore, Nashville, Portland, DC, OKC, Houston, Phoenix, Columbus, Minneapolis, Charlotte, and many more</td>
+                <td>75+ cities with active Socrata/ArcGIS/CKAN endpoints including: Chicago, NYC, LA, Dallas, Austin, Seattle, Denver, SF, Baltimore, Nashville, Portland, DC, OKC, Houston, Phoenix, Columbus, Minneapolis, Charlotte, and many more</td>
                 <td>Cities with rolling-window data (Milwaukee: 3mo, Providence: 6mo, Oakland: 3mo). Frozen datasets: Pittsburgh, Fresno, Albuquerque</td>
               </tr>
               <tr>
@@ -133,7 +177,7 @@ export default function MethodologyPage() {
               </tr>
               <tr>
                 <td>Census demographics</td>
-                <td>All US census tracts in counties containing active permit cities (29 counties)</td>
+                <td>All US census tracts (all 50 states + DC + PR)</td>
                 <td>&mdash;</td>
               </tr>
               <tr>
@@ -143,8 +187,8 @@ export default function MethodologyPage() {
               </tr>
               <tr>
                 <td>FEMA flood zones</td>
-                <td>Chicago metro area</td>
-                <td>Expanding to all active cities</td>
+                <td>29 counties covering major metro areas</td>
+                <td>Expanding as new cities are added</td>
               </tr>
             </tbody>
           </table>
@@ -199,8 +243,10 @@ export default function MethodologyPage() {
             <li><strong>Natural disaster risk beyond FEMA zones</strong> &mdash; Wildfire, earthquake, tornado, and extreme heat risk are not included.</li>
           </ul>
 
-          <h3>Data freshness caveats</h3>
+          <h3>Coverage and freshness caveats</h3>
           <ul className="docs-limitation-list">
+            <li>Coverage varies significantly by city. Permit and closure data is deepest in Chicago, with progressive coverage across 29+ other cities. Suburbs and rural areas typically have limited address-level data.</li>
+            <li>Signals with passed end dates are retained for 30 days (grace period) because permits often reflect work that continues past the official end date. These receive reduced scoring weight.</li>
             <li>Some crime datasets are rolling windows (3&ndash;6 months) without historical comparison. These cities show current-period counts but no year-over-year trend.</li>
             <li>Census ACS data has a 1&ndash;2 year lag. Rapidly changing neighborhoods may not yet be reflected.</li>
             <li>School ratings are updated annually. Mid-year changes (new principals, policy shifts) are not captured until the next release.</li>
