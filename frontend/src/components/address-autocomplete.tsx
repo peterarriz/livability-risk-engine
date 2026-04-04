@@ -3,6 +3,29 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 type Prediction = { description: string; place_id: string };
 
+const COVERED_CITIES = [
+  "chicago", "new york", "los angeles", "austin", "seattle", "denver",
+  "portland", "nashville", "phoenix", "dallas", "houston", "philadelphia",
+  "san francisco", "minneapolis", "columbus", "san antonio", "fort worth",
+  "charlotte", "detroit", "milwaukee", "baltimore", "boston",
+  "washington", "atlanta", "tampa", "miami", "pittsburgh",
+  "cincinnati", "kansas city", "mesa", "tucson", "tulsa",
+  "arlington", "wichita", "raleigh", "colorado springs",
+  "omaha", "virginia beach", "oakland", "richmond",
+  "boise", "des moines", "chattanooga", "knoxville",
+  "providence", "buffalo", "norfolk", "chandler", "gilbert",
+  "scottsdale", "glendale", "henderson", "greensboro", "durham",
+  "winston-salem", "new orleans", "lexington", "lincoln", "madison",
+];
+
+function getCoverage(description: string): "covered" | "partial" {
+  const lower = description.toLowerCase();
+  for (const city of COVERED_CITIES) {
+    if (lower.includes(city)) return "covered";
+  }
+  return "partial";
+}
+
 type Props = {
   defaultValue?: string;
   placeholder?: string;
@@ -171,33 +194,41 @@ export default function AddressAutocomplete({
             overflow: "auto",
           }}
         >
-          {suggestions.map((pred, i) => (
-            <li
-              key={pred.place_id || i}
-              role="option"
-              aria-selected={i === activeIndex}
-              onMouseDown={() => handleSelect(pred)}
-              onMouseEnter={() => setActiveIndex(i)}
-              style={{
-                padding: "10px 14px",
-                fontSize: "14px",
-                cursor: "pointer",
-                color: dark ? "#e2e8f0" : "#374151",
-                background:
-                  i === activeIndex
-                    ? dark
-                      ? "rgba(96,165,250,0.1)"
-                      : "#F9FAFB"
-                    : "transparent",
-                borderTop:
-                  i > 0
-                    ? `1px solid ${dark ? "rgba(255,255,255,0.05)" : "#F3F4F6"}`
-                    : "none",
-              }}
-            >
-              {pred.description}
-            </li>
-          ))}
+          {suggestions.map((pred, i) => {
+            const coverage = getCoverage(pred.description);
+            return (
+              <li
+                key={pred.place_id || i}
+                role="option"
+                aria-selected={i === activeIndex}
+                onMouseDown={() => handleSelect(pred)}
+                onMouseEnter={() => setActiveIndex(i)}
+                style={{
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  color: dark ? "#e2e8f0" : "#374151",
+                  background:
+                    i === activeIndex
+                      ? dark
+                        ? "rgba(96,165,250,0.1)"
+                        : "#F9FAFB"
+                      : "transparent",
+                  borderTop:
+                    i > 0
+                      ? `1px solid ${dark ? "rgba(255,255,255,0.05)" : "#F3F4F6"}`
+                      : "none",
+                }}
+              >
+                <div style={{ fontSize: "14px" }}>{pred.description}</div>
+                <div style={{ fontSize: "11px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: coverage === "covered" ? "#22C55E" : "#F59E0B", display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ color: coverage === "covered" ? "#16A34A" : "#D97706" }}>
+                    {coverage === "covered" ? "Full coverage" : "Neighborhood data only"}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
