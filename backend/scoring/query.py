@@ -1260,6 +1260,11 @@ def get_nearby_crime_signals(
     if not row:
         return []
 
+    # Filter out absurdly distant matches (e.g., Chicago crime matching NYC).
+    # 50km is generous — crime data should be from the same metro area.
+    if float(row["distance_m"]) > 50000:
+        return []
+
     crime_trend = (row["crime_trend"] or "").upper()
     impact_type = _CRIME_TREND_IMPACT.get(crime_trend, "crime_trend_stable")
 
