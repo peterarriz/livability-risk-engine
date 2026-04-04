@@ -302,28 +302,12 @@ CITY_CONFIGS: list[dict] = [
     #   User-Agent with HTTP 403 (Cloudflare/WAF). FeatureServer also 403.
     #   curl works but automated ingest is not possible without UA spoofing.
     # -----------------------------------------------------------------
-    {
-        # Tucson, AZ — Residential Permits (verified 2026-03-25).
-        # Self-hosted ArcGIS Server at gis.tucsonaz.gov (NOT gisdata.tucsonaz.gov which is Hub).
-        # Service: PDSD/pdsdMain_General5/MapServer, layer 49 (Residential Permits).
-        # 1,003 records. Also available: layer 48 (Commercial), layer 58 (Demolition).
-        "city_name":        "Tucson",
-        "source_key":       "tucson",
-        "service_url":      (
-            "https://gis.tucsonaz.gov/arcgis/rest/services"
-            "/PDSD/pdsdMain_General5/MapServer/49"
-        ),
-        "portal_url":       "https://gisdata.tucsonaz.gov",
-        "id_field":         "NUMBER",
-        "type_field":       "TYPE",
-        "desc_field":       "DESCRIPTION",
-        "issue_date_field": "DATEISSUED",
-        "exp_date_field":   "DATEEXPIRED",
-        "addr_field":       "ADDRESSFULL",
-        "city_state":       "Tucson, AZ",
-        "skip_date_filter": True,  # MapServer date fields return 0 with TIMESTAMP filter
-        "max_records":      None,
-    },
+    # -----------------------------------------------------------------
+    # Tucson, AZ — Data frozen at 2019. All 1,003 records have DATEISSUED
+    # from 2019 or earlier. Date filters don't work on this MapServer.
+    # Commented out as stale — revisit when the city updates the service.
+    # Service: gis.tucsonaz.gov/arcgis/rest/services/PDSD/pdsdMain_General5/MapServer/49
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # REMOVED — Jacksonville (verified 2026-03-22):
     #   maps.coj.net and gis.coj.net both return 404. No building permit
