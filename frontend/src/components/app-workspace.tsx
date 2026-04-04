@@ -29,7 +29,7 @@ import AddressAutocomplete from "@/components/address-autocomplete";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const POSITIONING = "Helps brokers spot disruption risk before tenant tours and lease commitments.";
+const POSITIONING = "Address livability intelligence";
 
 
 type SuggestionAddressParts = {
@@ -1034,48 +1034,12 @@ export default function HomePage() {
           </Card>
         </Section>
 
-        {!workspaceMode && (
-          <Section
-            eyebrow="Broker workflow"
-            title="Use this before tours, proposals, and LOIs"
-            description="Prioritize near-term deal friction first, then pull supporting detail when needed."
-            className="how-it-works-section"
-          >
-            <div className="how-it-works-grid">
-              <div className="hiw-step">
-                <div className="hiw-step-number" aria-hidden="true">01</div>
-                <h3 className="hiw-step-title">Search the listing address</h3>
-                <p className="hiw-step-body">
-                  Start with the exact property address you are marketing or underwriting.
-                </p>
-              </div>
-              <div className="hiw-step">
-                <div className="hiw-step-number" aria-hidden="true">02</div>
-                <h3 className="hiw-step-title">Read score + top drivers first</h3>
-                <p className="hiw-step-body">
-                  The workspace foregrounds access, closure, and construction signals that can impact tour quality and leasing velocity.
-                </p>
-              </div>
-              <div className="hiw-step">
-                <div className="hiw-step-number" aria-hidden="true">03</div>
-                <h3 className="hiw-step-title">Open secondary detail on demand</h3>
-                <p className="hiw-step-body">
-                  Neighborhood, commute, and timeline modules remain available below the core brief when deeper diligence is required.
-                </p>
-              </div>
-            </div>
-          </Section>
-        )}
 
         <Section
           className={workspaceMode ? "workspace-section workspace-section--score" : undefined}
-          eyebrow="Broker brief"
-          title={workspaceMode ? "Leasing impact snapshot" : "What this broker brief returns"}
-          description={
-            workspaceMode
-              ? "Read the score and top drivers first. Expand full diligence modules only when you need deeper context."
-              : "Each lookup returns a broker-facing score brief, prioritized risk drivers, and expandable supporting modules."
-          }
+          eyebrow="Results"
+          title={workspaceMode ? "Livability analysis" : ""}
+          description={workspaceMode ? "" : undefined}
           headerAction={workspaceMode && result ? (
             <a
               href="/pricing"
@@ -1091,7 +1055,7 @@ export default function HomePage() {
           {isLoading ? (
             <section className="results results--loading">
               <Card className="score-card skeleton-card loading-card">
-                <p className="loading-kicker">Building disruption brief</p>
+                <p className="loading-kicker">Analyzing address</p>
                 <div className="loading-step-list" aria-live="polite">
                   {loadingSteps.map((step, index) => (
                     <div key={step} className="loading-step">
@@ -1392,15 +1356,10 @@ export default function HomePage() {
               </div>{/* end desktop-view */}
             </section>
           ) : (
-            <section className="results">
-              <Card className="empty-state">
-                <p className="empty-kicker">Ready for analysis</p>
-                <h3>Enter an Illinois address above to get an address-level disruption score.</h3>
-                <p>
-                  The score uses city permit and planned street-closure records, with severity, top drivers, and map context in one response.
-                </p>
-              </Card>
-            </section>
+            <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9CA3AF" }}>
+              <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Enter any US address to get started</p>
+              <p style={{ fontSize: "0.85rem" }}>You&rsquo;ll see a livability score, risk signals, map, and neighborhood context.</p>
+            </div>
           )}
           </div>
         </Section>
