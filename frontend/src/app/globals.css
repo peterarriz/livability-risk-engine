@@ -1651,7 +1651,7 @@ button:disabled {
   position: relative;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  background: #F3F4F6;
   overflow: visible;
 }
 
@@ -1665,15 +1665,15 @@ button:disabled {
 }
 
 .score-gauge-fill--low {
-  background: linear-gradient(90deg, #3ce5b3, #6ef0c8);
+  background: #22C55E;
 }
 
 .score-gauge-fill--moderate {
-  background: linear-gradient(90deg, #ffc870, #ffd497);
+  background: #F59E0B;
 }
 
 .score-gauge-fill--high {
-  background: linear-gradient(90deg, #ff6060, #ffb3b3);
+  background: #EF4444;
 }
 
 .score-gauge-marker {
@@ -1846,13 +1846,16 @@ button:disabled {
   align-items: flex-start;
   gap: 12px;
   padding: 14px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 112, 112, 0.28);
-  background: rgba(115, 19, 31, 0.18);
-  color: #ffd7db;
+  border-radius: 12px;
+  border: 1px solid #FECACA;
+  background: #FEF2F2;
+  color: #6B7280;
   font-size: 0.92rem;
   line-height: 1.55;
   margin-bottom: 4px;
+}
+.pro-badge-bar strong {
+  color: #991B1B;
 }
 
 .pro-badge-icon {
@@ -1862,7 +1865,7 @@ button:disabled {
 }
 
 .pro-badge-link {
-  color: var(--danger);
+  color: #2563EB;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -5073,13 +5076,15 @@ button:disabled {
   backdrop-filter: blur(6px);
 }
 .onboarding-card {
-  background: var(--card-bg, #1c1c2e);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
   border-radius: 16px;
   padding: 2rem 2.25rem;
   max-width: 520px;
   width: 92vw;
   text-align: center;
+  color: #111827;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 /* Progress dots */
@@ -5093,11 +5098,11 @@ button:disabled {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+  background: #D1D5DB;
   transition: background 0.2s;
 }
-.onboarding-dot--active { background: #6366f1; }
-.onboarding-dot--done { background: #10b981; }
+.onboarding-dot--active { background: #2563EB; }
+.onboarding-dot--done { background: #16A34A; }
 
 /* Step content */
 .onboarding-step h2 {
@@ -5121,19 +5126,20 @@ button:disabled {
   align-items: center;
   gap: 10px;
   padding: 0.65rem 1rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
   border-radius: 10px;
-  color: var(--text, #e8eef8);
+  color: #111827;
   font-size: 0.88rem;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   text-align: left;
 }
-.onboarding-role-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.onboarding-role-btn:hover { background: #F9FAFB; }
 .onboarding-role-btn--selected {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+  border-color: #2563EB;
+  background: #2563EB;
+  color: #FFFFFF;
 }
 .onboarding-role-icon { font-size: 1.1rem; }
 
@@ -5146,25 +5152,26 @@ button:disabled {
 }
 .onboarding-city-tile {
   padding: 0.55rem 0.5rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
   border-radius: 8px;
-  color: var(--text, #e8eef8);
+  color: #111827;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.onboarding-city-tile:hover { background: rgba(255, 255, 255, 0.06); }
+.onboarding-city-tile:hover { background: #F9FAFB; }
 .onboarding-city-tile--selected {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+  border-color: #2563EB;
+  background: #EFF6FF;
+  color: #1D4ED8;
 }
 
 /* Example card */
 .onboarding-example-card {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
   border-radius: 10px;
   padding: 1rem;
   margin-bottom: 1.25rem;
@@ -5190,8 +5197,8 @@ button:disabled {
 }
 .onboarding-next-btn {
   padding: 0.6rem 1.5rem;
-  background: #6366f1;
-  color: #fff;
+  background: #2563EB;
+  color: #FFFFFF;
   border: none;
   border-radius: 8px;
   font-size: 0.88rem;
@@ -5201,10 +5208,10 @@ button:disabled {
 .onboarding-next-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .onboarding-back-btn {
   padding: 0.6rem 1.25rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
   border-radius: 8px;
-  color: var(--text-soft, #94a3b8);
+  color: #6B7280;
   font-size: 0.88rem;
   cursor: pointer;
 }
