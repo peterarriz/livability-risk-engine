@@ -40,6 +40,40 @@ router = APIRouter()
 # Core scoring function
 # ---------------------------------------------------------------------------
 
+def _log_score_request(result_dict: dict, response_time_ms: int) -> None:
+    """Best-effort logging of score requests to score_requests table."""
+    try:
+        from backend.scoring.query import get_db_connection
+        addr = result_dict.get("address", "")
+        parts = addr.split(",")
+        city = parts[-2].strip() if len(parts) >= 3 else None
+        state = parts[-1].strip().split(" ")[0] if len(parts) >= 2 else None
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO score_requests
+                       (address, city, state, latitude, longitude, livability_score,
+                        evidence_quality, strong_signal_count, error, response_time_ms)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        addr, city, state,
+                        result_dict.get("latitude"),
+                        result_dict.get("longitude"),
+                        result_dict.get("livability_score"),
+                        result_dict.get("evidence_quality"),
+                        result_dict.get("strong_signal_count"),
+                        result_dict.get("error"),
+                        response_time_ms,
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass  # Never let analytics break scoring
+
+
 def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict:
     """
     Full live scoring path:
@@ -63,6 +97,9 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     )
     from backend.scoring.rewrite import enrich_top_risk_details
 
+    import time as _time
+    _start = _time.time()
+
     conn = get_db_connection()
     try:
         resolved_coords = coords
@@ -80,7 +117,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         if not resolved_coords and ", USA" not in address.upper():
             resolved_coords = geocode_address(address + ", USA", **_geo_opts)
         if not resolved_coords:
-            return {
+            error_resp = {
                 "address": address,
                 "error": "address_not_found",
                 "message": (
@@ -94,6 +131,8 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 "top_risks": [],
                 "explanation": None,
             }
+            _log_score_request(error_resp, int((_time.time() - _start) * 1000))
+            return error_resp
 
         lat, lon = resolved_coords
         nearby = get_nearby_projects(lat, lon, conn)
@@ -345,7 +384,44 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     result_dict["city_baseline_diff"] = diff
     result_dict["city_baseline_label"] = city_key.title() if city_key != "default" else "city"
 
+    _log_score_request(result_dict, int((_time.time() - _start) * 1000))
     return result_dict
+
+
+# ---------------------------------------------------------------------------
+# Admin stats endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/stats")
+def get_stats():
+    """Return basic usage statistics from the score_requests table."""
+    from backend.scoring.query import get_db_connection
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM score_requests")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM score_requests WHERE created_at >= CURRENT_DATE")
+            today = cur.fetchone()[0]
+            cur.execute("""
+                SELECT city, COUNT(*) as cnt FROM score_requests
+                WHERE city IS NOT NULL GROUP BY city ORDER BY cnt DESC LIMIT 10
+            """)
+            top_cities = [{"city": r[0], "count": r[1]} for r in cur.fetchall()]
+            cur.execute("SELECT COUNT(*) FROM score_requests WHERE error IS NOT NULL")
+            errors = cur.fetchone()[0]
+            cur.execute("SELECT AVG(response_time_ms) FROM score_requests WHERE response_time_ms IS NOT NULL")
+            avg_time = cur.fetchone()[0]
+    finally:
+        conn.close()
+    return {
+        "total_requests": total,
+        "today": today,
+        "error_count": errors,
+        "error_rate": f"{(errors / total * 100):.1f}%" if total > 0 else "0%",
+        "avg_response_time_ms": int(avg_time) if avg_time else 0,
+        "top_cities": top_cities,
+    }
 
 
 # ---------------------------------------------------------------------------
