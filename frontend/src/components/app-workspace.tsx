@@ -871,28 +871,18 @@ export default function HomePage() {
 
         <Section className={`hero-section ${workspaceMode ? "hero-section--workspace" : ""}`}>
           <Card tone="highlighted" className="hero-card">
-            <div className={`hero-copy ${workspaceMode ? "hero-copy--workspace" : ""}`}>
-              <p className="eyebrow">Address disruption brief</p>
-              <h1>
-                {workspaceMode
-                  ? "Spot disruption risk before tours and lease commitments."
-                  : "Spot disruption risk before tours and lease commitments."}
-              </h1>
-              <p className="lede">
-                {workspaceMode
-                  ? "Use this brief to guide tour routing, timing conversations, and next-step recommendations."
-                  : "Start with score + top drivers, then open secondary modules only when deeper diligence is needed."}
-              </p>
-              {!workspaceMode && (
-                <a href="mailto:enterprise@livabilityrisks.com" className="enterprise-cta">
-                  Request enterprise demo →
-                </a>
-              )}
-            </div>
+            {!workspaceMode && (
+              <div className="hero-copy">
+                <h1>Know what&rsquo;s happening at any US address before you commit.</h1>
+                <p className="lede">
+                  Score any US address in seconds. Data from permits, closures, crime trends, schools, and flood zones.
+                </p>
+              </div>
+            )}
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                {workspaceMode ? "Search another property address" : "Enter a Chicago property address"}
+                Search any US address
               </label>
               <div ref={searchShellRef} className={"search-shell" + (workspaceMode ? " search-shell--workspace" : "")}>
                 <AddressAutocomplete
@@ -908,21 +898,17 @@ export default function HomePage() {
                   {isLoading ? "Analyzing\u2026" : "Analyze address"}
                 </button>
               </div>
-              <div className={`hero-support ${workspaceMode ? "hero-support--workspace" : ""}`}>
-                <p className="form-hint">
-                  Returns a livability score, severity read, strongest drivers, interpretation, and map context for any address.
+              {!workspaceMode && (
+                <p style={{ fontSize: "0.75rem", color: "#9CA3AF", margin: "0.5rem 0 0" }}>
+                  Data from 20+ public permit, closure, crime, and census sources across 75+ US cities.
                 </p>
-                <p className="form-disclaimer">
-                  Uses Chicago permit and planned street-closure records from city sources.
-                </p>
-
-              </div>
+              )}
             </form>
 
-            {/* Free-tier usage indicator — only shown for non-Pro users */}
+            {/* Free-tier usage indicator */}
             {!isPro && lookupUsage.count > 0 && (
-              <p className="lookup-usage-indicator">
-                {lookupUsage.count}/{lookupUsage.limit} free lookups used this month
+              <p style={{ fontSize: "0.72rem", color: "#9CA3AF", margin: "0.4rem 0 0", textAlign: "center" }}>
+                {lookupUsage.count} of {lookupUsage.limit} free lookups used
               </p>
             )}
 
@@ -961,16 +947,7 @@ export default function HomePage() {
               </div>
             )}
 
-            {(result || statusNote) ? (
-              <div className={`status-banner ${isDemoResult ? "status-banner--demo" : "status-banner--live"}`} role="status">
-                <span className="status-badge" title={statusBadgeTooltip}>{statusHeadline}</span>
-                <div className="status-copy">
-                  <strong>{statusMessage}</strong>
-                  {" "}
-                  <span>{isDemoResult ? "" : "Sources: Chicago permits • Street closures"}</span>
-                </div>
-              </div>
-            ) : null}
+            {/* Status banner removed — data source info is in the hero support text */}
 
             {error ? (
               <div

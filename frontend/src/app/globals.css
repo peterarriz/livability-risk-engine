@@ -171,7 +171,7 @@ dl {
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: rgba(229, 236, 248, 0.82);
+  color: #374151;
   max-height: 44px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -192,7 +192,7 @@ dl {
   background: transparent;
   box-shadow: none;
   transform: none;
-  color: rgba(229, 236, 248, 0.82);
+  color: #374151;
   transition: padding 220ms ease, font-size 220ms ease, background-color 220ms ease, border-color 220ms ease;
 }
 
@@ -2347,7 +2347,7 @@ button:disabled {
   border-radius: 4px;
   background: transparent;
   border: 1px solid transparent;
-  color: rgba(229, 236, 248, 0.82);
+  color: #374151;
   font-size: 0.76rem;
   font-weight: 600;
   transition: background 140ms ease, border-color 140ms ease;
