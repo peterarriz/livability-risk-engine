@@ -584,7 +584,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <p className="score-hero-kicker">Headline assessment</p>
         <div className="score-hero-topline">
           <p className="score-label">Livability Score</p>
-          <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>
+          {isDemo && <p className="confidence-pill" title={modeLabelTooltip}>{modeLabel}</p>}
         </div>
         <div className="score-value score-value--animated" style={isInsufficient ? { opacity: 0.5 } : undefined}>
           {displayScore}
@@ -642,25 +642,26 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <h3 className="score-hero-title">{scoreMessage.label}</h3>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
 
-        {result.recommended_action && (
-          <div
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.5rem 0.75rem",
-              borderRadius: "6px",
-              background: headlineScore <= 50
-                ? "rgba(251, 191, 36, 0.08)"
-                : "rgba(59, 130, 246, 0.08)",
-              borderLeft: `3px solid ${headlineScore <= 50 ? "#f59e0b" : "#3b82f6"}`,
-              fontSize: "0.82rem",
-              lineHeight: 1.5,
-              color: "var(--color-text-primary, #111827)",
-            }}
-          >
-            <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
-            {result.recommended_action}
-          </div>
-        )}
+        {result.recommended_action && (() => {
+          const isHighRisk = headlineScore <= 50;
+          return (
+            <div
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                background: isHighRisk ? "#FEF2F2" : "#F0FDF4",
+                borderLeft: `3px solid ${isHighRisk ? "#EF4444" : "#22C55E"}`,
+                fontSize: "0.82rem",
+                lineHeight: 1.5,
+                color: isHighRisk ? "#991B1B" : "#166534",
+              }}
+            >
+              <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
+              {result.recommended_action}
+            </div>
+          );
+        })()}
 
         {/* What this score covers — collapsed by default */}
         <details style={{ marginTop: "0.75rem" }}>
@@ -2708,17 +2709,21 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       </div>
 
       {/* ── Recommended action ─────────────────────────────────────────── */}
-      {result.recommended_action && (
-        <div style={{
-          margin: "0 1rem", padding: "0.4rem 0.6rem", borderRadius: "6px",
-          borderLeft: `3px solid ${_headline <= 50 ? "#f59e0b" : "#3b82f6"}`,
-          background: _headline <= 50 ? "rgba(251,191,36,0.08)" : "rgba(59,130,246,0.08)",
-          fontSize: "0.75rem", lineHeight: 1.45,
-        }}>
-          <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
-          {result.recommended_action}
-        </div>
-      )}
+      {result.recommended_action && (() => {
+        const isHighRisk = _headline <= 50;
+        return (
+          <div style={{
+            margin: "0 1rem", padding: "0.4rem 0.6rem", borderRadius: "6px",
+            borderLeft: `3px solid ${isHighRisk ? "#EF4444" : "#22C55E"}`,
+            background: isHighRisk ? "#FEF2F2" : "#F0FDF4",
+            color: isHighRisk ? "#991B1B" : "#166534",
+            fontSize: "0.75rem", lineHeight: 1.45,
+          }}>
+            <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
+            {result.recommended_action}
+          </div>
+        );
+      })()}
 
       {/* ── Signal pills ──────────────────────────────────────────────────── */}
       {pills.length > 0 && (
