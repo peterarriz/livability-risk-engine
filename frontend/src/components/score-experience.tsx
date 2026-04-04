@@ -77,11 +77,12 @@ const SEVERITY_PERCENT: Record<SeverityLevel, number> = {
   HIGH: 100,
 };
 
+// Livability score: 0-100, higher = better livability = less disruption.
 const SCORE_COPY = [
-  { max: 24, label: "Low disruption activity", summary: "Near-term conditions look broadly stable around this address." },
-  { max: 49, label: "Moderate disruption activity", summary: "Some friction is likely, but it should remain manageable." },
-  { max: 74, label: "High disruption activity", summary: "Clear nearby activity is likely to affect access or daily experience." },
-  { max: 100, label: "Severe disruption activity", summary: "Multiple strong signals point to meaningful short-term disruption." },
+  { max: 30, label: "High disruption risk", summary: "Multiple strong nearby signals are likely to affect access. Expect delays or route changes." },
+  { max: 50, label: "Moderate disruption risk", summary: "Some active signals detected nearby. Plan around active construction windows." },
+  { max: 70, label: "Low disruption risk", summary: "Minor activity detected. No significant access concerns expected." },
+  { max: 100, label: "Minimal disruption", summary: "No significant disruption detected. This area is clear for near-term activity." },
 ];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -477,36 +478,43 @@ function useAnimatedScore(target: number) {
 }
 
 function getGaugeBand(score: number): "low" | "moderate" | "high" {
-  if (score <= 30) return "low";
-  if (score <= 60) return "moderate";
-  return "high";
+  // Livability: low score = high disruption (red), high score = low disruption (green)
+  if (score <= 30) return "high";     // high disruption → red bar
+  if (score <= 60) return "moderate"; // moderate → amber bar
+  return "low";                       // low disruption → green bar
 }
 
 function getBenchmarkText(score: number): string {
-  if (score < 20) return "This address scores below the typical Chicago range of 20–40.";
-  if (score <= 40) return "This address falls within the typical Chicago range of 20–40.";
-  return "This address scores above the typical Chicago range of 20–40.";
+  // Livability: higher = better. Baseline comparison is shown separately via city_baseline_diff.
+  if (score >= 70) return "This address has strong livability conditions.";
+  if (score >= 50) return "This address has average livability conditions.";
+  if (score >= 30) return "This address has below-average livability conditions.";
+  return "This address has significant livability concerns.";
 }
 
 function getDisruptionFraming(score: number): { label: string; explanation: string } {
-  if (score <= 30) {
+  // Livability: higher score = better livability = less disruption.
+  if (score >= 71) {
     return {
-      label: "Low disruption risk",
-      explanation:
-        "Low risk means current nearby activity is unlikely to materially disrupt tours or day-to-day access. Keep normal scheduling, with only light contingency planning.",
+      label: "Minimal disruption",
+      explanation: "No significant disruption detected. This area is clear for near-term activity with no access concerns.",
     };
   }
-  if (score <= 60) {
+  if (score >= 51) {
+    return {
+      label: "Low disruption risk",
+      explanation: "Minor nearby activity detected. No significant access concerns expected. Keep normal scheduling.",
+    };
+  }
+  if (score >= 31) {
     return {
       label: "Moderate disruption risk",
-      explanation:
-        "Moderate risk means disruption signals are present and may create occasional friction for access, parking, or noise. Confirm timing before tours and set expectations with clients.",
+      explanation: "Active signals nearby may create occasional friction for access, parking, or noise. Confirm timing before visits.",
     };
   }
   return {
     label: "High disruption risk",
-    explanation:
-      "High risk means multiple strong nearby signals are likely to affect access and visit experience in the near term. Expect delays or route changes and plan tours around lower-impact windows.",
+    explanation: "Multiple strong nearby signals are likely to affect access and experience. Expect delays or route changes.",
   };
 }
 
@@ -529,11 +537,13 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const breakdown = result.livability_breakdown?.components ?? {};
   const signalCount = (result.nearby_signals ?? []).length;
   const signalRadiusMeters = useMemo(() => {
+    // Exclude crime trend signals (they can be 1000km+ away) and cap at 500m.
     const distances = (result.nearby_signals ?? [])
+      .filter((s) => !s.impact_type.startsWith("crime_trend"))
       .map((s) => Number(s.distance_m))
       .filter((d) => Number.isFinite(d) && d > 0);
     if (distances.length === 0) return 500;
-    return Math.round(Math.max(...distances));
+    return Math.min(500, Math.round(Math.max(...distances)));
   }, [result.nearby_signals]);
 
   const evidenceQuality = result.evidence_quality ?? null;
@@ -2577,10 +2587,11 @@ type MobileScoreViewProps = {
 };
 
 function _mobileBand(score: number): { label: string; color: string } {
-  if (score <= 24) return { label: "Low Risk",      color: "#10b981" };
-  if (score <= 49) return { label: "Moderate Risk", color: "#f59e0b" };
-  if (score <= 74) return { label: "High Risk",     color: "#ef4444" };
-  return             { label: "Severe Risk",    color: "#7c3aed" };
+  // Livability: higher score = better = less disruption
+  if (score >= 71) return { label: "Low Risk",      color: "#22c55e" };
+  if (score >= 51) return { label: "Moderate",      color: "#f59e0b" };
+  if (score >= 31) return { label: "High Risk",     color: "#ef4444" };
+  return             { label: "Severe Risk",    color: "#dc2626" };
 }
 
 function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {

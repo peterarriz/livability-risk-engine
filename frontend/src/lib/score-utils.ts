@@ -102,14 +102,20 @@ export function recommendedAction(
   score: number,
   signals: SignalLike[],
 ): RecommendedAction {
-  if (score > 60) {
-    // Find the latest end date for the "through [date]" label
-    const latestEnd = _latestEndDate(signals);
-    const throughLabel = latestEnd ? ` through ${_formatShortDate(latestEnd)}` : "";
+  // Livability score: higher = better livability = less disruption.
+  if (score >= 70) {
     return {
-      icon: "🔴",
-      label: `Defer if possible — high disruption overlapping your target window${throughLabel}`,
-      tone: "defer",
+      icon: "\u2713",
+      label: "Clear to proceed \u2014 no significant disruptions in your impact window",
+      tone: "clear",
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      icon: "\u26A0",
+      label: "Proceed with awareness \u2014 minor nearby activity may affect access during business hours",
+      tone: "review",
     };
   }
 
@@ -121,24 +127,27 @@ export function recommendedAction(
 
     if (daysUntilClear !== null && daysUntilClear <= 30 && daysUntilClear > 0) {
       return {
-        icon: "📊",
-        label: `Monitor — disruption clearing within ${daysUntilClear} days`,
+        icon: "\uD83D\uDCCA",
+        label: `Monitor \u2014 disruption may clear within ${daysUntilClear} days`,
         tone: "monitor",
       };
     }
 
     const throughLabel = latestEnd ? ` through ${_formatShortDate(latestEnd)}` : "";
     return {
-      icon: "⚠",
-      label: `Review before committing — active disruption${throughLabel}`,
+      icon: "\u26A0",
+      label: `Schedule carefully \u2014 active disruption signals may affect access${throughLabel}`,
       tone: "review",
     };
   }
 
+  // score < 30: high disruption
+  const latestEnd = _latestEndDate(signals);
+  const throughLabel = latestEnd ? ` through ${_formatShortDate(latestEnd)}` : "";
   return {
-    icon: "✓",
-    label: "Clear to proceed — no active disruptions in your impact window",
-    tone: "clear",
+    icon: "\uD83D\uDD34",
+    label: `Defer if possible \u2014 high disruption overlapping your target window${throughLabel}`,
+    tone: "defer",
   };
 }
 
