@@ -549,12 +549,13 @@ def build_params(
     days_back: int,
 ) -> dict:
     """Build Socrata SoQL query parameters for one page of permits."""
-    date_field = config["issue_date_field"]
+    date_field = config.get("issue_date_field")
+    order_field = date_field or ":id"
 
     params: dict = {
         "$limit":  limit,
         "$offset": offset,
-        "$order":  f"{date_field} DESC",
+        "$order":  f"{order_field} DESC",
     }
 
     # Some datasets (e.g. NYC) have text-type date fields where SoQL
