@@ -117,23 +117,26 @@ CITY_CONFIGS: list[dict] = [
         # SoQL date comparison won't work on text dates, so we skip the
         # date filter and cap via max_records to get the most recent permits
         # ordered by dobrundate DESC.
+        # NYC — DOB NOW: Build – Approved Permits (rbx6-tga4).
+        # 918K records with lat/lon. No date fields — use permit_status filter.
+        # Replaces the stale ipu4-2q9a dataset (data frozen at 2020).
         "city_name":        "New York City",
         "source_key":       "nyc",
         "domain":           "data.cityofnewyork.us",
-        "dataset_id":       "ipu4-2q9a",
-        "id_field":         "job__",
-        "type_field":       "permit_type",
-        "desc_field":       "job_type",
-        "issue_date_field": "dobrundate",
-        "exp_date_field":   "expiration_date",
+        "dataset_id":       "rbx6-tga4",
+        "id_field":         "tracking_number",
+        "type_field":       "work_type",
+        "desc_field":       "job_description",
+        "issue_date_field": None,
+        "exp_date_field":   None,
         "skip_date_filter": True,
-        "max_records":      50000,
-        "lat_field":        "gis_latitude",
-        "lon_field":        "gis_longitude",
+        "max_records":      100000,
+        "lat_field":        "latitude",
+        "lon_field":        "longitude",
         "loc_field":        None,
         "addr_field":       "street_name",
         "city_state":       "New York, NY",
-        "where_clause":     None,
+        "where_clause":     "permit_status <> 'Signed-off'",
     },
     {
         # Los Angeles — Building Permits Issued 2020-Present.
@@ -284,28 +287,12 @@ CITY_CONFIGS: list[dict] = [
     #   hub.arcgis.com/legacy — no longer Socrata portals.
     #   Moved to us_city_permits_arcgis.py (data-048).
     # -----------------------------------------------------------------
-    {
-        # Washington DC — Building Permits.
-        # Portal: https://opendata.dc.gov
-        # Dataset: "Building Permits" (addl-w6ut or similar)
-        # Dataset ID and field names researched, not live-verified:
-        #   curl "https://opendata.dc.gov/api/catalog/v1?q=building+permits&limit=5"
-        "city_name":        "Washington DC",
-        "source_key":       "dc",
-        "domain":           "opendata.dc.gov",
-        "dataset_id":       "awqx-tuwv",
-        "id_field":         "permit_number",
-        "type_field":       "permit_type",
-        "desc_field":       "description_of_work",
-        "issue_date_field": "issue_date",
-        "exp_date_field":   "expiration_date",
-        "lat_field":        "latitude",
-        "lon_field":        "longitude",
-        "loc_field":        None,
-        "addr_field":       "full_address",
-        "city_state":       "Washington, DC",
-        "where_clause":     None,
-    },
+    # -----------------------------------------------------------------
+    # Washington DC — Building Permits.
+    # DC endpoint dead as of April 2026 — Socrata dataset awqx-tuwv redirects
+    # to ArcGIS Hub. No working REST endpoint found. Commented out until a
+    # new dataset is identified.
+    # -----------------------------------------------------------------
     {
         # Oklahoma City — Building Permits.
         # Portal: https://data.okc.gov
