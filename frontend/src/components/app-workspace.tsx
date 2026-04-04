@@ -1094,7 +1094,7 @@ export default function HomePage() {
                   Building brief…
                 </div>
               )}
-              {headlineScore(result) >= 61 && (
+              {headlineScore(result) <= 40 && (
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
                   <span>
