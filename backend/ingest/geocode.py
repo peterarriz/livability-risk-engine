@@ -280,26 +280,28 @@ def geocode_address(
     _retries = max_retries if max_retries is not None else MAX_RETRIES
     _timeout = request_timeout if request_timeout is not None else 10
 
-    for attempt in range(_retries):
-        result = _geocode_census(address, _session, timeout=_timeout)
+    # Try Census + Nominatim, wrapped so exceptions don't block Google fallback.
+    result = None
+    try:
+        for attempt in range(_retries):
+            result = _geocode_census(address, _session, timeout=_timeout)
+            if result and validator(*result):
+                return result
+            if attempt < _retries - 1:
+                time.sleep(RETRY_DELAY_S * (attempt + 1))
+
+        result = _geocode_nominatim(address, _session, timeout=_timeout)
         if result and validator(*result):
             return result
+    except Exception as exc:
+        print(f"[geocode] Census/Nominatim exception for '{address}': {exc}")
 
-        # Brief backoff before retry or fallback.
-        if attempt < _retries - 1:
-            time.sleep(RETRY_DELAY_S * (attempt + 1))
-
-    # Census geocoder failed — try Nominatim.
-    result = _geocode_nominatim(address, _session, timeout=_timeout)
-    if result and validator(*result):
-        return result
-
-    # Nominatim failed — try Google Geocoding API.
+    # Google Geocoding fallback — always tried if above failed.
+    print(f"[geocode] Census/Nominatim failed for '{address}', trying Google fallback")
     result = _geocode_google(address, _session, timeout=_timeout)
     if result and validator(*result):
         return result
 
-    # Try Google with ", USA" suffix as last resort.
     if ", USA" not in address.upper():
         result = _geocode_google(address + ", USA", _session, timeout=_timeout)
         if result and validator(*result):

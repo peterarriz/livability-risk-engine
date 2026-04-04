@@ -70,14 +70,15 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         clean_address = address.rstrip()
         if clean_address.upper().endswith(", USA"):
             clean_address = clean_address[:-5].rstrip(", ")
+        _geo_opts = dict(allow_national=True, max_retries=1, request_timeout=5)
         if resolved_coords is None:
-            resolved_coords = geocode_address(clean_address)
+            resolved_coords = geocode_address(clean_address, **_geo_opts)
         # Retry with original address if stripped version failed.
         if not resolved_coords and clean_address != address:
-            resolved_coords = geocode_address(address)
+            resolved_coords = geocode_address(address, **_geo_opts)
         # Retry with ", USA" suffix if all else fails.
         if not resolved_coords and ", USA" not in address.upper():
-            resolved_coords = geocode_address(address + ", USA")
+            resolved_coords = geocode_address(address + ", USA", **_geo_opts)
         if not resolved_coords:
             return {
                 "address": address,
@@ -782,7 +783,7 @@ def debug_score(
 
         conn = get_db_connection()
         try:
-            coords = geocode_address(address)
+            coords = geocode_address(address, allow_national=True, max_retries=1, request_timeout=5)
             if not coords:
                 return {
                     "address": address,
