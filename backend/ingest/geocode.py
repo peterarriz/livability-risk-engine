@@ -31,6 +31,7 @@ Notes for next agent (data-009):
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from typing import Optional
@@ -204,6 +205,30 @@ def _is_in_conus(lat: float, lon: float) -> bool:
     return 18.0 <= lat <= 72.0 and -180.0 <= lon <= -66.0
 
 
+def _geocode_google(
+    address: str,
+    session: requests.Session,
+    timeout: int = 5,
+) -> Optional[tuple[float, float]]:
+    """Fallback geocoder using Google Geocoding API."""
+    key = os.environ.get("GOOGLE_GEOCODING_API_KEY")
+    if not key:
+        return None
+    try:
+        resp = session.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params={"address": address, "key": key},
+            timeout=timeout,
+        )
+        data = resp.json()
+        if data.get("status") == "OK" and data.get("results"):
+            loc = data["results"][0]["geometry"]["location"]
+            return (loc["lat"], loc["lng"])
+    except Exception:
+        pass
+    return None
+
+
 def geocode_address(
     address: str,
     session: Optional[requests.Session] = None,
@@ -268,6 +293,17 @@ def geocode_address(
     result = _geocode_nominatim(address, _session, timeout=_timeout)
     if result and validator(*result):
         return result
+
+    # Nominatim failed — try Google Geocoding API.
+    result = _geocode_google(address, _session, timeout=_timeout)
+    if result and validator(*result):
+        return result
+
+    # Try Google with ", USA" suffix as last resort.
+    if ", USA" not in address.upper():
+        result = _geocode_google(address + ", USA", _session, timeout=_timeout)
+        if result and validator(*result):
+            return result
 
     return None
 
