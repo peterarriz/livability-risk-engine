@@ -1162,6 +1162,12 @@ export default function HomePage() {
               {/* ── Always-visible map ────────────────────────────────────── */}
               {mapCoords && (
                 <div style={{ border: "1px solid #E5E7EB", borderRadius: "12px", overflow: "hidden", minHeight: "400px", marginTop: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 0.85rem", borderBottom: "1px solid #F3F4F6" }}>
+                    <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#6B7280", margin: 0 }}>Nearby signals</h3>
+                    <span style={{ fontSize: "0.72rem", color: "#9CA3AF" }}>
+                      {(result.nearby_signals ?? []).filter((s: { impact_type: string }) => !s.impact_type.startsWith("crime_trend")).length} signals within 500m
+                    </span>
+                  </div>
                   <MapView
                     latitude={mapCoords.lat}
                     longitude={mapCoords.lon}
@@ -1188,7 +1194,7 @@ export default function HomePage() {
                   <div className="secondary-details-body">
                   {/* ── Tab bar ──────────────────────────────────────────────── */}
                   <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: "1rem" }}>
-                    {(["signals", "neighborhood", ...(headlineScore(result) >= 50 ? ["monitor"] : [])] as const).map((tab) => (
+                    {(["signals", "neighborhood", ...(headlineScore(result) <= 50 ? ["monitor"] : [])] as const).map((tab) => (
                       <button
                         key={tab}
                         type="button"
@@ -1290,7 +1296,7 @@ export default function HomePage() {
                   )}
 
                   {/* ── Monitor tab ──────────────────────────────────────────── */}
-                  {activeTab === "monitor" && headlineScore(result) >= 50 && (
+                  {activeTab === "monitor" && headlineScore(result) <= 50 && (
                     <WatchlistForm address={result.address} score={headlineScore(result)} />
                   )}
 
