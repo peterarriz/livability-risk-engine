@@ -521,7 +521,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
     [headlineScore, result.nearby_signals],
   );
   const isDemo = result.mode === "demo";
-  const modeLabel = isDemo ? "Limited data coverage" : "Live Chicago signal";
+  const modeLabel = isDemo ? "Limited data coverage" : "Live data";
   const modeLabelTooltip = isDemo
     ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
     : undefined;
@@ -635,7 +635,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         </div>
         <p className="score-benchmark">{getBenchmarkText(headlineScore)}</p>
 
-        <p className="score-hero-kicker">Disruption framing</p>
+        <p className="score-hero-kicker">Risk summary</p>
         <h2 className="score-hero-title">{disruptionFraming.label}</h2>
         <p className="score-hero-summary">{disruptionFraming.explanation}</p>
 

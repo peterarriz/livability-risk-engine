@@ -66,9 +66,16 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
     conn = get_db_connection()
     try:
         resolved_coords = coords
+        # Strip ", USA" suffix that Google Places adds — some geocoders choke on it.
+        clean_address = address.rstrip()
+        if clean_address.upper().endswith(", USA"):
+            clean_address = clean_address[:-5].rstrip(", ")
         if resolved_coords is None:
+            resolved_coords = geocode_address(clean_address)
+        # Retry with original address if stripped version failed.
+        if not resolved_coords and clean_address != address:
             resolved_coords = geocode_address(address)
-        # Retry with ", USA" suffix if initial geocode fails.
+        # Retry with ", USA" suffix if all else fails.
         if not resolved_coords and ", USA" not in address.upper():
             resolved_coords = geocode_address(address + ", USA")
         if not resolved_coords:
@@ -76,8 +83,8 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 "address": address,
                 "error": "address_not_found",
                 "message": (
-                    "We couldn't locate this address. Please include the full "
-                    "street address, city, and state (e.g., '100 Main St, Chicago, IL')."
+                    "This address is outside our current coverage area. "
+                    "We're expanding \u2014 check back soon or try a nearby metro address."
                 ),
                 "livability_score": None,
                 "disruption_score": None,
@@ -703,8 +710,8 @@ def get_score(
             "address": resolved_address,
             "error": "address_not_found",
             "message": (
-                "We couldn't locate this address. Please include the full "
-                "street address, city, and state (e.g., '100 Main St, Chicago, IL')."
+                "This address is outside our current coverage area. "
+                "We're expanding \u2014 check back soon or try a nearby metro address."
             ),
             "livability_score": None,
             "disruption_score": None,
