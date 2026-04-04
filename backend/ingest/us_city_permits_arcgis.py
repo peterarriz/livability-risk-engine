@@ -324,6 +324,38 @@ CITY_CONFIGS: list[dict] = [
     #   Org 3HnGBxB8VqLCXhUn returns 0 services on all subdomains.
     #   No public permit FeatureServer found.
     # -----------------------------------------------------------------
+    {
+        # San Jose, CA — Active Building Permits (verified April 2026).
+        # Self-hosted ArcGIS at geo.sanjoseca.gov. 17K+ active permits.
+        # Layer 8 = Active, Layer 7 = Recent (30 days), Layer 9 = Expired.
+        # Most recent records from April 2026 — data is live and current.
+        "city_name":        "San Jose",
+        "source_key":       "san_jose",
+        "service_url":      (
+            "https://geo.sanjoseca.gov/server/rest/services"
+            "/PLN/PLN_PermitsAndComplaints/MapServer/8"
+        ),
+        "portal_url":       "https://data.sanjoseca.gov",
+        "id_field":         "FOLDERNUM",
+        "type_field":       "WORKDESC",
+        "desc_field":       "SUBDESC",
+        "issue_date_field": "ISSUEDATE",
+        "exp_date_field":   "FINALDATE",
+        "addr_field":       "ADDRESS",
+        "city_state":       "San Jose, CA",
+        "skip_date_filter": False,
+        "max_records":      None,
+    },
+    # -----------------------------------------------------------------
+    # PROBED BUT NOT ADDED (April 2026):
+    #   Atlanta: No public REST API for building permits. ArcGIS Online
+    #     search returns a tree/conservation dataset, not building permits.
+    #     datahub.atlantaga.gov and gis.atlantaga.gov return HTML.
+    #   Tampa: ArcGIS Hub search returns results from other cities (Fort
+    #     Pierce, Tigard). gis.tampagov.net returns HTML. No Socrata.
+    #   Fort Worth: data.fortworthtexas.gov and efts.fortworthtexas.gov
+    #     return HTML. No ArcGIS Online Feature Services found.
+    # -----------------------------------------------------------------
     # -----------------------------------------------------------------
     # REMOVED — data-057 tier-7 cities (2026-03-27, data-076):
     #   All 12 configs returned HTTP 400 "Invalid URL" in every pipeline run.
