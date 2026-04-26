@@ -195,6 +195,7 @@ def check_watchlist() -> dict:
     current disruption_score is less than or equal to the stored threshold,
     meaning disruption has cleared enough for the user-selected threshold.
     Intended to be called on a schedule (e.g. daily cron).
+    Requires X-Admin-Secret.
     """
     if not _is_db_configured():
         raise HTTPException(

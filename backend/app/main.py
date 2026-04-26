@@ -182,6 +182,8 @@ def health_db() -> dict:
     """
     DB connectivity probe for operators and CI. Separate from /health so the
     Railway liveness check is never blocked by a slow or unavailable DB.
+
+    Requires X-Admin-Secret.
     """
     db_configured = _is_db_configured()
     db_connection = False

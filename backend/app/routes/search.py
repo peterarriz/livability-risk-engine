@@ -6,7 +6,6 @@ Search-related endpoints extracted from main.py:
   - GET /suggest           — unified address suggestion with geocoder fallback
 """
 
-import hashlib
 import logging
 
 from fastapi import APIRouter, Query
@@ -17,7 +16,7 @@ router = APIRouter()
 
 
 def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
-    """Fallback suggestions from geocoder when DB index has no strong results."""
+    """Fallback suggestions from geocoder when curated rows have no strong results."""
     import requests as _requests
     from backend.app.routes.dashboard import _state_abbrev, _address_features
     from backend.app.address_normalization import format_display_address
@@ -61,7 +60,7 @@ def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
             if norm in by_norm:
                 continue
             by_norm[norm] = {
-                "canonical_id": f"geo_{hashlib.sha1(norm.encode('utf-8')).hexdigest()[:16]}",
+                "canonical_id": None,
                 "display_address": display,
                 "lat": float(row.get("lat")) if row.get("lat") is not None else None,
                 "lon": float(row.get("lon")) if row.get("lon") is not None else None,
@@ -100,7 +99,7 @@ def search_addresses(
 
     suggestions = [
         {
-            "canonical_id": row["canonical_id"],
+            "canonical_id": row.get("canonical_id"),
             "display_address": row["display_address"],
             "city": row.get("city"),
             "state": row.get("state"),
@@ -137,8 +136,8 @@ def suggest_addresses(
 
     rows = _get_address_rows()
 
-    # For empty/short queries, return most popular scored addresses so the
-    # frontend can show instant suggestions on focus or after 1-2 keystrokes.
+    # For empty/short queries, return curated public suggestions only. Do not
+    # expose customer-derived "popular" addresses from reports/history/watchlists.
     if len(query) < 3:
         if not popular and len(query) == 0:
             return {"query": query, "suggestions": []}
@@ -156,24 +155,28 @@ def suggest_addresses(
                     "zip": row.get("zip"),
                 }
                 for row in top
-                if row.get("canonical_id") and row.get("display_address")
+                if row.get("display_address")
             ],
         }
 
-    ranked_rows = _top_ranked_address_rows(query, rows, limit, with_geo_penalty=True)
+    ranked_rows = _top_ranked_address_rows(query, rows, limit, with_geo_penalty=False)
 
     # If backend index has too few strong candidates, allow geocoder-backed
-    # rows as a secondary source. They are still normalized + ranked.
+    # rows as a secondary source. Nominatim has already matched the full query,
+    # so keep those rows after dedupe instead of re-filtering them through the
+    # stricter local prefix matcher.
     if len(ranked_rows) < limit:
         geocoder_rows = _rows_from_nominatim(query, limit)
         by_norm: dict[str, dict] = {r["normalized_full"]: r for r in ranked_rows}
         for row in geocoder_rows:
-            by_norm.setdefault(row["normalized_full"], row)
-        ranked_rows = _top_ranked_address_rows(query, list(by_norm.values()), limit, with_geo_penalty=True)
+            norm = row.get("normalized_full")
+            if norm and norm not in by_norm:
+                by_norm[norm] = row
+                ranked_rows.append(row)
 
     suggestions = [
         {
-            "canonical_id": row["canonical_id"],
+            "canonical_id": row.get("canonical_id"),
             "display_address": row["display_address"],
             "lat": row.get("lat"),
             "lon": row.get("lon"),
@@ -182,7 +185,7 @@ def suggest_addresses(
             "zip": row.get("zip"),
         }
         for row in ranked_rows[:limit]
-        if row.get("canonical_id") and row.get("display_address")
+        if row.get("display_address")
     ]
     _debug_search_flow(
         "SUGGEST_RESPONSE",
