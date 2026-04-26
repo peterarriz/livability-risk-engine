@@ -96,11 +96,14 @@ Set the following in the Railway backend service **Variables** tab:
 |---|---|---|
 | `REQUIRE_API_KEY` | `true` | Enables X-API-Key enforcement on `/score` and other authenticated endpoints. Off by default so local dev works without a key. |
 | `CLERK_SECRET_KEY` | `sk_live_...` | From Clerk dashboard → API Keys. Required for `/keys` endpoint JWT verification. |
+| `CLERK_ALLOWED_ISSUERS` | `https://<instance>.clerk.accounts.dev` | Comma-separated exact Clerk issuer URLs allowed for `/auth/sync` and `/keys`. Production should use the Clerk production Frontend API URL. `CLERK_ISSUER` is also supported as a single-issuer fallback. |
 
 When `REQUIRE_API_KEY=true` is set:
 - `/score` requires a valid `X-API-Key: lre_<...>` header (unless DB is not configured, in which case demo mode passes through unauthenticated).
 - `/health` always remains unauthenticated.
 - Users generate keys via the `/account` page in the frontend (requires Clerk sign-in).
+
+Backend Clerk auth requires both `CLERK_SECRET_KEY` and either `CLERK_ALLOWED_ISSUERS` or `CLERK_ISSUER`.
 
 ### Vercel environment variables (frontend)
 
