@@ -87,40 +87,49 @@ cd backend && uvicorn app.main:app --reload
 curl -s http://127.0.0.1:8000/health | python3 -m json.tool
 ```
 
-**Expected in demo mode** (no `POSTGRES_HOST`):
+`/health` is public liveness only. It should respond quickly and should not
+attempt a DB connection.
+
+**Expected when the DB is not configured**:
 ```json
 {
   "status": "ok",
-  "mode": "demo",
-  "db_configured": false,
-  "db_connection": false,
-  "last_ingest_status": null
+  "mode": "unconfigured",
+  "db_configured": false
 }
 ```
 
-**Expected in live mode** (with `POSTGRES_HOST` set and DB reachable):
+**Expected when the DB is configured**:
 ```json
 {
   "status": "ok",
   "mode": "live",
+  "db_configured": true
+}
+```
+
+To check DB readiness, use the protected `/health/db` endpoint with
+`X-Admin-Secret`, or run `scripts/demo_smoke_check.py` with `ADMIN_SECRET` set:
+
+```bash
+curl -s \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
+  http://127.0.0.1:8000/health/db \
+  | python3 -m json.tool
+```
+
+**Expected DB-readiness response when DB is reachable**:
+```json
+{
+  "status": "ok",
   "db_configured": true,
   "db_connection": true,
   "last_ingest_status": null
 }
 ```
 
-**Unhealthy live mode** (DB configured but unreachable):
-```json
-{
-  "status": "ok",
-  "mode": "live",
-  "db_configured": true,
-  "db_connection": false,
-  "db_error": "<connection error string>",
-  "last_ingest_status": null
-}
-```
-The endpoint never returns 5xx. If `db_connection` is false, do not proceed to a live demo — see triage table below.
+If `/health/db` reports `db_connection: false`, do not proceed to a live demo.
+The public `/health` endpoint can still be healthy while DB readiness is failing.
 
 ---
 
@@ -145,12 +154,23 @@ Confirm the following fields are present in both modes:
 
 ---
 
-### Step 3 — Check /debug/score (live mode only)
+### Step 3 — Optional operator /debug/score check
 
-Only relevant when `POSTGRES_HOST` is set and `/health` shows `db_connection: true`.
+Normal demo validation should use:
 
 ```bash
-curl -s "http://127.0.0.1:8000/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" | python3 -m json.tool
+# From the repository root:
+python3 scripts/demo_smoke_check.py --backend-url http://127.0.0.1:8000 --require-live
+```
+
+`/debug/score` is internal and requires `X-Admin-Secret`. Use it only when
+an operator needs lower-level geocoding/project-count detail:
+
+```bash
+curl -s \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
+  "http://127.0.0.1:8000/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" \
+  | python3 -m json.tool
 ```
 
 **Expected in live mode**:
@@ -194,7 +214,7 @@ Submit `1600 W Chicago Ave, Chicago, IL`.
 |---|---|---|
 | `/health` returns 404 | Old backend version running | Restart with updated `main.py` |
 | `db_configured: false` but `POSTGRES_HOST` is set | Env var not exported to process | Confirm `export POSTGRES_HOST=...` before starting uvicorn |
-| `db_connection: false` with `db_configured: true` | DB not reachable | Check DB host/port, firewall, and credentials |
-| `/score` returns `mode: "demo"` when live expected | Geocoding failed or DB query error | Check `/debug/score` for `fallback_reason`; verify geocode service |
-| Frontend shows "Demo scenario" despite live backend | Backend returning demo fallback | Confirm `/health` → `db_connection: true`, then check console for `fallback_reason` |
-| `nearby_projects_count: 0` in `/debug/score` | Ingest pipeline not run | Ask data lane to run `backend/ingest/` scripts against live DB |
+| `/health/db` reports `db_connection: false` with `db_configured: true` | DB not reachable | Check DB host/port, firewall, and credentials |
+| `/score` returns `mode: "demo"` when live expected | Geocoding failed or DB query error | Run `scripts/demo_smoke_check.py`; use admin `/debug/score` only if deeper operator detail is needed |
+| Frontend shows "Demo scenario" despite live backend | Backend returning demo fallback | Run the smoke script against the backend, then check console for `fallback_reason` |
+| `nearby_projects_count: 0` in admin `/debug/score` | Ingest pipeline not run | Ask data lane to run `backend/ingest/` scripts against live DB |

@@ -48,11 +48,18 @@ Tools needed: a running backend with `POSTGRES_HOST` set, and access to
 `docs/04_api_contracts.md` for the approved score bands.
 
 ### Step 1 — Confirm the backend is in live mode
-Run the `/health` check from `docs/handoffs/app.md`. Confirm:
-- `db_configured: true`
-- `db_connection: true`
+Run the smoke check from `docs/live_score_validation.md`:
 
-If either is false, do not proceed with the trust review — there is no live output to evaluate.
+```bash
+python3 scripts/demo_smoke_check.py --backend-url http://127.0.0.1:8000 --require-live
+```
+
+If operator credentials are available, set `ADMIN_SECRET` or pass
+`--admin-secret` so the script also checks the protected `/health/db`
+readiness probe.
+
+If the smoke check fails, do not proceed with the trust review — there is no
+verified live output to evaluate.
 
 ### Step 2 — Score all four canonical addresses
 Run `/score` for each of the four approved demo addresses from `docs/04_api_contracts.md`:
@@ -79,11 +86,12 @@ must be investigated before the demo proceeds.
 
 ### Escalation path for suspicious outputs
 If a response looks implausible:
-1. Run `/debug/score` on the same address and check `nearby_projects_count` and `nearby_projects_sample`.
-2. If count is 0 — the ingest pipeline may not have run or the address is outside the data coverage area. Flag to the data lane.
-3. If count > 0 but the score seems wrong — check the project `impact_type` and `distance_m` in the sample against the scoring rubric in `docs/03_scoring_model.md`.
-4. If the explanation is off-tone but the score is plausible — this is a scoring engine calibration issue; document it and defer to a post-launch fix rather than blocking the demo.
-5. If the response returns `mode: "demo"` when live is expected — check `/health` and the backend logs. This is a configuration issue, not a data issue.
+1. Re-run `scripts/demo_smoke_check.py` for the same address and capture the output.
+2. If an operator needs project-count detail, run `/debug/score` with `X-Admin-Secret` and check `nearby_projects_count` and `nearby_projects_sample`.
+3. If `nearby_projects_count` is 0 — the ingest pipeline may not have run or the address is outside the data coverage area. Flag to the data lane.
+4. If `nearby_projects_count` is greater than 0 but the score seems wrong — check the project `impact_type` and `distance_m` in the sample against the scoring rubric in `docs/03_scoring_model.md`.
+5. If the explanation is off-tone but the score is plausible — this is a scoring engine calibration issue; document it and defer to a post-launch fix rather than blocking the demo.
+6. If the response returns `mode: "demo"` when live is expected — check `/health`, the protected `/health/db` probe if available, and backend logs. This is a configuration issue, not a data issue.
 
 ### Recommended cadence
 - Run before every investor or design-partner demo.
@@ -102,11 +110,11 @@ is presenting a "live" demo that is silently in demo mode. This checklist
 prevents that.
 
 ### Backend readiness
-- [ ] `GET /health` returns `db_connection: true`
-  - If false: **do not present as live**. Use the approved fallback script below.
+- [ ] `python3 scripts/demo_smoke_check.py --backend-url <backend-url> --require-live` passes
+  - If it fails: **do not present as live**. Use the approved fallback script below.
 - [ ] `GET /health` returns `mode: "live"`
 - [ ] `/score` response for `1600 W Chicago Ave, Chicago, IL` includes `"mode": "live"`
-- [ ] `/debug/score` for the same address shows `nearby_projects_count > 0`
+- [ ] If operator credentials are available, `/health/db` passes through the smoke script with `ADMIN_SECRET` set
 
 ### Frontend readiness
 - [ ] Frontend is running and connects to the correct backend URL (`NEXT_PUBLIC_API_URL`)
@@ -120,7 +128,7 @@ prevents that.
 - [ ] The Severe band example (1200 W Fulton Market) is also queued if the demo includes the full range
 
 ### If the backend is in demo mode (approved fallback messaging)
-If `db_connection: false` or `mode: "demo"`, use this language:
+If the smoke check fails or `mode: "demo"` is returned, use this language:
 
 > "The scoring engine is in demonstration mode today, which means we're showing
 > you our approved representative outputs rather than a live database query.
@@ -161,7 +169,7 @@ without requiring all 18 addresses.
 
 ### How to run the review
 
-1. Confirm `/health` shows `db_connection: true` (live mode only).
+1. Confirm `python3 scripts/demo_smoke_check.py --backend-url <backend-url> --require-live` passes.
 2. For each address, run `GET /score?address=<address>` and record the response.
 3. Apply the checks below for each response.
 4. Flag any address that falls outside its expected band by more than 10 points.

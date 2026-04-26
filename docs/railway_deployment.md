@@ -102,7 +102,7 @@ export POSTGRES_PASSWORD="your-password"
 
 # Run schema creation (if you have a script for it)
 cd backend
-python -c "
+python3 -c "
 import os
 import psycopg2
 from scoring.query import get_db_connection
@@ -167,7 +167,7 @@ This allows flexibility for different deployment scenarios.
 cd backend
 
 # Test database connection
-python -c "
+python3 -c "
 from scoring.query import get_db_connection
 try:
     conn = get_db_connection()
@@ -199,10 +199,17 @@ curl http://localhost:8000/health
 # {
 #   "status": "ok",
 #   "mode": "live",
-#   "db_configured": true,
-#   "db_connection": true,
-#   "last_ingest_status": null
+#   "db_configured": true
 # }
+```
+
+`/health` is public liveness only. To check DB readiness, use the
+admin-protected `/health/db` endpoint with `X-Admin-Secret`, or run the demo
+smoke check with `ADMIN_SECRET` set:
+
+```bash
+# From the repository root:
+python3 scripts/demo_smoke_check.py --backend-url http://localhost:8000 --require-live
 ```
 
 ## Step 8: Load Initial Data
@@ -211,7 +218,8 @@ Once the database is connected and validated:
 
 1. Run the data ingestion pipeline to populate the database
 2. Test the `/score` endpoint with real data
-3. Verify `/debug/score` returns live data instead of demo responses
+3. Verify `scripts/demo_smoke_check.py --require-live` passes. Use
+   `/debug/score` only for operator troubleshooting with `X-Admin-Secret`.
 
 ## Connection String Format
 

@@ -20,34 +20,42 @@ Check that:
 - `status` is `"ok"`
 - `mode` is `"live"` for a live deployment
 - `db_configured` is `true`
-- `db_connection` is `true`
 
+`/health` is public liveness only. It does not perform a DB connection check.
 If `/health` is not reachable, stop here and treat the deploy as not ready.
 
-### 3. Confirm `/score` returns `mode` correctly
+### 3. Run the demo smoke check
 Run:
 
 ```bash
-curl -s "http://<backend-host>/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" | python3 -m json.tool
+python3 scripts/demo_smoke_check.py --backend-url http://<backend-host> --require-live
 ```
 
 Check that:
-- `mode` is `"live"` for a real live deployment
-- `fallback_reason` is `null` in live mode
-- if `mode` is `"demo"`, the deploy is still falling back and should not be treated as fully live
+- `/health` passes
+- every default smoke address returns a valid `/score` response
+- every score response has `mode: "live"`
+- `fallback_reason` is null or empty in live mode
 
-### 4. Confirm `/debug/score` returns nearby projects for a high-activity address
-Run:
+If `REQUIRE_API_KEY=true` is enabled, set `LRE_API_KEY` or pass `--api-key`.
+If you have operator access, set `ADMIN_SECRET` or pass `--admin-secret` so
+the script also checks the admin-protected `/health/db` readiness probe. The
+script never prints supplied secret values.
+
+### 4. Optional operator debug check
+
+`/debug/score` is not part of normal demo validation. It is an internal
+operator endpoint and requires `X-Admin-Secret`.
+
+Run it only when the smoke script fails and an operator needs lower-level
+geocoding/project-count detail:
 
 ```bash
-curl -s "http://<backend-host>/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" | python3 -m json.tool
+curl -s \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
+  "http://<backend-host>/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" \
+  | python3 -m json.tool
 ```
-
-Check that:
-- `mode` is `"live"`
-- `fallback_reason` is `null`
-- `nearby_projects_count` is greater than `0`
-- `nearby_projects_sample` includes real nearby project records
 
 If `nearby_projects_count` is `0` for this address, confirm the ingest/load path before calling the deploy live-ready.
 
@@ -80,10 +88,16 @@ Check that:
 
 **Likely cause:** the live path is running, but address geocoding failed for the submitted query.
 
-**Fix:** inspect `/debug/score`, verify geocoder reachability, and confirm the address format is valid Chicago input.
+**Fix:** rerun `scripts/demo_smoke_check.py` with a known-good address. If the
+failure persists and you have operator access, inspect `/debug/score` with
+`X-Admin-Secret`, verify geocoder reachability, and confirm the address format
+is valid input.
 
 ### DB/config issue
-**Symptom:** `/health` shows `db_configured: true` but `db_connection: false`, or `/score` returns a backend failure instead of a live result.
+**Symptom:** `/health` shows `db_configured: true`, but
+`scripts/demo_smoke_check.py --require-live --admin-secret ...` reports
+`/health/db` with `db_connection: false`, or `/score` returns a backend failure
+instead of a live result.
 
 **Likely cause:** incorrect DB credentials, unreachable DB host, or the canonical projects table is not available.
 
@@ -93,9 +107,9 @@ Check that:
 
 Mark the deploy **ready** only when all of the following are true:
 - `NEXT_PUBLIC_API_URL` is configured correctly
-- backend `/health` is reachable and shows live DB connectivity
-- `/score` returns `mode: "live"`
-- `/debug/score` returns nearby projects for `1600 W Chicago Ave, Chicago, IL`
+- backend `/health` is reachable
+- `scripts/demo_smoke_check.py --require-live` passes against the backend
+- if operator credentials are available, `/health/db` passes through the smoke script
 - the frontend visibly shows **"Live data • Chicago"**
 
 If any one of these checks fails, treat the deploy as **not ready** for live-score use and investigate the fallback path first.

@@ -25,7 +25,7 @@ Expected output:
 
 ### 2. Schema Validation
 
-After running `python scripts/init_database.py`:
+After running `python3 scripts/init_database.py`:
 
 ```bash
 # Check all tables exist
@@ -54,7 +54,7 @@ Test all connection methods:
 # Test with DATABASE_URL
 export DATABASE_URL="your_railway_connection_string"
 cd backend
-python -c "from scoring.query import get_db_connection; conn = get_db_connection(); print('✅ Connected'); conn.close()"
+python3 -c "from scoring.query import get_db_connection; conn = get_db_connection(); print('✅ Connected'); conn.close()"
 
 # Test with individual variables
 export POSTGRES_HOST="your-railway-host"
@@ -63,7 +63,7 @@ export POSTGRES_DB="railway"
 export POSTGRES_USER="postgres"
 export POSTGRES_PASSWORD="your-password"
 unset DATABASE_URL
-python -c "from scoring.query import get_db_connection; conn = get_db_connection(); print('✅ Connected'); conn.close()"
+python3 -c "from scoring.query import get_db_connection; conn = get_db_connection(); print('✅ Connected'); conn.close()"
 ```
 
 ### 4. API Health Check Validation
@@ -75,19 +75,27 @@ Start the FastAPI server and test endpoints:
 cd backend
 uvicorn app.main:app --reload
 
-# In another terminal, test health endpoint
+# In another terminal, test the public liveness endpoint
 curl http://localhost:8000/health | jq
 ```
 
-Expected response when database is configured:
+Expected public `/health` response when database is configured:
 ```json
 {
   "status": "ok",
   "mode": "live",
-  "db_configured": true,
-  "db_connection": true,
-  "last_ingest_status": null
+  "db_configured": true
 }
+```
+
+`/health` is liveness only. To validate DB readiness and ingest metadata, use
+the admin-protected `/health/db` endpoint with `X-Admin-Secret`:
+
+```bash
+curl -s \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
+  http://localhost:8000/health/db \
+  | jq
 ```
 
 ### 5. Score Endpoint Validation
@@ -111,18 +119,29 @@ Expected response shape:
 }
 ```
 
-### 6. Debug Endpoint Validation
+### 6. Demo Smoke Validation
 
 ```bash
-# Test debug endpoint for detailed information
-curl "http://localhost:8000/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" | jq
+# Non-destructive score contract and readiness check
+# From the repository root:
+python3 scripts/demo_smoke_check.py --backend-url http://localhost:8000 --require-live
 ```
 
-Expected response includes:
-- `mode: "live"`
-- `lat` and `lon` coordinates
-- `nearby_projects_count: 0` (if database is empty)
-- `fallback_reason: null`
+Set `ADMIN_SECRET` or pass `--admin-secret` to include the protected
+`/health/db` readiness probe. Set `LRE_API_KEY` or pass `--api-key` if the
+backend requires API keys.
+
+### 7. Optional Debug Endpoint Validation
+
+`/debug/score` is internal and requires `X-Admin-Secret`. Use it only when
+an operator needs lower-level geocoding/project-count detail:
+
+```bash
+curl -s \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
+  "http://localhost:8000/debug/score?address=1600%20W%20Chicago%20Ave,%20Chicago,%20IL" \
+  | jq
+```
 
 ## Common Issues and Troubleshooting
 
@@ -149,7 +168,7 @@ psql "$DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 **Solution**:
 Run the database initialization script:
 ```bash
-python scripts/init_database.py
+python3 scripts/init_database.py
 ```
 
 ### Backend Issues
@@ -158,7 +177,7 @@ python scripts/init_database.py
 
 **Diagnosis**:
 1. Check environment variables are set
-2. Verify database connection with health endpoint
+2. Verify public liveness with `/health` and DB readiness with protected `/health/db`
 3. Check backend logs for connection errors
 
 **Error**: `geocode_failed` fallback reason
@@ -205,13 +224,14 @@ Expected:
 
 ## Success Criteria
 
-✅ All validation checks pass  
-✅ Health endpoint returns `db_connection: true`  
-✅ Score endpoint returns `mode: "live"`  
-✅ Debug endpoint shows proper lat/lon geocoding  
-✅ No connection errors in backend logs  
-✅ Schema tables exist with proper indexes  
-✅ PostGIS extension is available  
+✅ All validation checks pass
+✅ Public `/health` returns `status: "ok"`
+✅ Protected `/health/db` returns `db_connection: true`
+✅ Score endpoint returns `mode: "live"`
+✅ `scripts/demo_smoke_check.py --require-live` passes
+✅ No connection errors in backend logs
+✅ Schema tables exist with proper indexes
+✅ PostGIS extension is available
 
 ## Next Steps
 
@@ -219,14 +239,15 @@ Once validation is complete:
 
 1. **Load Initial Data**: Run building permits and street closures ingestion
    ```bash
-   python backend/ingest/building_permits.py --days 180
-   python backend/ingest/street_closures.py --days 180
-   python backend/ingest/load_projects.py
+   python3 backend/ingest/building_permits.py --days 180
+   python3 backend/ingest/street_closures.py --days 180
+   python3 backend/ingest/load_projects.py
    ```
 
 2. **Test with Real Data**: Verify score endpoint returns realistic results
    ```bash
-   curl "http://localhost:8000/debug/score?address=1600%20W%20Chicago%20Ave" | jq .nearby_projects_count
+   # From the repository root:
+   python3 scripts/demo_smoke_check.py --backend-url http://localhost:8000 --require-live
    ```
 
 3. **Remove Demo Fallbacks**: Update frontend and backend to remove demo mode handling
