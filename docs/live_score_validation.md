@@ -74,10 +74,10 @@ No BASE_WEIGHTS changes needed. The current values produce expected band outcome
 Once DB is live, re-run with live data:
 ```bash
 # Synthetic calibration (no DB needed):
-python scripts/calibrate_scoring.py
+python3 scripts/calibrate_scoring.py
 
 # Live DB smoke test (requires DATABASE_URL):
-DATABASE_URL="..." python scripts/validate_ingest.py
+DATABASE_URL="..." python3 scripts/validate_ingest.py
 ```
 
 ---

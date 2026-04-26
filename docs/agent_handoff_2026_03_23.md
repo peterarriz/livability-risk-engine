@@ -34,7 +34,7 @@ The database is live, the ingest pipeline is running daily, and the demo fallbac
 |-----|--------|
 | `DATABASE_URL` secret corrected | Was set to Railway's private internal hostname. Updated to the public proxy URL (`roundhouse.proxy.rlwy.net:PORT`), which is reachable from GitHub Actions. |
 | Railway OOM kill fixed | Removed `--workers 2` from uvicorn start command — single worker prevents hobby-tier memory exhaustion. |
-| Health check hang fixed | Added `connect_timeout=5` to psycopg2 connections; moved DB ping to `/health/db` so `/health` responds instantly even when DB is slow. |
+| Health check hang fixed | Added `connect_timeout=5` to psycopg2 connections; moved DB ping to `/health/db` so `/health` responds instantly even when DB is slow. Current `/health/db` access is admin-protected. |
 | Backend startup crash fixed | Added missing FastAPI imports (`Header`, `Depends`, `Response`) that caused Railway to fail on boot. |
 | python-dotenv added | Added to root `requirements.txt` so Railway build doesn't fail on `from dotenv import load_dotenv`. |
 
@@ -85,7 +85,10 @@ Pipeline run #7 succeeded: schema applied (9s), ingest ran (13m 45s), smoke chec
 - `backend/app/main.py` `/score` endpoint: removed `if not _is_db_configured()` block. The endpoint now always attempts live scoring. Geocode failure → 422. Scoring error → 503. No more silent demo response.
 - `frontend/src/lib/api.ts` `fetchScore()`: the `catch` block that returned fabricated demo data on network error now throws `ApiError` instead. The frontend will show an error to the user if the backend is unreachable, rather than silently showing stale sample data.
 
-Note: `_build_demo_response()` and `_is_db_configured()` still exist in `main.py` and are still used by `/debug/score`, `/save-report`, and `/export` endpoints. Only the main `/score` path has been hardened.
+Historical note: this March handoff predates the later route cleanup and admin
+endpoint hardening work. Current demo readiness should be checked with
+`python3 scripts/demo_smoke_check.py`; `/debug/score` is an internal endpoint
+and requires `X-Admin-Secret`.
 
 ### App lane work (app-009 through app-023)
 
@@ -118,7 +121,7 @@ Note: `_build_demo_response()` and `_is_db_configured()` still exist in `main.py
 | Railway Postgres DB | Live, schema applied, data loaded |
 | Daily ingest cron | Active — runs 06:00 UTC, last run succeeded |
 | Backend (Railway) | Deployed and running |
-| `/health` endpoint | Responds instantly; DB ping at `/health/db` |
+| `/health` endpoint | Responds instantly; DB ping is now protected at `/health/db` |
 | `/score` endpoint | Live-only mode — demo fallback removed |
 | Frontend (Vercel) | Deployed |
 | `NEXT_PUBLIC_API_URL` in Vercel | **UNCONFIRMED** — may still be unset or pointing to old URL |
@@ -135,12 +138,10 @@ Steps:
 1. Confirm Railway backend URL (e.g. `https://livability-risk-engine.up.railway.app`) is set as `NEXT_PUBLIC_API_URL` in Vercel → Settings → Environment Variables. Redeploy frontend if you change it.
 2. Run smoke queries:
    ```bash
-   curl -s "https://<railway-backend>/health" | python3 -m json.tool
-   # expect: db_connection=true, status="ok"
-
-   curl -s "https://<railway-backend>/score?address=100+W+Randolph+St+Chicago+IL" | python3 -m json.tool
-   # expect: mode="live", disruption_score is a real number, top_risk_details non-empty
+   python3 scripts/demo_smoke_check.py --backend-url "https://<railway-backend>" --require-live
    ```
+   Set `ADMIN_SECRET` if you have operator access and want the smoke script to
+   include the protected `/health/db` readiness probe.
 3. If `/score` still returns `mode: "demo"`, the Railway backend service itself may not have `DATABASE_URL` set in its own env vars (separate from the GitHub Actions secret). Set it in Railway → your backend service → Variables.
 4. Once validated, mark data-019 done.
 
