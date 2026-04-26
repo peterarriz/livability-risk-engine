@@ -2,14 +2,14 @@
 -- tasks: data-002, data-004, data-005
 -- lane: data
 --
--- Full database schema for the Chicago MVP.
+-- Full database schema for the Livability Risk Engine.
 -- Includes raw staging tables (data-002, data-004) and the
 -- canonical projects table (data-005) used by the scoring engine.
 --
 -- Conventions:
 --   - Raw tables hold unmodified source records. Never score from raw tables.
 --   - The canonical `projects` table is the single source of truth for scoring.
---   - All distance/geospatial queries run against `projects`, not raw tables.
+--   - Project radius queries use lat/lon; neighborhood context uses PostGIS KNN.
 --   - source_id + source columns provide a stable traceable link back to origin.
 --   - Schema changes require App lane review (docs/06_team_working_agreement.md).
 
@@ -17,9 +17,10 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 
--- pgcrypto is available on Railway standard Postgres.
--- PostGIS is NOT required — spatial queries use haversine lat/lon math.
+-- pgcrypto supports generated UUIDs and opaque tokens.
+-- PostGIS is required for neighborhood_quality geospatial context/KNN scoring.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS postgis;
 
 
 -- ---------------------------------------------------------------------------
@@ -109,8 +110,8 @@ COMMENT ON TABLE raw_street_closures IS
 --
 -- This is the single table the scoring engine reads from. Every source
 -- (building permits, street closures, future sources) normalizes into
--- this shape. The scoring query (data-009) runs ST_DWithin against
--- the `geom` column.
+-- this shape. Project radius scoring currently uses lat/lon filtering;
+-- neighborhood_quality context uses PostGIS separately.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS projects (
@@ -138,8 +139,8 @@ CREATE TABLE IF NOT EXISTS projects (
     address         TEXT,                   -- normalized address string
     latitude        DOUBLE PRECISION,
     longitude       DOUBLE PRECISION,
-    -- geom column removed (data-038): Railway Postgres has no PostGIS.
-    -- Radius queries use haversine lat/lon math instead of ST_DWithin.
+    -- Projects do not currently store geom; radius queries use haversine
+    -- lat/lon math. PostGIS remains required by neighborhood_quality.
 
     -- Scoring metadata (populated by normalization; not changed by scoring engine)
     -- severity_hint is a pre-computed signal for the scoring engine to use as
@@ -153,8 +154,7 @@ CREATE TABLE IF NOT EXISTS projects (
     CONSTRAINT projects_source_source_id_unique UNIQUE (source, source_id)
 );
 
--- Lat/lon composite index — used for bounding-box pre-filter in haversine queries.
--- Replaces the PostGIS GIST index removed in data-038.
+-- Lat/lon composite index: used for bounding-box pre-filter in project queries.
 CREATE INDEX IF NOT EXISTS projects_location_idx
     ON projects (latitude, longitude)
     WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
@@ -178,8 +178,8 @@ CREATE INDEX IF NOT EXISTS projects_source_idx
 
 COMMENT ON TABLE projects IS
     'Canonical normalized project table (data-005, updated data-038). '
-    'All scoring queries run against this table using haversine lat/lon math. '
-    'PostGIS geom column removed in data-038 (Railway has no PostGIS). '
+    'Project radius scoring uses haversine lat/lon math against this table. '
+    'PostGIS remains required for neighborhood_quality geospatial context. '
     'Raw source records are preserved in raw_building_permits and raw_street_closures. '
     'Schema changes require Data + App review per docs/06_team_working_agreement.md.';
 
@@ -233,6 +233,7 @@ CREATE TABLE IF NOT EXISTS score_history (
     livability_breakdown JSONB   NOT NULL DEFAULT '{}'::jsonb,
     confidence       TEXT        NOT NULL,
     mode             TEXT        NOT NULL DEFAULT 'live',
+    batch_id         UUID,
     scored_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -245,17 +246,83 @@ ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS latitude  DOUBLE PRECISION;
 ALTER TABLE score_history
     ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE score_history
+    ADD COLUMN IF NOT EXISTS batch_id UUID;
 
 CREATE INDEX IF NOT EXISTS score_history_address_scored_at_idx
     ON score_history (address, scored_at DESC);
 CREATE INDEX IF NOT EXISTS score_history_latlon_idx
     ON score_history (latitude, longitude)
     WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+CREATE INDEX IF NOT EXISTS score_history_batch_id_idx
+    ON score_history (batch_id)
+    WHERE batch_id IS NOT NULL;
 
 COMMENT ON TABLE score_history IS
     'Saved score snapshots per address (data-025). Each row is a /score response '
     'stored so the frontend can render a sparkline trend over time. '
     'Only live-mode scores are written.';
+
+
+-- ---------------------------------------------------------------------------
+-- Saved reports
+--
+-- Stores shareable score reports created by POST /save and read by
+-- GET /report/{report_id}. score_json stores the full score response payload.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS reports (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    address    TEXT        NOT NULL,
+    score_json JSONB       NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS reports_created_at_idx
+    ON reports (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS reports_address_created_at_idx
+    ON reports (address, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS reports_account_id_idx
+    ON reports ((score_json->>'account_id'))
+    WHERE score_json ? 'account_id';
+
+COMMENT ON TABLE reports IS
+    'Shareable saved score reports created by POST /save and read by GET /report/{report_id}.';
+
+
+-- ---------------------------------------------------------------------------
+-- Score request analytics
+--
+-- Best-effort request telemetry written by /score. Adopted from
+-- db/migrations/add_score_requests.sql so fresh DB bootstraps include it.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS score_requests (
+    id                  SERIAL PRIMARY KEY,
+    address             TEXT NOT NULL,
+    city                TEXT,
+    state               TEXT,
+    latitude            DOUBLE PRECISION,
+    longitude           DOUBLE PRECISION,
+    livability_score    INTEGER,
+    evidence_quality    TEXT,
+    strong_signal_count INTEGER,
+    error               TEXT,
+    response_time_ms    INTEGER,
+    user_id             TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_score_requests_created
+    ON score_requests (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_score_requests_city
+    ON score_requests (city);
+
+COMMENT ON TABLE score_requests IS
+    'Best-effort /score request telemetry used for lightweight usage and error statistics.';
 
 
 -- ---------------------------------------------------------------------------
@@ -285,7 +352,7 @@ COMMENT ON TABLE amenity_cache IS
 -- ---------------------------------------------------------------------------
 -- Score alert watchlist  (data-030)
 --
--- Users subscribe an email + score threshold to a Chicago address.
+-- Users subscribe an email + score threshold to an address.
 -- When the disruption score crosses that threshold, an entry is written to
 -- alert_log (email delivery is stubbed for the MVP).
 -- ---------------------------------------------------------------------------
@@ -294,13 +361,20 @@ CREATE TABLE IF NOT EXISTS watchlist (
     id              BIGSERIAL   PRIMARY KEY,
     address         TEXT        NOT NULL,
     email           TEXT        NOT NULL,
-    token           UUID        NOT NULL DEFAULT gen_random_uuid(),
+    token           TEXT        NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
     threshold_score INT         NOT NULL DEFAULT 50,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     is_active       BOOLEAN     NOT NULL DEFAULT true,
 
     CONSTRAINT watchlist_email_address_unique UNIQUE (email, address)
 );
+
+-- Existing deployments created token as UUID. The backend now stores
+-- secrets.token_hex(32), which is 64 hex characters and must be TEXT.
+ALTER TABLE watchlist
+    ALTER COLUMN token DROP DEFAULT,
+    ALTER COLUMN token TYPE TEXT USING token::text,
+    ALTER COLUMN token SET DEFAULT encode(gen_random_bytes(32), 'hex');
 
 CREATE INDEX IF NOT EXISTS watchlist_token_idx ON watchlist (token);
 CREATE INDEX IF NOT EXISTS watchlist_active_idx ON watchlist (is_active, address);
@@ -310,13 +384,13 @@ CREATE INDEX IF NOT EXISTS watchlist_address_idx ON watchlist (address);
 COMMENT ON TABLE watchlist IS
     'Score alert subscriptions (data-030). Subscribe by email + address. '
     'When disruption_score >= threshold_score an alert_log row is written. '
-    'Unsubscribe via GET /watch/unsubscribe?token=<uuid>.';
+    'Unsubscribe via GET /watch/unsubscribe?token=<opaque-token>.';
 
 COMMENT ON COLUMN watchlist.threshold_score IS
     'Disruption score (0–100). An alert is triggered when the live score is >= this value.';
 
 COMMENT ON COLUMN watchlist.token IS
-    'Unsubscribe token — included in alert emails so users can opt out without auth.';
+    'Opaque unsubscribe token included in alert emails so users can opt out without auth.';
 
 
 CREATE TABLE IF NOT EXISTS alert_log (
@@ -336,6 +410,28 @@ COMMENT ON TABLE alert_log IS
     'Records of triggered score alerts (data-030). One row per alert check '
     'that crossed the threshold. Used to prevent duplicate alerts and track '
     'notification history.';
+
+
+-- ---------------------------------------------------------------------------
+-- Clerk users  (app-024)
+--
+-- Minimal user record created on first Clerk sign-in via POST /auth/sync.
+-- id is the Clerk user_id string (e.g. "user_2abc...").
+-- subscription_tier defaults to 'free'; upgrade logic is a future task.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS users (
+    id                TEXT        PRIMARY KEY,  -- Clerk user_id
+    email             TEXT        NOT NULL,
+    subscription_tier TEXT        NOT NULL DEFAULT 'free',
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS users_email_idx ON users (email);
+
+COMMENT ON TABLE users IS
+    'Clerk-authenticated user records (app-024). One row per user, created on '
+    'first sign-in via POST /auth/sync. id is the Clerk userId string.';
 
 
 -- ---------------------------------------------------------------------------
@@ -379,6 +475,23 @@ ALTER TABLE api_keys
 CREATE INDEX IF NOT EXISTS api_keys_user_id_idx
     ON api_keys (user_id)
     WHERE user_id IS NOT NULL;
+
+
+-- ---------------------------------------------------------------------------
+-- Signal display cache  (data-043)
+--
+-- Caches generated human-readable display fields for project signals.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS signal_display (
+    project_id     TEXT        PRIMARY KEY,
+    display_title  TEXT        NOT NULL,
+    distance       TEXT        NOT NULL,
+    description    TEXT        NOT NULL,
+    why_it_matters TEXT        NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 COMMENT ON TABLE signal_display IS
     'Claude API-generated 4-field display cards for each project signal (data-043). '
@@ -511,91 +624,48 @@ ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_period      TEXT;
 
 
 -- ---------------------------------------------------------------------------
--- Clerk users  (app-024)
---
--- Minimal user record created on first Clerk sign-in via POST /auth/sync.
--- id is the Clerk user_id string (e.g. "user_2abc...").
--- subscription_tier defaults to 'free'; upgrade logic is a future task.
--- ---------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS users (
-    id                TEXT        PRIMARY KEY,  -- Clerk user_id
-    email             TEXT        NOT NULL,
-    subscription_tier TEXT        NOT NULL DEFAULT 'free',
-    created_at        TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS users_email_idx ON users (email);
-
-COMMENT ON TABLE users IS
-    'Clerk-authenticated user records (app-024). One row per user, created on '
-    'first sign-in via POST /auth/sync. id is the Clerk userId string.';
-
-
--- ---------------------------------------------------------------------------
 -- Row Level Security  (data-067)
 --
--- Enable RLS on every public table and grant a public SELECT policy so the
--- existing API (which connects as the table owner) keeps working.
--- FORCE is used so the policy applies even when connected as the table owner.
+-- Preserve the existing RLS setup for tables previously covered by data-067:
+-- grant a public SELECT policy and FORCE RLS. Newly added backend-write tables
+-- stay out of this block until a dedicated RLS role/policy PR defines writes.
+-- SELECT policy creation is guarded so schema.sql can be applied repeatedly.
 -- ---------------------------------------------------------------------------
 
-ALTER TABLE raw_building_permits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE raw_building_permits FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_raw_building_permits ON raw_building_permits
-    FOR SELECT USING (true);
+DO $$
+DECLARE
+    target_table TEXT;
+BEGIN
+    FOREACH target_table IN ARRAY ARRAY[
+        'raw_building_permits',
+        'raw_street_closures',
+        'projects',
+        'ingest_runs',
+        'score_history',
+        'amenity_cache',
+        'watchlist',
+        'alert_log',
+        'users',
+        'api_keys',
+        'accounts',
+        'neighborhood_quality'
+    ]
+    LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', target_table);
+        EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', target_table);
 
-ALTER TABLE raw_street_closures ENABLE ROW LEVEL SECURITY;
-ALTER TABLE raw_street_closures FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_raw_street_closures ON raw_street_closures
-    FOR SELECT USING (true);
-
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_projects ON projects
-    FOR SELECT USING (true);
-
-ALTER TABLE ingest_runs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ingest_runs FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_ingest_runs ON ingest_runs
-    FOR SELECT USING (true);
-
-ALTER TABLE score_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE score_history FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_score_history ON score_history
-    FOR SELECT USING (true);
-
-ALTER TABLE amenity_cache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE amenity_cache FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_amenity_cache ON amenity_cache
-    FOR SELECT USING (true);
-
-ALTER TABLE watchlist ENABLE ROW LEVEL SECURITY;
-ALTER TABLE watchlist FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_watchlist ON watchlist
-    FOR SELECT USING (true);
-
-ALTER TABLE alert_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE alert_log FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_alert_log ON alert_log
-    FOR SELECT USING (true);
-
-ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
-ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_api_keys ON api_keys
-    FOR SELECT USING (true);
-
-ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE accounts FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_accounts ON accounts
-    FOR SELECT USING (true);
-
-ALTER TABLE neighborhood_quality ENABLE ROW LEVEL SECURITY;
-ALTER TABLE neighborhood_quality FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_neighborhood_quality ON neighborhood_quality
-    FOR SELECT USING (true);
-
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users FORCE ROW LEVEL SECURITY;
-CREATE POLICY select_users ON users
-    FOR SELECT USING (true);
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = target_table
+              AND policyname = 'select_' || target_table
+        ) THEN
+            EXECUTE format(
+                'CREATE POLICY %I ON public.%I FOR SELECT USING (true)',
+                'select_' || target_table,
+                target_table
+            );
+        END IF;
+    END LOOP;
+END $$;
