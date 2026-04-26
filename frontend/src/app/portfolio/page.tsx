@@ -19,7 +19,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/clerk-client";
 import { Card, Container, Header } from "@/components/shell";
 import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
 

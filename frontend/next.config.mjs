@@ -18,8 +18,18 @@ function hasValidClerkPublishableKey(value) {
 
 const clerkPublishableKeyError =
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is missing or invalid. Set a valid Clerk publishable key before deploying production.";
+const clerkSecretKeyError =
+  "CLERK_SECRET_KEY is missing or invalid. Set a valid Clerk secret key before deploying production.";
 
-if (!hasValidClerkPublishableKey(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)) {
+const hasConfiguredClerkPublishableKey = hasValidClerkPublishableKey(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+) && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY !== BUILD_ONLY_CLERK_PUBLISHABLE_KEY;
+
+process.env.NEXT_PUBLIC_CLERK_CONFIGURED = hasConfiguredClerkPublishableKey
+  ? "true"
+  : "false";
+
+if (!hasConfiguredClerkPublishableKey) {
   if (process.env.VERCEL_ENV === "production") {
     throw new Error(clerkPublishableKeyError);
   }
@@ -28,6 +38,13 @@ if (!hasValidClerkPublishableKey(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY))
   console.warn(
     `${clerkPublishableKeyError} Using a build-only placeholder for local or preview builds; auth will not work until a real key is configured.`,
   );
+}
+
+if (
+  process.env.VERCEL_ENV === "production" &&
+  !/^sk_(test|live)_/.test(process.env.CLERK_SECRET_KEY || "")
+) {
+  throw new Error(clerkSecretKeyError);
 }
 
 /** @type {import('next').NextConfig} */

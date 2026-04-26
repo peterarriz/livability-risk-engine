@@ -20,9 +20,10 @@ const BACKEND = (
 
 async function handler(
   req: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
-  const path = params.path.join("/");
+  const { path: pathSegments } = await params;
+  const path = pathSegments.join("/");
   const search = req.nextUrl.search; // preserves ?query=string
   const target = `${BACKEND}/${path}${search}`;
 

@@ -14,16 +14,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <ClerkProvider>
-      <html lang="en">
-        <body>
-          <ScrollNavState />
-          <Providers>
-            {children}
-          </Providers>
-        </body>
-      </html>
-    </ClerkProvider>
+  const document = (
+    <html lang="en">
+      <body>
+        <ScrollNavState />
+        <Providers>
+          {children}
+        </Providers>
+      </body>
+    </html>
   );
+
+  if (process.env.NEXT_PUBLIC_CLERK_CONFIGURED !== "true") {
+    return document;
+  }
+
+  return <ClerkProvider>{document}</ClerkProvider>;
 }

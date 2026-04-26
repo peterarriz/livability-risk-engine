@@ -33,9 +33,10 @@ export function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const data = await fetchBestStreets(params.slug);
+  const { slug } = await params;
+  const data = await fetchBestStreets(slug);
   if (!data) {
     return {
       title: "Quietest Streets in Chicago — Livability Intelligence",
@@ -45,7 +46,7 @@ export async function generateMetadata({
 
   const monthYear = formatMonthYear(data.last_updated);
   const title = `Quietest Streets in ${data.name}, Chicago — Updated ${monthYear}`;
-  const canonical = `https://livabilityrisk.com/neighborhood/${params.slug}/best-streets`;
+  const canonical = `https://livabilityrisk.com/neighborhood/${slug}/best-streets`;
 
   return {
     title,
@@ -264,11 +265,12 @@ function NotAvailable({ slug }: { slug: string }) {
 export default async function BestStreetsPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const data: BestStreetsResponse | null = await fetchBestStreets(params.slug);
+  const { slug: pageSlug } = await params;
+  const data: BestStreetsResponse | null = await fetchBestStreets(pageSlug);
 
-  if (!data) return <NotAvailable slug={params.slug} />;
+  if (!data) return <NotAvailable slug={pageSlug} />;
 
   const { name, quietest_blocks, busiest_blocks, last_updated, mode, slug } = data;
   const monthYear = formatMonthYear(last_updated);

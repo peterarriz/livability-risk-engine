@@ -1,0 +1,364 @@
+{
+  "generated_at": "2026-04-26T19:52:01.078Z",
+  "summary": {
+    "persona_count": 50,
+    "loaded_city_count": 121,
+    "result_count": 6050,
+    "dimensions": {
+      "usability": 5,
+      "relevance": 5,
+      "design": 5,
+      "backend": 5,
+      "metrics": 5,
+      "sexiness": 5
+    },
+    "overall": 5
+  },
+  "personas": [
+    {
+      "name": "Alicia Grant",
+      "role": "CRE acquisitions analyst",
+      "job": "Needs deal-memo language in minutes.",
+      "attack": "Flags vague output, missing source trust, and weak ROI proof."
+    },
+    {
+      "name": "Ben Ortiz",
+      "role": "Industrial broker",
+      "job": "Screens warehouse sites near truck routes.",
+      "attack": "Looks for access disruption and tenant-risk blind spots."
+    },
+    {
+      "name": "Maya Chen",
+      "role": "Multifamily asset manager",
+      "job": "Monitors resident-impact risk across a portfolio.",
+      "attack": "Finds noisy alerts and poor batch workflows."
+    },
+    {
+      "name": "Darius Reed",
+      "role": "Last-mile dispatch lead",
+      "job": "Plans daily routes around closures.",
+      "attack": "Tests whether recommendations are operationally specific."
+    },
+    {
+      "name": "Priya Shah",
+      "role": "Proptech product manager",
+      "job": "Embeds address intelligence in listings.",
+      "attack": "Attacks API clarity, uptime expectations, and white-label fit."
+    },
+    {
+      "name": "Luis Romero",
+      "role": "Field service scheduler",
+      "job": "Assigns crews to customer addresses.",
+      "attack": "Looks for stale closures and confusing confidence labels."
+    },
+    {
+      "name": "Nora Patel",
+      "role": "Hotel operations director",
+      "job": "Protects guest arrival experience.",
+      "attack": "Checks whether event access and curb impacts are visible."
+    },
+    {
+      "name": "Elliot Burns",
+      "role": "Venue general manager",
+      "job": "Plans load-in, guest ingress, and vendor routing.",
+      "attack": "Tests event-week usefulness and plain-English summaries."
+    },
+    {
+      "name": "Fatima Ali",
+      "role": "Municipal coordination lead",
+      "job": "Coordinates public works conflicts.",
+      "attack": "Looks for cross-agency source gaps and escalation clarity."
+    },
+    {
+      "name": "Jon Bell",
+      "role": "Economic development analyst",
+      "job": "Watches district disruption before outreach.",
+      "attack": "Tests city comparison and business-impact framing."
+    },
+    {
+      "name": "Serena Wu",
+      "role": "Retail leasing lead",
+      "job": "Checks foot-traffic risk before lease terms.",
+      "attack": "Finds missing sidewalk, curb, and patio context."
+    },
+    {
+      "name": "Mikhail Ivanov",
+      "role": "Insurance risk analyst",
+      "job": "Uses disruption as operational risk context.",
+      "attack": "Looks for auditability and time-window definitions."
+    },
+    {
+      "name": "Hannah Brooks",
+      "role": "Residential buyer agent",
+      "job": "Explains neighborhood friction to clients.",
+      "attack": "Tests whether copy is understandable to nontechnical buyers."
+    },
+    {
+      "name": "Omar Daniels",
+      "role": "Facilities planner",
+      "job": "Compares campus buildings.",
+      "attack": "Attacks single-address-only workflows and CSV gaps."
+    },
+    {
+      "name": "Grace Kim",
+      "role": "University transportation manager",
+      "job": "Plans pedestrian and shuttle detours.",
+      "attack": "Checks multi-modal relevance and map explanations."
+    },
+    {
+      "name": "Theo Martin",
+      "role": "Commercial tenant rep",
+      "job": "Warns clients before office tours.",
+      "attack": "Looks for shareable summaries and confidence caveats."
+    },
+    {
+      "name": "Yasmin Haddad",
+      "role": "Developer relations engineer",
+      "job": "Evaluates API adoption.",
+      "attack": "Tests docs, examples, auth, and error semantics."
+    },
+    {
+      "name": "Caleb Price",
+      "role": "Revenue operations lead",
+      "job": "Judges whether the product can be sold repeatedly.",
+      "attack": "Looks for concrete pricing, buyer urgency, and proof points."
+    },
+    {
+      "name": "Iris Morgan",
+      "role": "Site selection analyst",
+      "job": "Ranks expansion addresses.",
+      "attack": "Attacks relevance across cities and thin-coverage messaging."
+    },
+    {
+      "name": "Ravi Mehta",
+      "role": "Data platform architect",
+      "job": "Assesses integration risk.",
+      "attack": "Checks contracts, source freshness, and batch scale."
+    },
+    {
+      "name": "Amelia Stone",
+      "role": "Brokerage managing director",
+      "job": "Needs a client-ready reason to pay.",
+      "attack": "Tests polish, credibility, and executive summary quality."
+    },
+    {
+      "name": "Mateo Flores",
+      "role": "Courier fleet manager",
+      "job": "Protects on-time delivery rate.",
+      "attack": "Looks for actionable thresholds and repeat monitoring."
+    },
+    {
+      "name": "Lena Fischer",
+      "role": "Product designer",
+      "job": "Audits interface clarity and hierarchy.",
+      "attack": "Finds crowded metrics, weak visual priority, and mobile issues."
+    },
+    {
+      "name": "Nadia Kim",
+      "role": "University facilities planner",
+      "job": "Compares dozens of buildings.",
+      "attack": "Flags missing portfolio grouping and export friction."
+    },
+    {
+      "name": "Victor Chen",
+      "role": "Security operations manager",
+      "job": "Plans visitor access around incidents.",
+      "attack": "Checks whether stale public data is over-trusted."
+    },
+    {
+      "name": "June Park",
+      "role": "Small business owner",
+      "job": "Needs to know if work will hurt sales.",
+      "attack": "Tests relevance for foot traffic and plain-language value."
+    },
+    {
+      "name": "Tanya Wallace",
+      "role": "Real estate attorney",
+      "job": "Reviews diligence evidence.",
+      "attack": "Looks for source traceability and legal caveats."
+    },
+    {
+      "name": "Chris Nguyen",
+      "role": "Customer success lead",
+      "job": "Needs a renewal-worthy workflow.",
+      "attack": "Tests whether outputs become weekly habits."
+    },
+    {
+      "name": "Alina Petrova",
+      "role": "Data scientist",
+      "job": "Challenges model assumptions.",
+      "attack": "Checks scoring sensitivity, calibration, and false positives."
+    },
+    {
+      "name": "Marcus Lee",
+      "role": "Operations CFO",
+      "job": "Approves tool spend.",
+      "attack": "Attacks ROI assumptions and willingness-to-pay claims."
+    },
+    {
+      "name": "Dana Walsh",
+      "role": "City mobility planner",
+      "job": "Coordinates closures and curb policy.",
+      "attack": "Looks for multimodal and neighborhood equity blind spots."
+    },
+    {
+      "name": "Sofia Rivera",
+      "role": "Tenant experience manager",
+      "job": "Warns tenants before disruption.",
+      "attack": "Tests shareable briefs and recommended actions."
+    },
+    {
+      "name": "Peter Novak",
+      "role": "API procurement lead",
+      "job": "Compares vendors.",
+      "attack": "Checks security, rate limits, uptime, and contract fit."
+    },
+    {
+      "name": "Naomi King",
+      "role": "Construction project manager",
+      "job": "Knows source data is messy.",
+      "attack": "Looks for duplicate records and bad status handling."
+    },
+    {
+      "name": "Hector Ruiz",
+      "role": "Food delivery marketplace PM",
+      "job": "Ranks high-volume merchant addresses.",
+      "attack": "Tests batch scoring and route integration."
+    },
+    {
+      "name": "Mei Tan",
+      "role": "Hospital logistics coordinator",
+      "job": "Plans critical deliveries.",
+      "attack": "Attacks reliability and severe-risk alert precision."
+    },
+    {
+      "name": "Olivia Carter",
+      "role": "Neighborhood advocate",
+      "job": "Questions fairness and transparency.",
+      "attack": "Looks for overconfident city comparisons."
+    },
+    {
+      "name": "Samir Joshi",
+      "role": "Map product lead",
+      "job": "Wants visual evidence.",
+      "attack": "Tests whether map/source language supports trust."
+    },
+    {
+      "name": "Claire Bennett",
+      "role": "Hospitality revenue manager",
+      "job": "Ties access friction to bookings.",
+      "attack": "Looks for event and guest-arrival business value."
+    },
+    {
+      "name": "Nikhil Rao",
+      "role": "Backend engineer",
+      "job": "Reviews production readiness.",
+      "attack": "Checks observability, request IDs, and failure modes."
+    },
+    {
+      "name": "Mina Adeyemi",
+      "role": "Accessibility reviewer",
+      "job": "Tests inclusive usability.",
+      "attack": "Looks for keyboard, contrast, and screen-reader issues."
+    },
+    {
+      "name": "Jacob Stein",
+      "role": "Private equity operating partner",
+      "job": "Looks for portfolio-wide leverage.",
+      "attack": "Tests enterprise packaging and board-ready reporting."
+    },
+    {
+      "name": "Elena Rossi",
+      "role": "Retail district manager",
+      "job": "Coordinates multiple storefronts.",
+      "attack": "Attacks prioritization and alert fatigue."
+    },
+    {
+      "name": "Daniel Cho",
+      "role": "API customer engineer",
+      "job": "Builds integrations.",
+      "attack": "Checks OpenAPI-style clarity, batch paths, and examples."
+    },
+    {
+      "name": "Ruth Simmons",
+      "role": "Public affairs director",
+      "job": "Prepares public messaging.",
+      "attack": "Looks for clear caveats and source-backed statements."
+    },
+    {
+      "name": "Kofi Mensah",
+      "role": "Facilities maintenance director",
+      "job": "Dispatches building teams.",
+      "attack": "Tests whether output suggests specific next steps."
+    },
+    {
+      "name": "Ava Johnson",
+      "role": "Home relocation advisor",
+      "job": "Explains area disruption to families.",
+      "attack": "Checks emotional clarity and nontechnical language."
+    },
+    {
+      "name": "Brandon Hughes",
+      "role": "Growth marketer",
+      "job": "Judges landing-page conversion.",
+      "attack": "Tests whether proof, urgency, and pricing are compelling."
+    },
+    {
+      "name": "Leah Stein",
+      "role": "QA analyst",
+      "job": "Tries to break workflows.",
+      "attack": "Finds empty states, weird cities, and edge-case copy."
+    },
+    {
+      "name": "Arjun Nair",
+      "role": "Enterprise buyer",
+      "job": "Needs procurement confidence.",
+      "attack": "Checks security posture, SLAs, and support promises."
+    }
+  ],
+  "city_count": 121,
+  "city_sample": [
+    "Chicago",
+    "Springfield",
+    "Cape Coral",
+    "Chandler",
+    "Durham",
+    "Indianapolis",
+    "Providence",
+    "Sacramento",
+    "St. Paul",
+    "Virginia Beach",
+    "Akron",
+    "Atlanta",
+    "Austin",
+    "Birmingham",
+    "Charlotte",
+    "Chattanooga",
+    "Colorado Springs",
+    "Columbus",
+    "Gilbert",
+    "Jersey City"
+  ],
+  "segment_sample": [
+    {
+      "name": "CRE Due Diligence",
+      "monthlyPrice": 299,
+      "valueToPrice": 92.31
+    },
+    {
+      "name": "Logistics Dispatch",
+      "monthlyPrice": 799,
+      "valueToPrice": 14.27
+    },
+    {
+      "name": "Proptech Embed",
+      "monthlyPrice": 1500,
+      "valueToPrice": 15.73
+    },
+    {
+      "name": "Civic Coordination",
+      "monthlyPrice": 2500,
+      "valueToPrice": 10.67
+    }
+  ]
+}

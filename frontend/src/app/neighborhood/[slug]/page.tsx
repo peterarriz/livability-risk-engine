@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { fetchNeighborhood, NeighborhoodProject, NeighborhoodResponse } from "@/lib/api";
 import { impactTypeLabel } from "@/lib/score-utils";
 
@@ -197,8 +198,9 @@ function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function NeighborhoodPage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
+export default function NeighborhoodPage() {
+  const params = useParams<{ slug: string }>();
+  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const [data, setData] = useState<NeighborhoodResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);

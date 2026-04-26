@@ -5,6 +5,7 @@
 // URL: /report/<report_id>
 
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import {
   ExplanationPanel,
   getConfidenceReasons,
@@ -17,7 +18,9 @@ import { MapView } from "@/components/map-view";
 import { Card, Section } from "@/components/shell";
 import { fetchReport, FetchReportResponse, ApiError, getExportUrl } from "@/lib/api";
 
-export default function ReportPage({ params }: { params: { id: string } }) {
+export default function ReportPage() {
+  const params = useParams<{ id: string }>();
+  const reportId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [report, setReport] = useState<FetchReportResponse | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
   const [embedCopied, setEmbedCopied] = useState(false);
 
   useEffect(() => {
-    fetchReport(params.id)
+    fetchReport(reportId)
       .then((data) => {
         if (!data) {
           setNotFound(true);
@@ -40,7 +43,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
           setError("Could not load this report.");
         }
       });
-  }, [params.id]);
+  }, [reportId]);
 
   function handleCopyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {

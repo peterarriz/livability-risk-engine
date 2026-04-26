@@ -20,7 +20,7 @@ import {
 import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@/lib/clerk-client";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
 import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
@@ -854,6 +854,7 @@ export default function HomePage() {
 
           <nav className={`topnav${workspaceMode ? " topnav--workspace" : ""}`} aria-label="Primary">
             <a href="/methodology" className="topnav-aux-link">Docs</a>
+            <a href="/pilot-evidence" className="topnav-aux-link">Pilot evidence</a>
             <a href="/api-access" className="topnav-aux-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">

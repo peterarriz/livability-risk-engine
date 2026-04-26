@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { fetchReport, FetchReportResponse } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
 
@@ -19,7 +20,9 @@ function riskLevel(score: number): { label: string; color: string } {
   return { label: "Severe Risk", color: "#dc2626" };
 }
 
-export default function WidgetPage({ params }: { params: { id: string } }) {
+export default function WidgetPage() {
+  const params = useParams<{ id: string }>();
+  const reportId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [report, setReport] = useState<FetchReportResponse | null>(null);
   const [error, setError] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -29,13 +32,13 @@ export default function WidgetPage({ params }: { params: { id: string } }) {
     const t = new URLSearchParams(window.location.search).get("theme");
     if (t === "light") setTheme("light");
 
-    fetchReport(params.id)
+    fetchReport(reportId)
       .then((data) => {
         if (!data) setError(true);
         else setReport(data);
       })
       .catch(() => setError(true));
-  }, [params.id]);
+  }, [reportId]);
 
   const isDark = theme === "dark";
   const bg = isDark ? "#0d1525" : "#ffffff";
@@ -43,8 +46,8 @@ export default function WidgetPage({ params }: { params: { id: string } }) {
   const muted = isDark ? "#94a3b8" : "#6b7280";
   const border = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
   const reportUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/report/${params.id}`
-    : `/report/${params.id}`;
+    ? `${window.location.origin}/report/${reportId}`
+    : `/report/${reportId}`;
 
   if (error) {
     return (

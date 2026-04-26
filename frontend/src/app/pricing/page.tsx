@@ -14,6 +14,7 @@ export default function PricingPage() {
           </div>
           <nav className="topnav" aria-label="Primary">
             <Link href="/">Home</Link>
+            <Link href="/pilot-evidence">Pilot evidence</Link>
             <Link href="/app">Open workspace</Link>
           </nav>
         </header>

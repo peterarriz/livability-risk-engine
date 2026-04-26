@@ -62,6 +62,26 @@ Expected result:
 - The demo starts on `http://127.0.0.1:3000`.
 - Submitting the default Chicago address renders the score, severity snapshot, top risks, and explanation returned by the API.
 - A "Demo data" or "Live data" badge shows which mode the backend is running in.
+- `/pilot-evidence` shows the generated multi-month source-flow simulation, 50-persona red-team summary, paid pilot offers, and city/source coverage.
+
+### 5b. Regenerate pilot evidence
+
+These commands do not require database credentials. They simulate fresh records arriving across every configured city/source feed in the repo, then run 50 potential-customer personas against that evidence.
+
+```bash
+node scripts/simulate-data-flow.mjs --months=6
+node scripts/run-persona-red-team.mjs
+```
+
+Generated outputs:
+- `data/generated/data_flow_simulation.json`
+- `data/generated/persona_red_team_results.json`
+- `docs/07_adversarial_review.md`
+- `docs/09_persona_red_team_audit.md`
+- `docs/10_persona_red_team_results.md`
+- `docs/11_five_star_remediation_matrix.md`
+- `docs/12_data_flow_simulation_results.md`
+- `frontend/src/lib/pilot-evidence-data.ts`
 
 ### 6. Record handoff notes if the smoke check fails
 

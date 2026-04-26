@@ -693,6 +693,20 @@ export async function fetchAddressSuggestions(
   const popular = Boolean(options?.popular);
   const limit = Math.min(8, Math.max(1, options?.limit ?? 8));
   if (!popular && q.length < 3) return [];
+  if (popular && q.length < 3) {
+    return [
+      "1600 W Chicago Ave, Chicago, IL",
+      "233 S Wacker Dr, Chicago, IL",
+      "700 W Grand Ave, Chicago, IL",
+      "401 N Michigan Ave, Chicago, IL",
+      "1 E Jackson Blvd, Chicago, IL",
+    ].slice(0, limit).map((display_address) => ({
+      canonical_id: null,
+      display_address,
+      city: "Chicago",
+      state: "IL",
+    }));
+  }
 
   const apiBaseUrl = getApiBaseUrl();
   const streetFrag = _streetPrefix(q);

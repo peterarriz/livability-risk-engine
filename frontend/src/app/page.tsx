@@ -38,6 +38,7 @@ export default function LandingPage() {
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: "1.5rem", fontSize: "0.875rem" }}>
           <Link href="/methodology" style={{ color: "#6B7280", textDecoration: "none" }}>Docs</Link>
+          <Link href="/pilot-evidence" style={{ color: "#6B7280", textDecoration: "none" }}>Pilot evidence</Link>
           <Link href="/api-docs" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
         </nav>
       </header>
@@ -218,6 +219,7 @@ export default function LandingPage() {
         <span>&copy; {new Date().getFullYear()} Livability Risk Engine</span>
         <nav style={{ display: "flex", gap: "1.25rem" }}>
           <Link href="/methodology" style={{ color: "#9CA3AF", textDecoration: "none" }}>Methodology</Link>
+          <Link href="/pilot-evidence" style={{ color: "#9CA3AF", textDecoration: "none" }}>Pilot Evidence</Link>
           <Link href="/api-docs" style={{ color: "#9CA3AF", textDecoration: "none" }}>API Docs</Link>
           <Link href="/pricing" style={{ color: "#9CA3AF", textDecoration: "none" }}>Pricing</Link>
         </nav>

@@ -10,7 +10,7 @@
  * (satisfies app-024 notes_for_next_agent requirement).
  */
 
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@/lib/clerk-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiKeyRecord,
