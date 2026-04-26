@@ -855,7 +855,7 @@ def debug_score(
       - The score result matches expectations
       - Which mode and fallback_reason are in play
 
-    This endpoint does not require auth for MVP but is intended for ops use only.
+    Requires X-Admin-Secret and is intended for ops use only.
     It returns a useful partial response even when geocoding or DB is unavailable.
     """
     try:

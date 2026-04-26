@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from backend.app.deps import DEMO_RESPONSE, _is_db_configured, verify_api_key
+from backend.app.deps import DEMO_RESPONSE, _is_db_configured, require_api_key
 
 log = logging.getLogger(__name__)
 
@@ -279,7 +279,7 @@ def get_history(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/score-trend")
+@router.get("/score-trend", dependencies=[Depends(require_api_key)])
 def get_score_trend(
     lat: float = Query(..., description="Latitude of the point of interest"),
     lon: float = Query(..., description="Longitude of the point of interest"),
@@ -377,7 +377,7 @@ def get_score_trend(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/export/csv", dependencies=[Depends(verify_api_key)])
+@router.get("/export/csv", dependencies=[Depends(require_api_key)])
 def export_csv(
     address: str = Query(..., description="US address to score and export"),
 ) -> StreamingResponse:
