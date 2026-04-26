@@ -57,7 +57,7 @@ const SECTIONS = [
   { id: "endpoint", label: "Endpoint Reference" },
   { id: "response", label: "Response Fields" },
   { id: "examples", label: "Code Examples" },
-  { id: "rates", label: "Rate Limits" },
+  { id: "access", label: "Pilot Access" },
   { id: "tester", label: "Live Tester" },
   { id: "coverage", label: "Coverage" },
 ] as const;
@@ -87,14 +87,15 @@ export default function ApiDocsPage() {
         <section id="auth" className="docs-section">
           <h2>Authentication</h2>
           <p>
-            All API requests require an API key passed in the <code>X-API-Key</code> header.
-            Get your key from the <a href="/api-access">API Access page</a> after signing in.
+            Pilot API access uses an API key passed in the <code>X-API-Key</code> header.
+            Batch scoring and authenticated usage endpoints require a valid key. Single-address
+            <code> /score</code> demo access may be available without a key depending on deployment settings.
           </p>
           <pre className="docs-code">{`curl -H "X-API-Key: lre_your_key_here" \\
   "https://api.livabilityrisks.com/score?address=1600+W+Chicago+Ave,+Chicago,+IL"`}</pre>
           <p className="docs-note">
-            Unauthenticated requests work for testing but are heavily rate-limited.
-            We recommend always including your API key.
+            API keys are issued by request for design partners and controlled pilots.
+            Usage is currently monitored operationally; automated billing quotas are planned.
           </p>
         </section>
 
@@ -198,21 +199,21 @@ const data = await res.json();
 console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
         </section>
 
-        {/* ── Rate Limits ─────────────────────────────────────────── */}
-        <section id="rates" className="docs-section">
-          <h2>Rate Limits</h2>
+        {/* ── Pilot Access ────────────────────────────────────────── */}
+        <section id="access" className="docs-section">
+          <h2>Pilot Access</h2>
           <table className="docs-table">
-            <thead><tr><th>Plan</th><th>Lookups / month</th><th>Bulk CSV</th><th>API access</th></tr></thead>
+            <thead><tr><th>Capability</th><th>Current status</th><th>Notes</th></tr></thead>
             <tbody>
-              <tr><td>Free</td><td>10</td><td>&mdash;</td><td>Unauthenticated only</td></tr>
-              <tr><td>Pro ($49/mo)</td><td>Unlimited</td><td>&mdash;</td><td>&mdash;</td></tr>
-              <tr><td>Teams ($199/mo)</td><td>Unlimited</td><td>500 addresses</td><td>Full REST API</td></tr>
-              <tr><td>Enterprise ($999+/mo)</td><td>Unlimited</td><td>10,000+</td><td>Full REST API + Webhooks</td></tr>
+              <tr><td>Single-address demo</td><td>Available on the public app</td><td>Coverage varies by city and source.</td></tr>
+              <tr><td>API keys</td><td>Issued by request</td><td>Used for pilot integrations and authenticated endpoints.</td></tr>
+              <tr><td>Batch scoring</td><td>Available with pilot API key</td><td>Request limits are documented in the endpoint contract.</td></tr>
+              <tr><td>Self-serve billing</td><td>Planned</td><td>Commercial tiers will follow backend quota and billing enforcement.</td></tr>
             </tbody>
           </table>
           <p className="docs-note">
-            Rate limits are tracked per API key. Exceeding your plan&rsquo;s limits returns HTTP 429.
-            <a href="/pricing"> Upgrade your plan</a> for higher limits.
+            During the design-partner phase, API usage is reviewed manually with each pilot partner.
+            Automated quota exhaustion responses are not part of the current public contract.
           </p>
         </section>
 

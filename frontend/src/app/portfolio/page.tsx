@@ -4,8 +4,8 @@
  * /portfolio — Multi-address workspace
  * task: data-014 (app lane exception — connects to /score API)
  *
- * Free tier  : up to 10 addresses, persisted in localStorage.
- * Pro tier   : unlimited addresses (DB persistence — stubbed until auth is live).
+ * Demo workspace: up to 10 addresses, persisted in localStorage.
+ * Pilot access: higher-volume workflows by request.
  *
  * Table columns : Address · Score · Band · Top Risk · Updated · Actions
  * Features       : add, remove, per-row refresh, refresh-all, sort, CSV export.
@@ -295,7 +295,7 @@ export default function PortfolioPage() {
 
       // Free-tier limit
       if (items.length >= FREE_LIMIT) {
-        setAddError(`Free plan is limited to ${FREE_LIMIT} addresses. Upgrade to Pro for unlimited.`);
+        setAddError(`Demo workspace is limited to ${FREE_LIMIT} addresses. Request pilot access for higher-volume workflows.`);
         return;
       }
 
@@ -350,7 +350,7 @@ export default function PortfolioPage() {
       setAddError(
         isPro
           ? `CSV contains ${addresses.length} addresses. Max ${PRO_BATCH_LIMIT} per upload.`
-          : `Free plan allows ${FREE_BATCH_LIMIT} addresses per upload. Upgrade to Pro for up to ${PRO_BATCH_LIMIT}.`,
+          : `Demo workspace allows ${FREE_BATCH_LIMIT} addresses per upload. Request pilot access for larger CSV workflows.`,
       );
       return;
     }
@@ -501,11 +501,11 @@ export default function PortfolioPage() {
         <div className="portfolio-page-header">
           <div className="portfolio-title-row">
             <h1 className="portfolio-title">My Portfolio</h1>
-            <span className="portfolio-plan-badge">Free</span>
+            <span className="portfolio-plan-badge">Demo</span>
           </div>
           <p className="portfolio-subtitle">
             Track disruption scores across multiple addresses. Scores update on demand.
-            {" "}<span className="portfolio-plan-note">Free plan: {items.length}/{FREE_LIMIT} addresses.</span>
+            {" "}<span className="portfolio-plan-note">Demo workspace: {items.length}/{FREE_LIMIT} addresses.</span>
           </p>
         </div>
 
@@ -528,7 +528,7 @@ export default function PortfolioPage() {
                   id="portfolio-addr-input"
                   type="text"
                   className="portfolio-add-input"
-                  placeholder="Enter an Illinois address…"
+                  placeholder="Enter a US address…"
                   value={inputAddr}
                   onChange={(e) => {
                     hasUserTyped.current = true;
@@ -569,7 +569,7 @@ export default function PortfolioPage() {
                         onMouseEnter={() => setActiveSuggIdx(idx)}
                       >
                         <span className="suggestion-item-label">{s}</span>
-                        <span className="suggestion-item-meta">Illinois address</span>
+                        <span className="suggestion-item-meta">US address</span>
                       </li>
                     ))}
                   </ul>
@@ -588,9 +588,9 @@ export default function PortfolioPage() {
             )}
             {atLimit && (
               <div className="portfolio-limit-banner">
-                <span>Free plan limit reached ({FREE_LIMIT} addresses).</span>
+                <span>Demo workspace limit reached ({FREE_LIMIT} addresses).</span>
                 <a href="/pricing" className="portfolio-upgrade-link">
-                  Upgrade to Pro for unlimited →
+                  Request pilot access →
                 </a>
               </div>
             )}
@@ -624,7 +624,7 @@ export default function PortfolioPage() {
               Download template
             </button>
             <span className="portfolio-csv-hint">
-              {isPro ? `Up to ${PRO_BATCH_LIMIT} addresses per upload` : `Free: ${FREE_BATCH_LIMIT} addresses per upload`}
+              {isPro ? `Pilot: up to ${PRO_BATCH_LIMIT} addresses per upload` : `Demo: ${FREE_BATCH_LIMIT} addresses per upload`}
             </span>
           </div>
 
@@ -873,14 +873,14 @@ export default function PortfolioPage() {
               </table>
             </div>
 
-            {/* Pro upsell — below table when not at limit */}
+            {/* Pilot access prompt — below table when not at limit */}
             {!atLimit && items.length >= 6 && (
               <div className="portfolio-pro-hint">
-                <span className="portfolio-pro-badge">Pro</span>
+                <span className="portfolio-pro-badge">Pilot</span>
                 <span>
-                  Unlimited addresses, database sync, and webhook alerts.{" "}
+                  Higher-volume address lists, database sync, and webhook alerts are available by request.{" "}
                   <a href="/pricing" className="portfolio-upgrade-link">
-                    See Pro plan →
+                    Request pilot access →
                   </a>
                 </span>
               </div>
@@ -890,9 +890,9 @@ export default function PortfolioPage() {
 
         {/* ── Footer note ─────────────────────────────────────────── */}
         <p className="portfolio-footer-note">
-          Portfolio stored locally in your browser. Scores reflect live Chicago permit and
-          street closure data at the time of each refresh. Pro plan adds cloud sync and
-          scheduled refresh.
+          Portfolio stored locally in your browser. Scores reflect available permit, closure,
+          and context data at the time of each refresh. Pilot workflows can add cloud sync and
+          scheduled refresh by request.
         </p>
       </Container>
     </main>

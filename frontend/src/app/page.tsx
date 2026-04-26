@@ -71,7 +71,7 @@ export default function LandingPage() {
           </button>
         </form>
         <p style={{ fontSize: "0.78rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
-          Free tier: 10 lookups/month. No credit card required.
+          Public demo available now. Pilot API access is available by request.
         </p>
       </section>
 

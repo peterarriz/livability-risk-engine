@@ -910,7 +910,7 @@ export function MapView({
         <button
           type="button"
           disabled={!isPro}
-          title={isPro ? "Animate 30-day projected signal changes" : "30-day forecast is a Pro feature — upgrade to unlock"}
+          title={isPro ? "Animate 30-day projected signal changes" : "30-day forecast is available by request for pilot workflows"}
           onClick={() => {
             if (!isPro) return;
             if (forecastDone) {
@@ -946,7 +946,7 @@ export function MapView({
               padding: "1px 5px", borderRadius: "3px",
               background: "#7c3aed", color: "#fff",
             }}>
-              Pro
+              Pilot
             </span>
           )}
         </button>
@@ -959,7 +959,7 @@ export function MapView({
               textDecoration: "none", fontWeight: 500,
             }}
           >
-            Upgrade &rarr;
+            Request access &rarr;
           </a>
         )}
 
@@ -1000,7 +1000,7 @@ export function MapView({
         </div>
       )}
 
-      {/* ── Forecast scrubber — Pro only, shown when forecast is active ───── */}
+      {/* ── Forecast scrubber — pilot access only, shown when forecast is active ───── */}
       {isPro && forecastActive && (
         <div style={{
           display: "flex", alignItems: "center", gap: "10px",

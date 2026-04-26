@@ -6,11 +6,11 @@ Use this document when agreeing on pilot terms with a design-partner candidate. 
 
 ## What we offer (our commitment)
 
-1. **Free API access for 30 days** from the date of first API key delivery, at up to 500 address lookups included.
+1. **Pilot API access for 30 days** from the date of first API key delivery, with up to 500 address lookups included and monitored manually.
 2. **Dedicated onboarding**: a 30-minute setup call and written instructions for integrating the `/score` endpoint into the partner's workflow.
 3. **Direct feedback channel**: a shared Slack channel or email thread where the partner can flag issues or questions during the pilot.
 4. **Honest response to every issue**: we will acknowledge every accuracy complaint within 24 hours and provide a root-cause explanation within 5 business days.
-5. **No commitment beyond the pilot**: at the end of 30 days, the partner has no obligation to convert to a paid tier. If they do, they receive 20% off their first paid month as a design-partner discount.
+5. **No commitment beyond the pilot**: at the end of 30 days, the partner has no obligation to convert to a paid pilot or commercial agreement. If they do, commercial terms are confirmed manually.
 
 ---
 
@@ -48,6 +48,8 @@ Use this document when agreeing on pilot terms with a design-partner candidate. 
 
 ## Conversion offer at pilot end
 
+These are proposed commercial terms for founder-led follow-up. They are not self-serve billing tiers and are not enforced automatically by the current backend.
+
 | Tier | Standard price | Design-partner first-month price |
 | --- | --- | --- |
 | Spot | $0.10/call | Free first 100 calls, then $0.08/call for 90 days |
@@ -62,7 +64,7 @@ Use this document when agreeing on pilot terms with a design-partner candidate. 
 >
 > Great — here's a quick summary of what we agreed on for the pilot:
 >
-> **What we're providing**: free API access for 30 days (up to 500 address lookups), a 30-minute setup call, and a direct support channel for the duration.
+> **What we're providing**: pilot API access for 30 days (up to 500 address lookups, monitored manually), a 30-minute setup call, and a direct support channel for the duration.
 >
 > **What we're asking from you**: run the API on at least 20 real addresses from your workflow, join a 30-minute check-in around day 15, and share a short summary at the end of the 30 days.
 >
