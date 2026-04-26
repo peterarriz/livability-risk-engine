@@ -40,6 +40,48 @@ _JWKS_CACHE_TTL = 3600  # seconds
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_issuer_for_compare(value: str | None) -> str:
+    """Normalize a Clerk issuer URL for exact allowlist comparison."""
+    if not value:
+        return ""
+    return value.strip().rstrip("/")
+
+
+def _configured_allowed_issuers() -> set[str]:
+    """Return normalized Clerk issuers allowed to sign backend tokens."""
+    issuers: set[str] = set()
+    raw_allowed = os.environ.get("CLERK_ALLOWED_ISSUERS", "")
+    for issuer in raw_allowed.split(","):
+        normalized = _normalize_issuer_for_compare(issuer)
+        if normalized:
+            issuers.add(normalized)
+
+    fallback = _normalize_issuer_for_compare(os.environ.get("CLERK_ISSUER"))
+    if fallback:
+        issuers.add(fallback)
+
+    return issuers
+
+
+def _require_allowed_issuer(issuer: str) -> str:
+    """
+    Require the unverified token issuer to match explicit backend config.
+
+    This runs before JWKS fetch so a token cannot choose its own signing-key URL.
+    """
+    normalized = _normalize_issuer_for_compare(issuer)
+    allowed_issuers = _configured_allowed_issuers()
+    if not allowed_issuers:
+        log.error("clerk_jwt: CLERK_ALLOWED_ISSUERS or CLERK_ISSUER is not configured")
+        raise HTTPException(status_code=503, detail="Clerk issuer allowlist not configured on backend")
+
+    if normalized not in allowed_issuers:
+        log.warning("clerk_jwt: token issuer is not in the configured allowlist")
+        raise HTTPException(status_code=401, detail="Token issuer is not allowed")
+
+    return normalized
+
+
 def _jwks_b64decode(s: str) -> bytes:
     """URL-safe base64 decode with automatic padding."""
     return base64.urlsafe_b64decode(s + "=" * ((4 - len(s) % 4) % 4))
@@ -186,13 +228,14 @@ def _verify_clerk_claims(authorization: str | None) -> dict:
 
     Strategy:
       1. Decode the JWT header/payload (unverified) to get kid, alg, iss, exp.
-      2. Fetch Clerk's public JWKS from <iss>/.well-known/jwks.json (cached 1h).
-      3. Find the matching public key by kid.
-      4. Verify the JWT signature + expiry with PyJWT (RS256, local — no network call).
-      5. Return the verified payload claims.
+      2. Require iss to match CLERK_ALLOWED_ISSUERS / CLERK_ISSUER.
+      3. Fetch Clerk's public JWKS from the allowed <iss>/.well-known/jwks.json.
+      4. Find the matching public key by kid.
+      5. Verify the JWT signature + expiry with PyJWT (RS256, local — no network call).
+      6. Return the verified payload claims.
 
     Raises HTTP 401 if the token is missing, malformed, expired, or signature invalid.
-    Raises HTTP 503 if CLERK_SECRET_KEY is not configured or JWKS is unreachable.
+    Raises HTTP 503 if Clerk auth config is incomplete or JWKS is unreachable.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Authorization header")
@@ -223,12 +266,15 @@ def _verify_clerk_claims(authorization: str | None) -> dict:
 
     log.info("clerk_jwt: header kid=%s alg=%s iss=%s", kid, alg, iss)
 
-    # ── Step 2: require CLERK_SECRET_KEY as a config guard ────────────────────
+    # ── Step 2: require issuer allowlist before any JWKS fetch ────────────────
+    iss = _require_allowed_issuer(iss)
+
+    # ── Step 3: require CLERK_SECRET_KEY as a config guard ────────────────────
     if not os.environ.get("CLERK_SECRET_KEY", ""):
         log.error("clerk_jwt: CLERK_SECRET_KEY is not set")
         raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured on backend")
 
-    # ── Step 3: get JWKS and find the matching public key ─────────────────────
+    # ── Step 4: get JWKS and find the matching public key ─────────────────────
     try:
         jwks = _fetch_jwks(iss)
     except HTTPException:
@@ -256,13 +302,15 @@ def _verify_clerk_claims(authorization: str | None) -> dict:
         log.error("clerk_jwt: kid=%s not found after re-fetch for iss=%s", kid, iss)
         raise HTTPException(status_code=401, detail="JWT signing key not found in JWKS")
 
-    # ── Step 4: verify signature + expiry locally (no network call) ───────────
+    # ── Step 5: verify signature + expiry locally (no network call) ───────────
     try:
         payload = _jose_jwt.decode(
             token,
             key_dict,
             algorithms=["RS256"],
-            options={"verify_aud": False},  # Clerk JWTs use azp, not aud
+            # TODO: Enforce audience and authorized-party after current Clerk
+            # token claim shape is verified across local, preview, and prod.
+            options={"verify_aud": False},
         )
     except _JoseExpired:
         log.warning("clerk_jwt: token expired for iss=%s", iss)
@@ -271,7 +319,7 @@ def _verify_clerk_claims(authorization: str | None) -> dict:
         log.error("clerk_jwt: signature/claim validation failed: %s", exc)
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}")
 
-    # ── Step 5: extract user_id ───────────────────────────────────────────────
+    # ── Step 6: extract user_id ───────────────────────────────────────────────
     user_id = payload.get("sub")
     if not user_id:
         log.error("clerk_jwt: no sub claim in verified payload keys=%s", list(payload.keys()))
