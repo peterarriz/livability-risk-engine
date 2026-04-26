@@ -38,11 +38,7 @@ export default function LandingPage() {
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: "1.5rem", fontSize: "0.875rem" }}>
           <Link href="/methodology" style={{ color: "#6B7280", textDecoration: "none" }}>Docs</Link>
-          <Link href="/api-access" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
-          <Link href="/login" style={{
-            color: "#2563EB", textDecoration: "none", border: "1px solid #2563EB",
-            padding: "0.35rem 0.85rem", borderRadius: "6px", fontWeight: 500, fontSize: "0.82rem",
-          }}>Sign in</Link>
+          <Link href="/api-docs" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
         </nav>
       </header>
 

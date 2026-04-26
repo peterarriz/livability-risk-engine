@@ -3,8 +3,8 @@
 /**
  * frontend/src/app/login/page.tsx
  *
- * Auth is now handled by Clerk (SignInButton in the top nav).
- * This route redirects to home where the Clerk modal is available.
+ * Legacy login route.
+ * Redirects back to home so deployed users do not land on a dead-end page.
  */
 
 import { useEffect } from "react";
