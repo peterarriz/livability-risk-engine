@@ -15,10 +15,10 @@ from __future__ import annotations
 import logging
 import secrets
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.app.deps import _is_db_configured
+from backend.app.deps import _is_db_configured, require_admin_secret
 
 log = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token fro
         raise HTTPException(status_code=503, detail="Could not process unsubscribe.") from exc
 
 
-@router.post("/admin/watch/check")
+@router.post("/admin/watch/check", dependencies=[Depends(require_admin_secret)])
 def check_watchlist() -> dict:
     """
     Operator endpoint — score every watched address and fire alerts.

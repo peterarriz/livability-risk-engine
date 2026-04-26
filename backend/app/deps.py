@@ -10,6 +10,7 @@ Contains:
   - _generate_api_key() — creates lre_ prefixed API keys
   - verify_api_key — FastAPI dependency, optional API key enforcement
   - require_api_key — FastAPI dependency, strict API key enforcement
+  - require_admin_secret — FastAPI dependency for internal operator endpoints
   - DEMO_RESPONSE — demo score result dict
   - _build_demo_response — wraps DEMO_RESPONSE with address/fallback
 """
@@ -17,6 +18,7 @@ Contains:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -58,6 +60,17 @@ def _generate_api_key() -> tuple[str, str, str]:
     prefix = random_portion[:8]
     full_key = f"lre_{random_portion}"
     return full_key, prefix, _hash_key(full_key)
+
+
+async def require_admin_secret(x_admin_secret: str | None = Header(None)) -> None:
+    """Require X-Admin-Secret to match ADMIN_SECRET for operator endpoints."""
+    admin_secret = os.environ.get("ADMIN_SECRET", "").strip()
+    if not admin_secret:
+        raise HTTPException(status_code=503, detail="Admin auth is not configured")
+
+    submitted = (x_admin_secret or "").strip()
+    if not submitted or not hmac.compare_digest(submitted, admin_secret):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 async def verify_api_key(x_api_key: str | None = Header(None)) -> None:

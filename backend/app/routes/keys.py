@@ -25,7 +25,7 @@ from backend.app.deps import (
     _hash_key,
     _is_db_configured,
     _require_api_key_enabled,
-    verify_api_key,
+    require_api_key,
 )
 from backend.app.services.clerk import _verify_clerk_jwt
 
@@ -82,7 +82,7 @@ def create_api_key(
 # /usage  (data-043)
 # ---------------------------------------------------------------------------
 
-@router.get("/usage", dependencies=[Depends(verify_api_key)])
+@router.get("/usage", dependencies=[Depends(require_api_key)])
 def get_usage(x_api_key: str | None = Header(None)) -> dict:
     """Return usage metrics for the authenticated API key."""
     if not x_api_key or not x_api_key.startswith("lre_"):
