@@ -12,12 +12,12 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from backend.app.deps import _is_db_configured
+from backend.app.deps import _is_db_configured, require_admin_secret
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
@@ -177,7 +177,7 @@ def health() -> dict:
     }
 
 
-@app.get("/health/db")
+@app.get("/health/db", dependencies=[Depends(require_admin_secret)])
 def health_db() -> dict:
     """
     DB connectivity probe for operators and CI. Separate from /health so the

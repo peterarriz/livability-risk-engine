@@ -26,6 +26,7 @@ from backend.app.deps import (
     DEMO_RESPONSE,
     _build_demo_response,
     _is_db_configured,
+    require_admin_secret,
     require_api_key,
     verify_api_key,
 )
@@ -392,7 +393,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 # Admin stats endpoint
 # ---------------------------------------------------------------------------
 
-@router.get("/admin/stats")
+@router.get("/admin/stats", dependencies=[Depends(require_admin_secret)])
 def get_stats():
     """Return basic usage statistics from the score_requests table."""
     from backend.scoring.query import get_db_connection
@@ -841,7 +842,7 @@ def _serialize_project_sample(nearby_list) -> list:
     return sample
 
 
-@router.get("/debug/score")
+@router.get("/debug/score", dependencies=[Depends(require_admin_secret)])
 def debug_score(
     address: str = Query(..., description="US address to inspect"),
 ) -> dict:
