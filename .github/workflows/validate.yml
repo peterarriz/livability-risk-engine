@@ -1,17 +1,20 @@
-name: Validate live backend (E2E smoke check)
+name: Validate demo readiness
 
 # task: data-039
 # lane: data
 #
-# Manual-trigger workflow that runs scripts/validate_live.py against the
-# deployed Railway backend to confirm /health, /score, and /debug/score
-# all return live data (mode="live", db_connection=true).
+# Manual-trigger workflow that runs scripts/demo_smoke_check.py against a
+# configured backend URL. It checks public /health and /score only, plus the
+# admin-protected /health/db probe when ADMIN_SECRET is available.
 #
 # Required input:
 #   backend_url — Railway backend public URL
 #                 (e.g. https://livability-risk-engine.up.railway.app)
 #
-# This workflow requires no secrets. It hits the public Railway URL directly.
+# Optional secrets:
+#   LRE_API_KEY  — sent as X-API-Key when present
+#   ADMIN_SECRET — sent as X-Admin-Secret when present; /health/db is skipped
+#                  by the script when absent.
 
 on:
   workflow_dispatch:
@@ -20,10 +23,22 @@ on:
         description: "Railway backend URL (e.g. https://your-app.up.railway.app)"
         required: true
         type: string
+      require_live:
+        description: "Fail if /health or /score responses are not in live mode"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      addresses:
+        description: "Optional newline-separated addresses. Blank uses script defaults."
+        required: false
+        type: string
 
 jobs:
   validate:
-    name: E2E smoke check
+    name: Demo readiness smoke check
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -36,7 +51,31 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run validation script
+      - name: Run demo smoke check
         env:
           BACKEND_URL: ${{ github.event.inputs.backend_url }}
-        run: python scripts/validate_live.py
+          REQUIRE_LIVE: ${{ github.event.inputs.require_live }}
+          ADDRESSES: ${{ github.event.inputs.addresses }}
+          LRE_API_KEY: ${{ secrets.LRE_API_KEY }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: |
+          if [ -z "$BACKEND_URL" ]; then
+            echo "::error::backend_url input is required"
+            exit 2
+          fi
+
+          args=(--backend-url "$BACKEND_URL")
+
+          if [ "$REQUIRE_LIVE" = "true" ]; then
+            args+=(--require-live)
+          fi
+
+          if [ -n "$ADDRESSES" ]; then
+            while IFS= read -r address; do
+              if [ -n "$address" ]; then
+                args+=(--address "$address")
+              fi
+            done <<< "$ADDRESSES"
+          fi
+
+          python3 scripts/demo_smoke_check.py "${args[@]}"
