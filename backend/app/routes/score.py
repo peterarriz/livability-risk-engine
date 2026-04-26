@@ -395,7 +395,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 
 @router.get("/admin/stats", dependencies=[Depends(require_admin_secret)])
 def get_stats():
-    """Return basic usage statistics from the score_requests table."""
+    """Return operator usage statistics from score_requests. Requires X-Admin-Secret."""
     from backend.scoring.query import get_db_connection
     conn = get_db_connection()
     try:

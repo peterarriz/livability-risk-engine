@@ -9,7 +9,7 @@ Shared helpers also exported for use by other route modules:
   - _get_address_rows, _top_ranked_address_rows, _address_row_by_canonical_id
   - _address_row_by_coords, _haversine_meters, _normalize_address_text
   - _address_features, _query_features, _candidate_matches_query
-  - _rank_address_candidate, _load_address_rows_from_db
+  - _rank_address_candidate
   - _parse_nominatim, _parse_photon, _debug_search_flow
   - _get_projects_in_bbox, _NEIGHBORHOODS, _STATE_NAME_TO_ABBREV
   - _US_STATE_ABBREVS, _state_abbrev, _street_prefix, _DIRECTIONAL
@@ -17,13 +17,11 @@ Shared helpers also exported for use by other route modules:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import math
 import os
 import re
 import time
-from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
 
@@ -179,6 +177,7 @@ def _parse_photon(features: list, street_frag: str | None = None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 _ADDRESS_SEARCH_CACHE_TTL_SEC = 60
+_PUBLIC_ADDRESS_DASHBOARD_HISTORY_LIMIT = 10
 _address_search_cache: dict[str, object] = {
     "loaded_at": 0.0,
     "rows": [],
@@ -363,72 +362,17 @@ def _top_ranked_address_rows(query: str, rows: list[dict], limit: int, with_geo_
     return ranked[:limit]
 
 
-def _load_address_rows_from_db() -> list[dict]:
-    from backend.scoring.query import get_db_connection
-
-    conn = get_db_connection()
-    try:
-        rows: list[tuple[str, Optional[float], Optional[float], int]] = []
-        with conn.cursor() as cur:
-            for sql in (
-                """
-                SELECT address,
-                       NULLIF(score_json->>'latitude', '')::double precision AS lat,
-                       NULLIF(score_json->>'longitude', '')::double precision AS lon,
-                       COUNT(*)::int AS popularity
-                FROM reports
-                WHERE address IS NOT NULL AND address <> ''
-                GROUP BY address, lat, lon
-                """,
-                """
-                SELECT address, NULL::double precision AS lat, NULL::double precision AS lon, COUNT(*)::int AS popularity
-                FROM watchlist
-                WHERE address IS NOT NULL AND address <> ''
-                GROUP BY address
-                """,
-                """
-                SELECT address, NULL::double precision AS lat, NULL::double precision AS lon, COUNT(*)::int AS popularity
-                FROM score_history
-                WHERE address IS NOT NULL AND address <> ''
-                GROUP BY address
-                """,
-            ):
-                try:
-                    cur.execute(sql)
-                    rows.extend(cur.fetchall())
-                except Exception:
-                    conn.rollback()
-                    continue
-
-        by_norm: dict[str, dict] = {}
-        for address, lat, lon, popularity in rows:
-            display = address.strip()
-            if not display:
-                continue
-            feats = _address_features(display)
-            norm = feats["normalized_full"]
-            if not norm:
-                continue
-            existing = by_norm.get(norm)
-            if existing is None:
-                canonical_id = f"addr_{hashlib.sha1(norm.encode('utf-8')).hexdigest()[:16]}"
-                by_norm[norm] = {
-                    "canonical_id": canonical_id,
-                    "display_address": display,
-                    "lat": lat,
-                    "lon": lon,
-                    "popularity": int(popularity or 0),
-                    **feats,
-                }
-            else:
-                existing["popularity"] += int(popularity or 0)
-                if existing.get("lat") is None and lat is not None:
-                    existing["lat"] = lat
-                if existing.get("lon") is None and lon is not None:
-                    existing["lon"] = lon
-        return list(by_norm.values())
-    finally:
-        conn.close()
+def _public_address_rows() -> list[dict]:
+    # Public autocomplete must not be built from customer/user-derived rows
+    # such as saved reports, watchlists, score history, or score request logs.
+    return [
+        {
+            **entry,
+            "popularity": 1,
+            **_address_features(entry["display_address"]),
+        }
+        for entry in _FALLBACK_ADDRESSES
+    ]
 
 
 def _get_address_rows() -> list[dict]:
@@ -438,31 +382,7 @@ def _get_address_rows() -> list[dict]:
     if (now - cached_at) < _ADDRESS_SEARCH_CACHE_TTL_SEC and isinstance(cached_rows, list):
         return cached_rows
 
-    if not _is_db_configured():
-        rows = [
-            {
-                **entry,
-                "popularity": 1,
-                **_address_features(entry["display_address"]),
-            }
-            for entry in _FALLBACK_ADDRESSES
-        ]
-        _address_search_cache["loaded_at"] = now
-        _address_search_cache["rows"] = rows
-        return rows
-
-    try:
-        rows = _load_address_rows_from_db()
-    except Exception as exc:
-        log.warning("address search dataset load failed: %s", exc)
-        rows = [
-            {
-                **entry,
-                "popularity": 1,
-                **_address_features(entry["display_address"]),
-            }
-            for entry in _FALLBACK_ADDRESSES
-        ]
+    rows = _public_address_rows()
 
     _address_search_cache["loaded_at"] = now
     _address_search_cache["rows"] = rows
@@ -724,6 +644,8 @@ def get_dashboard_for_address(
     address: str | None = Query(None, description="Display address fallback label"),
     limit: int = Query(30, ge=1, le=100),
 ) -> dict:
+    """Return public dashboard hydration with a capped, safe score history."""
+    safe_limit = min(limit, _PUBLIC_ADDRESS_DASHBOARD_HISTORY_LIMIT)
     row = _address_row_by_canonical_id(canonical_id or "") if canonical_id else None
     resolution_source = "canonical_id"
     if not row and lat is not None and lon is not None:
@@ -815,7 +737,7 @@ def get_dashboard_for_address(
                     ORDER BY scored_at DESC
                     LIMIT %s
                     """,
-                    (row["normalized_full"], limit),
+                    (row["normalized_full"], safe_limit),
                 )
                 history_rows = cur.fetchall()
 

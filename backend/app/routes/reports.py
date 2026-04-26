@@ -31,6 +31,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 _DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
+_PUBLIC_HISTORY_MAX_LIMIT = 10
 
 _PUBLIC_REPORT_REDACT_KEYS = frozenset(
     {
@@ -242,10 +243,13 @@ def get_report(report_id: str) -> dict:
 @router.get("/history")
 def get_history(
     address: str = Query(..., description="US address to look up"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to request; public responses are capped"),
 ) -> dict:
     """
     Return the most recent score history entries for a given US address.
+
+    Public history exposes only safe score fields and is capped to avoid
+    unnecessarily exposing exact-address activity.
 
     Response shape:
       {
@@ -267,6 +271,8 @@ def get_history(
     if not _is_db_configured():
         return {"address": address, "history": []}
 
+    safe_limit = min(limit, _PUBLIC_HISTORY_MAX_LIMIT)
+
     try:
         from backend.scoring.query import get_db_connection
         conn = get_db_connection()
@@ -280,7 +286,7 @@ def get_history(
                     ORDER BY scored_at DESC
                     LIMIT %s
                     """,
-                    (address, limit),
+                    (address, safe_limit),
                 )
                 rows = cur.fetchall()
         finally:
