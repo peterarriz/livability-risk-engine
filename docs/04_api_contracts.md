@@ -139,8 +139,15 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 - **Query param**: `address` (required, US address string)
 - Returns recent score history rows with both `livability_score` and `disruption_score`.
 
+### `/score-trend`
+- **Method**: `GET`
+- **Auth**: Requires `X-API-Key`.
+- **Query params**: `lat`, `lon`, `radius_m`, and `days`.
+- Returns aggregated historical score context near a coordinate.
+
 ### `/export/csv`
 - **Method**: `GET`
+- **Auth**: Requires `X-API-Key`.
 - **Query param**: `address` (required, US address string)
 - Returns nearby signal context as CSV plus a `SUMMARY` row.
 - The summary row includes `livability_score` when the export path can compute it truthfully from current runtime context. If the composite context is unavailable, the field is left empty rather than inferred from `disruption_score`.

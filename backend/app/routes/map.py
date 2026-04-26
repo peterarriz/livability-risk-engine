@@ -15,7 +15,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.app.deps import _is_db_configured, verify_api_key
+from backend.app.deps import _is_db_configured, require_api_key
 
 log = logging.getLogger(__name__)
 
@@ -93,8 +93,8 @@ def _commute_badge(score: int) -> str:
 # POST /map/narrate
 # ---------------------------------------------------------------------------
 
-@router.post("/map/narrate")
-def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) -> dict:
+@router.post("/map/narrate", dependencies=[Depends(require_api_key)])
+def narrate_map(body: MapNarrationRequest) -> dict:
     """
     Internal map narrator endpoint.
     Returns {"narration": <2-3 sentence summary>} or {"narration": null} on any
@@ -162,7 +162,7 @@ def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) ->
 _AMENITY_CACHE_TTL_DAYS = 7
 
 
-@router.get("/nearby-amenities")
+@router.get("/nearby-amenities", dependencies=[Depends(require_api_key)])
 def get_nearby_amenities(
     lat: float = Query(..., description="Latitude"),
     lon: float = Query(..., description="Longitude"),
