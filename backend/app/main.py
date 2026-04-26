@@ -280,7 +280,7 @@ def health_db() -> dict:
     return response
 
 
-@app.post("/score/batch", dependencies=[Depends(require_api_key)])
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/score.py.
 class BatchScoreRequest(BaseModel):
     addresses: list[str]
 
@@ -374,7 +374,7 @@ def _result_to_csv_row(r: dict) -> dict:
     }
 
 
-@app.post("/score/batch/csv", dependencies=[Depends(require_api_key)])
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/score.py.
 async def post_score_batch_csv(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="CSV file with one address per row"),
@@ -495,7 +495,7 @@ def _calmer_direction(lat: float, lon: float, signals: list[dict]) -> str:
     return min(counts, key=lambda k: counts[k])
 
 
-@app.post("/map/narrate")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/map.py.
 def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) -> dict:
     """
     Internal map narrator endpoint.
@@ -567,7 +567,7 @@ def narrate_map(body: MapNarrationRequest, _: None = Depends(verify_api_key)) ->
 # /score endpoint
 # ---------------------------------------------------------------------------
 
-@app.get("/score", dependencies=[Depends(verify_api_key)])
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/score.py.
 def get_score(
     address: str | None = Query(None, description="US address to score"),
     canonical_id: str | None = Query(None, description="Canonical address identifier from /suggest"),
@@ -650,7 +650,7 @@ def get_score(
 # Used by the frontend sparkline component to visualise score trend.
 # ---------------------------------------------------------------------------
 
-@app.get("/history")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def get_history(
     address: str = Query(..., description="Chicago address to look up"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
@@ -720,7 +720,7 @@ def get_history(
 # before.
 # ---------------------------------------------------------------------------
 
-@app.get("/score-trend")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def get_score_trend(
     lat: float = Query(..., description="Latitude of the point of interest"),
     lon: float = Query(..., description="Longitude of the point of interest"),
@@ -822,7 +822,7 @@ def get_score_trend(
 _AMENITY_CACHE_TTL_DAYS = 7
 
 
-@app.get("/nearby-amenities")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/map.py.
 def get_nearby_amenities(
     lat: float = Query(..., description="Latitude"),
     lon: float = Query(..., description="Longitude"),
@@ -923,7 +923,7 @@ def get_nearby_amenities(
 # Never raises 5xx. DB state is reflected in the response body of /health/db.
 # ---------------------------------------------------------------------------
 
-@app.get("/health")
+# Later duplicate health route decorator removed; the earlier /health route remains active.
 def health() -> dict:
     """
     Lightweight liveness probe for Railway's healthchecker.
@@ -944,7 +944,7 @@ def health() -> dict:
     }
 
 
-@app.get("/health/db")
+# Later duplicate health DB route decorator removed; the earlier /health/db route remains active.
 def health_db() -> dict:
     """
     DB connectivity probe for operators and CI.  Separate from /health so the
@@ -1037,7 +1037,7 @@ def _serialize_project_sample(nearby_list) -> list:
     return sample
 
 
-@app.get("/debug/score")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/score.py.
 def debug_score(
     address: str = Query(..., description="Chicago address to inspect"),
 ) -> dict:
@@ -1603,7 +1603,7 @@ def _get_address_rows() -> list[dict]:
     return rows
 
 
-@app.get("/addresses/search")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/search.py.
 def search_addresses(
     q: str = Query("", description="Partial address query"),
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
@@ -1672,7 +1672,7 @@ def _address_row_by_coords(lat: float, lon: float, max_distance_m: float = 1500.
     return best_row
 
 
-@app.get("/dashboard/address")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/dashboard.py.
 def get_dashboard_for_address(
     canonical_id: str | None = Query(None, description="Canonical address identifier from /suggest"),
     lat: float | None = Query(None, description="Latitude fallback from selected suggestion"),
@@ -2087,7 +2087,7 @@ def _get_projects_in_bbox(min_lat: float, min_lon: float, max_lat: float, max_lo
         return []
 
 
-@app.get("/neighborhood/{slug}")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/neighborhood.py.
 def get_neighborhood(slug: str) -> dict:
     """
     Return neighborhood metadata and all active disruption projects within
@@ -2127,7 +2127,7 @@ def get_neighborhood(slug: str) -> dict:
     }
 
 
-@app.get("/neighborhoods")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/neighborhood.py.
 def list_neighborhoods() -> dict:
     """
     Return the list of available neighborhood slugs and their names/centers.
@@ -2293,7 +2293,7 @@ def _format_month_year(iso: str) -> str:
         return "recent"
 
 
-@app.get("/neighborhood/{slug}/best-streets")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/neighborhood.py.
 def get_neighborhood_best_streets(slug: str) -> dict:
     """
     Return the 5 quietest and 5 most disrupted blocks in a neighborhood.
@@ -2379,7 +2379,7 @@ def _commute_badge(score: int) -> str:
     return "High"
 
 
-@app.post("/commute")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/map.py.
 def check_commute(body: CommuteRequest) -> dict:
     """
     Score the disruption along a commute corridor between two addresses.
@@ -2518,7 +2518,7 @@ def check_commute(body: CommuteRequest) -> dict:
         raise HTTPException(status_code=503, detail="Commute scoring temporarily unavailable.") from exc
 
 
-@app.get("/suggest")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/search.py.
 def suggest_addresses(
     q: str = Query("", description="Partial US address query"),
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
@@ -2611,7 +2611,7 @@ class SaveReportRequest(BaseModel):
     longitude: float | None = None
 
 
-@app.post("/save")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def save_report(body: SaveReportRequest, authorization: str = Header(default=None)) -> dict:
     """
     Store a score result in the reports table and return a shareable UUID.
@@ -2671,7 +2671,7 @@ def save_report(body: SaveReportRequest, authorization: str = Header(default=Non
 # Fetches a saved report by UUID.
 # ---------------------------------------------------------------------------
 
-@app.get("/report/{report_id}")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def get_report(report_id: str) -> dict:
     """
     Return a saved score report by UUID.
@@ -2728,7 +2728,7 @@ def get_report(report_id: str) -> dict:
 # Authenticated summary for saved reports + watchlist health.
 # ---------------------------------------------------------------------------
 
-@app.get("/dashboard")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/dashboard.py.
 def get_dashboard(authorization: str = Header(default=None)) -> dict:
     from backend.app.auth import get_current_user
     from backend.scoring.query import get_db_connection
@@ -2855,8 +2855,7 @@ class WatchRequest(BaseModel):
     threshold: int  # 0–100 disruption score
 
 
-@app.post("/watch")
-@app.post("/watchlist")
+# Legacy duplicate route decorators removed; canonical routes live in backend/app/routes/watchlist.py.
 def subscribe_watch(body: WatchRequest, authorization: str = Header(default=None)) -> dict:
     """
     Subscribe an email address to score alerts for a Chicago address.
@@ -2939,7 +2938,7 @@ def subscribe_watch(body: WatchRequest, authorization: str = Header(default=None
         raise HTTPException(status_code=503, detail="Could not create watchlist entry.") from exc
 
 
-@app.get("/watchlist")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/watchlist.py.
 def get_watchlist(authorization: str = Header(default=None)) -> dict:
     """
     Return active watchlist entries for the authenticated user.
@@ -2986,7 +2985,7 @@ def get_watchlist(authorization: str = Header(default=None)) -> dict:
         raise HTTPException(status_code=503, detail="Could not fetch watchlist.") from exc
 
 
-@app.get("/watch/unsubscribe")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/watchlist.py.
 def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token from watchlist entry")) -> dict:
     """
     Remove a watchlist subscription by its unsubscribe token.
@@ -3030,7 +3029,7 @@ def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token fro
         raise HTTPException(status_code=503, detail="Could not process unsubscribe.") from exc
 
 
-@app.post("/admin/watch/check")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/watchlist.py.
 def check_watchlist() -> dict:
     """
     Operator endpoint — score every watched address and fire alerts for entries
@@ -3119,7 +3118,7 @@ def check_watchlist() -> dict:
 # Returns a CSV download for a scored address.
 # ---------------------------------------------------------------------------
 
-@app.get("/export/csv")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def export_csv(
     address: str = Query(..., description="Chicago address to export"),
 ) -> Response:
@@ -3200,7 +3199,7 @@ _DEMO_CSV_PROJECTS = [
 ]
 
 
-@app.get("/export/csv", dependencies=[Depends(verify_api_key)])
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/reports.py.
 def export_csv(
     address: str = Query(..., description="Chicago address to score and export"),
 ) -> StreamingResponse:
@@ -3478,7 +3477,7 @@ class _CreateKeyBody(BaseModel):
     label: str = ""
 
 
-@app.post("/keys", status_code=201)
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/keys.py.
 def create_user_key(
     body: _CreateKeyBody,
     authorization: str | None = Header(default=None),
@@ -3523,7 +3522,7 @@ def create_user_key(
     return {"key": full_key, "prefix": prefix, "id": row[0], "label": label}
 
 
-@app.get("/keys")
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/keys.py.
 def list_user_keys(
     authorization: str | None = Header(default=None),
 ) -> list:
@@ -3578,7 +3577,7 @@ def list_user_keys(
         raise HTTPException(status_code=500, detail=f"list_user_keys failed: {exc}") from exc
 
 
-@app.delete("/keys/{key_id}", status_code=200)
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/keys.py.
 def revoke_user_key(
     key_id: int,
     authorization: str | None = Header(default=None),
@@ -3825,7 +3824,7 @@ class _ClerkSyncBody(BaseModel):
     email: str | None = None
 
 
-@app.post("/auth/sync", status_code=200)
+# Legacy duplicate route decorator removed; canonical route lives in backend/app/routes/auth.py.
 def auth_clerk_sync(
     body: _ClerkSyncBody,
     authorization: str = Header(default=None),
