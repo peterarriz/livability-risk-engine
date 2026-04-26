@@ -102,15 +102,30 @@ Expected bands and dominant drivers are based on `docs/03_scoring_model.md`.
 
 ## How to run the smoke test
 
-1. Start the backend and confirm `/health` reports `db_configured: true` and `db_connection: true`.
-2. For each address, call `/score` or submit it through the frontend.
-3. Record the returned `disruption_score`, `mode`, `confidence`, and dominant driver.
-4. Mark the row `pass` only when all of the following are true:
+For a repeatable command-line check, run:
+
+```bash
+python3 scripts/demo_smoke_check.py --backend-url http://127.0.0.1:8000
+```
+
+Pass repeated `--address` values to run the same contract checks against
+caller-supplied nationwide addresses.
+
+For a live-only demo gate, add `--require-live`. If the deployment requires
+API keys, set `LRE_API_KEY` or pass `--api-key`. If you have operator access,
+set `ADMIN_SECRET` or pass `--admin-secret` to include the protected
+`/health/db` readiness probe. The script never prints supplied secrets.
+
+1. Start the backend and confirm `/health` reports `status: ok`.
+2. If `ADMIN_SECRET` is available, confirm `/health/db` reports recent ingest metadata.
+3. For each address, call `/score` or submit it through the frontend.
+4. Record the returned `disruption_score`, `mode`, `confidence`, and dominant driver.
+5. Mark the row `pass` only when all of the following are true:
    - `actual_mode` is `live`
    - `actual_score` is in or near the expected band
    - the dominant driver broadly matches the expectation
    - the explanation sounds plausible for the score band
-5. If any row is a fail, capture the exact API response or screenshot and hand it off before changing scoring logic.
+6. If any row is a fail, capture the exact API response or screenshot and hand it off before changing scoring logic.
 
 ## Review table template
 
