@@ -176,7 +176,7 @@ export default function AccountPage() {
         </span>
         {tier === "free" && (
           <p style={{ margin: "0.6rem 0 0", fontSize: "0.75rem", color: "#64748b" }}>
-            Upgrade to Pro for higher rate limits and batch access.
+            Pilot batch and higher-volume access are available by request.
           </p>
         )}
       </section>

@@ -4,7 +4,7 @@
 // Accepts a CSV with an "address" column, processes each address against
 // /score (with a user-supplied API key), shows live progress, and renders
 // results in a sortable table with CSV export.
-// Feature is gated behind API key auth — only users with a key can score.
+// Feature is gated behind API key auth — pilot users with a key can score.
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { fetchScoreWithKey, ScoreResponse } from "@/lib/api";
@@ -307,12 +307,12 @@ export default function BulkPage() {
         {/* Page header */}
         <div className="bulk-page-header">
           <div className="bulk-title-row">
-            <span className="bulk-pro-badge">PRO</span>
+            <span className="bulk-pro-badge">API KEY</span>
             <h1 className="bulk-page-title">Bulk Address Scorer</h1>
           </div>
           <p className="bulk-page-desc">
             Upload a CSV with an <code className="bulk-code">address</code> column to score
-            up to 100 Chicago addresses at once. An API key is required.
+            up to 100 US addresses at once. An API key is required.
           </p>
         </div>
 

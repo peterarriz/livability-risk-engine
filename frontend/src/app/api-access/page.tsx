@@ -34,24 +34,24 @@ type CodeTab = "curl" | "python" | "javascript";
 const CODE_EXAMPLES: Record<CodeTab, string> = {
   curl: `# Score an address
 curl "https://your-api.railway.app/score?address=100+W+Randolph+St+Chicago+IL" \\
-  -H "X-Api-Key: YOUR_API_KEY"
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Address autocomplete
 curl "https://your-api.railway.app/suggest?q=michigan+ave" \\
-  -H "X-Api-Key: YOUR_API_KEY"
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Score history
 curl "https://your-api.railway.app/history?address=100+W+Randolph+St+Chicago+IL&limit=10" \\
-  -H "X-Api-Key: YOUR_API_KEY"
+  -H "X-API-Key: YOUR_API_KEY"
 
 # Neighborhood projects
 curl "https://your-api.railway.app/neighborhood/west-loop" \\
-  -H "X-Api-Key: YOUR_API_KEY"`,
+  -H "X-API-Key: YOUR_API_KEY"`,
 
   python: `import requests
 
 BASE = "https://your-api.railway.app"
-HEADERS = {"X-Api-Key": "YOUR_API_KEY"}
+HEADERS = {"X-API-Key": "YOUR_API_KEY"}
 
 # Score an address
 resp = requests.get(
@@ -77,7 +77,7 @@ print(f"Historical scores: {scores}")`,
 
   javascript: `const BASE = "https://your-api.railway.app";
 const KEY = "YOUR_API_KEY";
-const headers = { "X-Api-Key": KEY };
+const headers = { "X-API-Key": KEY };
 
 // Score an address
 const score = await fetch(
@@ -164,17 +164,17 @@ export default function ApiAccessPage() {
             <div className="api-auth-head">
               <div>
                 <p className="supporting-kicker">Authentication</p>
-                <h2>{docs?.auth?.required ? "API key required" : "No auth required (public)"}</h2>
+                <h2>{docs?.auth?.required ? "API key required" : "Demo access available"}</h2>
               </div>
               <span className={`api-auth-badge ${docs?.auth?.required ? "api-auth-badge--required" : "api-auth-badge--open"}`}>
-                {docs?.auth?.required ? "Key required" : "Open access"}
+                {docs?.auth?.required ? "Key required" : "Pilot access"}
               </span>
             </div>
             <p className="api-auth-copy">
-              {docs?.auth?.method ?? "Pass your API key in the X-Api-Key header or as a ?api_key= query parameter."}
+              {docs?.auth?.method ?? "Pass your pilot API key in the X-API-Key header."}
             </p>
             <div className="api-auth-example">
-              <code>X-Api-Key: lre_xxxxxxxxxxxxxxxxxxxxxxxx</code>
+              <code>X-API-Key: lre_xxxxxxxxxxxxxxxxxxxxxxxx</code>
             </div>
             <p className="modal-fine-print">{docs?.auth?.request_access ?? "Contact the operator to request an API key."}</p>
           </Card>
@@ -258,7 +258,7 @@ export default function ApiAccessPage() {
             <ul className="supporting-list">
               <li>
                 <span>Rate limits</span>
-                <strong>{docs?.rate_limits ?? "Unauthenticated requests are rate-limited at the infrastructure level."}</strong>
+                <strong>{docs?.rate_limits ?? "Pilot usage is monitored manually with each design partner."}</strong>
               </li>
               <li>
                 <span>Coverage</span>

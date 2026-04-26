@@ -66,25 +66,25 @@ The score reflects the *official* data we have, not everything happening on the 
 
 **Q: How do I integrate the API?**
 
-One GET request: `GET /score?address=<Chicago address string>`. The response is JSON with five fields: `disruption_score`, `confidence`, `severity`, `top_risks`, and `explanation`. No authentication is required for demo access. Paid tiers require an API key included in the request header. Full integration typically takes less than one engineer-day.
+One GET request: `GET /score?address=<US address string>`. The response includes the headline `livability_score`, backward-compatible `disruption_score`, `confidence`, `severity`, `top_risks`, `explanation`, and evidence context. Public demo access may be available without a key depending on deployment settings. Pilot API integrations and batch endpoints use an API key included in the request header. Full integration typically takes less than one engineer-day.
 
 ---
 
 **Q: Is the API available for bulk address scoring?**
 
-The Professional and Enterprise tiers support batch CSV submission for up to 100 addresses per request. Spot-tier users can call the API in a loop for bulk lookups. A dedicated batch endpoint is on the post-MVP roadmap.
+Batch scoring is available for API-key pilot users through the documented batch endpoints. Access is currently issued by request and usage is monitored manually during pilots.
 
 ---
 
 **Q: Do you cover cities outside Chicago?**
 
-No. The MVP is Chicago-only. The architecture is source-agnostic — adding a new city is a data pipeline decision, not a product redesign — but the Chicago dataset and scoring model are the focus for this phase. Multi-city expansion is a post-MVP priority, not a current commitment.
+Yes, the product direction is nationwide. Evidence depth varies significantly by city and source; Chicago currently has the deepest permit and closure coverage. Use `evidence_quality`, `confidence`, and `confidence_reason` before relying on any specific address result.
 
 ---
 
 **Q: Is the API reliable enough for production use?**
 
-The MVP is production-grade in terms of response time and output structure, but it does not yet include a formal uptime SLA. Enterprise contracts include an SLA. Design-partner pilots and Spot/Professional tiers should treat the API as a high-quality beta: stable, but without a contractual uptime guarantee.
+The API is stable enough for controlled design-partner pilots, but it does not yet include a formal uptime SLA. SLA-backed contracts are a commercial roadmap item, not part of the current public pilot access.
 
 ---
 
@@ -92,13 +92,13 @@ The MVP is production-grade in terms of response time and output structure, but 
 
 **Q: How does pricing work?**
 
-Three tiers: Spot ($0.10/call, usage-based), Professional ($299/month, 1,000 calls included), and Enterprise (from $1,500/month, custom volume and SLA). Full details are in `docs/pricing_model.md`.
+Current access is founder-led: design-partner pilots receive API keys by request, with usage reviewed manually. Proposed self-serve and contract tiers are documented in `docs/pricing_model.md`, but paid subscriptions, automated quotas, and billing enforcement are not live yet.
 
 ---
 
 **Q: What does the design-partner pilot include?**
 
-Free API access for 30 days (up to 500 lookups), a 30-minute onboarding call, and a direct support channel. In exchange, we ask for a midpoint feedback session and a written summary at the end. Full terms in `docs/pilot_terms.md`.
+Pilot API access for 30 days, manually monitored lookup usage, a 30-minute onboarding call, and a direct support channel. In exchange, we ask for a midpoint feedback session and a written summary at the end. Full terms are in `docs/pilot_terms.md`.
 
 ---
 

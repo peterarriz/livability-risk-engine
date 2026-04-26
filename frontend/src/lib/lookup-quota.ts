@@ -1,10 +1,10 @@
 /**
- * lookup-quota.ts — Free-tier lookup gating.
+ * lookup-quota.ts — Demo lookup gating.
  *
  * Tracks address lookups per calendar month in localStorage.
- * - Signed-in free users: 10 lookups/month
- * - Signed-out users: 3 lookups/month (then sign-up prompt)
- * - Pro users: unlimited (never gated)
+ * - Signed-in demo users: configured monthly lookup window
+ * - Signed-out users: smaller monthly lookup window, then sign-up prompt
+ * - Pilot-enabled users: local demo gate is disabled
  *
  * Demo/example addresses are never counted.
  */

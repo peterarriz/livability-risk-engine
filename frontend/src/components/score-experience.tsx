@@ -2178,7 +2178,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 // WatchlistForm — "Monitor this address"
 // Shown inline for lower livability scores. Captures email + disruption threshold and
 // POSTs to /watch. Works on the free tier (always shows confirmation);
-// actual alert email delivery is gated behind Pro.
+// alert delivery for pilots is coordinated manually until plan enforcement exists.
 // ---------------------------------------------------------------------------
 
 // "Drop below" thresholds — alert fires when the disruption subscore clears below the value.
@@ -2245,10 +2245,10 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
         </p>
 
         <div className="watch-pro-note">
-          <span className="watch-pro-badge">Pro</span>
+          <span className="watch-pro-badge">Pilot</span>
           <span>
-            Email delivery is available on the Pro plan.{" "}
-            Your address is saved — <a href="/pricing" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>upgrade to activate</a>.
+            Email delivery is available for pilot partners by request.{" "}
+            Your address is saved — <a href="/pricing" style={{ color: "#a78bfa", textDecoration: "underline", textUnderlineOffset: "2px" }}>request pilot access</a>.
           </span>
         </div>
 
@@ -2275,7 +2275,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
           </p>
         </div>
         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
-          Free to set up &middot; Pro for email delivery
+          Free to set up &middot; pilot email delivery by request
         </span>
       </div>
 
@@ -2828,7 +2828,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
                   <p className="msv-monitor-error">Could not set alert. Try again.</p>
                 )}
                 <p className="msv-monitor-hint">
-                  Fires when disruption score drops below 40. Pro plan required for email delivery.
+                  Fires when disruption score drops below 40. Email delivery is available by request for pilots.
                 </p>
               </form>
             )}

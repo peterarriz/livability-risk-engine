@@ -1,6 +1,8 @@
-# Pricing Model and Go-to-Market Packaging
+# Proposed Pricing Model and Go-to-Market Packaging
 
-This document defines the MVP pricing concept and go-to-market motion for the Livability Risk Engine. All tiers are anchored to the `/score` API output already defined in `docs/04_api_contracts.md`. No tier requires unbuilt features.
+This document defines the proposed pricing concept and go-to-market motion for the Livability Risk Engine. It is a roadmap and sales-planning artifact, not a statement of currently automated billing behavior.
+
+Current stage: design-partner pilots. API keys, batch endpoints, and usage counters exist, but paid subscriptions, monthly quota enforcement, overages, self-serve billing, and plan-specific entitlements are not yet enforced by the backend. Pilot usage should be monitored manually with each partner.
 
 ---
 
@@ -14,7 +16,7 @@ Secondary axis: response freshness. Customers who want guaranteed same-day data 
 
 ---
 
-## Pricing tiers
+## Proposed pricing tiers
 
 ### Tier 1 — Spot (self-serve, usage-based)
 
@@ -85,7 +87,7 @@ Secondary axis: response freshness. Customers who want guaranteed same-day data 
 
 ---
 
-### Phase 2 — Self-serve onramp (weeks 5–8 after MVP launch)
+### Phase 2 — Self-serve onramp (post-pilot)
 
 **Goal**: Enable Spot-tier self-serve so inbound interest converts without sales involvement.
 
@@ -139,4 +141,4 @@ Secondary axis: response freshness. Customers who want guaranteed same-day data 
 | Month 6 MRR | $4,000 | $15,000 | $48,000 |
 | Month 12 ARR run rate | $48,000 | $180,000 | $576,000 |
 
-These projections assume Chicago-only MVP with no multi-city expansion. Growth is driven entirely by the three buyer personas and three pricing tiers defined above.
+These projections assume the current nationwide product direction with evidence depth varying by city and source. Growth is driven by the three buyer personas and the proposed pricing tiers defined above.

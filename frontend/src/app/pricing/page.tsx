@@ -9,7 +9,7 @@ export default function PricingPage() {
             <span className="brand-mark" aria-hidden>LR</span>
             <div>
               <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Pricing</p>
+              <p className="brand-subtitle">Pilot access</p>
             </div>
           </div>
           <nav className="topnav" aria-label="Primary">
@@ -18,16 +18,16 @@ export default function PricingPage() {
           </nav>
         </header>
 
-        <section className="landing-proof-grid" aria-label="Pricing tiers">
+        <section className="landing-proof-grid" aria-label="Pilot access options">
           <article className="surface-card landing-proof-card">
-            <p className="eyebrow">Free</p>
-            <h2>$0 / month</h2>
-            <p className="section-copy">10 address lookups and full disruption brief output.</p>
+            <p className="eyebrow">Design partner pilot</p>
+            <h2>API access by request</h2>
+            <p className="section-copy">Founder-led pilots include API keys, onboarding, and manually monitored usage.</p>
           </article>
           <article className="surface-card landing-proof-card">
-            <p className="eyebrow">Pro</p>
-            <h2>$49 / month</h2>
-            <p className="section-copy">Unlimited lookups, exports, and deeper diligence tooling.</p>
+            <p className="eyebrow">Commercial roadmap</p>
+            <h2>Planned self-serve tiers</h2>
+            <p className="section-copy">Usage-based and team plans are planned after pilot validation and billing enforcement.</p>
           </article>
         </section>
       </div>

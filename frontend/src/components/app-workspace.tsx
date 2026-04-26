@@ -916,18 +916,18 @@ export default function HomePage() {
                   <p className="gate-overlay-icon">🔒</p>
                   <h3>
                     {isSignedIn
-                      ? `You\u2019ve used your ${lookupUsage.limit} free lookups this month.`
-                      : `Sign up to get ${10} free lookups per month.`}
+                      ? `You\u2019ve used your ${lookupUsage.limit} demo lookups this month.`
+                      : "Create an account to continue demo lookups."}
                   </h3>
                   <p>
                     {isSignedIn
-                      ? "Upgrade to Pro for unlimited address lookups, batch analysis, and PDF exports."
-                      : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} free lookups. Create a free account to get more, or upgrade to Pro for unlimited access.`}
+                      ? "Contact us for pilot access to higher-volume address analysis and export workflows."
+                      : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} demo lookups. Create an account to continue, or request pilot API access for higher-volume use.`}
                   </p>
                   <div className="gate-overlay-actions">
                     {isSignedIn ? (
                       <a href="/pricing" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
-                        See Pro plan
+                        Request pilot access
                       </a>
                     ) : (
                       <SignInButton mode="modal">
@@ -1041,9 +1041,9 @@ export default function HomePage() {
             <a
               href="/pricing"
               className="icon-btn"
-              title="PDF export is available on the Pro plan"
+              title="Exports are planned for pilot workflows"
             >
-              ↓ Export PDF
+              ↓ Request export
             </a>
           ) : undefined}
         >
@@ -1095,8 +1095,8 @@ export default function HomePage() {
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
                   <span>
-                    <strong>High-risk address detected.</strong> Pro users get 30-day forecasts and permit detail exports.{" "}
-                    <a href="/pricing" className="pro-badge-link">See Pro plan →</a>
+                    <strong>High-risk address detected.</strong> Pilot partners can request forecast and permit-detail workflows.{" "}
+                    <a href="/pricing" className="pro-badge-link">Request access →</a>
                   </span>
                 </div>
               )}
@@ -1409,7 +1409,7 @@ export default function HomePage() {
             >
               Create free account
             </button>
-            <p className="modal-fine-print">No credit card required. Free plan includes unlimited lookups.</p>
+            <p className="modal-fine-print">No credit card required. Pilot API access is available by request.</p>
           </div>
         </div>
       )}
