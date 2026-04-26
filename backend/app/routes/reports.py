@@ -32,6 +32,20 @@ router = APIRouter()
 
 _DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
 
+_PUBLIC_REPORT_REDACT_KEYS = frozenset(
+    {
+        "account_id",
+        "api_key_id",
+        "authorization",
+        "clerk_user_id",
+        "email",
+        "key_id",
+        "token",
+        "unsubscribe_token",
+        "user_id",
+    }
+)
+
 _DEMO_CSV_PROJECTS = [
     {
         "distance_m": 120,
@@ -82,6 +96,24 @@ class SaveReportRequest(BaseModel):
     fallback_reason: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+
+
+def _redact_public_report_payload(payload: object) -> object:
+    """Return a redacted copy because public report UUIDs are shareable."""
+    if isinstance(payload, dict):
+        return {
+            key: _redact_public_report_payload(value)
+            for key, value in payload.items()
+            if str(key).lower() not in _PUBLIC_REPORT_REDACT_KEYS
+        }
+
+    if isinstance(payload, list):
+        return [_redact_public_report_payload(item) for item in payload]
+
+    if isinstance(payload, tuple):
+        return [_redact_public_report_payload(item) for item in payload]
+
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +192,7 @@ def get_report(report_id: str) -> dict:
     """
     if not _is_db_configured():
         if report_id == _DEMO_REPORT_ID:
-            return {
+            return _redact_public_report_payload({
                 **DEMO_RESPONSE,
                 "address": "1600 W Chicago Ave, Chicago, IL",
                 "mode": "demo",
@@ -169,7 +201,7 @@ def get_report(report_id: str) -> dict:
                 "longitude": -87.6606,
                 "report_id": report_id,
                 "created_at": "2026-01-01T00:00:00Z",
-            }
+            })
         raise HTTPException(status_code=404, detail="Report not found.")
 
     try:
@@ -189,8 +221,9 @@ def get_report(report_id: str) -> dict:
             raise HTTPException(status_code=404, detail="Report not found.")
 
         score_json, created_at = row
+        public_score_json = _redact_public_report_payload(score_json)
         return {
-            **score_json,
+            **public_score_json,
             "report_id": report_id,
             "created_at": created_at.isoformat(),
         }
