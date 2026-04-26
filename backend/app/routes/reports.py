@@ -65,7 +65,11 @@ _DEMO_CSV_PROJECTS = [
 
 
 class SaveReportRequest(BaseModel):
-    """Score JSON payload to persist as a saved report."""
+    """Score JSON payload to persist as a saved report.
+
+    livability_score is the public headline score. disruption_score is retained
+    as the backward-compatible near-term disruption risk subscore.
+    """
     address: str
     disruption_score: int
     livability_score: int | None = None
@@ -204,17 +208,23 @@ def get_report(report_id: str) -> dict:
 
 @router.get("/history")
 def get_history(
-    address: str = Query(..., description="Chicago address to look up"),
+    address: str = Query(..., description="US address to look up"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
 ) -> dict:
     """
-    Return the most recent score history entries for a given address.
+    Return the most recent score history entries for a given US address.
 
     Response shape:
       {
         "address": "<address>",
         "history": [
-          { "disruption_score": 62, "confidence": "MEDIUM", "mode": "live", "scored_at": "<iso>" },
+          {
+            "livability_score": 48,
+            "disruption_score": 62,
+            "confidence": "MEDIUM",
+            "mode": "live",
+            "scored_at": "<iso>"
+          },
           ...
         ]
       }
@@ -369,36 +379,78 @@ def get_score_trend(
 
 @router.get("/export/csv", dependencies=[Depends(verify_api_key)])
 def export_csv(
-    address: str = Query(..., description="Chicago address to score and export"),
+    address: str = Query(..., description="US address to score and export"),
 ) -> StreamingResponse:
     """
     data-029: Export score results for an address as a CSV file.
 
     Returns one row per nearby project plus a summary row.
     Columns: distance_m, title, source, source_id, impact_type, status,
-             start_date, end_date, address, weighted_score.
-    A summary row (distance_m=SUMMARY) captures disruption_score and confidence.
+             start_date, end_date, address, weighted_score, livability_score,
+             disruption_score.
+    A summary row (distance_m=SUMMARY) captures livability_score,
+    disruption_score, and confidence.
     Works in demo mode when DB is not configured.
     """
+    livability_score: int | None = None
+
     # -- Live path -----------------------------------------------------------
     if _is_db_configured():
         try:
             from backend.ingest.geocode import geocode_address
-            from backend.scoring.query import compute_score, get_db_connection, get_nearby_projects
+            from backend.app.services.livability import _compute_livability_score, _extract_zip
+            from backend.scoring.query import (
+                compute_score,
+                get_db_connection,
+                get_nearby_projects,
+                get_neighborhood_context,
+            )
 
             conn = get_db_connection()
             try:
-                coords = geocode_address(address)
+                coords = geocode_address(
+                    address,
+                    allow_national=True,
+                    max_retries=1,
+                    request_timeout=5,
+                )
                 if not coords:
                     raise ValueError(f"Could not geocode: {address!r}")
                 lat, lon = coords
                 nearby = get_nearby_projects(lat, lon, conn)
+                result = compute_score(nearby, address)
+                disruption_score = result.disruption_score
+                confidence = result.confidence
+
+                zip_code = _extract_zip(address)
+                neighborhood_context = None
+                try:
+                    neighborhood_context = get_neighborhood_context(lat, lon, conn, zip_code=zip_code)
+                except Exception as nq_exc:
+                    log.debug("export_csv neighborhood_context skipped: %s", nq_exc)
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+
+                try:
+                    livability_score, _ = _compute_livability_score(
+                        disruption_score=disruption_score,
+                        neighborhood_context=neighborhood_context,
+                        lat=lat,
+                        lon=lon,
+                        conn=conn,
+                        zip_code=zip_code,
+                    )
+                except Exception as liv_exc:
+                    log.warning("export_csv livability_score unavailable: %s", liv_exc)
+                    livability_score = None
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
             finally:
                 conn.close()
-
-            result = compute_score(nearby, address)
-            disruption_score = result.disruption_score
-            confidence = result.confidence
 
             # Build project rows from top_risk_details when available,
             # otherwise fall back to a minimal row per NearbyProject.
@@ -423,12 +475,14 @@ def export_csv(
 
         except Exception as exc:
             log.warning("export_csv live path failed, falling back to demo: %s", exc)
+            livability_score = None
             disruption_score = 62
             confidence = "MEDIUM"
             project_rows = _DEMO_CSV_PROJECTS
 
     # -- Demo path -----------------------------------------------------------
     else:
+        livability_score = DEMO_RESPONSE.get("livability_score")
         disruption_score = 62
         confidence = "MEDIUM"
         project_rows = _DEMO_CSV_PROJECTS
@@ -440,7 +494,7 @@ def export_csv(
         fieldnames=[
             "distance_m", "title", "source", "source_id",
             "impact_type", "status", "start_date", "end_date",
-            "address", "weighted_score",
+            "address", "weighted_score", "livability_score", "disruption_score",
             # data-043: Claude-generated display fields (empty when not enriched)
             "display_title", "distance", "description", "why_it_matters",
         ],
@@ -451,11 +505,16 @@ def export_csv(
     # Summary row first
     writer.writerow({
         "distance_m": "SUMMARY",
-        "title": f"disruption_score={disruption_score} confidence={confidence}",
+        "title": (
+            f"livability_score={livability_score if livability_score is not None else 'unavailable'} "
+            f"disruption_score={disruption_score} confidence={confidence}"
+        ),
         "source": "", "source_id": "", "impact_type": "", "status": "",
         "start_date": "", "end_date": "",
         "address": address,
         "weighted_score": disruption_score,
+        "livability_score": "" if livability_score is None else livability_score,
+        "disruption_score": disruption_score,
     })
 
     for row in project_rows:

@@ -28,15 +28,15 @@ router = APIRouter()
 class WatchRequest(BaseModel):
     email: str | None = None
     address: str
-    threshold: int  # 0–100 disruption score
+    threshold: int  # threshold_score: 0-100 disruption_score; alert when disruption clears at or below it
 
 
 @router.post("/watch")
 @router.post("/watchlist")
 def subscribe_watch(body: WatchRequest, authorization: str = Header(default=None)) -> dict:
-    """Subscribe an email address to score alerts for an address."""
+    """Subscribe an email address to disruption-clearance alerts for an address."""
     if not (0 <= body.threshold <= 100):
-        raise HTTPException(status_code=422, detail="threshold must be between 0 and 100.")
+        raise HTTPException(status_code=422, detail="threshold must be a disruption_score between 0 and 100.")
 
     from backend.app.auth import get_current_user_optional
     user = get_current_user_optional(authorization)
@@ -105,7 +105,7 @@ def subscribe_watch(body: WatchRequest, authorization: str = Header(default=None
 
 @router.get("/watchlist")
 def get_watchlist(authorization: str = Header(default=None)) -> dict:
-    """Return active watchlist entries for the authenticated user."""
+    """Return active disruption-score watchlist entries for the authenticated user."""
     from backend.app.auth import get_current_user
     user = get_current_user(authorization)
     account_id = int(user["sub"])
@@ -190,6 +190,10 @@ def unsubscribe_watch(token: str = Query(..., description="Unsubscribe token fro
 def check_watchlist() -> dict:
     """
     Operator endpoint — score every watched address and fire alerts.
+
+    threshold_score is a disruption_score threshold. Alerts fire when the
+    current disruption_score is less than or equal to the stored threshold,
+    meaning disruption has cleared enough for the user-selected threshold.
     Intended to be called on a schedule (e.g. daily cron).
     """
     if not _is_db_configured():
@@ -220,10 +224,10 @@ def check_watchlist() -> dict:
                 if score is None:
                     continue
 
-                if score >= threshold:
+                if score <= threshold:
                     log.info(
                         "ALERT [stub] watch_id=%d email=%r address=%r "
-                        "score=%d threshold=%d — would send alert email",
+                        "disruption_score=%d threshold=%d — disruption cleared; would send alert email",
                         watch_id, email, address, score, threshold,
                     )
 
