@@ -626,9 +626,10 @@ ALTER TABLE neighborhood_quality ADD COLUMN IF NOT EXISTS hpi_period      TEXT;
 -- ---------------------------------------------------------------------------
 -- Row Level Security  (data-067)
 --
--- Preserve the existing RLS setup for tables previously covered by data-067:
--- grant a public SELECT policy and FORCE RLS. Newly added backend-write tables
--- stay out of this block until a dedicated RLS role/policy PR defines writes.
+-- Preserve RLS and public SELECT policies for backend-owned data tables, but
+-- do not FORCE RLS here. Backend writes are expected to run through a
+-- backend-owned table owner or privileged DB role; explicit user-scoped write
+-- policies are deferred to a later RLS policy PR.
 -- SELECT policy creation is guarded so schema.sql can be applied repeatedly.
 -- ---------------------------------------------------------------------------
 
@@ -652,7 +653,7 @@ BEGIN
     ]
     LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', target_table);
-        EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', target_table);
+        EXECUTE format('ALTER TABLE public.%I NO FORCE ROW LEVEL SECURITY', target_table);
 
         IF NOT EXISTS (
             SELECT 1
