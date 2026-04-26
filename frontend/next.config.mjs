@@ -1,3 +1,35 @@
+const BUILD_ONLY_CLERK_PUBLISHABLE_KEY =
+  "pk_test_ZHVtbXkuY2xlcmsuYWNjb3VudHMuZGV2JA==";
+
+function hasValidClerkPublishableKey(value) {
+  if (!value || typeof value !== "string") return false;
+  const parts = value.split("_");
+  if (parts.length !== 3 || !["pk_test", "pk_live"].includes(`${parts[0]}_${parts[1]}`)) {
+    return false;
+  }
+
+  try {
+    const decoded = Buffer.from(parts[2], "base64").toString("utf8");
+    return decoded.endsWith("$") && decoded.slice(0, -1).includes(".");
+  } catch {
+    return false;
+  }
+}
+
+const clerkPublishableKeyError =
+  "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is missing or invalid. Set a valid Clerk publishable key before deploying production.";
+
+if (!hasValidClerkPublishableKey(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)) {
+  if (process.env.VERCEL_ENV === "production") {
+    throw new Error(clerkPublishableKeyError);
+  }
+
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = BUILD_ONLY_CLERK_PUBLISHABLE_KEY;
+  console.warn(
+    `${clerkPublishableKeyError} Using a build-only placeholder for local or preview builds; auth will not work until a real key is configured.`,
+  );
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Compress responses

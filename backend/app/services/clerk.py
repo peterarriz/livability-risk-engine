@@ -8,6 +8,7 @@ Contains:
   - _jwks_b64decode() — URL-safe base64 decode with auto-padding
   - _fetch_jwks() — fetches/caches Clerk JWKS
   - _verify_clerk_jwt() — verifies Clerk session JWT, returns user_id
+  - _resolve_clerk_email() — resolves a verified Clerk user's primary email
 """
 
 from __future__ import annotations
@@ -80,20 +81,115 @@ def _fetch_jwks(issuer: str) -> dict:
     return keys
 
 
+def _normalize_email(value: object) -> str | None:
+    """Normalize an email string for DB storage and comparisons."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    return normalized or None
+
+
+def _fetch_clerk_user(user_id: str) -> dict:
+    """
+    Fetch a Clerk user from the Backend API using CLERK_SECRET_KEY.
+
+    Uses the REST API directly to avoid adding a Clerk backend SDK dependency
+    to the FastAPI service.
+    """
+    secret_key = os.environ.get("CLERK_SECRET_KEY", "").strip()
+    if not secret_key:
+        log.error("clerk_user: CLERK_SECRET_KEY is not set")
+        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY not configured on backend")
+
+    url = f"https://api.clerk.com/v1/users/{user_id}"
+    try:
+        resp = _requests.get(
+            url,
+            headers={"Authorization": f"Bearer {secret_key}"},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.exception("clerk_user: network error fetching %s: %s", url, exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not fetch Clerk user ({exc})",
+        ) from exc
+
+    if not resp.ok:
+        log.error("clerk_user: non-OK response status=%d body=%s", resp.status_code, resp.text[:300])
+        raise HTTPException(
+            status_code=503,
+            detail=f"Clerk user lookup returned {resp.status_code}",
+        )
+
+    try:
+        return resp.json()
+    except Exception as exc:
+        log.exception("clerk_user: invalid JSON for %s: %s", url, exc)
+        raise HTTPException(status_code=503, detail="Clerk user lookup returned invalid JSON") from exc
+
+
+def _resolve_clerk_email(claims: dict) -> str:
+    """
+    Resolve a verified Clerk user's usable email address.
+
+    Priority:
+      1. Verified token claim `email`, when present.
+      2. Server-side Clerk user lookup via verified `sub`.
+
+    Raises 503 if Clerk backend configuration or lookup fails.
+    Raises 401 only when the token is valid but Clerk cannot produce a usable
+    email for the verified user.
+    """
+    token_email = _normalize_email(claims.get("email"))
+    if token_email:
+        return token_email
+
+    user_id = str(claims.get("sub") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Could not resolve user from token")
+
+    user = _fetch_clerk_user(user_id)
+    primary_id = user.get("primary_email_address_id") or user.get("primaryEmailAddressId")
+    email_addresses = user.get("email_addresses") or user.get("emailAddresses") or []
+
+    if isinstance(email_addresses, list):
+        for email_obj in email_addresses:
+            if not isinstance(email_obj, dict):
+                continue
+            email_id = email_obj.get("id")
+            candidate = _normalize_email(
+                email_obj.get("email_address") or email_obj.get("emailAddress")
+            )
+            if primary_id and email_id == primary_id and candidate:
+                return candidate
+        for email_obj in email_addresses:
+            if not isinstance(email_obj, dict):
+                continue
+            candidate = _normalize_email(
+                email_obj.get("email_address") or email_obj.get("emailAddress")
+            )
+            if candidate:
+                return candidate
+
+    raise HTTPException(status_code=401, detail="Could not resolve email for authenticated Clerk user")
+
+
 # ---------------------------------------------------------------------------
 # JWT verification
 # ---------------------------------------------------------------------------
 
-def _verify_clerk_jwt(authorization: str | None) -> str:
+def _verify_clerk_claims(authorization: str | None) -> dict:
     """
-    Verify a Clerk frontend session token locally via RS256 + JWKS.
+    Verify a Clerk frontend session token locally via RS256 + JWKS and return
+    the verified JWT claims.
 
     Strategy:
       1. Decode the JWT header/payload (unverified) to get kid, alg, iss, exp.
       2. Fetch Clerk's public JWKS from <iss>/.well-known/jwks.json (cached 1h).
       3. Find the matching public key by kid.
       4. Verify the JWT signature + expiry with PyJWT (RS256, local — no network call).
-      5. Return payload["sub"] as the Clerk user_id.
+      5. Return the verified payload claims.
 
     Raises HTTP 401 if the token is missing, malformed, expired, or signature invalid.
     Raises HTTP 503 if CLERK_SECRET_KEY is not configured or JWKS is unreachable.
@@ -182,4 +278,10 @@ def _verify_clerk_jwt(authorization: str | None) -> str:
         raise HTTPException(status_code=401, detail="Could not resolve user from token")
 
     log.info("clerk_jwt: OK user_id=%r iss=%s", user_id, iss)
-    return user_id
+    return payload
+
+
+def _verify_clerk_jwt(authorization: str | None) -> str:
+    """Verify a Clerk token and return the Clerk user_id."""
+    payload = _verify_clerk_claims(authorization)
+    return str(payload["sub"])

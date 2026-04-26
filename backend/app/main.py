@@ -42,6 +42,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.app.deps import _is_db_configured, require_api_key, verify_api_key, _build_demo_response, DEMO_RESPONSE, _require_api_key_enabled, _hash_key, _generate_api_key
+from backend.app.services.clerk import _resolve_clerk_email, _verify_clerk_claims
 from backend.app.address_normalization import (
     DIRECTION_NORMALIZATION as _DIRECTION_NORMALIZATION,
     STREET_SUFFIX_NORMALIZATION as _STREET_SUFFIX_NORMALIZATION,
@@ -3820,12 +3821,15 @@ def auth_google(body: _GoogleBody) -> dict:
 
 
 class _ClerkSyncBody(BaseModel):
-    clerk_user_id: str
-    email: str
+    clerk_user_id: str | None = None
+    email: str | None = None
 
 
 @app.post("/auth/sync", status_code=200)
-def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
+def auth_clerk_sync(
+    body: _ClerkSyncBody,
+    authorization: str = Header(default=None),
+) -> dict:
     """
     Upsert a Clerk user record into the users table.
     task: app-024
@@ -3833,10 +3837,19 @@ def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
     Called from the frontend after first Clerk sign-in to ensure a minimal
     user row exists in Postgres. Idempotent — safe to call on every sign-in.
 
-    Request body: { clerk_user_id, email }
+    Request body: { clerk_user_id?, email? }
     Response:     { id, email, subscription_tier, created_at }
     """
     try:
+        claims = _verify_clerk_claims(authorization)
+        clerk_user_id = str(claims["sub"])
+        verified_email = _resolve_clerk_email(claims)
+
+        if body.clerk_user_id and body.clerk_user_id != clerk_user_id:
+            raise HTTPException(status_code=401, detail="Authenticated Clerk user does not match request body")
+        if body.email and body.email.strip().lower() != verified_email:
+            raise HTTPException(status_code=401, detail="Authenticated Clerk email does not match request body")
+
         if not _is_db_configured():
             raise HTTPException(status_code=503, detail="DB not configured")
 
@@ -3851,7 +3864,7 @@ def auth_clerk_sync(body: _ClerkSyncBody) -> dict:
                     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email
                     RETURNING id, email, subscription_tier, created_at
                     """,
-                    (body.clerk_user_id, body.email),
+                    (clerk_user_id, verified_email),
                 )
                 row = cur.fetchone()
             conn.commit()

@@ -152,19 +152,19 @@ export default function ApiAccessPage() {
             <div className="api-auth-head">
               <div>
                 <p className="supporting-kicker">Authentication</p>
-                <h2>{docs?.auth.required ? "API key required" : "No auth required (public)"}</h2>
+                <h2>{docs?.auth?.required ? "API key required" : "No auth required (public)"}</h2>
               </div>
-              <span className={`api-auth-badge ${docs?.auth.required ? "api-auth-badge--required" : "api-auth-badge--open"}`}>
-                {docs?.auth.required ? "Key required" : "Open access"}
+              <span className={`api-auth-badge ${docs?.auth?.required ? "api-auth-badge--required" : "api-auth-badge--open"}`}>
+                {docs?.auth?.required ? "Key required" : "Open access"}
               </span>
             </div>
             <p className="api-auth-copy">
-              {docs?.auth.method ?? "Pass your API key in the X-Api-Key header or as a ?api_key= query parameter."}
+              {docs?.auth?.method ?? "Pass your API key in the X-Api-Key header or as a ?api_key= query parameter."}
             </p>
             <div className="api-auth-example">
               <code>X-Api-Key: lre_xxxxxxxxxxxxxxxxxxxxxxxx</code>
             </div>
-            <p className="modal-fine-print">{docs?.auth.request_access ?? "Contact the operator to request an API key."}</p>
+            <p className="modal-fine-print">{docs?.auth?.request_access ?? "Contact the operator to request an API key."}</p>
           </Card>
 
           {/* Endpoints table */}
