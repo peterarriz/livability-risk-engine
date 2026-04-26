@@ -141,7 +141,9 @@ export type AddressDashboardResponse = {
 
 export type ScoreResponse = {
   address: string;
+  /** Backward-compatible risk subscore: 0-100, higher means more near-term disruption risk. */
   disruption_score: number;
+  /** Public headline score: 0-100, higher means better address livability and lower near-term risk. */
   livability_score?: number;
   livability_breakdown?: {
     weights: Record<string, number>;
@@ -898,13 +900,15 @@ export function getExportUrl(type: "csv" | "pdf", address: string): string {
 export type WatchRequest = {
   email: string;
   address: string;
-  threshold: number; // 0–100
+  /** disruption_score threshold; alert fires when disruption_score <= threshold. */
+  threshold: number;
 };
 
 export type WatchResponse = {
   id: number | null;
   email: string;
   address: string;
+  /** disruption_score threshold; alert fires when disruption_score <= threshold. */
   threshold: number;
   token: string | null;
   /** True when the backend accepted the request but the DB is not yet live. */
@@ -913,12 +917,13 @@ export type WatchResponse = {
 };
 
 /**
- * Subscribe an email to score-change alerts for an address.
+ * Subscribe an email to disruption-clearance alerts for an address.
  *
+ * The threshold is a disruption_score value; alerts fire when the current
+ * disruption_score is less than or equal to that threshold.
  * When the DB is not configured the backend returns a demo-success 200.
  * When the frontend has no API URL at all, a client-side demo response is
- * returned — the form always completes so email capture works on the free tier.
- * Actual alert email delivery is gated behind the Pro plan.
+ * returned so the form can complete without changing UI behavior.
  */
 export async function subscribeWatch(
   req: WatchRequest,
@@ -1012,6 +1017,7 @@ export type WatchlistEntry = {
   id: number;
   email: string;
   address: string;
+  /** Stored threshold_score from the backend: disruption_score clearance threshold. */
   threshold: number;
   created_at: string;
   is_active: boolean;
@@ -1038,6 +1044,7 @@ export type DashboardResponse = {
   watchlist: Array<{
     id: number;
     address: string;
+    /** Stored threshold_score from the backend: disruption_score clearance threshold. */
     threshold: number;
     current_livability_score: number | null;
     score_diff_since_saved: number | null;

@@ -48,7 +48,7 @@
 
 When a single address fails (geocode failure, scoring error), it is returned inline with:
 - `error`: string describing the failure
-- All other fields: `null`
+- Score and context fields including `livability_score` and `disruption_score`: `null`
 
 The overall request returns 200 even when some addresses fail. Check `failed` in the response envelope.
 
@@ -84,6 +84,7 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 | Column | Description |
 |---|---|
 | `address` | Input address echoed back |
+| `livability_score` | Public headline score, 0-100 where higher means better address livability and lower near-term risk (empty on error) |
 | `disruption_score` | Backward-compatible disruption/risk subscore, 0-100 where higher means more risk (empty on error) |
 | `confidence` | HIGH / MEDIUM / LOW (empty on error) |
 | `severity_noise` | HIGH / MEDIUM / LOW |
@@ -130,6 +131,26 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 - `severity.traffic` reflects access friction, including lane/street impacts and related curb-access disruption.
 - In buyer-facing copy, `traffic` should be understood as **traffic and curb access** when parking, loading, pickup, or dropoff friction is part of the nearby disruption story.
 - `severity.dust` reflects demolition, excavation, or similarly physical site activity likely to create dust or vibration nuisance.
+
+## Related score endpoints
+
+### `/history`
+- **Method**: `GET`
+- **Query param**: `address` (required, US address string)
+- Returns recent score history rows with both `livability_score` and `disruption_score`.
+
+### `/export/csv`
+- **Method**: `GET`
+- **Query param**: `address` (required, US address string)
+- Returns nearby signal context as CSV plus a `SUMMARY` row.
+- The summary row includes `livability_score` when the export path can compute it truthfully from current runtime context. If the composite context is unavailable, the field is left empty rather than inferred from `disruption_score`.
+- `disruption_score` is always preserved when the disruption scoring path succeeds.
+
+### `/watchlist`
+- **Method**: `POST`
+- `threshold` / `threshold_score` is a `disruption_score` threshold, not a `livability_score` threshold.
+- Alerts are intended to fire when the current `disruption_score` is less than or equal to the stored threshold, meaning disruption has cleared below the user-selected level.
+- Do not rename `threshold_score` without a migration and compatibility plan.
 
 ### Approved demo example (product-012)
 

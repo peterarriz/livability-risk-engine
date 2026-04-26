@@ -486,6 +486,7 @@ class BatchScoreRequest(BaseModel):
 def _score_one(address: str) -> dict:
     """
     Score a single address. Returns a result dict with an 'error' key on failure.
+    Successful rows preserve both livability_score and disruption_score.
     Designed to run inside a ThreadPoolExecutor worker.
     """
     try:
@@ -495,6 +496,7 @@ def _score_one(address: str) -> dict:
     except Exception as exc:
         return {
             "address": address,
+            "livability_score": None,
             "disruption_score": None,
             "confidence": None,
             "severity": None,
@@ -553,7 +555,7 @@ def post_score_batch(
     background_tasks: BackgroundTasks,
 ) -> dict:
     """
-    Score multiple Chicago addresses in a single request.
+    Score multiple US addresses in a single request.
 
     Request body:
       {"addresses": ["addr1", "addr2", ...]}   (max 200 addresses)
@@ -563,10 +565,12 @@ def post_score_batch(
         "batch_id": "<uuid>",
         "scored":   N,
         "failed":   N,
-        "results":  [{address, disruption_score, confidence, severity,
+        "results":  [{address, livability_score, disruption_score, confidence, severity,
                       top_risks, explanation, mode, error?}, ...]
       }
 
+    livability_score is the public headline score (higher is better).
+    disruption_score is retained as the backward-compatible risk subscore.
     - Addresses are geocoded and scored in parallel (up to 10 concurrent workers).
     - Per-address failures (geocode failure, scoring error) are returned inline
       with an "error" key rather than failing the whole request.
@@ -608,6 +612,7 @@ def post_score_batch(
 # CSV column order for /score/batch/csv output.
 _CSV_FIELDNAMES = [
     "address",
+    "livability_score",
     "disruption_score",
     "confidence",
     "severity_noise",
@@ -626,6 +631,7 @@ def _result_to_csv_row(r: dict) -> dict:
     risks = r.get("top_risks") or []
     return {
         "address":          r.get("address", ""),
+        "livability_score": "" if r.get("livability_score") is None else r["livability_score"],
         "disruption_score": "" if r.get("disruption_score") is None else r["disruption_score"],
         "confidence":       r.get("confidence", ""),
         "severity_noise":   sev.get("noise", ""),
@@ -653,10 +659,12 @@ async def post_score_batch_csv(
       - Maximum 200 addresses (rows beyond 200 are ignored with a warning logged).
 
     Output CSV columns:
-      address, disruption_score, confidence,
+      address, livability_score, disruption_score, confidence,
       severity_noise, severity_traffic, severity_dust,
       top_risk_1, top_risk_2, top_risk_3, error
 
+    livability_score is the public headline score (higher is better).
+    disruption_score is retained as the backward-compatible risk subscore.
     - API key is always required.
     - Per-address failures appear as rows with an "error" value and empty score fields.
     - Results are written to score_history with a shared batch_id.
@@ -726,12 +734,12 @@ def get_score(
     background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
-    Return a near-term construction disruption risk score for a US address.
+    Return nationwide address-level livability and disruption intelligence.
 
     Geocodes the address, queries nearby projects from Railway Postgres, and
-    returns a live score. When the address is in a city we haven't ingested data
-    for yet, returns score=0 with fallback_reason="city_not_covered".
-    Raises 422 if the address cannot be geocoded, 503 on unexpected scoring errors.
+    returns livability_score as the public headline score plus disruption_score
+    as the backward-compatible near-term disruption risk subscore. Coverage and
+    evidence quality vary by city, source, and data type.
     """
     from backend.app.routes.dashboard import (
         _address_row_by_canonical_id,
@@ -835,7 +843,7 @@ def _serialize_project_sample(nearby_list) -> list:
 
 @router.get("/debug/score")
 def debug_score(
-    address: str = Query(..., description="Chicago address to inspect"),
+    address: str = Query(..., description="US address to inspect"),
 ) -> dict:
     """
     Internal operator endpoint -- not part of the public API contract.

@@ -125,6 +125,50 @@ def get_usage(x_api_key: str | None = Header(None)) -> dict:
 def api_access_info() -> dict:
     """Public documentation endpoint for B2B API access."""
     return {
+        "title": "Livability Risk Engine API",
+        "version": "1.0",
+        "description": (
+            "Nationwide address-level livability and disruption intelligence. "
+            "Coverage and evidence depth vary by city, source, and data type."
+        ),
+        "score_semantics": {
+            "livability_score": "Public headline score, 0-100; higher means better address livability and lower near-term risk.",
+            "disruption_score": "Backward-compatible risk subscore, 0-100; higher means more near-term disruption risk.",
+            "severity": "Disruption dimensions only: noise, traffic, and dust.",
+            "confidence": "Evidence trust and specificity, not score direction.",
+            "evidence_quality": "User-facing coverage/evidence signal; sparse feeds should be treated as directional.",
+        },
+        "coverage": (
+            "Coverage varies by city and data type. Where permit or closure feeds are sparse, "
+            "results rely more on neighborhood context and should be treated as directional."
+        ),
+        "auth": {
+            "required": _require_api_key_enabled(),
+            "method": "Pass your API key in the X-API-Key header.",
+            "request_access": "Contact the platform operator to request an API key.",
+        },
+        "endpoints": [
+            {"method": "GET", "path": "/score", "description": "Score a US address; returns livability_score and disruption_score."},
+            {"method": "POST", "path": "/score/batch", "description": "Score up to 200 US addresses in JSON."},
+            {"method": "POST", "path": "/score/batch/csv", "description": "Upload a CSV of addresses and receive score columns."},
+            {"method": "GET", "path": "/history", "description": "Recent score history for an address."},
+            {"method": "GET", "path": "/export/csv", "description": "Download score and nearby signal context as CSV."},
+        ],
+        "rate_limits": "Authenticated requests are subject to operator-configured rate limits.",
+        "example": {
+            "request": "GET /score?address=100+W+Randolph+St+Chicago+IL",
+            "response_shape": {
+                "address": "string",
+                "livability_score": "0-100 integer; higher is better",
+                "disruption_score": "0-100 integer; higher means more near-term disruption risk",
+                "confidence": "LOW | MEDIUM | HIGH",
+                "evidence_quality": "strong | moderate | contextual_only | insufficient",
+                "severity": {"noise": "LOW | MEDIUM | HIGH", "traffic": "LOW | MEDIUM | HIGH", "dust": "LOW | MEDIUM | HIGH"},
+                "top_risks": ["string"],
+                "explanation": "string",
+                "mode": "live | demo",
+            },
+        },
         "auth_required": _require_api_key_enabled(),
         "header": "X-API-Key",
         "key_format": "lre_<64 hex chars>",
