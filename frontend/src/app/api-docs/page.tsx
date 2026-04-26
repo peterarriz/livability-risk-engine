@@ -78,8 +78,9 @@ export default function ApiDocsPage() {
       <main className="docs-main">
         <h1 className="docs-title">Livability Intelligence API</h1>
         <p className="docs-intro">
-          Score any US address for livability using 20+ live data sources. Returns a 0&ndash;100 score,
-          severity breakdown, top risk signals, and spatial context &mdash; all in a single JSON response.
+          Score US addresses for livability and disruption using available public permit, closure,
+          neighborhood, school, flood, and market context. Returns a 0&ndash;100 livability score,
+          backward-compatible disruption subscore, severity breakdown, evidence quality, and spatial context.
         </p>
 
         {/* ── Authentication ─────────────────────────────────────── */}
@@ -115,8 +116,8 @@ export default function ApiDocsPage() {
           <h3>Sample Response</h3>
           <pre className="docs-code">{`{
   "address": "1600 W Chicago Ave, Chicago, IL",
-  "disruption_score": 62,
   "livability_score": 48,
+  "disruption_score": 62,
   "confidence": "MEDIUM",
   "severity": {
     "noise": "HIGH",
@@ -129,6 +130,8 @@ export default function ApiDocsPage() {
   ],
   "explanation": "Two active disruption signals detected...",
   "mode": "live",
+  "evidence_quality": "moderate",
+  "confidence_reason": "Specific nearby closure and permit signals are available, but coverage varies by source.",
   "latitude": 41.8956,
   "longitude": -87.6606,
   "nearby_signals": [ ... ],
@@ -149,16 +152,17 @@ export default function ApiDocsPage() {
             <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><code>address</code></td><td>string</td><td>The geocoded address</td></tr>
-              <tr><td><code>disruption_score</code></td><td>integer</td><td>0&ndash;100 construction disruption activity score</td></tr>
-              <tr><td><code>livability_score</code></td><td>integer</td><td>0&ndash;100 composite livability score (includes crime, schools, environment)</td></tr>
-              <tr><td><code>confidence</code></td><td>string</td><td>LOW, MEDIUM, or HIGH &mdash; how closely signals tie to this specific address</td></tr>
+              <tr><td><code>livability_score</code></td><td>integer</td><td>Public headline score, 0&ndash;100 where higher means better address livability and lower near-term risk</td></tr>
+              <tr><td><code>disruption_score</code></td><td>integer</td><td>Backward-compatible disruption/risk subscore, 0&ndash;100 where higher means more near-term disruption risk</td></tr>
+              <tr><td><code>confidence</code></td><td>string</td><td>LOW, MEDIUM, or HIGH &mdash; evidence trust and specificity, not severity or score direction</td></tr>
+              <tr><td><code>evidence_quality</code></td><td>string</td><td>User-facing coverage/evidence signal such as strong, moderate, contextual_only, or insufficient</td></tr>
               <tr><td><code>severity</code></td><td>object</td><td>Three-axis severity: <code>noise</code>, <code>traffic</code>, <code>dust</code> (each LOW/MEDIUM/HIGH)</td></tr>
               <tr><td><code>top_risks</code></td><td>string[]</td><td>Plain-English descriptions of the top disruption signals</td></tr>
               <tr><td><code>explanation</code></td><td>string</td><td>Summary paragraph explaining the score</td></tr>
-              <tr><td><code>mode</code></td><td>string</td><td><code>live</code> (real data) or <code>demo</code> (estimated)</td></tr>
+              <tr><td><code>mode</code></td><td>string</td><td><code>live</code> or <code>demo</code>; use evidence_quality and confidence_reason for coverage quality</td></tr>
               <tr><td><code>latitude</code>, <code>longitude</code></td><td>number</td><td>Geocoded coordinates</td></tr>
               <tr><td><code>nearby_signals</code></td><td>array</td><td>Active permits, closures, and incidents within scoring radius</td></tr>
-              <tr><td><code>livability_breakdown</code></td><td>object</td><td>Component scores: disruption_risk, crime_trend, school_rating, demographics, flood risk</td></tr>
+              <tr><td><code>livability_breakdown</code></td><td>object</td><td>Component scores; the disruption_risk component is inverted from disruption_score before contributing to livability</td></tr>
             </tbody>
           </table>
         </section>
@@ -223,8 +227,8 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
         <section id="coverage" className="docs-section">
           <h2>Coverage</h2>
           <p>
-            Livability scores are available for addresses in 50+ US cities. Construction permits,
-            street closures, and crime trend data coverage varies by city.
+            Coverage varies by city and data type. Where permit or closure feeds are sparse,
+            results rely more on neighborhood context and should be treated as directional.
           </p>
           <div className="docs-city-grid">
             {[
@@ -243,9 +247,9 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
             ))}
           </div>
           <p className="docs-note">
-            New cities are added regularly. Crime trend and school rating coverage
-            is expanding &mdash; check the score response <code>mode</code> field
-            to determine data availability for a specific address.
+            These are example metros with some source coverage, not a guarantee of equal evidence depth.
+            Check <code>evidence_quality</code>, <code>confidence</code>, and <code>confidence_reason</code>
+            before relying on a specific address result.
           </p>
         </section>
       </main>

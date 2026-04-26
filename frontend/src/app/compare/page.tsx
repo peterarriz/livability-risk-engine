@@ -9,10 +9,10 @@ import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
 
 function getSeverityColor(score: number): string {
-  if (score >= 75) return "severe";
-  if (score >= 50) return "high";
-  if (score >= 25) return "moderate";
-  return "low";
+  if (score >= 70) return "low";
+  if (score >= 50) return "moderate";
+  if (score >= 30) return "high";
+  return "severe";
 }
 
 type SlotState = {
@@ -65,7 +65,7 @@ function AddressSlot({
               onFocus={onFocus}
               onBlur={onBlur}
               onKeyDown={onKeyDown}
-              placeholder="Enter a Chicago address"
+              placeholder="Enter a US address"
               autoComplete="off"
               role="combobox"
               aria-expanded={hasSuggestions}
@@ -87,7 +87,7 @@ function AddressSlot({
                     onMouseEnter={() => onSuggestionHover(index)}
                   >
                     <span className="suggestion-item-label">{suggestion}</span>
-                    <span className="suggestion-item-meta">Chicago address</span>
+                    <span className="suggestion-item-meta">US address</span>
                   </li>
                 ))}
               </ul>
@@ -136,7 +136,7 @@ function AddressSlot({
       {!slot.result && !slot.isLoading && !slot.error && (
         <Card className="empty-state">
           <p className="empty-kicker">Ready for analysis</p>
-          <h3>Enter a Chicago address above to score this slot.</h3>
+          <h3>Enter a US address above to score this slot.</h3>
         </Card>
       )}
     </div>
@@ -271,7 +271,7 @@ function ComparePageInner() {
             <div className="brand-mark" aria-hidden="true">LR</div>
             <div>
               <p className="brand-title">Livability Intelligence</p>
-              <p className="brand-subtitle">Chicago disruption intelligence</p>
+              <p className="brand-subtitle">Nationwide livability intelligence</p>
             </div>
           </div>
           <nav className="topnav" aria-label="Primary">
@@ -283,7 +283,7 @@ function ComparePageInner() {
           <div className="section-head">
             <p className="eyebrow">Compare</p>
             <h1>Side-by-side address comparison</h1>
-            <p className="lede">Score two Chicago addresses at once to compare disruption activity, severity signals, and key drivers.</p>
+            <p className="lede">Score two US addresses at once to compare livability, disruption severity signals, and key drivers.</p>
           </div>
 
           {bothScored && scoreDiff !== null && (
@@ -291,11 +291,11 @@ function ComparePageInner() {
               <span className="status-badge">Comparison</span>
               <div className="status-copy">
                 {Math.abs(scoreDiff) < 5 ? (
-                  <strong>These addresses have similar disruption levels.</strong>
+                  <strong>These addresses have similar livability scores.</strong>
                 ) : scoreDiff > 0 ? (
-                  <strong>Address A scores {Math.abs(scoreDiff)} points higher — it has more near-term disruption activity.</strong>
+                  <strong>Address A scores {Math.abs(scoreDiff)} points higher — better livability and lower near-term risk.</strong>
                 ) : (
-                  <strong>Address B scores {Math.abs(scoreDiff)} points higher — it has more near-term disruption activity.</strong>
+                  <strong>Address B scores {Math.abs(scoreDiff)} points higher — better livability and lower near-term risk.</strong>
                 )}
               </div>
             </div>

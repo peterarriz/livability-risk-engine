@@ -60,7 +60,8 @@ resp = requests.get(
     headers=HEADERS,
 )
 data = resp.json()
-print(f"Score: {data['disruption_score']} / 100")
+print(f"Livability Score: {data['livability_score']} / 100")
+print(f"Disruption Score: {data['disruption_score']} / 100")
 print(f"Confidence: {data['confidence']}")
 for risk in data["top_risks"]:
     print(f"  - {risk}")
@@ -71,7 +72,7 @@ history = requests.get(
     params={"address": "100 W Randolph St Chicago IL", "limit": 20},
     headers=HEADERS,
 ).json()
-scores = [h["disruption_score"] for h in history["history"]]
+scores = [h.get("livability_score", h.get("disruption_score")) for h in history["history"]]
 print(f"Historical scores: {scores}")`,
 
   javascript: `const BASE = "https://your-api.railway.app";
@@ -84,7 +85,8 @@ const score = await fetch(
   { headers }
 ).then(r => r.json());
 
-console.log(\`Score: \${score.disruption_score} / 100\`);
+console.log(\`Livability Score: \${score.livability_score} / 100\`);
+console.log(\`Disruption Score: \${score.disruption_score} / 100\`);
 console.log(\`Top risks:\`, score.top_risks);
 
 // Get neighborhood projects
@@ -97,8 +99,10 @@ console.log(\`\${hood.name}: \${hood.projects.length} active projects\`);`,
 const EXAMPLE_RESPONSE = JSON.stringify(
   {
     address: "100 W Randolph St Chicago IL",
+    livability_score: 52,
     disruption_score: 47,
     confidence: "MEDIUM",
+    evidence_quality: "moderate",
     severity: { noise: "LOW", traffic: "HIGH", dust: "LOW" },
     top_risks: [
       "Multi-lane closure on W Randolph St within roughly 85 meters; active through 2026-04-15",
@@ -108,6 +112,14 @@ const EXAMPLE_RESPONSE = JSON.stringify(
     explanation: "A nearby lane closure is the main driver, giving this address elevated short-term traffic disruption.",
     mode: "live",
     fallback_reason: null,
+    confidence_reason: "Specific nearby closure signals are available; coverage depth varies by source.",
+    livability_breakdown: {
+      components: {
+        disruption_risk: { raw_score: 53, weighted_contribution: 18.6 },
+        crime_trend: { raw_score: 50, weighted_contribution: 12.5 },
+        school_rating: { raw_score: 58, weighted_contribution: 11.6 },
+      },
+    },
   },
   null,
   2,
@@ -145,7 +157,7 @@ export default function ApiAccessPage() {
         <Section
           eyebrow="Developer"
           title="API Reference"
-          description="Programmatic access to Chicago disruption scoring. Query any Chicago address and get a structured risk score with severity breakdown and supporting signals."
+          description="Programmatic access to nationwide livability and disruption intelligence. Query a US address and get a headline livability score, backward-compatible disruption subscore, severity dimensions, and evidence context."
         >
           {/* Auth box */}
           <Card className="detail-card api-auth-card">
@@ -250,15 +262,15 @@ export default function ApiAccessPage() {
               </li>
               <li>
                 <span>Coverage</span>
-                <strong>Chicago, IL addresses only (MVP). City expansion roadmap: NYC, LA, Boston.</strong>
+                <strong>Nationwide address lookup; evidence depth varies by city, source, and data type.</strong>
               </li>
               <li>
                 <span>Data freshness</span>
-                <strong>Ingest runs daily at 06:00 UTC from Chicago Open Data (permits + CDOT closures).</strong>
+                <strong>Source refresh varies. Use evidence_quality, confidence, and confidence_reason before relying on a result.</strong>
               </li>
               <li>
                 <span>Score range</span>
-                <strong>0–100. Bands: 0–24 Low · 25–49 Moderate · 50–74 High · 75–100 Severe.</strong>
+                <strong>Livability Score is 0–100, higher is better. Disruption Score is 0–100, higher means more near-term disruption risk.</strong>
               </li>
             </ul>
           </Card>
@@ -269,10 +281,10 @@ export default function ApiAccessPage() {
 }
 
 const FALLBACK_ENDPOINTS: EndpointDoc[] = [
-  { method: "GET", path: "/score", description: "Score a Chicago address (0–100)" },
+  { method: "GET", path: "/score", description: "Score a US address (livability 0–100)" },
   { method: "GET", path: "/suggest", description: "Address autocomplete (Nominatim-backed)" },
   { method: "GET", path: "/history", description: "Score history for an address" },
-  { method: "GET", path: "/neighborhood/{slug}", description: "Projects in a named Chicago neighborhood" },
+  { method: "GET", path: "/neighborhood/{slug}", description: "Named neighborhood context where available" },
   { method: "POST", path: "/save", description: "Save a score result and get a shareable link" },
   { method: "GET", path: "/report/{report_id}", description: "Fetch a previously saved report" },
   { method: "GET", path: "/export/csv", description: "Download score as CSV" },

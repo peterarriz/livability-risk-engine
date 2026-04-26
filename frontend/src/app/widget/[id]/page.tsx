@@ -13,9 +13,10 @@ import { fetchReport, FetchReportResponse } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
 
 function riskLevel(score: number): { label: string; color: string } {
-  if (score <= 30) return { label: "Low Risk", color: "#10b981" };
-  if (score <= 60) return { label: "Moderate Risk", color: "#f59e0b" };
-  return { label: "High Risk", color: "#ef4444" };
+  if (score >= 70) return { label: "Low Risk", color: "#10b981" };
+  if (score >= 50) return { label: "Moderate Risk", color: "#f59e0b" };
+  if (score >= 30) return { label: "High Risk", color: "#ef4444" };
+  return { label: "Severe Risk", color: "#dc2626" };
 }
 
 export default function WidgetPage({ params }: { params: { id: string } }) {
