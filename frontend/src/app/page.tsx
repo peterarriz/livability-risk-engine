@@ -6,9 +6,9 @@ import AddressAutocomplete from "@/components/address-autocomplete";
 
 const EXAMPLE_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const EXAMPLE_ADDRESSES = [
-  { label: "Active road closures", address: "1600 W Chicago Ave, Chicago, IL", score: "62", insight: "Traffic and curb access are the dominant short-term risk." },
-  { label: "Low disruption area", address: "233 S Wacker Dr, Chicago, IL", score: "12", insight: "No meaningful active closure or permit pressure nearby." },
-  { label: "Construction-heavy zone", address: "700 W Grand Ave, Chicago, IL", score: "48", insight: "Nearby construction activity may create manageable daytime noise." },
+  { label: "Active road closures", address: "1600 W Chicago Ave, Chicago, IL", score: "48", insight: "Traffic and curb access drag down the livability score." },
+  { label: "Low disruption area", address: "233 S Wacker Dr, Chicago, IL", score: "78", insight: "Few active address-level disruption signals are visible in current data." },
+  { label: "Construction-heavy zone", address: "700 W Grand Ave, Chicago, IL", score: "56", insight: "Nearby construction creates manageable risk, but evidence quality matters." },
 ];
 
 const font = "Inter, system-ui, -apple-system, sans-serif";
@@ -48,7 +48,7 @@ export default function LandingPage() {
           Know what&rsquo;s happening at any US address before you commit.
         </h1>
         <p style={{ fontSize: "1.05rem", lineHeight: 1.6, color: "#6B7280", margin: "0 0 2rem" }}>
-          Built from public permit, closure, crime, school, and flood datasets. Best for near-term address screening in major US metros. Coverage varies by city.
+          Address-level livability and disruption intelligence for US properties, combining public permit, closure, neighborhood, school, flood, and market context into one evidence-aware score.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); const a = heroAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "520px", margin: "0 auto" }}>
           <AddressAutocomplete
@@ -82,10 +82,10 @@ export default function LandingPage() {
         borderTop: "1px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
         fontSize: "0.82rem", color: "#6B7280",
       }}>
-        <span><strong style={{ color: "#111827" }}>75+ cities</strong> with crime data</span>
-        <span><strong style={{ color: "#111827" }}>270K+</strong> data points</span>
-        <span><strong style={{ color: "#111827" }}>20+</strong> public data sources</span>
-        <span><strong style={{ color: "#111827" }}>Daily</strong> updates</span>
+        <span><strong style={{ color: "#111827" }}>Nationwide</strong> address lookup</span>
+        <span><strong style={{ color: "#111827" }}>Coverage-aware</strong> evidence quality</span>
+        <span><strong style={{ color: "#111827" }}>Public</strong> permit and context data</span>
+        <span><strong style={{ color: "#111827" }}>Directional</strong> where feeds are sparse</span>
       </div>
 
       {/* ── Example result ───────────────────────────────────────────────── */}
@@ -160,7 +160,7 @@ export default function LandingPage() {
               Enter one address and get score + severity in one response
             </h3>
             <p style={{ fontSize: "0.875rem", color: "#6B7280", lineHeight: 1.55, margin: 0 }}>
-              Permits, street closures, crime trends, school ratings, flood zones, and census data — queried in real time within 500 meters of the address.
+              Permits, street closures, crime trends, school ratings, flood zones, and census data are combined where available. Coverage varies by city and data type.
             </p>
           </div>
           <div>
@@ -184,7 +184,7 @@ export default function LandingPage() {
             Run two listings in 30 seconds and compare risk immediately.
           </h2>
           <p style={{ fontSize: "0.95rem", color: "#6B7280", margin: "0 0 1.5rem" }}>
-            No signup required. Results in under 10 seconds.
+            No signup required. Most results return in seconds.
           </p>
           <form onSubmit={(e) => { e.preventDefault(); const a = ctaAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "480px", margin: "0 auto" }}>
             <AddressAutocomplete

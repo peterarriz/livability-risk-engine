@@ -235,12 +235,12 @@ function deriveDriverRationale(text: string): string {
 function inferDataSource(text: string): string {
   const normalized = text.toLowerCase();
   if (/closure|lane|cdot|street closing/.test(normalized)) {
-    return "Source: CDOT street closure data";
+    return "Source: public street closure data";
   }
   if (/permit|construction|site work|excavation|renovation|genopening|genoccupy/i.test(normalized)) {
-    return "Source: City of Chicago building permit data";
+    return "Source: public building permit data";
   }
-  return "Source: City of Chicago Open Data Portal";
+  return "Source: public local data";
 }
 
 function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string[] {
@@ -630,17 +630,17 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           <span className="score-action-label">{action.label}</span>
         </div>
 
-        <div className="score-gauge" aria-label={`Score ${displayScore} out of 100`}>
+        <div className="score-gauge" aria-label={`Livability score ${displayScore} out of 100; higher is better`}>
           <div className="score-gauge-track">
             <div className={`score-gauge-fill score-gauge-fill--${gaugeBand}`} style={{ width: `${displayScore}%` }} />
             <div className="score-gauge-marker" style={{ left: "30%" }} aria-hidden="true" />
             <div className="score-gauge-marker" style={{ left: "60%" }} aria-hidden="true" />
           </div>
           <div className="score-gauge-labels" aria-hidden="true">
-            <span>0 — Low</span>
+            <span>0 — Higher risk</span>
             <span>30</span>
             <span>60</span>
-            <span>100 — High</span>
+            <span>100 — Better livability</span>
           </div>
         </div>
         <p className="score-benchmark">{getBenchmarkText(headlineScore)}</p>
@@ -1219,12 +1219,12 @@ export function ImpactWindow({ result }: ImpactWindowProps) {
 // ScoreSparkline  (data-025, enhanced)
 // 200×44 SVG line chart with:
 //   • Gradient area fill below the line
-//   • Dashed horizontal reference at Chicago average (35)
+//   • Dashed horizontal reference at neutral livability (50)
 //   • Distinct "today" dot on the current score (rightmost point)
 //   • Week-over-week trend label: "Up X pts this week" / "Down X pts" / "Stable"
 // ---------------------------------------------------------------------------
 
-const CHICAGO_AVG = 35;
+const LIVABILITY_REFERENCE = 50;
 const DAY_MS = 86_400_000;
 
 type ScoreSparklineProps = {
@@ -1283,8 +1283,8 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
   const innerW = W - PX * 2;
   const innerH = H - PY * 2;
 
-  const minVal = Math.max(0,   Math.min(...points, CHICAGO_AVG) - 6);
-  const maxVal = Math.min(100, Math.max(...points, CHICAGO_AVG) + 6);
+  const minVal = Math.max(0,   Math.min(...points, LIVABILITY_REFERENCE) - 6);
+  const maxVal = Math.min(100, Math.max(...points, LIVABILITY_REFERENCE) + 6);
   const range  = maxVal - minVal || 1;
 
   const toX = (i: number) => PX + (i / (points.length - 1)) * innerW;
@@ -1300,18 +1300,17 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     linePath +
     ` L${toX(points.length - 1).toFixed(1)},${H} L${PX},${H} Z`;
 
-  // Chicago avg line
-  const avgY   = toY(CHICAGO_AVG);
+  // Neutral livability reference line.
+  const avgY   = toY(LIVABILITY_REFERENCE);
   const todayX = toX(points.length - 1);
   const todayY = toY(points[points.length - 1]);
 
   // Dot color: match score band
   const dotColor =
-    currentScore >= 81 ? "#7c3aed" :
-    currentScore >= 61 ? "#ef4444" :
-    currentScore >= 41 ? "#f59e0b" :
-    currentScore >= 21 ? "#3ce5b3" :
-                         "#10b981";
+    currentScore >= 70 ? "#22c55e" :
+    currentScore >= 50 ? "#f59e0b" :
+    currentScore >= 30 ? "#ef4444" :
+                         "#dc2626";
 
   // Trend label
   let trendLabel: string;
@@ -1321,10 +1320,10 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
     trendColor = "#94a3b8";
   } else if (weekDelta > 0) {
     trendLabel = `↑ Up ${weekDelta} pts this week`;
-    trendColor = "#ef4444";
+    trendColor = "#10b981";
   } else {
     trendLabel = `↓ Down ${Math.abs(weekDelta)} pts this week`;
-    trendColor = "#10b981";
+    trendColor = "#ef4444";
   }
 
   return (
@@ -1369,7 +1368,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
           strokeLinecap="round"
         />
 
-        {/* Chicago average dashed reference line */}
+        {/* Neutral livability reference line */}
         <line
           x1={PX}
           y1={avgY.toFixed(1)}
@@ -1379,7 +1378,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
           strokeWidth="1"
           strokeDasharray="3 3"
         />
-        {/* "35" label at right edge of avg line */}
+        {/* Reference label at right edge of avg line */}
         <text
           x={W - PX + 1}
           y={(avgY + 3.5).toFixed(1)}
@@ -1388,7 +1387,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
           textAnchor="start"
           fontFamily="system-ui, sans-serif"
         >
-          35
+          50
         </text>
 
         {/* Today dot — outer ring */}
@@ -1408,10 +1407,10 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
         />
       </svg>
 
-      {/* Chicago avg annotation */}
+      {/* Neutral reference annotation */}
       <div className="sparkline-avg-note">
         <span className="sparkline-avg-dash" aria-hidden="true" />
-        Chicago avg: 35
+        Livability reference: 50
       </div>
     </div>
   );
@@ -1434,9 +1433,10 @@ export function getMeaningInsights(result: ScoreResponse): string[] {
 // ---------------------------------------------------------------------------
 
 function scoreBarColor(score: number): string {
-  if (score <= 30) return "#22c55e";
-  if (score <= 60) return "#f59e0b";
-  return "#ef4444";
+  if (score >= 70) return "#22c55e";
+  if (score >= 50) return "#f59e0b";
+  if (score >= 30) return "#ef4444";
+  return "#dc2626";
 }
 
 function generateComparisonBlurb(
@@ -1447,34 +1447,34 @@ function generateComparisonBlurb(
   const areaStr = slugInfo.exact ? slugInfo.name : `near ${slugInfo.name}`;
 
   if (medianScore == null) {
-    if (addressScore > 50) return `At ${addressScore}, this address scores above Chicago's typical range of 20–40. Disruption signals are elevated versus most of the city.`;
-    if (addressScore > 40) return `At ${addressScore}, this address is modestly above Chicago's typical range of 20–40.`;
-    if (addressScore < 20) return `At ${addressScore}, this address is below Chicago's typical range — a positive signal for near-term access.`;
-    return `At ${addressScore}, this address falls within Chicago's typical disruption range of 20–40.`;
+    if (addressScore >= 70) return `At ${addressScore}, this address has strong livability conditions.`;
+    if (addressScore >= 50) return `At ${addressScore}, this address has average livability conditions.`;
+    if (addressScore >= 30) return `At ${addressScore}, this address has below-average livability conditions and deserves closer review.`;
+    return `At ${addressScore}, this address has significant near-term livability risk.`;
   }
 
   const diff = addressScore - medianScore;
 
   if (diff > 20) {
-    return `This address scores ${diff} points above the ${areaStr} median of ${medianScore}, pointing to localized disruption well above the neighborhood baseline.`;
+    return `This address scores ${diff} points above the ${areaStr} median of ${medianScore}, pointing to stronger livability and lower near-term risk than the local baseline.`;
   }
   if (diff > 8) {
-    return `Sitting above the ${areaStr} median of ${medianScore}, this address has somewhat elevated disruption compared to the surrounding area.`;
+    return `Sitting above the ${areaStr} median of ${medianScore}, this address has somewhat better livability conditions than the surrounding area.`;
   }
   if (diff < -20) {
-    return `At ${Math.abs(diff)} points below the ${areaStr} median of ${medianScore}, this address is in noticeably better shape than most of the neighborhood.`;
+    return `At ${Math.abs(diff)} points below the ${areaStr} median of ${medianScore}, this address has materially weaker livability conditions than the local baseline.`;
   }
   if (diff < -8) {
-    return `This address scores below the ${areaStr} typical level of ${medianScore} — a positive signal against the local area baseline.`;
+    return `This address scores below the ${areaStr} typical level of ${medianScore}, so review the evidence before treating it as comparable to nearby options.`;
   }
-  return `Broadly in line with the ${areaStr} median of ${medianScore}. The score reflects neighborhood-wide conditions rather than a site-specific spike.`;
+  return `Broadly in line with the ${areaStr} median of ${medianScore}. The score reflects local conditions rather than a clear site-specific advantage.`;
 }
 
 type ScoreBarRowProps = {
   label: string;
   score?: number;
   color?: string;
-  // For the "Chicago typical" row we show a range band instead of a single bar
+  // For the reference row we show a range band instead of a single bar.
   rangeMin?: number;
   rangeMax?: number;
   dimLabel?: boolean;
@@ -1499,7 +1499,7 @@ function ScoreBarRow({ label, score, color, rangeMin, rangeMax, dimLabel }: Scor
         flex: 1, height: "10px", position: "relative",
         background: "rgba(255,255,255,0.06)", borderRadius: "5px", overflow: "hidden",
       }}>
-        {/* Range band (Chicago typical) */}
+        {/* Range band (reference) */}
         {rangeMin != null && rangeMax != null && (
           <div style={{
             position: "absolute", top: 0, bottom: 0,
@@ -1643,7 +1643,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
               ? slugInfo?.exact
                 ? `${neighborhoodName} · ${result.address}`
                 : `Near ${neighborhoodName}`
-              : "Chicago context"}
+              : "Local context"}
           </p>
         </div>
         {slugInfo && hood && (
@@ -1672,9 +1672,9 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
           />
         )}
         <ScoreBarRow
-          label="Chicago typical"
-          rangeMin={20}
-          rangeMax={40}
+          label="Reference range"
+          rangeMin={50}
+          rangeMax={70}
           dimLabel
         />
       </div>
@@ -1727,7 +1727,7 @@ export function NeighborhoodContextCard({ result, scoreHistory, scoreTrend = [],
             How this compares
           </p>
           <p style={{ fontSize: "0.82rem", color: "var(--text-soft, #94a3b8)", lineHeight: 1.65, margin: 0 }}>
-            {blurb ?? generateComparisonBlurb(score, { slug: "", name: "Chicago", exact: true }, null)}
+            {blurb ?? generateComparisonBlurb(score, { slug: "", name: "local reference", exact: true }, null)}
           </p>
           {hood?.sample_size === 0 && (
             <p style={{ fontSize: "0.67rem", color: "var(--text-muted, #64748b)", margin: "6px 0 0", fontStyle: "italic" }}>
@@ -2176,12 +2176,12 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
 
 // ---------------------------------------------------------------------------
 // WatchlistForm — "Monitor this address"
-// Shown inline when disruption_score > 50. Captures email + threshold and
+// Shown inline for lower livability scores. Captures email + disruption threshold and
 // POSTs to /watch. Works on the free tier (always shows confirmation);
 // actual alert email delivery is gated behind Pro.
 // ---------------------------------------------------------------------------
 
-// "Drop below" thresholds — alert fires when score clears below the value.
+// "Drop below" thresholds — alert fires when the disruption subscore clears below the value.
 const WATCH_THRESHOLDS = [
   { value: 40 as const, label: "40", desc: "noticeable improvement" },
   { value: 30 as const, label: "30", desc: "significant clearance"  },
@@ -2240,7 +2240,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
           </p>
         </div>
         <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "var(--text-soft)" }}>
-          Alert fires when the score for <strong>{confirmed.address}</strong> drops below{" "}
+          Alert fires when the disruption score for <strong>{confirmed.address}</strong> drops below{" "}
           <strong>{confirmed.threshold}</strong>. Watching <strong>{confirmed.email}</strong>.
         </p>
 
@@ -2271,7 +2271,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             Monitor this address
           </p>
           <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-soft)" }}>
-            Score is currently <strong>{score}</strong>. Get notified when disruption clears.
+            Disruption score is currently <strong>{score}</strong>. Get notified when disruption clears.
           </p>
         </div>
         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", whiteSpace: "nowrap", paddingTop: "4px" }}>
@@ -2283,7 +2283,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
         {/* Threshold selector */}
         <div style={{ marginBottom: "14px" }}>
           <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            Alert me when score drops below
+            Alert me when disruption score drops below
           </p>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             {WATCH_THRESHOLDS.map((opt) => (
@@ -2302,7 +2302,7 @@ export function WatchlistForm({ address, score }: WatchlistFormProps) {
             </span>
           </div>
           <p style={{ margin: "6px 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
-            Alert fires on {selectedOpt.desc} — when score drops below {selectedOpt.label}.
+            Alert fires on {selectedOpt.desc} — when disruption score drops below {selectedOpt.label}.
           </p>
         </div>
 
@@ -2622,8 +2622,8 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       const url = `${window.location.origin}/report/${saved.report_id}`;
       if (typeof navigator.share === "function") {
         await navigator.share({
-          title: `Disruption score — ${result.address}`,
-          text: `${result.address} scores ${_headline}/100 (${band.label}) for near-term construction disruption.`,
+          title: `Livability score — ${result.address}`,
+          text: `${result.address} scores ${_headline}/100 (${band.label}). Higher scores mean better livability and lower near-term risk.`,
           url,
         });
         setShareState("idle");
@@ -2828,7 +2828,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
                   <p className="msv-monitor-error">Could not set alert. Try again.</p>
                 )}
                 <p className="msv-monitor-hint">
-                  Fires when score drops below 40. Pro plan required for email delivery.
+                  Fires when disruption score drops below 40. Pro plan required for email delivery.
                 </p>
               </form>
             )}

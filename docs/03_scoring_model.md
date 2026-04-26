@@ -1,12 +1,38 @@
-# Scoring Model (MVP)
+# Scoring Model
 
-## Score structure
-- Output: single integer `disruption_score` in range **0–100** (higher = higher near-term disruption risk).
-- Score is based on simple MVP heuristics using nearby active closures and permit activity.
-- For MVP, the response should emphasize the strongest near-term driver rather than a complex multi-factor breakdown.
+## Current nationwide score semantics
 
-## Score interpretation
-These bands are meant to help a normal user understand what the headline score means in practical terms.
+The current product direction is nationwide address-level livability and
+disruption intelligence. Older Chicago-only language in this document is
+historical calibration context, not the current product boundary.
+
+- `livability_score` is the public headline score. It is an integer from
+  **0-100** where higher means better address livability and lower near-term
+  risk.
+- `disruption_score` is retained as a backward-compatible disruption/risk
+  subscore. It is an integer from **0-100** where higher means more near-term
+  disruption risk.
+- `severity` describes disruption dimensions only: `noise`, `traffic`, and
+  `dust`. It is not a total livability rating.
+- `confidence` describes evidence trust and specificity. It is not a severity
+  label and does not change score direction.
+- `evidence_quality` is the user-facing coverage/evidence signal. Where permit
+  or closure feeds are sparse, results rely more on neighborhood context and
+  should be treated as directional.
+
+The composite livability score currently weights disruption risk, crime trend,
+school context, demographics/stability, and flood/environmental context. The
+disruption component is inverted from `disruption_score`: high disruption risk
+lowers livability.
+
+## Disruption subscore structure
+- Output: single integer `disruption_score` in range **0–100** (higher = more near-term disruption risk).
+- The subscore is based on simple heuristics using nearby active closures and permit activity.
+- Responses should emphasize the strongest near-term driver rather than a complex multi-factor breakdown.
+
+## Disruption subscore interpretation
+These bands are meant to help a normal user understand what `disruption_score`
+means in practical terms. They are not the `livability_score` bands.
 
 - **0–24 = Low**
   - Little evidence of meaningful near-term disruption close to the address.

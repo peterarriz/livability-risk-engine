@@ -30,6 +30,7 @@
   "results": [
     {
       "address": "1600 W Chicago Ave, Chicago, IL",
+      "livability_score": 48,
       "disruption_score": 54,
       "confidence": "HIGH",
       "severity": {"noise": "LOW", "traffic": "HIGH", "dust": "LOW"},
@@ -83,7 +84,7 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 | Column | Description |
 |---|---|
 | `address` | Input address echoed back |
-| `disruption_score` | Integer 0–100 (empty on error) |
+| `disruption_score` | Backward-compatible disruption/risk subscore, 0-100 where higher means more risk (empty on error) |
 | `confidence` | HIGH / MEDIUM / LOW (empty on error) |
 | `severity_noise` | HIGH / MEDIUM / LOW |
 | `severity_traffic` | HIGH / MEDIUM / LOW |
@@ -97,27 +98,34 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 
 ## `/score` endpoint
 - **Method**: `GET`
-- **Query param**: `address` (required, Chicago address string)
+- **Query param**: `address` (required, US address string with city/state where possible)
 
 ### Response fields
 - `address`: normalized user input string echoed back in the response.
-- `disruption_score`: integer from `0` to `100`. This is a practical near-term disruption indicator, not a scientific forecast of exact delay, decibel level, or project duration.
+- `livability_score`: current public headline score, integer from `0` to `100`. Higher means better address livability and lower near-term risk.
+- `disruption_score`: backward-compatible disruption/risk subscore, integer from `0` to `100`. Higher means more near-term disruption risk. This is a practical indicator, not a scientific forecast of exact delay, decibel level, or project duration.
+- `livability_breakdown`: weighted component details for the headline livability score when available. The `disruption_risk` component is inverted from `disruption_score`.
 - `confidence`: `HIGH` | `MEDIUM` | `LOW`.
 - `severity`: object with `noise`, `traffic`, and `dust`, each using `LOW` | `MEDIUM` | `HIGH`.
 - `top_risks`: ordered list of up to 3 short plain-English risk bullets.
 - `explanation`: 1 short paragraph explaining the dominant driver.
+- `evidence_quality`: `strong` | `moderate` | `contextual_only` | `insufficient` when available. This is the clearest coverage/evidence signal for user-facing copy.
+- `strong_signal_count`: count of nearby address-level signals that materially support the result when available.
+- `confidence_reason`: short explanation of why the confidence level was assigned when available.
 - `mode`: `"live"` when the score was computed from the live database; `"demo"` when the approved fallback response was used. Added in app-019.
 - `fallback_reason`: `null` when `mode` is `"live"`. A string explaining why demo mode was used when `mode` is `"demo"`. Values: `"db_not_configured"` | `"geocode_failed"` | `"scoring_error"`. Added in app-019.
 
-**Backward compatibility**: `mode` and `fallback_reason` are additive fields. Existing consumers that do not read them are unaffected.
+**Backward compatibility**: `disruption_score`, `mode`, and `fallback_reason` remain available for existing consumers. New public UI should use `livability_score` as the headline when present and keep `disruption_score` as a supporting risk subscore.
 
 ### Interpretation notes
-- `disruption_score` should align with the score bands in `docs/03_scoring_model.md`: low, moderate, high, and severe.
+- `livability_score` is the public headline: higher is better.
+- `disruption_score` aligns with the disruption bands in `docs/03_scoring_model.md`: low, moderate, high, and severe. Higher is more disruption risk.
 - `disruption_score` should reflect the weighted contribution of the strongest nearby signals rather than a broad average of every weak record in the area.
-- `confidence` should describe evidence quality and specificity, not severity. In the MVP, use:
+- `confidence` should describe evidence quality and specificity, not severity or score direction. Use:
   - `LOW` for stale, incomplete, or weakly located/timed evidence
   - `MEDIUM` for plausible but still somewhat ambiguous evidence
   - `HIGH` for recent, specific, and directly relevant evidence
+- Coverage varies by city, source, and data type. Where permit or closure feeds are sparse, results rely more on neighborhood context and should be treated as directional.
 - `severity.noise` reflects audible construction disruption.
 - `severity.traffic` reflects access friction, including lane/street impacts and related curb-access disruption.
 - In buyer-facing copy, `traffic` should be understood as **traffic and curb access** when parking, loading, pickup, or dropoff friction is part of the nearby disruption story.
@@ -125,13 +133,15 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 
 ### Approved demo example (product-012)
 
-The following response is the approved canonical example for demo walkthroughs and stakeholder reviews. It represents a High-band address with a dominant traffic signal. Use this example verbatim when demoing the API output.
+The following response is the approved canonical example for demo walkthroughs and stakeholder reviews. It represents a High disruption-band address with a dominant traffic signal. Use this example verbatim when demoing the API output.
 
 ```json
 {
   "address": "1600 W Chicago Ave, Chicago, IL",
+  "livability_score": 48,
   "disruption_score": 62,
   "confidence": "MEDIUM",
+  "evidence_quality": "moderate",
   "severity": {
     "noise": "LOW",
     "traffic": "HIGH",
@@ -146,16 +156,17 @@ The following response is the approved canonical example for demo walkthroughs a
 }
 ```
 
-**Why this example was chosen**: 1600 W Chicago Ave is a recognizable West Town arterial with documented active closure history, making it credible to a Chicago-area buyer or investor. The score of 62 sits clearly in the High band without overstating a Severe outcome, and the single dominant traffic signal demonstrates the model's clean, interpretable output. Confidence is MEDIUM because the closure timing is specific but the data is not address-level GPS-precise.
+**Why this example was chosen**: 1600 W Chicago Ave is a recognizable West Town arterial with documented active closure history, making it credible for a disruption-risk walkthrough. The disruption subscore of 62 sits clearly in the High band without overstating a Severe outcome, while the livability score of 48 shows how disruption and neighborhood context combine in the current headline score. Confidence is MEDIUM because the closure timing is specific but the data is not address-level GPS-precise.
 
 ### Approved buyer-facing demo responses per score band (product-016)
 
-Use these four responses when walking a buyer or investor through the full range of model outputs. Each example is approved for use in demos, pitch decks, and stakeholder presentations.
+Use these four responses when walking a buyer or investor through the full range of disruption subscore outputs. Each example is approved for use in demos, pitch decks, and stakeholder presentations.
 
-#### Low band (0–24) — 11900 S Morgan St, Chicago, IL (West Pullman)
+#### Low disruption band (0–24) — 11900 S Morgan St, Chicago, IL (West Pullman)
 ```json
 {
   "address": "11900 S Morgan St, Chicago, IL",
+  "livability_score": 84,
   "disruption_score": 8,
   "confidence": "LOW",
   "severity": {
@@ -172,10 +183,11 @@ Use these four responses when walking a buyer or investor through the full range
 }
 ```
 
-#### Moderate band (25–49) — 3150 N Southport Ave, Chicago, IL (Lakeview)
+#### Moderate disruption band (25–49) — 3150 N Southport Ave, Chicago, IL (Lakeview)
 ```json
 {
   "address": "3150 N Southport Ave, Chicago, IL",
+  "livability_score": 64,
   "disruption_score": 34,
   "confidence": "MEDIUM",
   "severity": {
@@ -192,13 +204,14 @@ Use these four responses when walking a buyer or investor through the full range
 }
 ```
 
-#### High band (50–74) — 1600 W Chicago Ave, Chicago, IL (West Town)
+#### High disruption band (50–74) — 1600 W Chicago Ave, Chicago, IL (West Town)
 *(See approved demo example above.)*
 
-#### Severe band (75–100) — 1200 W Fulton Market, Chicago, IL (Fulton Market)
+#### Severe disruption band (75–100) — 1200 W Fulton Market, Chicago, IL (Fulton Market)
 ```json
 {
   "address": "1200 W Fulton Market, Chicago, IL",
+  "livability_score": 29,
   "disruption_score": 81,
   "confidence": "MEDIUM",
   "severity": {
@@ -217,7 +230,8 @@ Use these four responses when walking a buyer or investor through the full range
 
 ## Response conventions
 - Keep the response minimal and demo-ready.
-- `disruption_score` is the only numeric headline field returned to the frontend.
+- `livability_score` is the public headline field when present.
+- `disruption_score` remains in the response for API compatibility and disruption-specific workflows.
 - The score should be interpretable by a non-technical reviewer without exposing raw model internals.
 - `top_risks` should be implementation-ready display strings; the frontend should not need to reconstruct them from lower-level project data.
 - `explanation` should be deterministic and consistent with the rules in `docs/03_scoring_model.md`.

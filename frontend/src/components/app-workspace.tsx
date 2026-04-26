@@ -237,7 +237,7 @@ export default function HomePage() {
   const quickExplanation = useMemo(() => {
     if (!result) return "";
     const score = headlineScore(result);
-    const band = score <= 30 ? "low" : score <= 60 ? "moderate" : "high";
+    const band = score >= 70 ? "strong" : score >= 50 ? "average" : score >= 30 ? "below-average" : "weak";
     const firstRisk = result.top_risks?.[0];
     const firstDetail = result.top_risk_details?.[0];
     const timing = (() => {
@@ -257,10 +257,7 @@ export default function HomePage() {
     const distance = typeof firstDetail?.distance_m === "number" && Number.isFinite(firstDetail.distance_m)
       ? `${Math.round(firstDetail.distance_m).toLocaleString()} meters`
       : "the immediate area";
-    const higherThanPct = Math.max(5, Math.min(95, Math.round(score)));
-    const rangeClause = score > 40 ? "above typical range" : score < 20 ? "below typical range" : "within typical range";
-
-    const sentenceOne = `This address has ${band} near-term disruption risk with a score of ${score}/100, higher than ${higherThanPct}% of nearby areas and ${rangeClause}.`;
+    const sentenceOne = `This address has ${band} livability conditions with a score of ${score}/100; higher scores indicate lower near-term risk.`;
     const sentenceTwo = firstRisk
       ? `Primary pressure comes from ${firstRisk} ${distance} away, active ${timing}.`
       : "No material active signals were detected in the current reporting window.";
@@ -875,7 +872,7 @@ export default function HomePage() {
               <div className="hero-copy">
                 <h1>Know what&rsquo;s happening at any US address before you commit.</h1>
                 <p className="lede">
-                  Score any US address in seconds. Data from permits, closures, crime trends, schools, and flood zones.
+                  Address-level livability and disruption intelligence for US properties, combining public permit, closure, neighborhood, school, flood, and market context into one evidence-aware score.
                 </p>
               </div>
             )}
@@ -900,7 +897,7 @@ export default function HomePage() {
               </div>
               {!workspaceMode && (
                 <p style={{ fontSize: "0.75rem", color: "#9CA3AF", margin: "0.5rem 0 0" }}>
-                  Data from 20+ public permit, closure, crime, and census sources across 75+ US cities.
+                  Coverage varies by city and data type. Sparse permit or closure feeds rely more on neighborhood context and should be treated as directional.
                 </p>
               )}
             </form>
@@ -1297,7 +1294,7 @@ export default function HomePage() {
 
                   {/* ── Monitor tab ──────────────────────────────────────────── */}
                   {activeTab === "monitor" && headlineScore(result) <= 50 && (
-                    <WatchlistForm address={result.address} score={headlineScore(result)} />
+                    <WatchlistForm address={result.address} score={result.disruption_score} />
                   )}
 
                   {/* ── Commute checker — hidden unless ?features=commute ────── */}
