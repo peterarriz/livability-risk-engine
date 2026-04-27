@@ -23,7 +23,7 @@ import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@/lib/clerk-client";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { headlineScore } from "@/lib/score-utils";
-import { getLookupUsage, recordLookup, isDemoAddress } from "@/lib/lookup-quota";
+import { getLookupUsage, hasUnlimitedLookupAccess, recordLookup, isDemoAddress, type LookupUsage } from "@/lib/lookup-quota";
 import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import AddressAutocomplete from "@/components/address-autocomplete";
 import type { SelectedAddress } from "@/lib/address-types";
@@ -128,8 +128,9 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<string>("signals");
   // Free-tier lookup gating
   const { user, isSignedIn } = useUser();
-  const isPro = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier === "pro";
-  const [lookupUsage, setLookupUsage] = useState({ count: 0, limit: 10, remaining: 10, isGated: false });
+  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
+  const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
+  const [lookupUsage, setLookupUsage] = useState<LookupUsage>({ count: 0, limit: 10, remaining: 10, isGated: false, isUnlimited: false });
   const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Onboarding
@@ -371,8 +372,12 @@ export default function HomePage() {
     setIsDebugMode(params.get("debug") === "true");
     setShowCommute(params.get("features")?.includes("commute") ?? false);
     // Load lookup usage from localStorage
-    setLookupUsage(getLookupUsage(!!isSignedIn, isPro));
-  }, [isSignedIn, isPro]);
+    const usage = getLookupUsage(!!isSignedIn, hasUnlimitedAccess);
+    setLookupUsage(usage);
+    if (usage.isUnlimited || !usage.isGated) {
+      setShowGate(false);
+    }
+  }, [isSignedIn, hasUnlimitedAccess]);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
   useEffect(() => {
@@ -665,7 +670,7 @@ export default function HomePage() {
     // Free-tier gate: check quota before making the request.
     // Demo addresses are never gated.
     if (!isDemoAddress(addr)) {
-      const usage = getLookupUsage(!!isSignedIn, isPro);
+      const usage = getLookupUsage(!!isSignedIn, hasUnlimitedAccess);
       if (usage.isGated) {
         setShowGate(true);
         return;
@@ -724,7 +729,7 @@ export default function HomePage() {
       });
       // Record lookup for quota tracking (demo addresses exempt)
       if (!isDemoAddress(addr)) {
-        const updated = recordLookup(!!isSignedIn, isPro);
+        const updated = recordLookup(!!isSignedIn, hasUnlimitedAccess);
         setLookupUsage(updated);
       }
       track("search_result_loaded", {
@@ -858,7 +863,7 @@ export default function HomePage() {
             <a href="/api-access" className="topnav-aux-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">
-                <button type="button" className="topnav-sign-in">Sign In</button>
+                <button type="button" className="topnav-sign-in">Sign in</button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
@@ -904,26 +909,30 @@ export default function HomePage() {
             </form>
 
             {/* Free-tier usage indicator */}
-            {!isPro && lookupUsage.count > 0 && (
+            {!lookupUsage.isUnlimited && lookupUsage.count > 0 && lookupUsage.limit !== null && (
               <p style={{ fontSize: "0.72rem", color: "#9CA3AF", margin: "0.4rem 0 0", textAlign: "center" }}>
                 {lookupUsage.count} of {lookupUsage.limit} free lookups used
               </p>
             )}
 
             {/* Gate overlay — shown when free-tier limit is reached */}
-            {showGate && (
+            {showGate && !lookupUsage.isUnlimited && (
               <div className="gate-overlay" role="alert">
                 <div className="gate-overlay-card">
                   <p className="gate-overlay-icon">🔒</p>
                   <h3>
                     {isSignedIn
-                      ? `You\u2019ve used your ${lookupUsage.limit} demo lookups this month.`
+                      ? lookupUsage.limit === null
+                        ? "You\u2019ve used your demo lookups this month."
+                        : `You\u2019ve used your ${lookupUsage.limit} demo lookups this month.`
                       : "Create an account to continue demo lookups."}
                   </h3>
                   <p>
                     {isSignedIn
                       ? "Contact us for pilot access to higher-volume address analysis and export workflows."
-                      : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} demo lookups. Create an account to continue, or request pilot API access for higher-volume use.`}
+                      : lookupUsage.limit === null
+                        ? "Create an account to continue, or request pilot API access for higher-volume use."
+                        : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} demo lookups. Create an account to continue, or request pilot API access for higher-volume use.`}
                   </p>
                   <div className="gate-overlay-actions">
                     {isSignedIn ? (

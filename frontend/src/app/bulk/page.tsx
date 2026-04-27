@@ -7,7 +7,9 @@
 // Feature is gated behind API key auth — pilot users with a key can score.
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useUser } from "@/lib/clerk-client";
 import { fetchScoreWithKey, ScoreResponse } from "@/lib/api";
+import { hasUnlimitedLookupAccess } from "@/lib/lookup-quota";
 import { Card, Container } from "@/components/shell";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,6 +27,8 @@ type BulkRow = {
 type SortCol = "address" | "score" | "severity" | "confidence";
 type SortDir = "asc" | "desc";
 type PageState = "idle" | "processing" | "done";
+
+const DEMO_BATCH_LIMIT = 100;
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -53,7 +57,7 @@ function splitCSVLine(line: string): string[] {
   return result;
 }
 
-function parseCSV(text: string): { addresses: string[]; error: string | null } {
+function parseCSV(text: string, maxRows: number | null = DEMO_BATCH_LIMIT): { addresses: string[]; error: string | null } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) {
     return { addresses: [], error: "CSV is empty or missing data rows." };
@@ -77,10 +81,10 @@ function parseCSV(text: string): { addresses: string[]; error: string | null } {
   if (addresses.length === 0) {
     return { addresses: [], error: "No addresses found in the CSV data rows." };
   }
-  if (addresses.length > 100) {
+  if (maxRows !== null && addresses.length > maxRows) {
     return {
       addresses: [],
-      error: `CSV contains ${addresses.length} addresses — maximum is 100 per batch.`,
+      error: `CSV contains ${addresses.length} addresses — maximum is ${maxRows} per batch.`,
     };
   }
   return { addresses, error: null };
@@ -150,6 +154,11 @@ function downloadCSV(content: string, filename: string) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function BulkPage() {
+  const { user } = useUser();
+  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
+  const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
+  const batchLimit = hasUnlimitedAccess ? null : DEMO_BATCH_LIMIT;
+
   const [apiKey, setApiKey] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<string[]>([]);
@@ -175,12 +184,12 @@ export default function BulkPage() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = (e.target?.result as string) ?? "";
-      const { addresses: addrs, error } = parseCSV(text);
+      const { addresses: addrs, error } = parseCSV(text, batchLimit);
       if (error) setParseError(error);
       else setAddresses(addrs);
     };
     reader.readAsText(file);
-  }, []);
+  }, [batchLimit]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -311,8 +320,10 @@ export default function BulkPage() {
             <h1 className="bulk-page-title">Bulk Address Scorer</h1>
           </div>
           <p className="bulk-page-desc">
-            Upload a CSV with an <code className="bulk-code">address</code> column to score
-            up to 100 US addresses at once. An API key is required.
+            Upload a CSV with an <code className="bulk-code">address</code> column.{" "}
+            {hasUnlimitedAccess
+              ? "Pilot demo access allows larger files. An API key is required."
+              : `Score up to ${DEMO_BATCH_LIMIT} US addresses at once. An API key is required.`}
           </p>
         </div>
 
@@ -400,7 +411,8 @@ export default function BulkPage() {
                 )}
                 <p className="bulk-field-hint">
                   Required column:{" "}
-                  <code className="bulk-code">address</code>. Max 100 rows per batch.
+                  <code className="bulk-code">address</code>.
+                  {hasUnlimitedAccess ? " Pilot demo access allows larger files." : ` Max ${DEMO_BATCH_LIMIT} rows per batch.`}
                 </p>
               </div>
             </Card>

@@ -12,11 +12,28 @@
 const STORAGE_KEY = "lre_lookup_count";
 const FREE_LIMIT = 10;
 const ANON_LIMIT = 3;
+const UNLIMITED_TIERS = new Set(["pro", "teams", "enterprise", "founder", "admin"]);
 
 type StoredQuota = {
   month: string;  // "2026-03"
   count: number;
 };
+
+export type LookupUsage = {
+  count: number;
+  limit: number | null;
+  remaining: number | null;
+  isGated: boolean;
+  isUnlimited: boolean;
+};
+
+export function normalizeSubscriptionTier(tier: unknown): string {
+  return typeof tier === "string" ? tier.trim().toLowerCase() : "";
+}
+
+export function hasUnlimitedLookupAccess(tier: unknown): boolean {
+  return UNLIMITED_TIERS.has(normalizeSubscriptionTier(tier));
+}
 
 function currentMonth(): string {
   const d = new Date();
@@ -47,14 +64,9 @@ function writeQuota(quota: StoredQuota): void {
 }
 
 /** Get current lookup count and limit for this month. */
-export function getLookupUsage(isSignedIn: boolean, isPro: boolean): {
-  count: number;
-  limit: number;
-  remaining: number;
-  isGated: boolean;
-} {
-  if (isPro) {
-    return { count: 0, limit: Infinity, remaining: Infinity, isGated: false };
+export function getLookupUsage(isSignedIn: boolean, hasUnlimitedAccess: boolean): LookupUsage {
+  if (hasUnlimitedAccess) {
+    return { count: 0, limit: null, remaining: null, isGated: false, isUnlimited: true };
   }
   const quota = readQuota();
   const limit = isSignedIn ? FREE_LIMIT : ANON_LIMIT;
@@ -63,13 +75,14 @@ export function getLookupUsage(isSignedIn: boolean, isPro: boolean): {
     limit,
     remaining: Math.max(0, limit - quota.count),
     isGated: quota.count >= limit,
+    isUnlimited: false,
   };
 }
 
 /** Increment the lookup counter. Returns updated usage. */
-export function recordLookup(isSignedIn: boolean, isPro: boolean): ReturnType<typeof getLookupUsage> {
-  if (isPro) {
-    return { count: 0, limit: Infinity, remaining: Infinity, isGated: false };
+export function recordLookup(isSignedIn: boolean, hasUnlimitedAccess: boolean): LookupUsage {
+  if (hasUnlimitedAccess) {
+    return { count: 0, limit: null, remaining: null, isGated: false, isUnlimited: true };
   }
   const quota = readQuota();
   if (quota.month !== currentMonth()) {
@@ -84,6 +97,7 @@ export function recordLookup(isSignedIn: boolean, isPro: boolean): ReturnType<ty
     limit,
     remaining: Math.max(0, limit - quota.count),
     isGated: quota.count >= limit,
+    isUnlimited: false,
   };
 }
 
