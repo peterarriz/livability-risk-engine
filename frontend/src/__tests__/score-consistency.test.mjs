@@ -20,6 +20,11 @@ function headlineScore(result) {
   return result.livability_score ?? result.disruption_score;
 }
 
+function scoreHeroDisplay(result) {
+  const score = headlineScore(result);
+  return Number.isFinite(score) ? Math.round(score) : 0;
+}
+
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
 function makeResult({ disruption_score, livability_score }) {
@@ -74,4 +79,11 @@ test("regression: WatchlistForm score matches ScoreHero headline when livability
     "ScoreHero and WatchlistForm must display the same score value");
   assert.equal(scoreHeroDisplay, 46,
     "headline score must be livability_score (46), not disruption_score (60)");
+});
+
+test("regression: ScoreHero renders livability_score immediately, not an initial zero", () => {
+  const result = makeResult({ disruption_score: 0, livability_score: 74 });
+
+  assert.equal(scoreHeroDisplay(result), 74,
+    "ScoreHero must render the API livability_score rather than a temporary zero");
 });

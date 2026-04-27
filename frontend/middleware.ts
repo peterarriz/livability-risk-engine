@@ -2,11 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
-  "/dashboard(.*)",
   "/account(.*)",
-  "/portfolio(.*)",
-  "/bulk(.*)",
-  "/api-access(.*)",
 ]);
 
 function hasConfiguredClerkSecret(value: string | undefined) {

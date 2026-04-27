@@ -81,8 +81,8 @@ const SEVERITY_PERCENT: Record<SeverityLevel, number> = {
 const SCORE_COPY = [
   { max: 30, label: "High disruption risk", summary: "Multiple strong nearby signals are likely to affect access. Expect delays or route changes." },
   { max: 50, label: "Moderate disruption risk", summary: "Some active signals detected nearby. Plan around active construction windows." },
-  { max: 70, label: "Low disruption risk", summary: "Minor activity detected. No significant access concerns expected." },
-  { max: 100, label: "Minimal disruption", summary: "No significant disruption detected. This area is clear for near-term activity." },
+  { max: 70, label: "Low disruption risk", summary: "Minor activity detected. Review any active signals before scheduling." },
+  { max: 100, label: "Minimal disruption", summary: "No major disruption signals are visible in the current planning window." },
 ];
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -451,30 +451,7 @@ function buildTimelineSummary(result: ScoreResponse): TimelineSummary {
 }
 
 function useAnimatedScore(target: number) {
-  const [displayScore, setDisplayScore] = useState(0);
-
-  useEffect(() => {
-    let frame = 0;
-    const durationMs = 700;
-    const startedAt = performance.now();
-
-    const tick = (now: number) => {
-      const elapsed = now - startedAt;
-      const progress = Math.min(elapsed / durationMs, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayScore(Math.round(target * eased));
-
-      if (progress < 1) {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
-
-    frame = window.requestAnimationFrame(tick);
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [target]);
-
-  return displayScore;
+  return Number.isFinite(target) ? Math.round(target) : 0;
 }
 
 function getGaugeBand(score: number): "low" | "moderate" | "high" {
@@ -497,13 +474,13 @@ function getDisruptionFraming(score: number): { label: string; explanation: stri
   if (score >= 71) {
     return {
       label: "Minimal disruption",
-      explanation: "No significant disruption detected. This area is clear for near-term activity with no access concerns.",
+      explanation: "No major disruption signals are visible in the current planning window.",
     };
   }
   if (score >= 51) {
     return {
       label: "Low disruption risk",
-      explanation: "Minor nearby activity detected. No significant access concerns expected. Keep normal scheduling.",
+      explanation: "Minor nearby activity detected. Review any active signals before scheduling.",
     };
   }
   if (score >= 31) {
@@ -518,16 +495,49 @@ function getDisruptionFraming(score: number): { label: string; explanation: stri
   };
 }
 
+function hasHighSeverityRisk(result: ScoreResponse): boolean {
+  const highSeverityMeter = Object.values(result.severity ?? {}).some((value) => value === "HIGH");
+  const highWeightedRisk = (result.top_risk_details ?? []).some((detail) => {
+    const score = Number(detail.weighted_score);
+    return Number.isFinite(score) && score >= 15;
+  });
+  return highSeverityMeter || highWeightedRisk;
+}
+
 export function ScoreHero({ result }: ScoreHeroProps) {
   const headlineScore = getHeadlineScore(result);
   const displayScore = useAnimatedScore(headlineScore);
-  const scoreMessage = getScoreMessage(headlineScore);
-  const disruptionFraming = getDisruptionFraming(headlineScore);
+  const highSeverityRisk = hasHighSeverityRisk(result);
+  const scoreMessage = highSeverityRisk && headlineScore >= 70
+    ? {
+        label: "Active signal review",
+        summary: "The overall score is strong, but high-severity nearby activity is present. Confirm access and timing before relying on the address.",
+      }
+    : getScoreMessage(headlineScore);
+  const disruptionFraming = highSeverityRisk && headlineScore >= 70
+    ? {
+        label: "Review nearby activity",
+        explanation: "High-severity nearby signals are present, so confirm timing and access before treating this as low-risk.",
+      }
+    : getDisruptionFraming(headlineScore);
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
   const action = useMemo(
-    () => recommendedAction(headlineScore, result.nearby_signals ?? []),
-    [headlineScore, result.nearby_signals],
+    () => {
+      const base = recommendedAction(headlineScore, result.nearby_signals ?? []);
+      if (highSeverityRisk && base.tone === "clear") {
+        return {
+          icon: "\u26A0",
+          label: "Review nearby activity \u2014 high-severity signals may affect access or timing",
+          tone: "review" as const,
+        };
+      }
+      return base;
+    },
+    [headlineScore, highSeverityRisk, result.nearby_signals],
   );
+  const displayedRecommendation = highSeverityRisk && headlineScore >= 70
+    ? "Review nearby activity before committing; high-severity signals may affect access or timing."
+    : result.recommended_action;
   const isDemo = result.mode === "demo";
   const modeLabel = isDemo ? "Limited data coverage" : "Live data";
   const modeLabelTooltip = isDemo
@@ -652,8 +662,8 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <h3 className="score-hero-title">{scoreMessage.label}</h3>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
 
-        {result.recommended_action && (() => {
-          const isHighRisk = headlineScore <= 50;
+        {displayedRecommendation && (() => {
+          const isHighRisk = headlineScore <= 50 || highSeverityRisk;
           return (
             <div
               style={{
@@ -668,7 +678,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               }}
             >
               <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
-              {result.recommended_action}
+              {displayedRecommendation}
             </div>
           );
         })()}
@@ -2609,7 +2619,10 @@ function _pillColor(impactType: string | null | undefined): string {
 
 export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
   const _headline = getHeadlineScore(result);
-  const band = _mobileBand(_headline);
+  const highSeverityRisk = hasHighSeverityRisk(result);
+  const band = highSeverityRisk && _headline >= 70
+    ? { label: "Review Active Signals", color: "#f59e0b" }
+    : _mobileBand(_headline);
 
   // ── Share state ──────────────────────────────────────────────────────────
   const [shareState, setShareState] = useState<"idle" | "loading" | "copied" | "error">("idle");
@@ -2720,8 +2733,11 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       </div>
 
       {/* ── Recommended action ─────────────────────────────────────────── */}
-      {result.recommended_action && (() => {
-        const isHighRisk = _headline <= 50;
+      {(highSeverityRisk && _headline >= 70 ? "Review nearby activity before committing; high-severity signals may affect access or timing." : result.recommended_action) && (() => {
+        const recommendation = highSeverityRisk && _headline >= 70
+          ? "Review nearby activity before committing; high-severity signals may affect access or timing."
+          : result.recommended_action;
+        const isHighRisk = _headline <= 50 || highSeverityRisk;
         return (
           <div style={{
             margin: "0 1rem", padding: "0.4rem 0.6rem", borderRadius: "6px",
@@ -2731,7 +2747,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
             fontSize: "0.75rem", lineHeight: 1.45,
           }}>
             <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
-            {result.recommended_action}
+            {recommendation}
           </div>
         );
       })()}
