@@ -22,12 +22,12 @@ import React, {
 import { useUser } from "@/lib/clerk-client";
 import { Card, Container, Header } from "@/components/shell";
 import { fetchScore, fetchSuggestions, ScoreResponse } from "@/lib/api";
+import { hasUnlimitedLookupAccess } from "@/lib/lookup-quota";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const FREE_LIMIT = 10;
 const FREE_BATCH_LIMIT = 5;
-const PRO_BATCH_LIMIT = 500;
 const CSV_TEMPLATE = "address\n1600 W Chicago Ave, Chicago, IL\n700 W Grand Ave, Chicago, IL\n233 S Wacker Dr, Chicago, IL\n";
 const STORAGE_KEY = "lre_portfolio_v1";
 
@@ -206,9 +206,9 @@ export default function PortfolioPage() {
 
   // Tier detection
   const { user } = useUser();
-  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier as string | undefined;
-  const isPro = tier === "pro" || tier === "teams" || tier === "enterprise";
-  const batchLimit = isPro ? PRO_BATCH_LIMIT : FREE_BATCH_LIMIT;
+  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
+  const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
+  const batchLimit = hasUnlimitedAccess ? null : FREE_BATCH_LIMIT;
   const csvUploadRef = useRef<HTMLInputElement>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -294,7 +294,7 @@ export default function PortfolioPage() {
       }
 
       // Free-tier limit
-      if (items.length >= FREE_LIMIT) {
+      if (!hasUnlimitedAccess && items.length >= FREE_LIMIT) {
         setAddError(`Demo workspace is limited to ${FREE_LIMIT} addresses. Request pilot access for higher-volume workflows.`);
         return;
       }
@@ -313,7 +313,7 @@ export default function PortfolioPage() {
       // Score immediately
       await scoreItem(newItem.id, trimmed);
     },
-    [items, scoreItem],
+    [hasUnlimitedAccess, items, scoreItem],
   );
 
   // ── Remove address ────────────────────────────────────────────────────────
@@ -346,12 +346,8 @@ export default function PortfolioPage() {
       return;
     }
 
-    if (addresses.length > batchLimit) {
-      setAddError(
-        isPro
-          ? `CSV contains ${addresses.length} addresses. Max ${PRO_BATCH_LIMIT} per upload.`
-          : `Demo workspace allows ${FREE_BATCH_LIMIT} addresses per upload. Request pilot access for larger CSV workflows.`,
-      );
+    if (batchLimit !== null && addresses.length > batchLimit) {
+      setAddError(`Demo workspace allows ${FREE_BATCH_LIMIT} addresses per upload. Request pilot access for larger CSV workflows.`);
       return;
     }
 
@@ -476,7 +472,7 @@ export default function PortfolioPage() {
   const highestRisk = scored.length
     ? scored.reduce((a, b) => (b.disruption_score ?? 0) > (a.disruption_score ?? 0) ? b : a)
     : null;
-  const atLimit = items.length >= FREE_LIMIT;
+  const atLimit = !hasUnlimitedAccess && items.length >= FREE_LIMIT;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -501,11 +497,13 @@ export default function PortfolioPage() {
         <div className="portfolio-page-header">
           <div className="portfolio-title-row">
             <h1 className="portfolio-title">My Portfolio</h1>
-            <span className="portfolio-plan-badge">Demo</span>
+            <span className="portfolio-plan-badge">{hasUnlimitedAccess ? "Pilot" : "Demo"}</span>
           </div>
           <p className="portfolio-subtitle">
             Track disruption scores across multiple addresses. Scores update on demand.
-            {" "}<span className="portfolio-plan-note">Demo workspace: {items.length}/{FREE_LIMIT} addresses.</span>
+            {" "}<span className="portfolio-plan-note">
+              {hasUnlimitedAccess ? "Pilot workspace: unlimited address tracking during the demo." : `Demo workspace: ${items.length}/${FREE_LIMIT} addresses.`}
+            </span>
           </p>
         </div>
 
@@ -624,7 +622,7 @@ export default function PortfolioPage() {
               Download template
             </button>
             <span className="portfolio-csv-hint">
-              {isPro ? `Pilot: up to ${PRO_BATCH_LIMIT} addresses per upload` : `Demo: ${FREE_BATCH_LIMIT} addresses per upload`}
+              {hasUnlimitedAccess ? "Pilot: larger CSV uploads during the demo" : `Demo: ${FREE_BATCH_LIMIT} addresses per upload`}
             </span>
           </div>
 
@@ -683,7 +681,11 @@ export default function PortfolioPage() {
         {hydrated && items.length === 0 ? (
           <div className="portfolio-empty">
             <p className="portfolio-empty-kicker">No addresses yet</p>
-            <p>Add up to {FREE_LIMIT} addresses above to start tracking disruption activity.</p>
+            <p>
+              {hasUnlimitedAccess
+                ? "Add addresses above to start tracking disruption activity."
+                : `Add up to ${FREE_LIMIT} addresses above to start tracking disruption activity.`}
+            </p>
             <p className="portfolio-empty-hint">
               Scores are fetched live from Chicago permit and street closure data.
             </p>

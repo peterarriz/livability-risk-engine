@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import AddressAutocomplete from "@/components/address-autocomplete";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@/lib/clerk-client";
 
 const EXAMPLE_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const EXAMPLE_ADDRESSES = [
@@ -40,6 +41,30 @@ export default function LandingPage() {
           <Link href="/methodology" style={{ color: "#6B7280", textDecoration: "none" }}>Docs</Link>
           <Link href="/pilot-evidence" style={{ color: "#6B7280", textDecoration: "none" }}>Pilot evidence</Link>
           <Link href="/api-docs" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                style={{
+                  padding: "0.45rem 0.8rem",
+                  border: "1px solid #D1D5DB",
+                  borderRadius: "8px",
+                  background: "#FFFFFF",
+                  color: "#374151",
+                  cursor: "pointer",
+                  fontFamily: font,
+                  fontSize: "0.82rem",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Sign in
+              </button>
+            </SignInButton>
+          </SignedOut>
+          <SignedIn>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
         </nav>
       </header>
 
