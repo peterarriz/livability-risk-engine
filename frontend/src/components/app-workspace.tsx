@@ -131,7 +131,6 @@ export default function HomePage() {
   const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
   const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
   const [lookupUsage, setLookupUsage] = useState<LookupUsage>({ count: 0, limit: 10, remaining: 10, isGated: false, isUnlimited: false });
-  const [showGate, setShowGate] = useState(false);
   const [scoredAt, setScoredAt] = useState<Date | null>(null);
   // Onboarding
   const showOnboarding = useOnboardingState();
@@ -261,7 +260,7 @@ export default function HomePage() {
     const sentenceOne = `This address has ${band} livability conditions with a score of ${score}/100; higher scores indicate lower near-term risk.`;
     const sentenceTwo = firstRisk
       ? `Primary pressure comes from ${firstRisk} ${distance} away, active ${timing}.`
-      : "No material active signals were detected in the current reporting window.";
+      : "No address-level signals were found; this result relies more on contextual data.";
     return `${sentenceOne} ${sentenceTwo}`;
   }, [result]);
   const topThreeRisks = useMemo(
@@ -283,21 +282,21 @@ export default function HomePage() {
       if (startLabel && endLabel) return `${startLabel} → ${endLabel}`;
       if (startLabel) return `Starts ${startLabel}`;
       if (endLabel) return `Through ${endLabel}`;
-      return "Timing not provided";
+      return "Timing estimate unavailable";
     };
     return (result.top_risks ?? []).slice(0, 3).map((risk, idx) => {
       const detail = details[idx];
       const meters = detail?.distance_m;
       const distanceLabel = typeof meters === "number" && Number.isFinite(meters)
         ? `${Math.round(meters).toLocaleString()} m`
-        : "Distance not provided";
+        : "Distance estimate unavailable";
       const severityLabel = detail
         ? (detail.weighted_score >= 15
           ? "high severity"
           : detail.weighted_score >= 7
             ? "moderate severity"
             : "low severity")
-        : "severity not provided";
+        : "Severity estimate unavailable";
       return {
         risk,
         distanceLabel,
@@ -374,9 +373,6 @@ export default function HomePage() {
     // Load lookup usage from localStorage
     const usage = getLookupUsage(!!isSignedIn, hasUnlimitedAccess);
     setLookupUsage(usage);
-    if (usage.isUnlimited || !usage.isGated) {
-      setShowGate(false);
-    }
   }, [isSignedIn, hasUnlimitedAccess]);
 
   // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
@@ -667,16 +663,6 @@ export default function HomePage() {
   }
 
   async function submitAddress(addr: string) {
-    // Free-tier gate: check quota before making the request.
-    // Demo addresses are never gated.
-    if (!isDemoAddress(addr)) {
-      const usage = getLookupUsage(!!isSignedIn, hasUnlimitedAccess);
-      if (usage.isGated) {
-        setShowGate(true);
-        return;
-      }
-    }
-
     debugSearchFlow("SEARCH_REQUEST", {
       request_fired: true,
       identifier_type: selectedAddress?.id ? "canonical_id" : "address_text",
@@ -911,47 +897,8 @@ export default function HomePage() {
             {/* Free-tier usage indicator */}
             {!lookupUsage.isUnlimited && lookupUsage.count > 0 && lookupUsage.limit !== null && (
               <p style={{ fontSize: "0.72rem", color: "#9CA3AF", margin: "0.4rem 0 0", textAlign: "center" }}>
-                {lookupUsage.count} of {lookupUsage.limit} free lookups used
+                {lookupUsage.count} public demo lookups run in this browser
               </p>
-            )}
-
-            {/* Gate overlay — shown when free-tier limit is reached */}
-            {showGate && !lookupUsage.isUnlimited && (
-              <div className="gate-overlay" role="alert">
-                <div className="gate-overlay-card">
-                  <p className="gate-overlay-icon">🔒</p>
-                  <h3>
-                    {isSignedIn
-                      ? lookupUsage.limit === null
-                        ? "You\u2019ve used your demo lookups this month."
-                        : `You\u2019ve used your ${lookupUsage.limit} demo lookups this month.`
-                      : "Create an account to continue demo lookups."}
-                  </h3>
-                  <p>
-                    {isSignedIn
-                      ? "Contact us for pilot access to higher-volume address analysis and export workflows."
-                      : lookupUsage.limit === null
-                        ? "Create an account to continue, or request pilot API access for higher-volume use."
-                        : `You\u2019ve used ${lookupUsage.count} of ${lookupUsage.limit} demo lookups. Create an account to continue, or request pilot API access for higher-volume use.`}
-                  </p>
-                  <div className="gate-overlay-actions">
-                    {isSignedIn ? (
-                      <a href="/pricing" className="gate-btn gate-btn--primary" onClick={() => setShowGate(false)}>
-                        Request pilot access
-                      </a>
-                    ) : (
-                      <SignInButton mode="modal">
-                        <button type="button" className="gate-btn gate-btn--primary">
-                          Sign up free
-                        </button>
-                      </SignInButton>
-                    )}
-                    <button type="button" className="gate-btn gate-btn--secondary" onClick={() => setShowGate(false)}>
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              </div>
             )}
 
             {/* Status banner removed — data source info is in the hero support text */}

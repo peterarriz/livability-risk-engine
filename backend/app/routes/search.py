@@ -136,10 +136,10 @@ def suggest_addresses(
 
     rows = _get_address_rows()
 
-    # For empty/short queries, return curated public suggestions only. Do not
-    # expose customer-derived "popular" addresses from reports/history/watchlists.
+    # For empty/short queries, avoid open-ended geocoder or fuzzy matches.
+    # Public autocomplete should not show odd guesses for one- or two-letter input.
     if len(query) < 3:
-        if not popular and len(query) == 0:
+        if not popular:
             return {"query": query, "suggestions": []}
         top = sorted(rows, key=lambda r: int(r.get("popularity", 0)), reverse=True)[:limit]
         return {

@@ -93,7 +93,7 @@ type SignalLike = {
  * Derive a recommended action from the headline score and nearby signals.
  *
  * States:
- *   score < 30                          → Clear to proceed
+ *   score >= 70                         → Ready to proceed
  *   score 30-60, all signals end ≤ 30d  → Monitor (clearing soon)
  *   score 30-60, signals ongoing        → Review before committing
  *   score > 60                          → Defer if possible
@@ -106,7 +106,7 @@ export function recommendedAction(
   if (score >= 70) {
     return {
       icon: "\u2713",
-      label: "Clear to proceed \u2014 no significant disruptions in your impact window",
+      label: "Ready to proceed \u2014 no major disruptions visible in your impact window",
       tone: "clear",
     };
   }

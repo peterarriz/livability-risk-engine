@@ -14,6 +14,7 @@ import csv
 import io
 import json
 import logging
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
@@ -35,6 +36,34 @@ from backend.app.services.livability import _compute_livability_score, _extract_
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _address_not_found_response(address: str) -> dict:
+    return {
+        "address": address,
+        "error": "address_not_found",
+        "message": "We could not locate this address. Try a fuller street address with city and state.",
+        "livability_score": None,
+        "disruption_score": None,
+        "confidence": None,
+        "severity": None,
+        "top_risks": [],
+        "explanation": None,
+    }
+
+
+def _looks_like_complete_street_address(address: str) -> bool:
+    """Reject obvious gibberish before geocoders can resolve it loosely."""
+    compact = address.strip()
+    if len(compact) < 8:
+        return False
+    if not re.search(r"[A-Za-z]", compact) or not re.search(r"\d", compact):
+        return False
+    if not re.search(r"\s", compact):
+        return False
+    if re.fullmatch(r"[A-Za-z0-9]{8,}", compact):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -118,20 +147,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
         if not resolved_coords and ", USA" not in address.upper():
             resolved_coords = geocode_address(address + ", USA", **_geo_opts)
         if not resolved_coords:
-            error_resp = {
-                "address": address,
-                "error": "address_not_found",
-                "message": (
-                    "This address is outside our current coverage area. "
-                    "We're expanding \u2014 check back soon or try a nearby metro address."
-                ),
-                "livability_score": None,
-                "disruption_score": None,
-                "confidence": None,
-                "severity": None,
-                "top_risks": [],
-                "explanation": None,
-            }
+            error_resp = _address_not_found_response(address)
             _log_score_request(error_resp, int((_time.time() - _start) * 1000))
             return error_resp
 
@@ -772,6 +788,9 @@ def get_score(
             raise HTTPException(status_code=422, detail="Canonical score lookup missing display address.")
         raise HTTPException(status_code=422, detail="Provide address or canonical_id for score lookup.")
 
+    if resolution_source == "address_text" and not _looks_like_complete_street_address(resolved_address):
+        return _address_not_found_response(resolved_address)
+
     _debug_search_flow(
         "SCORE_REQUEST",
         source=resolution_source,
@@ -792,20 +811,7 @@ def get_score(
         raise
     except ValueError as exc:
         log.warning("score address=%r geocode_failed error=%s", resolved_address, exc)
-        return {
-            "address": resolved_address,
-            "error": "address_not_found",
-            "message": (
-                "This address is outside our current coverage area. "
-                "We're expanding \u2014 check back soon or try a nearby metro address."
-            ),
-            "livability_score": None,
-            "disruption_score": None,
-            "confidence": None,
-            "severity": None,
-            "top_risks": [],
-            "explanation": None,
-        }
+        return _address_not_found_response(resolved_address)
     except Exception as exc:
         log.error("score address=%r unexpected scoring error: %s", resolved_address, exc)
         raise HTTPException(
