@@ -254,7 +254,10 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 
   const dateMatch = text.match(/(20\d{2}-\d{2}-\d{2})/);
   if (dateMatch) {
-    chips.add(`Active through ${dateMatch[1]}`);
+    const date = parseDateString(dateMatch[1]);
+    if (date && date.getTime() >= Date.now()) {
+      chips.add(`Active through ${formatLongDate(date)}`);
+    }
   }
 
   const nextDaysMatch = text.match(/next\s+(\d{1,3})\s+days/i);
@@ -267,6 +270,22 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
   if (/curb access|parking|loading|pickup|dropoff/.test(normalized)) chips.add("Curb access");
 
   return Array.from(chips).slice(0, 4);
+}
+
+function hasFutureEndDate(detail?: TopRiskDetail): boolean {
+  const date = detail?.end_date ? parseDateString(detail.end_date) : null;
+  return Boolean(date && date.getTime() >= Date.now());
+}
+
+function hasUsefulRiskMetadata(risk: string, detail?: TopRiskDetail): boolean {
+  const weightedScore = detail?.weighted_score;
+  const hasUsefulSeverity = typeof weightedScore === "number" && Number.isFinite(weightedScore);
+  const hasUsefulDistance =
+    Boolean(detail?.distance) ||
+    (typeof detail?.distance_m === "number" && Number.isFinite(detail.distance_m) && detail.distance_m > 0) ||
+    /\b(?:within|about|roughly|approximately|around)\s+[\d,.]+\s*(?:m|meters?|ft|feet)\b/i.test(risk);
+  const hasUsefulTiming = Boolean(detail?.temporal_status) || hasFutureEndDate(detail);
+  return hasUsefulSeverity || hasUsefulDistance || hasUsefulTiming;
 }
 
 function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
@@ -290,7 +309,7 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
       return a.index - b.index;
     });
 
-  return ranked.map(({ risk, index, detail }) => {
+  return ranked.filter(({ risk, detail }) => hasUsefulRiskMetadata(risk, detail)).map(({ risk, index, detail }) => {
     const humanized = humanizeRiskText(risk);
     const impact = inferImpact(humanized, index);
 
@@ -404,6 +423,15 @@ function parseDateString(value: string): Date | null {
 
 function formatDate(date: Date): string {
   return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+
+function formatLongDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 function formatMonthYear(date: Date): string {

@@ -484,7 +484,7 @@ export default function PortfolioPage() {
           <div className="brand-lockup">
             <div className="brand-mark" aria-hidden="true">LR</div>
             <div>
-              <p className="brand-title">Livability Intelligence</p>
+              <p className="brand-title">Livability Risk Engine</p>
               <p className="brand-subtitle">Illinois disruption intelligence</p>
             </div>
           </div>

@@ -270,7 +270,7 @@ function ComparePageInner() {
           <div className="brand-lockup">
             <div className="brand-mark" aria-hidden="true">LR</div>
             <div>
-              <p className="brand-title">Livability Intelligence</p>
+              <p className="brand-title">Livability Risk Engine</p>
               <p className="brand-subtitle">Nationwide livability intelligence</p>
             </div>
           </div>

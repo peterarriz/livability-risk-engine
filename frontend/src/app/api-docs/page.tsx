@@ -76,7 +76,7 @@ export default function ApiDocsPage() {
 
       {/* Main content */}
       <main className="docs-main">
-        <h1 className="docs-title">Livability Intelligence API</h1>
+        <h1 className="docs-title">Livability Risk Engine API</h1>
         <p className="docs-intro">
           Score US addresses for livability and disruption using available public permit, closure,
           neighborhood, school, flood, and market context. Returns a 0&ndash;100 livability score,
