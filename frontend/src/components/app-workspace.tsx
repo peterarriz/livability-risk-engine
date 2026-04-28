@@ -31,6 +31,7 @@ import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const POSITIONING = "Address livability intelligence";
+const EXPLICIT_DATE_RE = /\b20\d{2}-\d{2}-\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+20\d{2}\b/i;
 
 
 type SuggestionAddressParts = {
@@ -56,6 +57,10 @@ function stripDistancePhrases(text: string): string {
     .trim();
 }
 
+function containsExplicitDate(text: string | null | undefined): boolean {
+  return Boolean(text && EXPLICIT_DATE_RE.test(text));
+}
+
 function formatPrimaryPressure(result: ScoreResponse): string | null {
   const firstRisk = result.top_risks?.[0];
   const firstDetail = result.top_risk_details?.[0];
@@ -78,7 +83,7 @@ function formatPrimaryPressure(result: ScoreResponse): string | null {
     return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
   };
   const end = fmtDate(firstDetail?.end_date);
-  const timing = end ? `, active through ${end}` : "";
+  const timing = end && !containsExplicitDate(sourceText) ? `, active through ${end}` : "";
   return `Primary pressure comes from ${subject}${distance}${timing}.`;
 }
 
@@ -362,7 +367,7 @@ export default function HomePage() {
             ? "moderate severity"
             : "low severity")
         : null;
-      const timingLabel = timingText(detail?.end_date);
+      const timingLabel = containsExplicitDate(risk) ? null : timingText(detail?.end_date);
       if (!severityLabel && !distanceLabel && !timingLabel) return null;
       return {
         risk,

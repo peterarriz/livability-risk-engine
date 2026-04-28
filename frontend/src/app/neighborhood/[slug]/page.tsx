@@ -194,6 +194,53 @@ function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
   );
 }
 
+function NeighborhoodLoadingState() {
+  return (
+    <section
+      aria-label="Loading neighborhood overview"
+      style={{
+        marginTop: "40px",
+        display: "grid",
+        gap: "18px",
+      }}
+    >
+      <div
+        style={{
+          width: "180px",
+          height: "12px",
+          borderRadius: "999px",
+          background: "var(--surface-raised, #eef2f7)",
+        }}
+      />
+      <div
+        style={{
+          width: "min(420px, 80vw)",
+          height: "34px",
+          borderRadius: "6px",
+          background: "var(--surface-raised, #eef2f7)",
+        }}
+      />
+      <div
+        style={{
+          width: "min(620px, 90vw)",
+          height: "14px",
+          borderRadius: "999px",
+          background: "var(--surface-raised, #eef2f7)",
+        }}
+      />
+      <div
+        style={{
+          height: "280px",
+          borderRadius: "8px",
+          border: "1px solid var(--border-subtle, #e5e7eb)",
+          background:
+            "linear-gradient(135deg, rgba(148,163,184,0.16), rgba(148,163,184,0.05))",
+        }}
+      />
+    </section>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -225,9 +272,7 @@ export default function NeighborhoodPage() {
       </a>
 
       {loading && (
-        <div style={{ marginTop: "48px", color: "var(--color-muted, #888)" }}>
-          Loading neighborhood data…
-        </div>
+        <NeighborhoodLoadingState />
       )}
 
       {!loading && notFound && (

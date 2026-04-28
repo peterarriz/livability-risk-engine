@@ -256,7 +256,7 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
   if (dateMatch) {
     const date = parseDateString(dateMatch[1]);
     if (date && date.getTime() >= Date.now()) {
-      chips.add(`Active through ${formatLongDate(date)}`);
+      chips.add("Active timing available in source data");
     }
   }
 
@@ -423,15 +423,6 @@ function parseDateString(value: string): Date | null {
 
 function formatDate(date: Date): string {
   return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
-}
-
-function formatLongDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
 }
 
 function formatMonthYear(date: Date): string {
@@ -1227,9 +1218,9 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
                           {child.distance}
                         </p>
                       )}
-                      {child.start_date && (
+                      {hasFutureEndDate(child) && (
                         <p style={{ color: "var(--color-text-secondary, #6B7280)", marginTop: "2px" }}>
-                          {child.start_date}{child.end_date ? ` — ${child.end_date}` : ""}
+                          Active timing available in source data
                         </p>
                       )}
                     </div>
