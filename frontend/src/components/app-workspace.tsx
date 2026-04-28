@@ -26,6 +26,7 @@ import { headlineScore } from "@/lib/score-utils";
 import { getLookupUsage, hasUnlimitedLookupAccess, recordLookup, isDemoAddress, type LookupUsage } from "@/lib/lookup-quota";
 import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import AddressAutocomplete from "@/components/address-autocomplete";
+import { normalizeAddressQuery } from "@/lib/address-utils";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
@@ -64,6 +65,44 @@ function getSuggestionAddressParts(suggestion: AddressSuggestion): SuggestionAdd
   const state = suggestion.state ?? (stateZipRaw.match(/\b([A-Za-z]{2})\b/)?.[1]?.toUpperCase() ?? "");
   const zip = suggestion.zip ?? (stateZipRaw.match(/\b(\d{5})\b/)?.[1] ?? "");
   return { street, city, state, zip };
+}
+
+function selectedAddressFromSuggestion(suggestion: AddressSuggestion): SelectedAddress {
+  const parts = getSuggestionAddressParts(suggestion);
+  return {
+    id: suggestion.canonical_id ?? null,
+    label: suggestion.display_address,
+    lat: suggestion.lat ?? null,
+    lon: suggestion.lon ?? null,
+    city: parts.city,
+    state: parts.state,
+    zip: parts.zip || undefined,
+  };
+}
+
+function normalizeForCanonicalCompare(value: string): string {
+  return normalizeAddressQuery(value)
+    .replace(/\b(?:united states|usa|us)\b/g, " ")
+    .replace(/\b\d{5}(?:-\d{4})?\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeCompleteAddress(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 8) return false;
+  if (!/\d/.test(trimmed) || !/[a-z]/i.test(trimmed)) return false;
+  return (
+    trimmed.includes(",") ||
+    /\b(?:st|street|ave|avenue|rd|road|dr|drive|blvd|boulevard|way|place|pl|ln|lane|ct|court|nw|ne|sw|se|north|south|east|west)\b/i.test(trimmed)
+  );
+}
+
+function isNearExactCanonicalAlias(input: string, suggestion: AddressSuggestion): boolean {
+  if (!suggestion.canonical_id) return false;
+  const normalizedInput = normalizeForCanonicalCompare(input);
+  const normalizedSuggestion = normalizeForCanonicalCompare(suggestion.display_address);
+  return Boolean(normalizedInput && normalizedInput === normalizedSuggestion);
 }
 
 function highlightMatch(text: string, query: string): React.ReactNode {
@@ -617,16 +656,7 @@ export default function HomePage() {
   }
 
   function handleSuggestionSelect(suggestion: AddressSuggestion, options: { submit?: boolean } = { submit: true }) {
-    const parts = getSuggestionAddressParts(suggestion);
-    const selected: SelectedAddress = {
-      id: suggestion.canonical_id ?? null,
-      label: suggestion.display_address,
-      lat: suggestion.lat ?? null,
-      lon: suggestion.lon ?? null,
-      city: parts.city,
-      state: parts.state,
-      zip: parts.zip || undefined,
-    };
+    const selected = selectedAddressFromSuggestion(suggestion);
     debugSearchFlow("SELECTION", { ...selected, raw: suggestion });
     track("suggestion_selected", { address: suggestion.display_address, canonical_id: suggestion.canonical_id });
     skipSuggestRef.current = true;
@@ -642,7 +672,7 @@ export default function HomePage() {
     setActiveSuggestionIndex(-1);
     inputRef.current?.focus();
     if (options.submit !== false) {
-      void submitAddress(suggestion.display_address);
+      void submitAddress(suggestion.display_address, selected);
     }
   }
 
@@ -671,21 +701,50 @@ export default function HomePage() {
     }
   }
 
-  async function submitAddress(addr: string) {
+  async function resolveCanonicalSuggestionForScoring(addr: string): Promise<SelectedAddress | null> {
+    if (!looksLikeCompleteAddress(addr)) return null;
+    try {
+      const results = await fetchAddressSuggestions(addr, { limit: 3 });
+      const match = results.find((suggestion) => isNearExactCanonicalAlias(addr, suggestion));
+      return match ? selectedAddressFromSuggestion(match) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function submitAddress(addr: string, selectedOverride?: SelectedAddress | null) {
+    const trimmedAddress = addr.trim();
+    let activeSelectedAddress = selectedOverride ?? selectedAddress;
+    if (!activeSelectedAddress) {
+      activeSelectedAddress = await resolveCanonicalSuggestionForScoring(trimmedAddress);
+      if (activeSelectedAddress) {
+        setSelectedAddress(activeSelectedAddress);
+        setAddress(activeSelectedAddress.label);
+      }
+    }
+    const scoreAddress = activeSelectedAddress?.label ?? trimmedAddress;
+    const selectedLat = activeSelectedAddress?.lat;
+    const selectedLon = activeSelectedAddress?.lon;
+    const hasSelectedCoords =
+      typeof selectedLat === "number" &&
+      typeof selectedLon === "number";
+    const selectedCoordinateLabel = hasSelectedCoords
+      ? `${selectedLat},${selectedLon}`
+      : null;
     debugSearchFlow("SEARCH_REQUEST", {
       request_fired: true,
-      identifier_type: selectedAddress?.id ? "canonical_id" : "address_text",
-      identifier: selectedAddress?.id ?? addr,
-      display_address: selectedAddress?.label ?? addr,
+      identifier_type: activeSelectedAddress?.id ? "canonical_id" : (hasSelectedCoords ? "lat_lon" : "address_text"),
+      identifier: activeSelectedAddress?.id ?? selectedCoordinateLabel ?? scoreAddress,
+      display_address: activeSelectedAddress?.label ?? scoreAddress,
     });
     hasSubmittedSearchRef.current = true;
     searchStartedAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now();
     track("search_started", {
-      address_length: addr.length,
-      used_selected_address: Boolean(selectedAddress?.id),
+      address_length: scoreAddress.length,
+      used_selected_address: Boolean(activeSelectedAddress?.id || hasSelectedCoords),
       from_query_handoff: typeof window !== "undefined" ? new URLSearchParams(window.location.search).has("address") : false,
     });
-    track("address_analyzed", { address: addr });
+    track("address_analyzed", { address: scoreAddress });
     setIsLoading(true);
     setRevealPhase(0);
     setError(null);
@@ -693,10 +752,10 @@ export default function HomePage() {
     setDashboardHydrationStatus(null);
     setMobileShowFull(false);
     try {
-      const scoreResult = await fetchScore(addr, {
-        canonicalId: selectedAddress?.id ?? null,
-        lat: typeof selectedAddress?.lat === "number" ? selectedAddress.lat : undefined,
-        lon: typeof selectedAddress?.lon === "number" ? selectedAddress.lon : undefined,
+      const scoreResult = await fetchScore(scoreAddress, {
+        canonicalId: activeSelectedAddress?.id ?? null,
+        lat: typeof activeSelectedAddress?.lat === "number" ? activeSelectedAddress.lat : undefined,
+        lon: typeof activeSelectedAddress?.lon === "number" ? activeSelectedAddress.lon : undefined,
       });
       // Handle graceful "address not found" from the backend.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -719,11 +778,11 @@ export default function HomePage() {
       }
       // Track address history (last 5, deduplicated)
       setAddressHistory((prev: string[]) => {
-        const deduped = [addr, ...prev.filter((a: string) => a !== addr)];
+        const deduped = [scoreAddress, ...prev.filter((a: string) => a !== scoreAddress)];
         return deduped.slice(0, 5);
       });
       // Record lookup for quota tracking (demo addresses exempt)
-      if (!isDemoAddress(addr)) {
+      if (!isDemoAddress(scoreAddress)) {
         const updated = recordLookup(!!isSignedIn, hasUnlimitedAccess);
         setLookupUsage(updated);
       }
@@ -886,8 +945,11 @@ export default function HomePage() {
                 <AddressAutocomplete
                   defaultValue={address}
                   placeholder={workspaceMode ? "Search another property address" : "Enter any US address"}
-                  onSelect={(addr: string) => { setAddress(addr); void submitAddress(addr); }}
-                  onChange={(addr: string) => { setAddress(addr); }}
+                  onSelect={(suggestion: AddressSuggestion) => { handleSuggestionSelect(suggestion); }}
+                  onChange={(addr: string) => {
+                    setSelectedAddress(null);
+                    setAddress(addr);
+                  }}
                   ariaLabel="US address"
                   dropdownDark={false}
                   inputStyle={{ width: "100%", padding: "18px 20px", border: "1px solid #D1D5DB", borderRadius: "12px", background: "#FFFFFF", color: "#111827", fontSize: "1rem", outline: "none", fontFamily: "Inter, system-ui, sans-serif" }}
