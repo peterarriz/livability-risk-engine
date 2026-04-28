@@ -39,8 +39,8 @@ export async function generateMetadata({
   const data = await fetchBestStreets(slug);
   if (!data) {
     return {
-      title: "Quietest Streets in Chicago — Livability Risk Engine",
-      description: "Block-level disruption intelligence for Chicago neighborhoods.",
+      title: "Block rankings pending - Livability Risk Engine",
+      description: "Neighborhood-level livability signals are available while block-level rankings are prepared for pilot review.",
     };
   }
 
@@ -109,6 +109,14 @@ function scoreBand(score: number): string {
   if (score <= 65) return "Moderate";
   if (score <= 80) return "High";
   return "Severe";
+}
+
+function formatNeighborhoodName(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -242,18 +250,80 @@ function BlockList({
 // ---------------------------------------------------------------------------
 
 function NotAvailable({ slug }: { slug: string }) {
+  const neighborhoodName = formatNeighborhoodName(slug);
+
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: "760px", margin: "0 auto", padding: "40px 24px" }}>
-      <a href="/" style={{ fontSize: "13px", color: "#64748b", textDecoration: "none" }}>
-        ← Livability Risk Engine
-      </a>
-      <h1 style={{ marginTop: "32px", fontSize: "24px", fontWeight: 800 }}>
-        Data unavailable
-      </h1>
-      <p style={{ color: "#64748b" }}>
-        Block data for <code>{slug}</code> could not be loaded. Try again shortly or{" "}
-        <a href="/" style={{ color: "#84a6ff" }}>run a live lookup</a>.
-      </p>
+    <main
+      style={{
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        minHeight: "100vh",
+        background: "#07101d",
+        color: "#f8fafc",
+        padding: "40px 24px",
+      }}
+    >
+      <div style={{ maxWidth: "760px", margin: "0 auto" }}>
+        <a href="/" style={{ fontSize: "13px", color: "#94a3b8", textDecoration: "none" }}>
+          ← Livability Risk Engine
+        </a>
+        <section
+          style={{
+            marginTop: "32px",
+            padding: "28px",
+            borderRadius: "8px",
+            border: "1px solid rgba(148, 163, 184, 0.24)",
+            background: "rgba(15, 23, 42, 0.72)",
+          }}
+        >
+          <p
+            style={{
+              margin: "0 0 10px",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "#93c5fd",
+            }}
+          >
+            Pilot coverage
+          </p>
+          <h1 style={{ margin: "0 0 12px", fontSize: "clamp(1.6rem, 4vw, 2.2rem)", lineHeight: 1.15 }}>
+            Block-level rankings are not ready for {neighborhoodName} yet.
+          </h1>
+          <p style={{ margin: "0 0 22px", color: "#cbd5e1", lineHeight: 1.6 }}>
+            The public neighborhood overview and address-level scorer are available while we finish
+            production-grade block ranking coverage. No synthetic street rankings are shown.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+            <a
+              href="/app"
+              style={{
+                borderRadius: "6px",
+                background: "#f8fafc",
+                color: "#0f172a",
+                fontWeight: 700,
+                padding: "10px 14px",
+                textDecoration: "none",
+              }}
+            >
+              Run an address lookup
+            </a>
+            <a
+              href={`/neighborhood/${slug}`}
+              style={{
+                borderRadius: "6px",
+                border: "1px solid rgba(148, 163, 184, 0.35)",
+                color: "#e2e8f0",
+                fontWeight: 700,
+                padding: "10px 14px",
+                textDecoration: "none",
+              }}
+            >
+              Open neighborhood overview
+            </a>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
