@@ -195,48 +195,62 @@ function ProjectList({ projects }: { projects: NeighborhoodProject[] }) {
 }
 
 function NeighborhoodLoadingState() {
+  const skeletonRows = [
+    { width: "82%" },
+    { width: "64%" },
+    { width: "74%" },
+  ];
+
   return (
     <section
-      aria-label="Loading neighborhood overview"
+      aria-live="polite"
+      aria-label="Loading neighborhood data"
       style={{
         marginTop: "40px",
-        display: "grid",
-        gap: "18px",
+        padding: "24px",
+        borderRadius: "10px",
+        border: "1px solid var(--border-subtle, #e5e7eb)",
+        background: "var(--surface-raised, #f8fafc)",
+        boxShadow: "0 18px 45px rgba(15, 23, 42, 0.08)",
       }}
     >
-      <div
+      <p
         style={{
-          width: "180px",
-          height: "12px",
-          borderRadius: "999px",
-          background: "var(--surface-raised, #eef2f7)",
+          margin: "0 0 8px",
+          fontSize: "12px",
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--color-muted, #64748b)",
         }}
-      />
+      >
+        Livability Risk Engine
+      </p>
+      <h1 style={{ margin: "0 0 20px", fontSize: "24px", lineHeight: 1.2 }}>
+        Loading neighborhood data…
+      </h1>
       <div
         style={{
-          width: "min(420px, 80vw)",
-          height: "34px",
-          borderRadius: "6px",
-          background: "var(--surface-raised, #eef2f7)",
-        }}
-      />
-      <div
-        style={{
-          width: "min(620px, 90vw)",
-          height: "14px",
-          borderRadius: "999px",
-          background: "var(--surface-raised, #eef2f7)",
-        }}
-      />
-      <div
-        style={{
-          height: "280px",
+          height: "260px",
           borderRadius: "8px",
-          border: "1px solid var(--border-subtle, #e5e7eb)",
           background:
-            "linear-gradient(135deg, rgba(148,163,184,0.16), rgba(148,163,184,0.05))",
+            "linear-gradient(135deg, rgba(59,130,246,0.16), rgba(148,163,184,0.10))",
+          marginBottom: "18px",
         }}
       />
+      <div style={{ display: "grid", gap: "10px" }}>
+        {skeletonRows.map((row, index) => (
+          <div
+            key={index}
+            style={{
+              width: row.width,
+              height: "14px",
+              borderRadius: "999px",
+              background: "rgba(148, 163, 184, 0.28)",
+            }}
+          />
+        ))}
+      </div>
     </section>
   );
 }
