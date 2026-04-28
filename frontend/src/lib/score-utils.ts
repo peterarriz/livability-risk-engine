@@ -22,6 +22,14 @@ export function headlineScore(result: ScoreSource): number {
   return result.livability_score ?? result.disruption_score;
 }
 
+export function coverageConfidenceLabel(confidence: string | null | undefined): string {
+  const normalized = (confidence ?? "").toLowerCase();
+  if (normalized === "low") return "Limited";
+  if (normalized === "medium") return "Moderate";
+  if (normalized === "high") return "High";
+  return confidence ? confidence.charAt(0).toUpperCase() + confidence.slice(1).toLowerCase() : "Unknown";
+}
+
 // ---------------------------------------------------------------------------
 // Impact type labels — single source of truth for all user-facing text.
 // All components MUST call impactTypeLabel() instead of maintaining their

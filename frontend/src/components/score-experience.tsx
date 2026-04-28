@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
-import { headlineScore as getHeadlineScore, impactTypeLabel, recommendedAction } from "@/lib/score-utils";
+import { coverageConfidenceLabel, headlineScore as getHeadlineScore, impactTypeLabel, recommendedAction } from "@/lib/score-utils";
 import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
   CommuteResponse,
@@ -738,8 +738,8 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         )}
         <div className="score-hero-meta-stack">
           <div>
-            <span>Model confidence</span>
-            <strong>{toTitleCase(result.confidence.toLowerCase())}</strong>
+            <span>Coverage confidence</span>
+            <strong>{coverageConfidenceLabel(result.confidence)}</strong>
           </div>
           <div>
             <span>Impact window</span>
@@ -779,7 +779,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           </p>
         )}
         <p className="score-meta" style={{ marginTop: "0.4rem" }}>
-          Evidence quality reflects available signals; model confidence reflects coverage completeness and address-specific certainty.
+          Evidence quality reflects available signals; coverage confidence reflects data completeness and address-specific certainty.
         </p>
 
         {/* Livability breakdown bars */}
@@ -790,6 +790,18 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               const label = BREAKDOWN_LABELS[k] ?? k.replace(/_/g, " ");
               const weight = result.livability_breakdown?.weights?.[k];
               const raw = v.raw_score;
+              const isSparseDisruptionComponent = k === "disruption_risk" && signalCount === 0;
+              if (isSparseDisruptionComponent) {
+                return (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem" }}>
+                    <span style={{ width: "11rem", flexShrink: 0, color: "var(--color-text-secondary, #6b7280)" }}>Disruption signals</span>
+                    <span style={{ flex: 1, color: "var(--color-text-secondary, #6B7280)" }}>No address-level disruption signals found</span>
+                    {weight != null && (
+                      <span style={{ width: "2.5rem", textAlign: "right", color: "var(--color-text-secondary, #6B7280)", fontSize: "0.75rem" }}>{Math.round(weight * 100)}%</span>
+                    )}
+                  </div>
+                );
+              }
               const isDefaultSchoolFallback = k === "school_rating" && Math.round(raw) === 50;
               if (isDefaultSchoolFallback) {
                 return (
@@ -870,15 +882,15 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
       <div className="confidence-summary">
         <div className="confidence-summary-head">
           <p className="confidence-summary-label">
-            Model confidence
+            Coverage confidence
             <span className="tooltip-anchor" tabIndex={0} aria-label="About confidence scoring">
               ?
               <span className="tooltip-content" role="tooltip">
-                Evidence quality reflects available signals; model confidence reflects coverage completeness and address-specific certainty.
+                Evidence quality reflects available signals; coverage confidence reflects data completeness and address-specific certainty.
               </span>
             </span>
           </p>
-          <strong>{toTitleCase(confidence.toLowerCase())}</strong>
+          <strong>{coverageConfidenceLabel(confidence)}</strong>
         </div>
         <ul className="confidence-reason-list">
           {confidenceReasons.map((reason) => (
@@ -1354,7 +1366,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
   let trendLabel: string;
   let trendColor: string;
   if (weekDelta === null || Math.abs(weekDelta) <= 2) {
-    trendLabel = "→ Stable this week";
+    trendLabel = "→ No meaningful change this week";
     trendColor = "#94a3b8";
   } else if (weekDelta > 0) {
     trendLabel = `↑ Up ${weekDelta} pts this week`;
@@ -1362,6 +1374,20 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
   } else {
     trendLabel = `↓ Down ${Math.abs(weekDelta)} pts this week`;
     trendColor = "#ef4444";
+  }
+
+  const hasMeaningfulHistory = new Set(points).size > 1;
+  if (!hasMeaningfulHistory) {
+    return (
+      <div className="sparkline-wrapper" aria-label="Score history appears once repeat measurements are available.">
+        <div className="sparkline-header">
+          <span className="sparkline-label">Score history</span>
+        </div>
+        <p className="sparkline-avg-note" style={{ margin: 0 }}>
+          Score history appears once repeat measurements are available.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -1448,7 +1474,7 @@ export function ScoreSparkline({ history, currentScore }: ScoreSparklineProps) {
       {/* Neutral reference annotation */}
       <div className="sparkline-avg-note">
         <span className="sparkline-avg-dash" aria-hidden="true" />
-        Livability reference: 50
+        Mid-scale reference line
       </div>
     </div>
   );

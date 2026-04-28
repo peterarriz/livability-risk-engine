@@ -21,8 +21,8 @@ import { MapView } from "@/components/map-view";
 import { Card, Container, Header, Section } from "@/components/shell";
 import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@/lib/clerk-client";
-import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, getExportUrl, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
-import { headlineScore } from "@/lib/score-utils";
+import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
+import { coverageConfidenceLabel, headlineScore } from "@/lib/score-utils";
 import { getLookupUsage, hasUnlimitedLookupAccess, recordLookup, isDemoAddress, type LookupUsage } from "@/lib/lookup-quota";
 import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import AddressAutocomplete from "@/components/address-autocomplete";
@@ -45,6 +45,47 @@ function addressLevelSignalCount(result: ScoreResponse): number {
     const impactType = signal.impact_type ?? "";
     return !impactType.startsWith("crime_trend");
   }).length;
+}
+
+function stripDistancePhrases(text: string): string {
+  return text
+    .replace(/\s+(?:within|about|roughly|approximately|around)\s+[\d,.]+\s*(?:m|meters?|ft|feet)(?:\s+away)?/gi, "")
+    .replace(/\s+[\d,.]+\s*(?:m|meters?|ft|feet)\s+away/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+}
+
+function formatPrimaryPressure(result: ScoreResponse): string | null {
+  const firstRisk = result.top_risks?.[0];
+  const firstDetail = result.top_risk_details?.[0];
+  const sourceText =
+    firstDetail?.display_title ||
+    firstDetail?.title ||
+    firstDetail?.description ||
+    firstRisk;
+  if (!sourceText) return null;
+
+  const subject = stripDistancePhrases(sourceText).replace(/\.$/, "");
+  const distance = typeof firstDetail?.distance_m === "number" && Number.isFinite(firstDetail.distance_m)
+    ? `, about ${Math.round(firstDetail.distance_m).toLocaleString()} m away`
+    : "";
+  const fmtDate = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return null;
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+  };
+  const start = fmtDate(firstDetail?.start_date);
+  const end = fmtDate(firstDetail?.end_date);
+  const timing = start && end
+    ? `, active ${start} to ${end}`
+    : start
+      ? `, starting ${start}`
+      : end
+        ? `, active through ${end}`
+        : "";
+  return `Primary pressure comes from ${subject}${distance}${timing}.`;
 }
 
 type QaCompareRow = {
@@ -153,8 +194,6 @@ export default function HomePage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [saveEmail, setSaveEmail] = useState("");
   const [saveReportId, setSaveReportId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -263,7 +302,7 @@ export default function HomePage() {
   const hasSuggestionPanel = showSuggestions;
   const activeSuggestionId = activeSuggestionIndex >= 0 ? `address-suggestion-${activeSuggestionIndex}` : undefined;
 
-  type DetailItem = { label: string; value: string; isConfidence?: boolean };
+  type DetailItem = { label: string; value: string; isConfidence?: boolean; confidenceTone?: string };
   const supportingDetails = useMemo((): DetailItem[] => {
     if (!result) return [];
     const evidenceLabel: Record<string, string> = {
@@ -276,7 +315,12 @@ export default function HomePage() {
     return [
       { label: "Evidence quality", value: evidenceLabel[result.evidence_quality ?? ""] ?? "Unknown" },
       { label: "Active signals", value: String(result.strong_signal_count ?? 0) },
-      { label: "Model confidence", value: result.confidence, isConfidence: true },
+      {
+        label: "Coverage confidence",
+        value: coverageConfidenceLabel(result.confidence),
+        isConfidence: true,
+        confidenceTone: result.confidence.toLowerCase(),
+      },
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [result, scoredAt]);
@@ -284,29 +328,10 @@ export default function HomePage() {
     if (!result) return "";
     const score = headlineScore(result);
     const band = score >= 70 ? "strong" : score >= 50 ? "average" : score >= 30 ? "below-average" : "weak";
-    const firstRisk = result.top_risks?.[0];
-    const firstDetail = result.top_risk_details?.[0];
     const hasAddressSignals = addressLevelSignalCount(result) > 0;
-    const timing = (() => {
-      const fmtDate = (iso: string | null | undefined) => {
-        if (!iso) return null;
-        const date = new Date(iso);
-        if (Number.isNaN(date.getTime())) return null;
-        return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
-      };
-      const start = fmtDate(firstDetail?.start_date);
-      const end = fmtDate(firstDetail?.end_date);
-      if (start && end) return `${start} to ${end}`;
-      if (start) return `starting ${start}`;
-      if (end) return `through ${end}`;
-      return "in the current reporting window";
-    })();
-    const distance = typeof firstDetail?.distance_m === "number" && Number.isFinite(firstDetail.distance_m)
-      ? `${Math.round(firstDetail.distance_m).toLocaleString()} meters`
-      : "the immediate area";
     const sentenceOne = `This address has ${band} livability conditions with a score of ${score}/100; higher scores indicate lower near-term risk.`;
-    const sentenceTwo = hasAddressSignals && firstRisk
-      ? `Primary pressure comes from ${firstRisk} ${distance} away, active ${timing}.`
+    const sentenceTwo = hasAddressSignals
+      ? (formatPrimaryPressure(result) ?? "Address-level signals are present nearby; review timing and access before relying on the score.")
       : "No address-level signals were found; this result relies more on contextual data.";
     return `${sentenceOne} ${sentenceTwo}`;
   }, [result]);
@@ -423,12 +448,9 @@ export default function HomePage() {
     setLookupUsage(usage);
   }, [isSignedIn, hasUnlimitedAccess]);
 
-  // Global keyboard shortcuts: Escape closes modal/history, "/" focuses input
+  // Global keyboard shortcut: "/" focuses input.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setShowSaveModal(false);
-      }
       if (
         event.key === "/" &&
         !["INPUT", "TEXTAREA", "SELECT"].includes((document.activeElement as HTMLElement)?.tagName ?? "")
@@ -890,12 +912,6 @@ export default function HomePage() {
     });
   }
 
-  function handleOpenSaveModal() {
-    setSaveReportId(null);
-    setSaveError(null);
-    setShowSaveModal(true);
-  }
-
   return (
     <main className={`page ${workspaceMode ? "page--workspace" : "page--explore"}`}>
       <a href="#address" className="skip-link">Skip to address search</a>
@@ -966,7 +982,7 @@ export default function HomePage() {
             </form>
 
             {/* Public demo usage indicator */}
-            {!lookupUsage.isUnlimited && lookupUsage.count > 0 && lookupUsage.limit !== null && (
+            {!lookupUsage.isUnlimited && lookupUsage.count >= 2 && lookupUsage.limit !== null && (
               <p style={{ fontSize: "0.72rem", color: "#9CA3AF", margin: "0.4rem 0 0", textAlign: "center" }}>
                 {lookupUsage.count} public demo {lookupUsage.count === 1 ? "lookup" : "lookups"} run in this browser
               </p>
@@ -1136,9 +1152,23 @@ export default function HomePage() {
                     <ScoreSparkline history={scoreHistory} currentScore={headlineScore(result)} />
                   )}
                   <div className="score-actions">
-                    <button type="button" className="action-btn" onClick={handleOpenSaveModal}>
-                      Save report
-                    </button>
+                    <SignedOut>
+                      <SignInButton mode="modal">
+                        <button type="button" className="action-btn">
+                          Sign in to save
+                        </button>
+                      </SignInButton>
+                    </SignedOut>
+                    <SignedIn>
+                      <button type="button" className="action-btn" onClick={handleSaveReport} disabled={isSaving}>
+                        {isSaving ? "Saving…" : saveReportId ? "Saved" : "Save report"}
+                      </button>
+                      {saveReportId && (
+                        <button type="button" className="action-btn" onClick={handleCopySavedLink}>
+                          {copiedLink ? "Copied" : "Copy link"}
+                        </button>
+                      )}
+                    </SignedIn>
                     <a
                       href="#"
                       className="compare-link"
@@ -1151,6 +1181,11 @@ export default function HomePage() {
                       Compare with another address →
                     </a>
                   </div>
+                  {saveError && (
+                    <p className="score-meta" role="alert" style={{ marginTop: "0.5rem", color: "#B45309" }}>
+                      {saveError}
+                    </p>
+                  )}
                 </Card>
                 {revealPhase >= 2 ? (
                   <Card className="detail-card detail-card--summary">
@@ -1292,7 +1327,7 @@ export default function HomePage() {
                                 {"isConfidence" in item && item.isConfidence ? (
                                   <>
                                     <strong className="confidence-value">
-                                      <span className={`confidence-dot confidence-dot--${item.value.toLowerCase()}`} aria-hidden="true" />
+                                      <span className={`confidence-dot confidence-dot--${item.confidenceTone ?? item.value.toLowerCase()}`} aria-hidden="true" />
                                       {item.value}
                                     </strong>
                                     {result?.confidence_reason && (
@@ -1419,32 +1454,6 @@ export default function HomePage() {
 
       {showTour && result && (
         <FeatureTour onDismiss={() => setShowTour(false)} />
-      )}
-
-      {showSaveModal && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Save report" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close" onClick={() => { setShowSaveModal(false); setSaveReportId(null); setSaveError(null); }}>×</button>
-            <p className="supporting-kicker">Save report</p>
-            <h3>Create a free account to save and share this report.</h3>
-            <p className="modal-copy">Your disruption brief for {result?.address} will be saved to your account and shareable via link.</p>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={saveEmail}
-              onChange={(e) => setSaveEmail(e.target.value)}
-              aria-label="Email address"
-            />
-            <button
-              type="button"
-              className="modal-cta"
-              disabled={!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saveEmail)}
-            >
-              Create free account
-            </button>
-            <p className="modal-fine-print">No credit card required. Pilot API access is available by request.</p>
-          </div>
-        </div>
       )}
     </main>
   );
