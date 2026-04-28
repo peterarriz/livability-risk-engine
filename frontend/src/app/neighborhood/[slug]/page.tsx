@@ -32,7 +32,7 @@ const NEIGHBORHOOD_TILE_LAYER = STADIA_MAPS_API_KEY
       subdomains: undefined,
     }
   : {
-      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: "abcd",
@@ -91,8 +91,8 @@ function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
         attributionContainer.style.background = "rgba(255, 255, 255, 0.72)";
       }
 
-      // Public demo maps must not render provider auth-error tiles. Use the
-      // same public CARTO fallback as the main app map unless Stadia is keyed.
+      // Public demo maps must not render provider auth-error tiles. Use a
+      // prospect-friendly public CARTO fallback unless Stadia is keyed.
       L.tileLayer(NEIGHBORHOOD_TILE_LAYER.url, {
         attribution: NEIGHBORHOOD_TILE_LAYER.attribution,
         maxZoom: 20,
@@ -107,7 +107,7 @@ function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
         const circleMarker = L.circleMarker([project.lat, project.lon], {
           radius: 8,
           fillColor: color,
-          color: "#fff",
+          color: "rgba(17, 24, 39, 0.75)",
           weight: 1.5,
           opacity: 1,
           fillOpacity: 0.85,
