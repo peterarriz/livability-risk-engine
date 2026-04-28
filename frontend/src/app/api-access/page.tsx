@@ -151,7 +151,7 @@ export default function ApiAccessPage() {
     <main>
       <Container>
         <div className="report-header">
-          <a href="/" className="report-back-link">← Back to Livability Intelligence</a>
+          <a href="/" className="report-back-link">← Back to Livability Risk Engine</a>
         </div>
 
         <Section

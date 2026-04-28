@@ -221,7 +221,7 @@ export default function NeighborhoodPage() {
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: "960px", margin: "0 auto", padding: "32px 24px" }}>
       <a href="/" style={{ fontSize: "13px", color: "var(--color-muted, #666)", textDecoration: "none" }}>
-        ← Livability Intelligence
+        ← Livability Risk Engine
       </a>
 
       {loading && (

@@ -5,7 +5,7 @@ import { ScrollNavState } from "@/components/scroll-nav-state";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Livability Intelligence",
+  title: "Livability Risk Engine",
   description: "Address intelligence for real estate and operations teams — construction, crime, schools, and neighborhood context.",
 };
 

@@ -74,17 +74,11 @@ function formatPrimaryPressure(result: ScoreResponse): string | null {
     if (!iso) return null;
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return null;
-    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+    if (date.getTime() < Date.now()) return null;
+    return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
   };
-  const start = fmtDate(firstDetail?.start_date);
   const end = fmtDate(firstDetail?.end_date);
-  const timing = start && end
-    ? `, active ${start} to ${end}`
-    : start
-      ? `, starting ${start}`
-      : end
-        ? `, active through ${end}`
-        : "";
+  const timing = end ? `, active through ${end}` : "";
   return `Primary pressure comes from ${subject}${distance}${timing}.`;
 }
 
@@ -335,10 +329,6 @@ export default function HomePage() {
       : "No address-level signals were found; this result relies more on contextual data.";
     return `${sentenceOne} ${sentenceTwo}`;
   }, [result]);
-  const topThreeRisks = useMemo(
-    () => (result && addressLevelSignalCount(result) > 0 ? (result.top_risks ?? []).slice(0, 3) : []),
-    [result],
-  );
   const topRiskSummaries = useMemo(() => {
     if (!result) return [];
     if (addressLevelSignalCount(result) === 0) return [];
@@ -347,36 +337,45 @@ export default function HomePage() {
       if (!iso) return null;
       const date = new Date(iso);
       if (Number.isNaN(date.getTime())) return null;
-      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+      if (date.getTime() < Date.now()) return null;
+      return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
     };
-    const timingText = (start: string | null | undefined, end: string | null | undefined) => {
-      const startLabel = fmtDate(start);
+    const timingText = (end: string | null | undefined) => {
       const endLabel = fmtDate(end);
-      if (startLabel && endLabel) return `${startLabel} → ${endLabel}`;
-      if (startLabel) return `Starts ${startLabel}`;
-      if (endLabel) return `Through ${endLabel}`;
-      return "Timing estimate unavailable";
+      return endLabel ? `Active through ${endLabel}` : null;
     };
     return (result.top_risks ?? []).slice(0, 3).map((risk, idx) => {
       const detail = details[idx];
       const meters = detail?.distance_m;
+      const riskMeterMatch = risk.match(/([\d,.]+)\s*meters?/i);
+      const parsedRiskMeters = riskMeterMatch ? Number(riskMeterMatch[1].replace(/,/g, "")) : NaN;
       const distanceLabel = typeof meters === "number" && Number.isFinite(meters)
         ? `${Math.round(meters).toLocaleString()} m`
-        : "Distance estimate unavailable";
-      const severityLabel = detail
-        ? (detail.weighted_score >= 15
+        : Number.isFinite(parsedRiskMeters)
+          ? `${Math.round(parsedRiskMeters).toLocaleString()} m`
+          : null;
+      const weightedScore = detail?.weighted_score;
+      const severityLabel = typeof weightedScore === "number" && Number.isFinite(weightedScore)
+        ? (weightedScore >= 15
           ? "high severity"
-          : detail.weighted_score >= 7
+          : weightedScore >= 7
             ? "moderate severity"
             : "low severity")
-        : "Severity estimate unavailable";
+        : null;
+      const timingLabel = timingText(detail?.end_date);
+      if (!severityLabel && !distanceLabel && !timingLabel) return null;
       return {
         risk,
         distanceLabel,
-        timingLabel: timingText(detail?.start_date, detail?.end_date),
+        timingLabel,
         severityLabel,
       };
-    });
+    }).filter((risk): risk is {
+      risk: string;
+      distanceLabel: string | null;
+      timingLabel: string | null;
+      severityLabel: string | null;
+    } => risk !== null);
   }, [result]);
   const scoreTrend = useMemo<number | null>(() => {
     if (scoreHistory.length < 2) return null;
@@ -1193,17 +1192,19 @@ export default function HomePage() {
                     <p className="score-hero-summary">
                       {quickExplanation || "Nearby disruption signals drive this score for the selected address."}
                     </p>
-                    {topThreeRisks.length > 0 ? (
+                    {topRiskSummaries.length > 0 ? (
                       <>
                         <p className="supporting-kicker" style={{ marginTop: "10px" }}>Top 3 risks</p>
                         <ul className="supporting-list supporting-list--compact">
                           {topRiskSummaries.map((risk, idx) => (
                             <li key={`${risk.risk}-${idx}`}>
-                              <span>Rank {idx + 1} • {risk.severityLabel}</span>
+                              <span>{["Rank " + (idx + 1), risk.severityLabel].filter(Boolean).join(" • ")}</span>
                               <strong>{risk.risk}</strong>
-                              <small style={{ display: "block", opacity: 0.85 }}>
-                                {risk.distanceLabel} • {risk.timingLabel}
-                              </small>
+                              {[risk.distanceLabel, risk.timingLabel].filter(Boolean).length > 0 && (
+                                <small style={{ display: "block", opacity: 0.85 }}>
+                                  {[risk.distanceLabel, risk.timingLabel].filter(Boolean).join(" • ")}
+                                </small>
+                              )}
                             </li>
                           ))}
                         </ul>
