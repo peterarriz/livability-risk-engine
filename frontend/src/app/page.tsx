@@ -79,7 +79,7 @@ export default function LandingPage() {
         <form onSubmit={(e) => { e.preventDefault(); const a = heroAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "520px", margin: "0 auto" }}>
           <AddressAutocomplete
             defaultValue={EXAMPLE_ADDRESS}
-            onSelect={(a) => { heroAddrRef.current = a; }}
+            onSelect={(suggestion) => { heroAddrRef.current = suggestion.display_address; }}
             onChange={(a) => { heroAddrRef.current = a; }}
             ariaLabel="US address"
             inputStyle={{
@@ -215,7 +215,7 @@ export default function LandingPage() {
           <form onSubmit={(e) => { e.preventDefault(); const a = ctaAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "480px", margin: "0 auto" }}>
             <AddressAutocomplete
               placeholder="Enter any US address…"
-              onSelect={(a) => { ctaAddrRef.current = a; }}
+              onSelect={(suggestion) => { ctaAddrRef.current = suggestion.display_address; }}
               onChange={(a) => { ctaAddrRef.current = a; }}
               ariaLabel="US address"
               inputStyle={{

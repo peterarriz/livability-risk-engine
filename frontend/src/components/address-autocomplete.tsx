@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-type Prediction = { description: string; place_id: string };
+import { fetchAddressSuggestions } from "@/lib/api";
+import type { AddressSuggestion } from "@/lib/address-types";
 
 const COVERED_CITIES = [
   "chicago", "new york", "los angeles", "austin", "seattle", "denver",
@@ -29,14 +30,12 @@ function getCoverage(description: string): "covered" | "partial" {
 type Props = {
   defaultValue?: string;
   placeholder?: string;
-  onSelect: (address: string) => void;
+  onSelect: (suggestion: AddressSuggestion) => void;
   onChange?: (value: string) => void;
   ariaLabel?: string;
   inputStyle?: React.CSSProperties;
   dropdownDark?: boolean;
 };
-
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
 
 export default function AddressAutocomplete({
   defaultValue = "",
@@ -48,59 +47,40 @@ export default function AddressAutocomplete({
   dropdownDark = false,
 }: Props) {
   const [value, setValue] = useState(defaultValue);
-  const [suggestions, setSuggestions] = useState<Prediction[]>([]);
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue]);
+
   const fetchSuggestions = useCallback(async (input: string) => {
-    if (!input.trim() || input.length < 3 || !API_KEY) {
+    const q = input.trim();
+    if (!q || q.length < 3) {
       setSuggestions([]);
+      setShowDropdown(false);
       return;
     }
-    // Cancel any in-flight request.
+
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": API_KEY,
-        },
-        body: JSON.stringify({
-          input,
-          includedRegionCodes: ["us"],
-          includedPrimaryTypes: ["street_address", "subpremise", "premise"],
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any = await res.json();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const preds: Prediction[] = (data.suggestions || [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((s: any) => s.placePrediction)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .slice(0, 5)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((s: any) => ({
-          description:
-            s.placePrediction.text?.text ||
-            s.placePrediction.structuredFormat?.mainText?.text ||
-            "",
-          place_id: s.placePrediction.placeId || "",
-        }));
-      setSuggestions(preds);
-      setShowDropdown(preds.length > 0);
+      const results = await fetchAddressSuggestions(q, { limit: 5 });
+      if (controller.signal.aborted) return;
+      setSuggestions(results);
+      setShowDropdown(results.length > 0);
       setActiveIndex(-1);
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setSuggestions([]);
+      if ((err as Error).name !== "AbortError") {
+        setSuggestions([]);
+        setShowDropdown(false);
+      }
     }
   }, []);
 
@@ -117,9 +97,9 @@ export default function AddressAutocomplete({
   );
 
   const handleSelect = useCallback(
-    (pred: Prediction) => {
-      setValue(pred.description);
-      onSelect(pred.description);
+    (suggestion: AddressSuggestion) => {
+      setValue(suggestion.display_address);
+      onSelect(suggestion);
       setSuggestions([]);
       setShowDropdown(false);
     },
@@ -195,10 +175,10 @@ export default function AddressAutocomplete({
           }}
         >
           {suggestions.map((pred, i) => {
-            const coverage = getCoverage(pred.description);
+            const coverage = getCoverage(pred.display_address);
             return (
               <li
-                key={pred.place_id || i}
+                key={pred.canonical_id ? `canonical-${pred.canonical_id}` : `${pred.display_address}-${i}`}
                 role="option"
                 aria-selected={i === activeIndex}
                 onMouseDown={() => handleSelect(pred)}
@@ -219,7 +199,7 @@ export default function AddressAutocomplete({
                       : "none",
                 }}
               >
-                <div style={{ fontSize: "14px" }}>{pred.description}</div>
+                <div style={{ fontSize: "14px" }}>{pred.display_address}</div>
                 <div style={{ fontSize: "11px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: coverage === "covered" ? "#22C55E" : "#F59E0B", display: "inline-block", flexShrink: 0 }} />
                   <span style={{ color: coverage === "covered" ? "#16A34A" : "#D97706" }}>
