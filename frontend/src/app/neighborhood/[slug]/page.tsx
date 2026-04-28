@@ -23,6 +23,21 @@ const IMPACT_COLORS: Record<string, string> = {
   construction: "#2a9d8f",
 };
 
+const STADIA_MAPS_API_KEY = process.env.NEXT_PUBLIC_STADIA_MAPS_API_KEY?.trim();
+const NEIGHBORHOOD_TILE_LAYER = STADIA_MAPS_API_KEY
+  ? {
+      url: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${encodeURIComponent(STADIA_MAPS_API_KEY)}`,
+      attribution:
+        '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      subdomains: undefined,
+    }
+  : {
+      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: "abcd",
+    };
+
 function getMarkerColor(impactType: string | null): string {
   if (!impactType) return "#888";
   return IMPACT_COLORS[impactType.toLowerCase()] ?? "#888";
@@ -68,9 +83,12 @@ function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
 
       const map = L.map(containerRef.current).setView([center.lat, center.lon], 14);
 
-      L.tileLayer("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      // Public demo maps must not render provider auth-error tiles. Use the
+      // same public CARTO fallback as the main app map unless Stadia is keyed.
+      L.tileLayer(NEIGHBORHOOD_TILE_LAYER.url, {
+        attribution: NEIGHBORHOOD_TILE_LAYER.attribution,
         maxZoom: 20,
+        subdomains: NEIGHBORHOOD_TILE_LAYER.subdomains,
       }).addTo(map);
 
       // Add a marker for each project, colored by impact type
