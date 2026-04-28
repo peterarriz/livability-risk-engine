@@ -7,12 +7,66 @@ Search-related endpoints extracted from main.py:
 """
 
 import logging
+import re
 
 from fastapi import APIRouter, Query
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_STREET_QUERY_TERMS = {
+    "ave", "avenue", "st", "street", "rd", "road", "dr", "drive",
+    "blvd", "boulevard", "ln", "lane", "way", "pl", "place",
+    "ct", "court", "pkwy", "parkway", "hwy", "highway", "terrace", "ter",
+}
+
+
+def _suggestion_from_row(row: dict) -> dict:
+    return {
+        "canonical_id": row.get("canonical_id"),
+        "display_address": row["display_address"],
+        "lat": row.get("lat"),
+        "lon": row.get("lon"),
+        "city": row.get("city"),
+        "state": row.get("state"),
+        "zip": row.get("zip"),
+    }
+
+
+def _numeric_prefix_rows(query: str, rows: list[dict], limit: int) -> list[dict]:
+    q = query.strip().lower()
+    if not re.fullmatch(r"\d+[a-z]?", q):
+        return []
+    matches = [row for row in rows if str(row.get("street_number", "")).lower().startswith(q)]
+    return sorted(matches, key=lambda r: int(r.get("popularity", 0)), reverse=True)[:limit]
+
+
+def _city_prefix_rows(query: str, rows: list[dict], limit: int) -> list[dict]:
+    q = re.sub(r"[^a-z]", "", query.strip().lower())
+    if len(q) < 3:
+        return []
+    matches = [
+        row for row in rows
+        if str(row.get("city_normalized", "")).startswith(q)
+        or q in str(row.get("city_normalized", ""))
+    ]
+    return sorted(matches, key=lambda r: int(r.get("popularity", 0)), reverse=True)[:limit]
+
+
+def _looks_like_external_address_query(query: str) -> bool:
+    """Allow geocoder fallback only for full-ish typed addresses, not prefixes."""
+    q = query.strip().lower()
+    if len(q) < 12:
+        return False
+    if not re.search(r"\d", q) or not re.search(r"[a-z]", q):
+        return False
+    if re.fullmatch(r"\d+[a-z]?", q):
+        return False
+    tokens = re.findall(r"[a-z0-9]+", q)
+    has_street_term = any(token in _STREET_QUERY_TERMS for token in tokens)
+    has_context = "," in query or any(len(token) == 2 and token.isalpha() for token in tokens)
+    return has_street_term or has_context
 
 
 def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
@@ -145,19 +199,19 @@ def suggest_addresses(
         return {
             "query": query,
             "suggestions": [
-                {
-                    "canonical_id": row["canonical_id"],
-                    "display_address": row["display_address"],
-                    "lat": row.get("lat"),
-                    "lon": row.get("lon"),
-                    "city": row.get("city"),
-                    "state": row.get("state"),
-                    "zip": row.get("zip"),
-                }
+                _suggestion_from_row(row)
                 for row in top
                 if row.get("display_address")
             ],
         }
+
+    numeric_rows = _numeric_prefix_rows(query, rows, limit)
+    if numeric_rows:
+        return {"query": query, "suggestions": [_suggestion_from_row(row) for row in numeric_rows]}
+
+    if not re.search(r"\d", query):
+        city_rows = _city_prefix_rows(query, rows, limit)
+        return {"query": query, "suggestions": [_suggestion_from_row(row) for row in city_rows]}
 
     ranked_rows = _top_ranked_address_rows(query, rows, limit, with_geo_penalty=False)
 
@@ -165,7 +219,7 @@ def suggest_addresses(
     # rows as a secondary source. Nominatim has already matched the full query,
     # so keep those rows after dedupe instead of re-filtering them through the
     # stricter local prefix matcher.
-    if len(ranked_rows) < limit:
+    if not ranked_rows and _looks_like_external_address_query(query):
         geocoder_rows = _rows_from_nominatim(query, limit)
         by_norm: dict[str, dict] = {r["normalized_full"]: r for r in ranked_rows}
         for row in geocoder_rows:
@@ -175,15 +229,7 @@ def suggest_addresses(
                 ranked_rows.append(row)
 
     suggestions = [
-        {
-            "canonical_id": row.get("canonical_id"),
-            "display_address": row["display_address"],
-            "lat": row.get("lat"),
-            "lon": row.get("lon"),
-            "city": row.get("city"),
-            "state": row.get("state"),
-            "zip": row.get("zip"),
-        }
+        _suggestion_from_row(row)
         for row in ranked_rows[:limit]
         if row.get("display_address")
     ]

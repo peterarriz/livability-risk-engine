@@ -270,6 +270,10 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 }
 
 function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
+  if (getAddressLevelSignals(result).length === 0) {
+    return [];
+  }
+
   const ranked = result.top_risks
     .slice(0, 3)
     .map((risk, index) => ({ risk, index, detail: result.top_risk_details?.[index] }))
@@ -504,6 +508,13 @@ function hasHighSeverityRisk(result: ScoreResponse): boolean {
   return highSeverityMeter || highWeightedRisk;
 }
 
+function getAddressLevelSignals(result: ScoreResponse): NonNullable<ScoreResponse["nearby_signals"]> {
+  return (result.nearby_signals ?? []).filter((signal) => {
+    const impactType = signal.impact_type ?? "";
+    return !impactType.startsWith("crime_trend");
+  });
+}
+
 export function ScoreHero({ result }: ScoreHeroProps) {
   const headlineScore = getHeadlineScore(result);
   const displayScore = useAnimatedScore(headlineScore);
@@ -545,16 +556,15 @@ export function ScoreHero({ result }: ScoreHeroProps) {
     : undefined;
   const gaugeBand = getGaugeBand(headlineScore);
   const breakdown = result.livability_breakdown?.components ?? {};
-  const signalCount = (result.nearby_signals ?? []).length;
-  const signalRadiusMeters = useMemo(() => {
-    // Exclude crime trend signals (they can be 1000km+ away) and cap at 500m.
-    const distances = (result.nearby_signals ?? [])
-      .filter((s) => !s.impact_type.startsWith("crime_trend"))
+  const addressSignals = useMemo(() => getAddressLevelSignals(result), [result]);
+  const signalCount = addressSignals.length;
+  const closestSignalDistanceMeters = useMemo(() => {
+    const distances = addressSignals
       .map((s) => Number(s.distance_m))
       .filter((d) => Number.isFinite(d) && d > 0);
-    if (distances.length === 0) return 500;
-    return Math.min(500, Math.round(Math.max(...distances)));
-  }, [result.nearby_signals]);
+    if (distances.length === 0) return null;
+    return Math.round(Math.min(...distances));
+  }, [addressSignals]);
 
   const evidenceQuality = result.evidence_quality ?? null;
   const isWeakEvidence = evidenceQuality === "contextual_only" || evidenceQuality === "insufficient";
@@ -721,11 +731,14 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <p className="score-meta">Address assessed</p>
         <p className="score-hero-address">{result.address}</p>
         <p className="score-meta">
-          Analyzed {signalCount} signals within {signalRadiusMeters} meters
+          Analyzed {signalCount} address-level {signalCount === 1 ? "signal" : "signals"} within 500 m.
         </p>
+        {closestSignalDistanceMeters !== null && (
+          <p className="score-meta">Closest signal: {closestSignalDistanceMeters.toLocaleString()} m away.</p>
+        )}
         <div className="score-hero-meta-stack">
           <div>
-            <span>Confidence</span>
+            <span>Model confidence</span>
             <strong>{toTitleCase(result.confidence.toLowerCase())}</strong>
           </div>
           <div>
@@ -734,7 +747,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
           </div>
           <div>
             <span>Primary signals</span>
-            <strong>{result.top_risks.length} detected</strong>
+            <strong>{signalCount === 0 ? "None found" : signalCount === 1 ? "1 found" : `${signalCount} found`}</strong>
           </div>
         </div>
         {/* Evidence quality badge */}
@@ -765,6 +778,9 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               : "Insufficient data — treat score as directional only"}
           </p>
         )}
+        <p className="score-meta" style={{ marginTop: "0.4rem" }}>
+          Evidence quality reflects available signals; model confidence reflects coverage completeness and address-specific certainty.
+        </p>
 
         {/* Livability breakdown bars */}
         {Object.keys(breakdown).length > 0 && (
@@ -774,6 +790,18 @@ export function ScoreHero({ result }: ScoreHeroProps) {
               const label = BREAKDOWN_LABELS[k] ?? k.replace(/_/g, " ");
               const weight = result.livability_breakdown?.weights?.[k];
               const raw = v.raw_score;
+              const isDefaultSchoolFallback = k === "school_rating" && Math.round(raw) === 50;
+              if (isDefaultSchoolFallback) {
+                return (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem" }}>
+                    <span style={{ width: "11rem", flexShrink: 0, color: "var(--color-text-secondary, #6b7280)" }}>{label}</span>
+                    <span style={{ flex: 1, color: "var(--color-text-secondary, #6B7280)" }}>School data not available for this metro</span>
+                    {weight != null && (
+                      <span style={{ width: "2.5rem", textAlign: "right", color: "var(--color-text-secondary, #6B7280)", fontSize: "0.75rem" }}>{Math.round(weight * 100)}%</span>
+                    )}
+                  </div>
+                );
+              }
               const barColor = raw >= 70 ? "#16a34a" : raw >= 40 ? "#ca8a04" : "#dc2626";
               return (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem" }}>
@@ -842,11 +870,11 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
       <div className="confidence-summary">
         <div className="confidence-summary-head">
           <p className="confidence-summary-label">
-            Confidence
+            Model confidence
             <span className="tooltip-anchor" tabIndex={0} aria-label="About confidence scoring">
               ?
               <span className="tooltip-content" role="tooltip">
-                Confidence reflects how closely the detected signals are tied to this specific address, not how severe the disruption is.
+                Evidence quality reflects available signals; model confidence reflects coverage completeness and address-specific certainty.
               </span>
             </span>
           </p>
@@ -1011,8 +1039,8 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
   if (riskCards.length === 0) {
     return (
       <div className="risk-no-signals">
-        <p className="risk-no-signals-kicker">No disruptions detected</p>
-        <p>No active construction or closure signals were found near this address at the time of lookup. The surrounding area appears clear for the current planning window.</p>
+        <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
+        <p>This result relies on neighborhood/context data.</p>
       </div>
     );
   }

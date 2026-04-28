@@ -39,6 +39,13 @@ type SuggestionAddressParts = {
   zip: string;
 };
 
+function addressLevelSignalCount(result: ScoreResponse): number {
+  return (result.nearby_signals ?? []).filter((signal) => {
+    const impactType = signal.impact_type ?? "";
+    return !impactType.startsWith("crime_trend");
+  }).length;
+}
+
 type QaCompareRow = {
   address: string;
   score: number | null;
@@ -126,7 +133,7 @@ export default function HomePage() {
   const [hoveredSignalId, setHoveredSignalId] = useState<string | null>(null);
   // Tab state for the full analysis section.
   const [activeTab, setActiveTab] = useState<string>("signals");
-  // Free-tier lookup gating
+  // Public demo lookup tracking
   const { user, isSignedIn } = useUser();
   const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
   const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
@@ -228,9 +235,9 @@ export default function HomePage() {
       ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(scoredAt)
       : null;
     return [
-      { label: "Evidence strength", value: evidenceLabel[result.evidence_quality ?? ""] ?? "Unknown" },
+      { label: "Evidence quality", value: evidenceLabel[result.evidence_quality ?? ""] ?? "Unknown" },
       { label: "Active signals", value: String(result.strong_signal_count ?? 0) },
-      { label: "Confidence", value: result.confidence, isConfidence: true },
+      { label: "Model confidence", value: result.confidence, isConfidence: true },
       ...(timeStr ? [{ label: "Scored at", value: timeStr }] : []),
     ];
   }, [result, scoredAt]);
@@ -240,6 +247,7 @@ export default function HomePage() {
     const band = score >= 70 ? "strong" : score >= 50 ? "average" : score >= 30 ? "below-average" : "weak";
     const firstRisk = result.top_risks?.[0];
     const firstDetail = result.top_risk_details?.[0];
+    const hasAddressSignals = addressLevelSignalCount(result) > 0;
     const timing = (() => {
       const fmtDate = (iso: string | null | undefined) => {
         if (!iso) return null;
@@ -258,17 +266,18 @@ export default function HomePage() {
       ? `${Math.round(firstDetail.distance_m).toLocaleString()} meters`
       : "the immediate area";
     const sentenceOne = `This address has ${band} livability conditions with a score of ${score}/100; higher scores indicate lower near-term risk.`;
-    const sentenceTwo = firstRisk
+    const sentenceTwo = hasAddressSignals && firstRisk
       ? `Primary pressure comes from ${firstRisk} ${distance} away, active ${timing}.`
       : "No address-level signals were found; this result relies more on contextual data.";
     return `${sentenceOne} ${sentenceTwo}`;
   }, [result]);
   const topThreeRisks = useMemo(
-    () => (result?.top_risks ?? []).slice(0, 3),
+    () => (result && addressLevelSignalCount(result) > 0 ? (result.top_risks ?? []).slice(0, 3) : []),
     [result],
   );
   const topRiskSummaries = useMemo(() => {
     if (!result) return [];
+    if (addressLevelSignalCount(result) === 0) return [];
     const details = result.top_risk_details ?? [];
     const fmtDate = (iso: string | null | undefined) => {
       if (!iso) return null;
@@ -894,10 +903,10 @@ export default function HomePage() {
               )}
             </form>
 
-            {/* Free-tier usage indicator */}
+            {/* Public demo usage indicator */}
             {!lookupUsage.isUnlimited && lookupUsage.count > 0 && lookupUsage.limit !== null && (
               <p style={{ fontSize: "0.72rem", color: "#9CA3AF", margin: "0.4rem 0 0", textAlign: "center" }}>
-                {lookupUsage.count} public demo lookups run in this browser
+                {lookupUsage.count} public demo {lookupUsage.count === 1 ? "lookup" : "lookups"} run in this browser
               </p>
             )}
 
@@ -1102,7 +1111,12 @@ export default function HomePage() {
                           ))}
                         </ul>
                       </>
-                    ) : null}
+                    ) : (
+                      <div className="risk-no-signals" style={{ marginTop: "10px" }}>
+                        <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
+                        <p>This result relies on neighborhood/context data.</p>
+                      </div>
+                    )}
                   </Card>
                 ) : (
                   <Card className="detail-card skeleton-card">
