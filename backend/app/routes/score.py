@@ -66,6 +66,43 @@ def _looks_like_complete_street_address(address: str) -> bool:
     return True
 
 
+def _normalize_score_address_for_compare(address: str) -> str:
+    """Normalize user-entered text for exact canonical-row comparison."""
+    from backend.app.address_normalization import normalize_address_query
+
+    normalized = normalize_address_query(address)
+    normalized = re.sub(r"\b(?:united states|usa)\b", " ", normalized)
+    normalized = re.sub(r"\b\d{5}(?:-\d{4})?\b", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _canonical_row_for_score_address(address: str) -> dict | None:
+    """
+    Resolve exact/near-exact public suggestion aliases before scoring.
+
+    The scoring path uses ZIP for HPI context. Without this normalization,
+    "1600 W Chicago Ave, Chicago, IL" and the canonical row
+    "1600 W Chicago Ave, Chicago, IL 60622" can score the same point with
+    different livability context.
+    """
+    if not address or not _looks_like_complete_street_address(address):
+        return None
+
+    from backend.app.routes.dashboard import _get_address_rows
+
+    query_norm = _normalize_score_address_for_compare(address)
+    if not query_norm:
+        return None
+
+    for row in _get_address_rows():
+        display_address = row.get("display_address") or ""
+        row_norm = _normalize_score_address_for_compare(display_address)
+        if row_norm and row_norm == query_norm:
+            return row
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Core scoring function
 # ---------------------------------------------------------------------------
@@ -764,6 +801,7 @@ def get_score(
     )
 
     resolved_address = (address or "").strip() or None
+    resolved_canonical_id = canonical_id
     resolved_coords: tuple[float, float] | None = None
     resolution_source = "address_text"
 
@@ -778,9 +816,24 @@ def get_score(
         else:
             raise HTTPException(status_code=422, detail="Unknown canonical_id for score lookup.")
 
+    if not canonical_id and resolved_address:
+        row = _canonical_row_for_score_address(resolved_address)
+        _debug_search_flow(
+            "SCORE_RESOLUTION",
+            address=resolved_address,
+            matched=bool(row),
+            canonical_id=row.get("canonical_id") if row else None,
+        )
+        if row:
+            resolved_canonical_id = row.get("canonical_id")
+            resolved_address = row.get("display_address") or resolved_address
+            if row.get("lat") is not None and row.get("lon") is not None:
+                resolved_coords = (float(row["lat"]), float(row["lon"]))
+            resolution_source = "canonical_address_text"
+
     if lat is not None and lon is not None:
         resolved_coords = (float(lat), float(lon))
-        resolution_source = "lat_lon"
+        resolution_source = "canonical_lat_lon" if resolved_canonical_id else "lat_lon"
 
     if not resolved_address:
         if canonical_id and resolved_address is None:
@@ -794,7 +847,7 @@ def get_score(
     _debug_search_flow(
         "SCORE_REQUEST",
         source=resolution_source,
-        canonical_id=canonical_id,
+        canonical_id=resolved_canonical_id,
         address=resolved_address,
         has_coords=bool(resolved_coords),
         lat=resolved_coords[0] if resolved_coords else None,
