@@ -81,7 +81,15 @@ function NeighborhoodMap({ center, projects }: NeighborhoodMapProps) {
         shadowUrl: `${iconBase}marker-shadow.png`,
       });
 
-      const map = L.map(containerRef.current).setView([center.lat, center.lon], 14);
+      const map = L.map(containerRef.current, { attributionControl: false }).setView([center.lat, center.lon], 14);
+      const attributionControl = L.control.attribution({ position: "bottomright", prefix: false }).addTo(map);
+      const attributionContainer = attributionControl.getContainer();
+      if (attributionContainer) {
+        attributionContainer.style.fontSize = "10px";
+        attributionContainer.style.lineHeight = "1.2";
+        attributionContainer.style.padding = "2px 5px";
+        attributionContainer.style.background = "rgba(255, 255, 255, 0.72)";
+      }
 
       // Public demo maps must not render provider auth-error tiles. Use the
       // same public CARTO fallback as the main app map unless Stadia is keyed.
