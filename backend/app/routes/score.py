@@ -539,13 +539,24 @@ def _score_one(address: str) -> dict:
     Successful rows preserve both livability_score and disruption_score.
     Designed to run inside a ThreadPoolExecutor worker.
     """
+    resolved_address = (address or "").strip()
     try:
-        result = _score_live(address)
+        row = _canonical_row_for_score_address(resolved_address)
+        resolved_coords: tuple[float, float] | None = None
+        if row:
+            resolved_address = row.get("display_address") or resolved_address
+            if row.get("lat") is not None and row.get("lon") is not None:
+                resolved_coords = (float(row["lat"]), float(row["lon"]))
+        elif not _looks_like_complete_street_address(resolved_address):
+            return _address_not_found_response(resolved_address)
+
+        result = _score_live(resolved_address, coords=resolved_coords)
         result.pop("nearby_signals", None)  # not included in batch output
+        result.setdefault("error", None)
         return result
     except Exception as exc:
         return {
-            "address": address,
+            "address": resolved_address,
             "livability_score": None,
             "disruption_score": None,
             "confidence": None,
@@ -675,6 +686,63 @@ _CSV_FIELDNAMES = [
 ]
 
 
+def _join_csv_address_cells(cells: list[str]) -> str:
+    """Reconstruct a single address from CSV cells split by unquoted commas."""
+    return ", ".join(cell.strip() for cell in cells if cell and cell.strip()).strip()
+
+
+def _addresses_from_csv_text(text: str, limit: int = _BATCH_MAX) -> list[str]:
+    """
+    Extract address rows from a CSV upload.
+
+    Properly quoted CSV rows are preserved by csv.reader. For common one-column
+    uploads where comma-containing addresses are left unquoted, extra cells are
+    joined back into the address instead of silently truncating at the first cell.
+    """
+    reader = csv.reader(io.StringIO(text))
+    addresses: list[str] = []
+    header: list[str] | None = None
+    address_idx: int | None = None
+
+    for raw_row in reader:
+        row = [cell.strip() for cell in raw_row]
+        if not any(row):
+            continue
+
+        if header is None:
+            normalized = [cell.lower() for cell in row]
+            if "address" in normalized or "addresses" in normalized:
+                header = normalized
+                address_idx = (
+                    normalized.index("address")
+                    if "address" in normalized
+                    else normalized.index("addresses")
+                )
+                continue
+            header = []
+
+        if address_idx is None:
+            address = _join_csv_address_cells(row)
+        elif len(header or []) == 1:
+            address = _join_csv_address_cells(row)
+        elif address_idx == len(header or []) - 1:
+            address = _join_csv_address_cells(row[address_idx:])
+        elif address_idx < len(row):
+            address = row[address_idx].strip()
+        else:
+            address = ""
+
+        if not address:
+            continue
+
+        addresses.append(address)
+        if len(addresses) >= limit:
+            log.warning("score_batch_csv: input truncated to %d addresses", limit)
+            break
+
+    return addresses
+
+
 def _result_to_csv_row(r: dict) -> dict:
     """Flatten a single score result into a CSV-ready dict."""
     sev = r.get("severity") or {}
@@ -683,14 +751,14 @@ def _result_to_csv_row(r: dict) -> dict:
         "address":          r.get("address", ""),
         "livability_score": "" if r.get("livability_score") is None else r["livability_score"],
         "disruption_score": "" if r.get("disruption_score") is None else r["disruption_score"],
-        "confidence":       r.get("confidence", ""),
+        "confidence":       r.get("confidence") or "",
         "severity_noise":   sev.get("noise", ""),
         "severity_traffic": sev.get("traffic", ""),
         "severity_dust":    sev.get("dust", ""),
         "top_risk_1":       risks[0] if len(risks) > 0 else "",
         "top_risk_2":       risks[1] if len(risks) > 1 else "",
         "top_risk_3":       risks[2] if len(risks) > 2 else "",
-        "error":            r.get("error", ""),
+        "error":            r.get("error") or "",
     }
 
 
@@ -725,21 +793,7 @@ async def post_score_batch_csv(
     except UnicodeDecodeError:
         text = raw.decode("latin-1")
 
-    reader = csv.reader(io.StringIO(text))
-    addresses: list[str] = []
-    for row in reader:
-        if not row:
-            continue
-        cell = row[0].strip()
-        if not cell:
-            continue
-        # Skip header row.
-        if not addresses and cell.lower() in ("address", "addresses"):
-            continue
-        addresses.append(cell)
-        if len(addresses) >= _BATCH_MAX:
-            log.warning("score_batch_csv: input truncated to %d addresses", _BATCH_MAX)
-            break
+    addresses = _addresses_from_csv_text(text)
 
     if not addresses:
         raise HTTPException(status_code=422, detail="No addresses found in uploaded CSV.")
