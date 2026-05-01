@@ -40,6 +40,7 @@ export default function LandingPage() {
         <nav style={{ display: "flex", alignItems: "center", gap: "1.5rem", fontSize: "0.875rem" }}>
           <Link href="/methodology" style={{ color: "#6B7280", textDecoration: "none" }}>Docs</Link>
           <Link href="/api-docs" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
+          <Link href="/bulk" style={{ color: "#6B7280", textDecoration: "none" }}>Bulk CSV</Link>
           <SignedOut>
             <SignInButton mode="modal">
               <button
@@ -244,6 +245,7 @@ export default function LandingPage() {
         <nav style={{ display: "flex", gap: "1.25rem" }}>
           <Link href="/methodology" style={{ color: "#9CA3AF", textDecoration: "none" }}>Methodology</Link>
           <Link href="/api-docs" style={{ color: "#9CA3AF", textDecoration: "none" }}>API Docs</Link>
+          <Link href="/bulk" style={{ color: "#9CA3AF", textDecoration: "none" }}>Bulk CSV</Link>
         </nav>
       </footer>
     </main>

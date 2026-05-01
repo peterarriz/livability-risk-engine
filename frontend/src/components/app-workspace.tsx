@@ -943,6 +943,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
           <nav className={`topnav${workspaceMode ? " topnav--workspace" : ""}`} aria-label="Primary">
             <a href="/methodology" className="topnav-aux-link">Docs</a>
             <a href="/api-access" className="topnav-aux-link">API</a>
+            <a href="/bulk" className="topnav-aux-link">Bulk CSV</a>
             <SignedOut>
               <SignInButton mode="modal">
                 <button type="button" className="topnav-sign-in">Sign in</button>

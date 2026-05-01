@@ -502,7 +502,7 @@ export default function PortfolioPage() {
           <p className="portfolio-subtitle">
             Track disruption scores across multiple addresses. Scores update on demand.
             {" "}<span className="portfolio-plan-note">
-              {hasUnlimitedAccess ? "Pilot workspace: unlimited address tracking during the demo." : `Demo workspace: ${items.length}/${FREE_LIMIT} addresses.`}
+              {hasUnlimitedAccess ? "Pilot workspace: expanded address tracking during the demo." : `Demo workspace: ${items.length}/${FREE_LIMIT} addresses.`}
             </span>
           </p>
         </div>

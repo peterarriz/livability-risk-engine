@@ -15,6 +15,7 @@ function read(path) {
 
 const publicDemoFiles = [
   "../app/page.tsx",
+  "../app/bulk/page.tsx",
   "../components/app-workspace.tsx",
   "../app/api-docs/page.tsx",
   "../app/api-access/page.tsx",
@@ -81,8 +82,9 @@ test("Next.js static chunks use framework-managed cache headers", () => {
 
 test("out-of-scope product routes redirect away from launch demo", () => {
   const middleware = read("../../middleware.ts");
-  for (const route of ["/pricing", "/pilot-evidence", "/portfolio", "/dashboard", "/bulk"]) {
+  for (const route of ["/pricing", "/pilot-evidence", "/portfolio", "/dashboard"]) {
     assert.ok(middleware.includes(`"${route}(.*)"`), `${route} is not launch-gated`);
   }
+  assert.ok(!middleware.includes('"/bulk(.*)"'), "/bulk should stay reachable for pilot API-key CSV users");
   assert.ok(middleware.includes('url.pathname = "/app"'));
 });

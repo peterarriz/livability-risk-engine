@@ -198,6 +198,20 @@ export default function ApiAccessPage() {
             </table>
           </Card>
 
+          <Card className="detail-card supporting-card">
+            <p className="supporting-kicker">Pilot bulk workflow</p>
+            <h2>Bulk CSV scoring</h2>
+            <p className="api-auth-copy">
+              Bulk CSV scoring is available for pilot API users. Upload a CSV with an
+              address column, score up to 200 addresses per request, and download a
+              scored CSV with row-level errors.
+            </p>
+            <p className="modal-fine-print">
+              Use the <a href="/bulk">Bulk CSV upload page</a> when a pilot user wants
+              file upload and download without writing code.
+            </p>
+          </Card>
+
           {/* Code examples */}
           <Card className="detail-card">
             <div className="api-code-head">
@@ -274,6 +288,7 @@ export default function ApiAccessPage() {
 
 const FALLBACK_ENDPOINTS: EndpointDoc[] = [
   { method: "GET", path: "/score", description: "Score one address" },
+  { method: "POST", path: "/score/batch/csv", description: "Upload CSV and download scored results" },
   { method: "GET", path: "/suggest", description: "Address autocomplete" },
   { method: "GET", path: "/history", description: "Score history for an address" },
   { method: "POST", path: "/save", description: "Save a score result and get a shareable link" },
