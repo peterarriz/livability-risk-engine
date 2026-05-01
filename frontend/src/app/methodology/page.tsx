@@ -23,46 +23,36 @@ export default function MethodologyPage() {
       <main className="docs-main">
         <h1 className="docs-title">Scoring Methodology</h1>
         <p className="docs-intro">
-          The Livability Score is a composite 0&ndash;100 index that quantifies near-term livability risk
-          for any US address. This page documents the data sources, calculation method, coverage,
-          and known limitations. Share it with procurement, compliance, or investment committees
-          evaluating the platform.
+          The product scores near-term construction disruption for addresses in supported cities.
+          This page documents the public sources, rule-based calculation, evidence quality,
+          and known limitations for coverage-aware multi-city scoring.
         </p>
 
-        {/* ── Data Sources ──────────────────────────────────────── */}
         <section id="sources" className="docs-section">
           <h2>Data Sources</h2>
           <p>
-            Every score is anchored to publicly available, machine-readable government datasets.
-            No proprietary or self-reported data is used. Sources are refreshed on independent schedules.
+            Scores are anchored to publicly available city records. Chicago remains the
+            reference market, but the scope is multi-city when source provenance and
+            normalization are documented.
           </p>
           <table className="docs-table">
             <thead>
-              <tr><th>Source</th><th>Data type</th><th>Provider</th><th>Update frequency</th></tr>
+              <tr><th>Source family</th><th>Data type</th><th>Provider</th><th>Update frequency</th></tr>
             </thead>
             <tbody>
-              <tr><td>Building permits</td><td>Active construction permits</td><td>City open data portals (Socrata, CKAN, ArcGIS)</td><td>Daily</td></tr>
-              <tr><td>Street closures</td><td>Lane closures, curb restrictions</td><td>CDOT / city DOTs</td><td>Daily</td></tr>
-              <tr><td>Crime trends</td><td>12-month incident counts by district</td><td>City police department APIs (70+ cities)</td><td>Weekly</td></tr>
-              <tr><td>School ratings</td><td>CPS performance ratings, NCES CCD</td><td>IL State Board of Education, US Dept of Education</td><td>Annually</td></tr>
-              <tr><td>Census demographics</td><td>Median income, vacancy rates by tract</td><td>US Census Bureau ACS 5-year estimates</td><td>Annually</td></tr>
-              <tr><td>House Price Index</td><td>Zip-code and metro HPI trends</td><td>FHFA (Federal Housing Finance Agency)</td><td>Quarterly</td></tr>
-              <tr><td>Flood zones</td><td>FEMA NFHL flood hazard polygons</td><td>FEMA National Flood Hazard Layer</td><td>As published</td></tr>
-              <tr><td>Transit alerts</td><td>CTA planned service disruptions</td><td>CTA GTFS-RT / alerts API</td><td>Daily</td></tr>
-              <tr><td>Traffic crashes</td><td>Recent crash incidents</td><td>Chicago Open Data (85ca-t3if)</td><td>Daily</td></tr>
-              <tr><td>311 requests</td><td>Potholes, water main breaks, cave-ins</td><td>Chicago 311 Open Data</td><td>Daily</td></tr>
+              <tr><td>Building permits</td><td>Active construction permits</td><td>City open-data portals</td><td>Source-specific daily target</td></tr>
+              <tr><td>Street closures</td><td>Lane closures and curb restrictions</td><td>City transportation records</td><td>Source-specific daily target</td></tr>
+              <tr><td>Related public signals</td><td>Documented disruption context</td><td>Configured public feeds</td><td>Source-specific</td></tr>
             </tbody>
           </table>
         </section>
 
-        {/* ── Score Calculation ──────────────────────────────────── */}
         <section id="scoring" className="docs-section">
           <h2>Score Calculation</h2>
           <p>
-            The Livability Score combines five dimensions, each scored 0&ndash;100 independently
-            and then weighted into the composite. Higher scores indicate better livability
-            (lower risk). The disruption score is inverted: a high disruption risk
-            produces a low disruption component.
+            The disruption score is a rule-based 0&ndash;100 subscore where higher means more
+            near-term disruption risk. The public livability score uses the approved response
+            contract where higher is better and lower near-term disruption improves the score.
           </p>
 
           <table className="docs-table">
@@ -71,46 +61,21 @@ export default function MethodologyPage() {
             </thead>
             <tbody>
               <tr>
-                <td><strong>Disruption Risk</strong></td><td>35%</td><td>35</td>
-                <td>Active construction permits, street closures, demolitions, utility outages, and traffic crashes within a 500m radius. Higher nearby disruption lowers this component.</td>
-              </tr>
-              <tr>
-                <td><strong>Crime Trend</strong></td><td>25%</td><td>25</td>
-                <td>Year-over-year change in reported crime incidents for the nearest police district. Increasing crime trends lower this component; stable or decreasing trends raise it.</td>
-              </tr>
-              <tr>
-                <td><strong>School Rating</strong></td><td>20%</td><td>20</td>
-                <td>Quality rating of the nearest school (CPS performance level or NCES percentile). Higher school quality raises this component.</td>
-              </tr>
-              <tr>
-                <td><strong>Demographics &amp; Stability</strong></td><td>10%</td><td>10</td>
-                <td>Census tract median household income (relative to metro median) and housing vacancy rate. Lower vacancy and higher relative income indicate neighborhood stability.</td>
-              </tr>
-              <tr>
-                <td><strong>Flood &amp; Environmental</strong></td><td>10%</td><td>10</td>
-                <td>FEMA flood zone classification for the address location. Addresses in minimal-risk zones score highest; those in high-risk zones score lowest.</td>
+                <td><strong>Disruption Risk</strong></td><td>Rule-based</td><td>0&ndash;100</td>
+                <td>Active construction permits and planned closures within the scoring radius. Stronger, closer, and more current signals increase disruption risk.</td>
               </tr>
             </tbody>
           </table>
 
-          <p>
-            An <strong>HPI bonus of &plusmn;5 points</strong> is applied based on the FHFA House Price Index
-            trend for the address ZIP code. Appreciating areas receive a small bonus; declining areas
-            receive a small penalty. The final score is clamped to 0&ndash;100.
-          </p>
-
           <h3>Calculation steps</h3>
           <ol className="docs-steps">
             <li>Geocode the input address to latitude/longitude.</li>
-            <li>Query all active projects, permits, and closures within a 500-meter radius (excluding signals that ended more than 30 days ago).</li>
-            <li>Compute the raw disruption score (0&ndash;100) based on impact type weights, distance decay, and time multiplier.</li>
-            <li>Fetch the latest crime trend, school rating, census demographics, flood zone, and HPI data for the address.</li>
-            <li>Score each dimension on a 0&ndash;100 scale, apply the weight, add HPI bonus, and clamp to produce the composite Livability Score.</li>
-            <li>Assess evidence quality and determine confidence level based on signal count, proximity, and data availability.</li>
+            <li>Query active projects, permits, and closures within the scoring radius.</li>
+            <li>Compute the raw disruption score using impact type weights, distance decay, and time multiplier.</li>
+            <li>Assign confidence and evidence quality based on signal count, proximity, source freshness, and city coverage.</li>
           </ol>
         </section>
 
-        {/* ── Evidence Quality ──────────────────────────────────── */}
         <section id="evidence" className="docs-section">
           <h2>Evidence Quality</h2>
           <p>
@@ -122,110 +87,50 @@ export default function MethodologyPage() {
           <table className="docs-table">
             <thead><tr><th>Level</th><th>Criteria</th><th>What it means</th></tr></thead>
             <tbody>
-              <tr>
-                <td><strong>Strong</strong></td>
-                <td>3 or more non-trivial signals (closures, construction, utility outages) detected nearby</td>
-                <td>The score is well-supported by multiple address-level data points. Suitable for decision-making.</td>
-              </tr>
-              <tr>
-                <td><strong>Moderate</strong></td>
-                <td>1&ndash;2 strong signals detected nearby</td>
-                <td>The score has direct evidence but limited signal density. Consider the top signal carefully.</td>
-              </tr>
-              <tr>
-                <td><strong>Limited</strong> (contextual only)</td>
-                <td>No strong address-level signals, but neighborhood-level data is available (crime trends, census, flood zones)</td>
-                <td>The score reflects area context rather than address-specific conditions. Useful for screening but not final decisions.</td>
-              </tr>
-              <tr>
-                <td><strong>Insufficient</strong></td>
-                <td>No strong signals and no neighborhood-level data available</td>
-                <td>The score is directional only and should not be used for decision-making. Manual review is recommended.</td>
-              </tr>
+              <tr><td><strong>Strong</strong></td><td>3 or more non-trivial nearby permit or closure signals</td><td>The score is well-supported by multiple address-level data points.</td></tr>
+              <tr><td><strong>Moderate</strong></td><td>1-2 strong nearby signals</td><td>The score has direct evidence but limited signal density.</td></tr>
+              <tr><td><strong>Limited</strong> (contextual only)</td><td>No strong address-level signals, but weak contextual evidence exists</td><td>The score is useful for screening but not final decisions.</td></tr>
+              <tr><td><strong>Insufficient</strong></td><td>No strong permit or closure signals available</td><td>The score is directional only and should be supplemented with manual review.</td></tr>
             </tbody>
           </table>
         </section>
 
-        {/* ── Coverage ──────────────────────────────────────────── */}
         <section id="coverage" className="docs-section">
           <h2>Coverage</h2>
           <p>
-            Data coverage varies by city and data type. Chicago has the deepest
-            permit and closure coverage. Other cities have been added progressively.
-            Census, school, flood, and HPI data are available nationwide.
+            Coverage varies by city, source, and data type. A city can be supported for
+            one source family while another source remains partial or unavailable.
           </p>
 
           <table className="docs-table docs-table--compact">
             <thead>
-              <tr><th>Data type</th><th>Full coverage</th><th>Partial / limited</th></tr>
+              <tr><th>Data type</th><th>Full coverage means</th><th>Partial / limited means</th></tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Building permits</td>
-                <td>Chicago, NYC, LA, Philadelphia, Austin, Seattle, Denver, Portland, Baltimore, Nashville, Phoenix, Columbus, Minneapolis, Charlotte, Tucson, Greensboro, Richmond, San Antonio, Cincinnati, San Francisco, Buffalo</td>
-                <td>Boston, Milwaukee, New Orleans (geocoding in progress)</td>
-              </tr>
-              <tr>
-                <td>Crime trends</td>
-                <td>75+ cities with active Socrata/ArcGIS/CKAN endpoints including: Chicago, NYC, LA, Dallas, Austin, Seattle, Denver, SF, Baltimore, Nashville, Portland, DC, OKC, Houston, Phoenix, Columbus, Minneapolis, Charlotte, and many more</td>
-                <td>Cities with rolling-window data (Milwaukee: 3mo, Providence: 6mo, Oakland: 3mo). Frozen datasets: Pittsburgh, Fresno, Albuquerque</td>
-              </tr>
-              <tr>
-                <td>School ratings</td>
-                <td>Illinois (CPS performance ratings)</td>
-                <td>National coverage via NCES CCD (percentile-based)</td>
-              </tr>
-              <tr>
-                <td>Census demographics</td>
-                <td>All US census tracts (all 50 states + DC + PR)</td>
-                <td>&mdash;</td>
-              </tr>
-              <tr>
-                <td>FHFA House Price Index</td>
-                <td>All US 5-digit ZIP codes and metro areas</td>
-                <td>&mdash;</td>
-              </tr>
-              <tr>
-                <td>FEMA flood zones</td>
-                <td>29 counties covering major metro areas</td>
-                <td>Expanding as new cities are added</td>
-              </tr>
+              <tr><td>Building permits</td><td>Recent permit records include usable dates, addresses, and coordinates or geocodable locations</td><td>Records without usable coordinates may not affect address-level scoring</td></tr>
+              <tr><td>Street closures</td><td>Active/planned closure records include location, timing, and impact type</td><td>Street-only records can be less precise than address-level permits</td></tr>
+              <tr><td>Related signals</td><td>Source is documented and normalized into the canonical project schema</td><td>Signals may be used only for context or omitted until validated</td></tr>
             </tbody>
           </table>
         </section>
 
-        {/* ── Confidence Levels ──────────────────────────────────── */}
         <section id="confidence" className="docs-section">
           <h2>Confidence Levels</h2>
           <p>
-            Confidence reflects how closely the detected signals are tied to the specific address,
-            <em>not</em> how severe the disruption is. A high-disruption address can still have
-            HIGH confidence if the signals are physically close and well-documented.
+            Confidence reflects how closely detected signals are tied to the specific address,
+            not how severe the disruption is.
           </p>
 
           <table className="docs-table">
             <thead><tr><th>Level</th><th>Criteria</th><th>Interpretation</th></tr></thead>
             <tbody>
-              <tr>
-                <td><strong>HIGH</strong></td>
-                <td>Multiple signals within 200m, at least one with a confirmed address match or permit directly at the location</td>
-                <td>The score is directly attributable to this address. Safe to use for decision-making.</td>
-              </tr>
-              <tr>
-                <td><strong>MEDIUM</strong></td>
-                <td>Signals present within 500m but none directly at the address; or a single strong signal nearby</td>
-                <td>The score reflects area-level conditions. The address is likely affected but the magnitude is estimated.</td>
-              </tr>
-              <tr>
-                <td><strong>LOW</strong></td>
-                <td>Few or no signals within 500m; score is derived primarily from neighborhood-level data (crime trends, demographics)</td>
-                <td>The score is a baseline estimate. Consider supplementing with an on-the-ground visit or additional data.</td>
-              </tr>
+              <tr><td><strong>HIGH</strong></td><td>Multiple close signals, at least one directly address-relevant</td><td>The score is directly attributable to this address.</td></tr>
+              <tr><td><strong>MEDIUM</strong></td><td>Nearby signals are present but not directly tied to the address, or source coverage is partial</td><td>The score reflects area-level conditions.</td></tr>
+              <tr><td><strong>LOW</strong></td><td>Few signals, sparse source coverage, or weak location precision</td><td>The score is directional and should be supplemented with manual review.</td></tr>
             </tbody>
           </table>
         </section>
 
-        {/* ── Limitations ───────────────────────────────────────── */}
         <section id="limitations" className="docs-section">
           <h2>Limitations</h2>
           <p>
@@ -235,31 +140,20 @@ export default function MethodologyPage() {
 
           <h3>What the score does NOT capture</h3>
           <ul className="docs-limitation-list">
-            <li><strong>Long-term neighborhood trajectory</strong> &mdash; The score reflects current conditions, not 5-year trends. An improving neighborhood may still score poorly during active construction.</li>
-            <li><strong>Indoor quality</strong> &mdash; Building condition, maintenance, appliance age, lead paint, or pest issues are not measurable from public data.</li>
+            <li><strong>Long-term neighborhood trajectory</strong> &mdash; The score reflects current conditions, not 5-year trends.</li>
+            <li><strong>Indoor quality</strong> &mdash; Building condition, maintenance, appliance age, lead paint, or pest issues are not measurable from public disruption data.</li>
             <li><strong>Noise from non-permitted sources</strong> &mdash; Bars, nightlife, traffic noise, and neighbor behavior are not captured.</li>
             <li><strong>Subjective livability factors</strong> &mdash; Walkability feel, community character, aesthetic quality, and cultural amenities are outside scope.</li>
-            <li><strong>Private development plans</strong> &mdash; Projects that haven&rsquo;t yet filed permits are invisible to the score.</li>
-            <li><strong>Natural disaster risk beyond FEMA zones</strong> &mdash; Wildfire, earthquake, tornado, and extreme heat risk are not included.</li>
+            <li><strong>Private development plans</strong> &mdash; Projects that have not filed permits are invisible to the score.</li>
+            <li><strong>Real-time traffic feeds</strong> &mdash; Paid GPS and vehicle-location feeds are intentionally out of scope.</li>
           </ul>
 
           <h3>Coverage and freshness caveats</h3>
           <ul className="docs-limitation-list">
-            <li>Coverage varies significantly by city. Permit and closure data is deepest in Chicago, with progressive coverage across 29+ other cities. Suburbs and rural areas typically have limited address-level data.</li>
-            <li>Signals with passed end dates are retained for 30 days (grace period) because permits often reflect work that continues past the official end date. These receive reduced scoring weight.</li>
-            <li>Some crime datasets are rolling windows (3&ndash;6 months) without historical comparison. These cities show current-period counts but no year-over-year trend.</li>
-            <li>Census ACS data has a 1&ndash;2 year lag. Rapidly changing neighborhoods may not yet be reflected.</li>
-            <li>School ratings are updated annually. Mid-year changes (new principals, policy shifts) are not captured until the next release.</li>
-            <li>FHFA HPI data is quarterly with a ~2 month publication lag.</li>
+            <li>Coverage varies by city and source. Use evidence_quality, confidence, and confidence_reason before relying on a specific address result.</li>
+            <li>Signals with passed end dates may be retained briefly because official records can lag field conditions.</li>
+            <li>Public records can lag field conditions. A recently finished or newly started closure may not be reflected immediately.</li>
           </ul>
-
-          <h3>Score stability</h3>
-          <p>
-            Scores can change daily as new permits are filed, closures begin or end, and crime
-            data updates. A 5&ndash;10 point fluctuation between lookups is normal and reflects
-            genuine data changes, not model instability. Changes greater than 15 points typically
-            indicate a new major signal (e.g., a multi-lane closure starting or ending).
-          </p>
         </section>
       </main>
     </div>

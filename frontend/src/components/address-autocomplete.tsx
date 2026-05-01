@@ -4,27 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { fetchAddressSuggestions } from "@/lib/api";
 import type { AddressSuggestion } from "@/lib/address-types";
 
-const COVERED_CITIES = [
-  "chicago", "new york", "los angeles", "austin", "seattle", "denver",
-  "portland", "nashville", "phoenix", "dallas", "houston", "philadelphia",
-  "san francisco", "minneapolis", "columbus", "san antonio", "fort worth",
-  "charlotte", "detroit", "milwaukee", "baltimore", "boston",
-  "washington", "atlanta", "tampa", "miami", "pittsburgh",
-  "cincinnati", "kansas city", "mesa", "tucson", "tulsa",
-  "arlington", "wichita", "raleigh", "colorado springs",
-  "omaha", "virginia beach", "oakland", "richmond",
-  "boise", "des moines", "chattanooga", "knoxville",
-  "providence", "buffalo", "norfolk", "chandler", "gilbert",
-  "scottsdale", "glendale", "henderson", "greensboro", "durham",
-  "winston-salem", "new orleans", "lexington", "lincoln", "madison",
-];
-
-function getCoverage(description: string): "covered" | "partial" {
-  const lower = description.toLowerCase();
-  for (const city of COVERED_CITIES) {
-    if (lower.includes(city)) return "covered";
-  }
-  return "partial";
+function getCoverage(suggestion: AddressSuggestion): "covered" | "partial" {
+  return suggestion.canonical_id ? "covered" : "partial";
 }
 
 type Props = {
@@ -39,7 +20,7 @@ type Props = {
 
 export default function AddressAutocomplete({
   defaultValue = "",
-  placeholder = "Enter any US address",
+  placeholder = "Enter an address with city and state",
   onSelect,
   onChange,
   ariaLabel,
@@ -175,7 +156,7 @@ export default function AddressAutocomplete({
           }}
         >
           {suggestions.map((pred, i) => {
-            const coverage = getCoverage(pred.display_address);
+            const coverage = getCoverage(pred);
             return (
               <li
                 key={pred.canonical_id ? `canonical-${pred.canonical_id}` : `${pred.display_address}-${i}`}
@@ -203,7 +184,7 @@ export default function AddressAutocomplete({
                 <div style={{ fontSize: "11px", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: coverage === "covered" ? "#22C55E" : "#F59E0B", display: "inline-block", flexShrink: 0 }} />
                   <span style={{ color: coverage === "covered" ? "#16A34A" : "#D97706" }}>
-                    {coverage === "covered" ? "Full coverage" : "Neighborhood data only"}
+                    {coverage === "covered" ? "Known coverage" : "Geocoder match"}
                   </span>
                 </div>
               </li>

@@ -5,11 +5,40 @@ const isProtectedRoute = createRouteMatcher([
   "/account(.*)",
 ]);
 
+const isOutOfScopeLaunchRoute = createRouteMatcher([
+  "/account(.*)",
+  "/bulk(.*)",
+  "/compare(.*)",
+  "/dashboard(.*)",
+  "/login(.*)",
+  "/neighborhood(.*)",
+  "/pilot-evidence(.*)",
+  "/portfolio(.*)",
+  "/pricing(.*)",
+  "/score(.*)",
+  "/sign-in(.*)",
+  "/widget(.*)",
+]);
+
 function hasConfiguredClerkSecret(value: string | undefined) {
   return typeof value === "string" && /^sk_(test|live)_/.test(value);
 }
 
+function launchScopeRedirect(req: NextRequest) {
+  if (!isOutOfScopeLaunchRoute(req)) {
+    return null;
+  }
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/app";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
 function missingClerkMiddleware(req: NextRequest) {
+  const redirect = launchScopeRedirect(req);
+  if (redirect) return redirect;
+
   if (!isProtectedRoute(req)) {
     return NextResponse.next();
   }
@@ -25,6 +54,9 @@ function missingClerkMiddleware(req: NextRequest) {
 
 export default hasConfiguredClerkSecret(process.env.CLERK_SECRET_KEY)
   ? clerkMiddleware(async (auth, req) => {
+      const redirect = launchScopeRedirect(req);
+      if (redirect) return redirect;
+
       if (isProtectedRoute(req)) {
         await auth.protect();
       }

@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Livability Risk Engine",
-  description: "Address intelligence for real estate and operations teams — construction, crime, schools, and neighborhood context.",
+  description: "Coverage-aware construction disruption scoring from public permit and planned closure records.",
 };
 
 export default function RootLayout({

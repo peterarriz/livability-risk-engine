@@ -8,8 +8,8 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@/lib/clerk-clien
 const EXAMPLE_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
 const EXAMPLE_ADDRESSES = [
   { label: "Active road closures", address: "1600 W Chicago Ave, Chicago, IL", score: "48", insight: "Traffic and curb access drag down the livability score." },
-  { label: "Low disruption area", address: "233 S Wacker Dr, Chicago, IL", score: "78", insight: "Few active address-level disruption signals are visible in current data." },
-  { label: "Construction-heavy zone", address: "700 W Grand Ave, Chicago, IL", score: "56", insight: "Nearby construction creates manageable risk, but evidence quality matters." },
+  { label: "Low disruption area", address: "11900 S Morgan St, Chicago, IL", score: "84", insight: "No active nearby permit or closure signal is visible in current city data." },
+  { label: "Moderate construction noise", address: "3150 N Southport Ave, Chicago, IL", score: "64", insight: "Nearby exterior work creates manageable noise risk." },
 ];
 
 const font = "Inter, system-ui, -apple-system, sans-serif";
@@ -39,7 +39,6 @@ export default function LandingPage() {
         </div>
         <nav style={{ display: "flex", alignItems: "center", gap: "1.5rem", fontSize: "0.875rem" }}>
           <Link href="/methodology" style={{ color: "#6B7280", textDecoration: "none" }}>Docs</Link>
-          <Link href="/pilot-evidence" style={{ color: "#6B7280", textDecoration: "none" }}>Pilot evidence</Link>
           <Link href="/api-docs" style={{ color: "#6B7280", textDecoration: "none" }}>API</Link>
           <SignedOut>
             <SignInButton mode="modal">
@@ -71,17 +70,17 @@ export default function LandingPage() {
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: "680px", margin: "0 auto", padding: "4rem 1.5rem 2.5rem", textAlign: "center" }}>
         <h1 style={{ fontSize: "2.25rem", fontWeight: 600, lineHeight: 1.25, color: "#111827", margin: "0 0 1rem" }}>
-          Know what&rsquo;s happening at any US address before you commit.
+          Spot construction disruption before tours and commitments.
         </h1>
         <p style={{ fontSize: "1.05rem", lineHeight: 1.6, color: "#6B7280", margin: "0 0 2rem" }}>
-          Address-level livability and disruption intelligence for US properties, combining public permit, closure, neighborhood, school, flood, and market context into one evidence-aware score.
+          Enter one address and get a near-term disruption score from available public building permit and planned closure records.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); const a = heroAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "520px", margin: "0 auto" }}>
           <AddressAutocomplete
             defaultValue={EXAMPLE_ADDRESS}
             onSelect={(suggestion) => { heroAddrRef.current = suggestion.display_address; }}
             onChange={(a) => { heroAddrRef.current = a; }}
-            ariaLabel="US address"
+            ariaLabel="Address"
             inputStyle={{
               flex: 1, padding: "0.65rem 0.9rem", fontSize: "0.9rem",
               border: "1px solid #D1D5DB", borderRadius: "8px", outline: "none",
@@ -97,7 +96,7 @@ export default function LandingPage() {
           </button>
         </form>
         <p style={{ fontSize: "0.78rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
-          Public demo available now. Pilot API access is available by request.
+          Multi-city scoring is the product direction. Results are directional where city records are sparse.
         </p>
       </section>
 
@@ -108,10 +107,10 @@ export default function LandingPage() {
         borderTop: "1px solid #E5E7EB", borderBottom: "1px solid #E5E7EB",
         fontSize: "0.82rem", color: "#6B7280",
       }}>
-        <span><strong style={{ color: "#111827" }}>Nationwide</strong> address lookup</span>
+        <span><strong style={{ color: "#111827" }}>Multi-city</strong> address lookup</span>
         <span><strong style={{ color: "#111827" }}>Coverage-aware</strong> evidence quality</span>
-        <span><strong style={{ color: "#111827" }}>Public</strong> permit and context data</span>
-        <span><strong style={{ color: "#111827" }}>Directional</strong> where feeds are sparse</span>
+        <span><strong style={{ color: "#111827" }}>Public</strong> permit and closure data</span>
+        <span><strong style={{ color: "#111827" }}>Directional</strong> where records are sparse</span>
       </div>
 
       {/* ── Example result ───────────────────────────────────────────────── */}
@@ -157,9 +156,9 @@ export default function LandingPage() {
       <section style={{ maxWidth: "960px", margin: "0 auto", padding: "1rem 1.5rem 2.5rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
           {[
-            { eyebrow: "Due diligence", title: "Screen addresses before tours", body: "Screen any address for active disruption before scheduling tours or recommending terms." },
-            { eyebrow: "Portfolio monitoring", title: "Track conditions across addresses", body: "Monitor addresses in your portfolio. Get notified when new permits, closures, or crime trends appear." },
-            { eyebrow: "Logistics", title: "Plan around active closures", body: "Check for lane closures and construction before routing teams or scheduling deliveries." },
+            { eyebrow: "Due diligence", title: "Screen addresses before tours", body: "Check an address for active construction or closure disruption before scheduling tours or recommending terms." },
+            { eyebrow: "Access planning", title: "Validate curb and lane risk", body: "See whether nearby public closure records could affect parking, loading, pickup, or dropoff." },
+            { eyebrow: "Operations", title: "Plan around active closures", body: "Check for lane closures and construction before routing teams or scheduling deliveries." },
           ].map((card) => (
             <article key={card.eyebrow} style={{
               background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "12px",
@@ -186,7 +185,7 @@ export default function LandingPage() {
               Enter one address and get score + severity in one response
             </h3>
             <p style={{ fontSize: "0.875rem", color: "#6B7280", lineHeight: 1.55, margin: 0 }}>
-              Permits, street closures, crime trends, school ratings, flood zones, and census data are combined where available. Coverage varies by city and data type.
+              Available public permits and planned closure records are evaluated against the approved rule-based scoring model.
             </p>
           </div>
           <div>
@@ -214,10 +213,10 @@ export default function LandingPage() {
           </p>
           <form onSubmit={(e) => { e.preventDefault(); const a = ctaAddrRef.current.trim(); if (a) router.push(`/app?address=${encodeURIComponent(a)}`); }} style={{ display: "flex", gap: "0.5rem", maxWidth: "480px", margin: "0 auto" }}>
             <AddressAutocomplete
-              placeholder="Enter any US address…"
+              placeholder="Enter an address..."
               onSelect={(suggestion) => { ctaAddrRef.current = suggestion.display_address; }}
               onChange={(a) => { ctaAddrRef.current = a; }}
-              ariaLabel="US address"
+              ariaLabel="Address"
               inputStyle={{
                 flex: 1, padding: "0.65rem 0.9rem", fontSize: "0.9rem",
                 border: "1px solid #BFDBFE", borderRadius: "8px", outline: "none",
@@ -244,9 +243,7 @@ export default function LandingPage() {
         <span>&copy; {new Date().getFullYear()} Livability Risk Engine</span>
         <nav style={{ display: "flex", gap: "1.25rem" }}>
           <Link href="/methodology" style={{ color: "#9CA3AF", textDecoration: "none" }}>Methodology</Link>
-          <Link href="/pilot-evidence" style={{ color: "#9CA3AF", textDecoration: "none" }}>Pilot Evidence</Link>
           <Link href="/api-docs" style={{ color: "#9CA3AF", textDecoration: "none" }}>API Docs</Link>
-          <Link href="/pricing" style={{ color: "#9CA3AF", textDecoration: "none" }}>Pricing</Link>
         </nav>
       </footer>
     </main>

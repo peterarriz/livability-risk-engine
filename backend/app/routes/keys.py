@@ -128,8 +128,8 @@ def api_access_info() -> dict:
         "title": "Livability Risk Engine API",
         "version": "1.0",
         "description": (
-            "Nationwide address-level livability and disruption intelligence. "
-            "Coverage and evidence depth vary by city, source, and data type."
+            "Multi-city address-level livability and construction disruption intelligence. "
+            "Coverage and evidence depth vary by city, source, and record availability."
         ),
         "score_semantics": {
             "livability_score": "Public headline score, 0-100; higher means better address livability and lower near-term risk.",
@@ -140,7 +140,7 @@ def api_access_info() -> dict:
         },
         "coverage": (
             "Coverage varies by city and data type. Where permit or closure feeds are sparse, "
-            "results rely more on neighborhood context and should be treated as directional."
+            "results should be treated as directional."
         ),
         "auth": {
             "required": _require_api_key_enabled(),
@@ -148,15 +148,15 @@ def api_access_info() -> dict:
             "request_access": "Contact the platform operator to request an API key.",
         },
         "endpoints": [
-            {"method": "GET", "path": "/score", "description": "Score a US address; returns livability_score and disruption_score."},
-            {"method": "POST", "path": "/score/batch", "description": "Score up to 200 US addresses in JSON."},
-            {"method": "POST", "path": "/score/batch/csv", "description": "Upload a CSV of addresses and receive score columns."},
+            {"method": "GET", "path": "/score", "description": "Score one address; returns livability_score and disruption_score."},
+            {"method": "GET", "path": "/suggest", "description": "Address autocomplete."},
             {"method": "GET", "path": "/history", "description": "Recent score history for an address."},
             {"method": "GET", "path": "/export/csv", "description": "Download score and nearby signal context as CSV."},
+            {"method": "GET", "path": "/health", "description": "Backend readiness check."},
         ],
         "rate_limits": "Authenticated requests are subject to operator-configured rate limits.",
         "example": {
-            "request": "GET /score?address=100+W+Randolph+St+Chicago+IL",
+            "request": "GET /score?address=1600+W+Chicago+Ave+Chicago+IL",
             "response_shape": {
                 "address": "string",
                 "livability_score": "0-100 integer; higher is better",

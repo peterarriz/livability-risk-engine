@@ -910,7 +910,7 @@ export function MapView({
         <button
           type="button"
           disabled={!isPro}
-          title={isPro ? "Animate 30-day projected signal changes" : "30-day forecast is available by request for pilot workflows"}
+          title={isPro ? "Animate 30-day projected signal changes" : "30-day forecast is not available in the public demo"}
           onClick={() => {
             if (!isPro) return;
             if (forecastDone) {
@@ -939,29 +939,7 @@ export function MapView({
           aria-pressed={forecastActive}
         >
           {forecastBtnLabel}
-          {!isPro && (
-            <span style={{
-              fontSize: "0.58rem", fontWeight: 700,
-              letterSpacing: "0.06em", textTransform: "uppercase",
-              padding: "1px 5px", borderRadius: "3px",
-              background: "#7c3aed", color: "#fff",
-            }}>
-              Pilot
-            </span>
-          )}
         </button>
-
-        {!isPro && (
-          <a
-            href="/pricing"
-            style={{
-              fontSize: "0.71rem", color: "#a78bfa",
-              textDecoration: "none", fontWeight: 500,
-            }}
-          >
-            Request access &rarr;
-          </a>
-        )}
 
         {/* Day counter shown while animating */}
         {forecastActive && !forecastDone && (
@@ -1000,7 +978,7 @@ export function MapView({
         </div>
       )}
 
-      {/* ── Forecast scrubber — pilot access only, shown when forecast is active ───── */}
+      {/* Forecast scrubber, shown when forecast is active. */}
       {isPro && forecastActive && (
         <div style={{
           display: "flex", alignItems: "center", gap: "10px",

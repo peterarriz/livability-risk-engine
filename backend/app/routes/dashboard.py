@@ -57,7 +57,7 @@ def _debug_search_flow(stage: str, **payload) -> None:
 # /suggest helper parsers (shared with search.py)
 # ---------------------------------------------------------------------------
 
-# US state name -> 2-letter abbreviation (for formatting nationwide suggestions)
+# State name -> 2-letter abbreviation (for formatting address suggestions)
 _US_STATE_ABBREVS: dict[str, str] = {
     "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
     "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",

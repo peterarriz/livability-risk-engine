@@ -14,30 +14,32 @@ lanes:
     display_name: Product
     ready_queue_target: 3
     current_focus:
-      - product-008
+      - product-030
     blockers: []
     update_when:
       - A product task changes status.
       - Product adds or removes acceptance criteria.
       - Product changes lane priorities or blocks another lane.
-    notes: Entire monetization foundation is complete (product-008 through product-025 all done). Docs produced — buyer_personas.md, pitch_narrative.md, demo_script.md, pricing_model.md, outreach_templates.md, success_metrics.md, competitive_positioning.md, pilot_terms.md, faq.md. Product lane queue is now empty — run generate_tasks.py to surface the next batch of ready tasks.
+    notes: product-030 corrected scope on 2026-04-30. Product direction is multi-city/nationwide-capable with Chicago as reference/deepest-coverage market, not the boundary. data-086 added 50 context-ready expansion cities to the coverage registry; buyer-facing caveats must stay coverage-aware.
   data:
     display_name: Data
     ready_queue_target: 3
-    current_focus: []
+    current_focus:
+      - data-086
     blockers: []
     update_when:
       - A data ingestion or normalization task changes status.
       - A dependency from Product or App blocks data delivery.
       - Data decides the next source or schema checkpoint.
-    notes: All data tasks through data-016 are done. Pipeline now covers: ingest → geocode-fill → load (with prune) → freshness check → DB summary. No ready data tasks remain; generate tasks when the next milestone is defined.
+    notes: Multi-city scope is now active. data-086 is done: city_coverage registry schema plus a 50-city context_ready seed were added from repo-backed generated/context-source evidence, with provenance, freshness, coordinate coverage, normalization fit, and caveats documented.
   app:
     display_name: App
     ready_queue_target: 3
-    current_focus: []
+    current_focus:
+      - app-047
     blockers: []
     update_when:
       - An app task changes status.
       - App is waiting on Data output or Product contract decisions.
       - The demo flow needs a different next-ready task.
-    notes: app-015 through app-018 completed. ScoreHero placeholder copy fixed, .env.example populated, backend/requirements.txt added, README smoke-check updated with /health and live mode steps. app-007 (map view) remains backlog. No actionable app tasks remain; generate new tasks when the next integration milestone is defined.
+    notes: product-030 superseded the Chicago-only parts of app-046. Backend/frontend should preserve multi-city scope and avoid rejecting non-Chicago addresses solely due to location. app-047 is ready to expose the 50 data-086 coverage-registry cities in demo/API copy while preserving sparse-source caveats.

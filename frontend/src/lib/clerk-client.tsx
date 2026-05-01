@@ -50,12 +50,12 @@ export function SignedIn({ children }: { children: ReactNode }) {
 }
 
 export function SignedOut({ children }: { children: ReactNode }) {
-  if (!clerkConfigured) return <>{children}</>;
+  if (!clerkConfigured) return null;
   return <ClerkSignedOut>{children}</ClerkSignedOut>;
 }
 
 export function SignInButton(props: ComponentProps<typeof ClerkSignInButton>) {
-  if (!clerkConfigured) return <>{props.children}</>;
+  if (!clerkConfigured) return null;
   return <ClerkSignInButton {...props} />;
 }
 

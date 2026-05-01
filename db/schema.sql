@@ -324,6 +324,64 @@ CREATE INDEX IF NOT EXISTS idx_score_requests_city
 COMMENT ON TABLE score_requests IS
     'Best-effort /score request telemetry used for lightweight usage and error statistics.';
 
+-- ---------------------------------------------------------------------------
+-- City coverage registry  (data-086)
+--
+-- Tracks cities that are explicitly known to the data lane, including whether
+-- they have disruption project feeds, contextual neighborhood feeds, or both.
+-- This is intentionally separate from `projects`: city coverage metadata should
+-- not create synthetic construction signals.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS city_coverage (
+    city_slug                    TEXT        PRIMARY KEY,
+    city_name                    TEXT        NOT NULL,
+    state_code                   TEXT        NOT NULL,
+    country_code                 TEXT        NOT NULL DEFAULT 'US',
+    coverage_status              TEXT        NOT NULL DEFAULT 'context_ready',
+    evidence_quality             TEXT        NOT NULL DEFAULT 'contextual_only',
+    disruption_signal_sources    TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],
+    context_signal_sources       TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],
+    neighborhood_source_key      TEXT,
+    staging_file                 TEXT,
+    simulation_sources           INT,
+    simulation_generated_records INT,
+    latest_month_score           INT,
+    source_cadence               TEXT,
+    coordinate_coverage          TEXT,
+    normalization_fit            TEXT,
+    caveats                      TEXT,
+    added_at                     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT city_coverage_evidence_quality_check CHECK (
+        evidence_quality IN ('strong', 'moderate', 'contextual_only', 'insufficient')
+    ),
+    CONSTRAINT city_coverage_status_check CHECK (
+        coverage_status IN ('active', 'context_ready', 'planned', 'blocked')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS city_coverage_state_idx
+    ON city_coverage (state_code, city_name);
+
+CREATE INDEX IF NOT EXISTS city_coverage_evidence_quality_idx
+    ON city_coverage (evidence_quality);
+
+COMMENT ON TABLE city_coverage IS
+    'Explicit supported/known city registry for multi-city coverage. '
+    'Rows describe available source families and caveats; they do not create '
+    'project signals by themselves.';
+
+COMMENT ON COLUMN city_coverage.coverage_status IS
+    'active = disruption project feeds connected; context_ready = neighborhood/context '
+    'sources are known but construction/closure project feeds are not yet connected; '
+    'planned/blocked are backlog states.';
+
+COMMENT ON COLUMN city_coverage.evidence_quality IS
+    'User-facing evidence depth for the city registry. Mirrors the /score '
+    'evidence_quality vocabulary where possible.';
+
 
 -- ---------------------------------------------------------------------------
 -- Amenity richness cache  (data-064)

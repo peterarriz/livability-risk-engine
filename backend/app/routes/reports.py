@@ -15,6 +15,7 @@ import json
 import logging
 import math
 import uuid
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -32,7 +33,6 @@ router = APIRouter()
 
 _DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001"
 _PUBLIC_HISTORY_MAX_LIMIT = 10
-
 _PUBLIC_REPORT_REDACT_KEYS = frozenset(
     {
         "account_id",
@@ -47,32 +47,38 @@ _PUBLIC_REPORT_REDACT_KEYS = frozenset(
     }
 )
 
-_DEMO_CSV_PROJECTS = [
-    {
-        "distance_m": 120,
-        "title": "2-lane eastbound closure on W Chicago Ave",
-        "source": "street_closure",
-        "source_id": "DEMO-001",
-        "impact_type": "multi_lane_closure",
-        "status": "active",
-        "start_date": "2026-03-01",
-        "end_date": "2026-03-22",
-        "address": "W Chicago Ave",
-        "weighted_score": 28,
-    },
-    {
-        "distance_m": 210,
-        "title": "Active construction permit near 120 W Randolph St",
-        "source": "building_permit",
-        "source_id": "DEMO-002",
-        "impact_type": "construction",
-        "status": "active",
-        "start_date": "2026-02-15",
-        "end_date": "2026-06-30",
-        "address": "120 W Randolph St",
-        "weighted_score": 18,
-    },
-]
+def _demo_iso_date(offset_days: int) -> str:
+    return (date.today() + timedelta(days=offset_days)).isoformat()
+
+
+def _demo_csv_projects() -> list[dict]:
+    return [
+        {
+            "distance_m": 120,
+            "title": "2-lane eastbound closure on W Chicago Ave",
+            "source": "street_closure",
+            "source_id": "DEMO-001",
+            "impact_type": "multi_lane_closure",
+            "status": "active",
+            "start_date": _demo_iso_date(-2),
+            "end_date": _demo_iso_date(14),
+            "address": "W Chicago Ave",
+            "weighted_score": 28,
+        },
+        {
+            "distance_m": 210,
+            "title": "Active construction permit near 1550 W Chicago Ave",
+            "source": "building_permit",
+            "source_id": "DEMO-002",
+            "impact_type": "construction",
+            "status": "active",
+            "start_date": _demo_iso_date(-20),
+            "end_date": _demo_iso_date(45),
+            "address": "1550 W Chicago Ave",
+            "weighted_score": 18,
+        },
+    ]
+
 
 # ---------------------------------------------------------------------------
 # Models
@@ -242,11 +248,11 @@ def get_report(report_id: str) -> dict:
 
 @router.get("/history")
 def get_history(
-    address: str = Query(..., description="US address to look up"),
+    address: str = Query(..., description="Address to look up"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of records to request; public responses are capped"),
 ) -> dict:
     """
-    Return the most recent score history entries for a given US address.
+    Return the most recent score history entries for a given address.
 
     Public history exposes only safe score fields and is capped to avoid
     unnecessarily exposing exact-address activity.
@@ -418,7 +424,7 @@ def get_score_trend(
 
 @router.get("/export/csv", dependencies=[Depends(require_api_key)])
 def export_csv(
-    address: str = Query(..., description="US address to score and export"),
+    address: str = Query(..., description="Address to score and export"),
 ) -> StreamingResponse:
     """
     data-029: Export score results for an address as a CSV file.
@@ -512,19 +518,21 @@ def export_csv(
                     for nbp in nearby
                 ]
 
+        except HTTPException:
+            raise
         except Exception as exc:
             log.warning("export_csv live path failed, falling back to demo: %s", exc)
             livability_score = None
             disruption_score = 62
             confidence = "MEDIUM"
-            project_rows = _DEMO_CSV_PROJECTS
+            project_rows = _demo_csv_projects()
 
     # -- Demo path -----------------------------------------------------------
     else:
         livability_score = DEMO_RESPONSE.get("livability_score")
         disruption_score = 62
         confidence = "MEDIUM"
-        project_rows = _DEMO_CSV_PROJECTS
+        project_rows = _demo_csv_projects()
 
     # -- Build CSV -----------------------------------------------------------
     output = io.StringIO()

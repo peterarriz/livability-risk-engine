@@ -78,9 +78,9 @@ export default function ApiDocsPage() {
       <main className="docs-main">
         <h1 className="docs-title">Livability Risk Engine API</h1>
         <p className="docs-intro">
-          Score US addresses for livability and disruption using available public permit, closure,
-          neighborhood, school, flood, and market context. Returns a 0&ndash;100 livability score,
-          backward-compatible disruption subscore, severity breakdown, evidence quality, and spatial context.
+          Score addresses for near-term construction disruption using available public building
+          permit and planned closure records. Returns a 0&ndash;100 livability score,
+          backward-compatible disruption subscore, severity breakdown, evidence quality, and top risks.
         </p>
 
         {/* ── Authentication ─────────────────────────────────────── */}
@@ -95,7 +95,7 @@ export default function ApiDocsPage() {
   "https://api.livabilityrisks.com/score?address=1600+W+Chicago+Ave,+Chicago,+IL"`}</pre>
           <p className="docs-note">
             API keys are issued by request for design partners and controlled pilots.
-            Usage is currently monitored operationally; automated billing quotas are planned.
+            Usage is currently reviewed operationally for design partners.
           </p>
         </section>
 
@@ -110,7 +110,7 @@ export default function ApiDocsPage() {
           <table className="docs-table">
             <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>address</code></td><td>string</td><td>Yes</td><td>Full US street address including city and state</td></tr>
+              <tr><td><code>address</code></td><td>string</td><td>Yes</td><td>Full street address including city and state</td></tr>
             </tbody>
           </table>
 
@@ -121,15 +121,16 @@ export default function ApiDocsPage() {
   "disruption_score": 62,
   "confidence": "MEDIUM",
   "severity": {
-    "noise": "HIGH",
-    "traffic": "MEDIUM",
+    "noise": "LOW",
+    "traffic": "HIGH",
     "dust": "LOW"
   },
   "top_risks": [
-    "A 2-lane closure within roughly 120 meters...",
-    "Active construction permit at 1620 W Chicago Ave..."
+    "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
+    "Active closure window runs through the next 14 days",
+    "Traffic and curb access are the dominant near-term disruption signals at this address"
   ],
-  "explanation": "Two active disruption signals detected...",
+  "explanation": "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic and curb access disruption even though noise and dust are limited.",
   "mode": "live",
   "evidence_quality": "moderate",
   "confidence_reason": "Specific nearby closure and permit signals are available, but coverage varies by source.",
@@ -138,9 +139,7 @@ export default function ApiDocsPage() {
   "nearby_signals": [ ... ],
   "livability_breakdown": {
     "components": {
-      "disruption_risk": { "raw_score": 38, "weighted_contribution": 13.3 },
-      "crime_trend": { "raw_score": 55, "weighted_contribution": 13.8 },
-      "school_rating": { "raw_score": 60, "weighted_contribution": 12.0 }
+      "disruption_risk": { "raw_score": 38, "weighted_contribution": 13.3 }
     }
   }
 }`}</pre>
@@ -162,7 +161,7 @@ export default function ApiDocsPage() {
               <tr><td><code>explanation</code></td><td>string</td><td>Summary paragraph explaining the score</td></tr>
               <tr><td><code>mode</code></td><td>string</td><td><code>live</code> or <code>demo</code>; use evidence_quality and confidence_reason for coverage quality</td></tr>
               <tr><td><code>latitude</code>, <code>longitude</code></td><td>number</td><td>Geocoded coordinates</td></tr>
-              <tr><td><code>nearby_signals</code></td><td>array</td><td>Active permits, closures, and incidents within scoring radius</td></tr>
+              <tr><td><code>nearby_signals</code></td><td>array</td><td>Active permits and closures within scoring radius</td></tr>
               <tr><td><code>livability_breakdown</code></td><td>object</td><td>Component scores; the disruption_risk component is inverted from disruption_score before contributing to livability</td></tr>
             </tbody>
           </table>
@@ -208,7 +207,6 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
               <tr><td>Single-address demo</td><td>Available on the public app</td><td>Coverage varies by city and source.</td></tr>
               <tr><td>API keys</td><td>Issued by request</td><td>Used for pilot integrations and authenticated endpoints.</td></tr>
               <tr><td>Batch scoring</td><td>Available with pilot API key</td><td>Request limits are documented in the endpoint contract.</td></tr>
-              <tr><td>Self-serve billing</td><td>Planned</td><td>Commercial tiers will follow backend quota and billing enforcement.</td></tr>
             </tbody>
           </table>
           <p className="docs-note">
@@ -228,29 +226,21 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
         <section id="coverage" className="docs-section">
           <h2>Coverage</h2>
           <p>
-            Coverage varies by city and data type. Where permit or closure feeds are sparse,
-            results rely more on neighborhood context and should be treated as directional.
+            The product is multi-city and coverage-aware. Where permit or closure records are sparse,
+            results should be treated as directional.
           </p>
           <div className="docs-city-grid">
             {[
-              "Chicago", "New York", "Los Angeles", "Houston", "Dallas", "Phoenix",
-              "Philadelphia", "San Antonio", "San Diego", "Austin", "San Francisco",
-              "Seattle", "Denver", "Nashville", "Baltimore", "Portland", "Charlotte",
-              "Columbus", "Minneapolis", "San Jose", "Fort Worth", "Indianapolis",
-              "Jacksonville", "Memphis", "Louisville", "Milwaukee", "Albuquerque",
-              "Tucson", "Fresno", "Sacramento", "Kansas City", "Atlanta",
-              "New Orleans", "Cleveland", "Cincinnati", "Raleigh", "Oakland",
-              "Tampa", "Miami", "Buffalo", "Pittsburgh", "Omaha",
-              "Oklahoma City", "Baton Rouge", "El Paso", "Las Vegas",
-              "Greensboro", "Richmond", "Lincoln", "Honolulu",
+              "City permit records",
+              "Planned closure records",
+              "Address-level score response",
             ].map((city) => (
               <span key={city} className="docs-city-pill">{city}</span>
             ))}
           </div>
           <p className="docs-note">
-            These are example metros with some source coverage, not a guarantee of equal evidence depth.
-            Check <code>evidence_quality</code>, <code>confidence</code>, and <code>confidence_reason</code>
-            before relying on a specific address result.
+            Check <code>evidence_quality</code>, <code>confidence</code>, and
+            <code> confidence_reason</code> before relying on a specific address result.
           </p>
         </section>
       </main>

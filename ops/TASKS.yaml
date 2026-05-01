@@ -1,6 +1,6 @@
 version: 2
 metadata:
-  description: Lane-aware task board for the Chicago MVP.
+description: Lane-aware task board for the multi-city Livability Risk Engine MVP.
   actionable_statuses:
     - ready
     - in_progress
@@ -981,7 +981,7 @@ tasks:
   - id: data-016
     lane: data
     type: feature
-    title: Wire real Chicago address autocomplete to search bar
+    title: Wire real address autocomplete to search bar
     owner: data
     status: done
     priority: high
@@ -995,7 +995,7 @@ tasks:
       - /suggest endpoint added to FastAPI backend using Nominatim (OpenStreetMap)
       - fetchSuggestions added to frontend/src/lib/api.ts
       - Debounced autocomplete dropdown wired to address input in page.tsx
-      - Suggestions filtered to Chicago addresses only
+      - Suggestions are ranked by canonical rows and geocoder-backed address matches
       - Graceful fallback to empty list on error
     notes_for_next_agent: "Follow-up hardening completed: backend /addresses/search and /suggest now build from a canonical in-memory index sourced from reports/watchlist/score_history with normalized_full, street_number, street_name, city/state, and zip fields. Normalization standardizes case/punctuation plus common direction/street suffix abbreviations; ranking prioritizes exact/prefix full-address and number+street matches before city/state/zip alignment, adds optional geo-distance penalty for resolvable queries, and filters weak token-only matches. /suggest may append geocoder-backed rows only when backend candidates are insufficient, then re-ranks + dedupes by normalized key."
   - id: data-018
@@ -1434,6 +1434,142 @@ tasks:
       - Landing query-param handoff auto-runs search when /app opens with address.
       - No backend changes.
     notes_for_next_agent: Completed. Reduced debounce from 150ms to 80ms, added cached popular-suggestions prefetch to avoid repeat requests, reused cache on focus/short queries, and auto-submitted score lookup on /app?address handoff to cut clicks and time-to-result.
+
+  - id: app-046
+    lane: app
+    type: qa
+    title: Conduct adversarial launch readiness audit for demo
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/deps.py
+      - backend/app/routes/dashboard.py
+      - backend/app/routes/keys.py
+      - backend/app/routes/reports.py
+      - backend/app/routes/score.py
+      - backend/app/routes/search.py
+      - docs/04_api_contracts.md
+      - frontend/middleware.ts
+      - frontend/next.config.mjs
+      - frontend/src/__tests__/launch-readiness.test.mjs
+      - frontend/src/app/api-access/page.tsx
+      - frontend/src/app/api-docs/page.tsx
+      - frontend/src/app/app/page.tsx
+      - frontend/src/app/layout.tsx
+      - frontend/src/app/methodology/page.tsx
+      - frontend/src/app/page.tsx
+      - frontend/src/components/address-autocomplete.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/components/map-view.tsx
+      - frontend/src/lib/api.ts
+      - frontend/src/lib/clerk-client.tsx
+      - docs/handoffs/app.md
+      - ops/lane_state.yaml
+      - ops/TASKS.yaml
+      - README.md
+    dependencies:
+      - app-045
+    acceptance_criteria:
+      - Launch-readiness metrics are audited across scope, contract, UX, reliability, deployment, and verification.
+      - Public demo surfaces avoid exposing out-of-scope pricing, account, portfolio, bulk, or pilot-evidence routes.
+      - Demo fallback responses align with approved Product examples for low, moderate, high, and severe bands.
+      - Demo/API copy avoids stale fixed dates and launch-inappropriate pilot/pricing CTAs.
+      - Frontend tests and production build pass after remediation.
+    notes_for_next_agent: Completed on 2026-04-30, then superseded by product-030 scope correction. Keep the route-gating and stale-date/pilot-CTA cleanup, but do not preserve Chicago-only enforcement. Frontend `cmd /c npm test` and `cmd /c npm run build` passed during that remediation. Backend Python smoke checks were not run because this workstation does not have python or py on PATH.
+
+  - id: product-030
+    lane: product
+    type: scope
+    title: Correct MVP scope from Chicago-only to multi-city
+    owner: product
+    status: done
+    priority: high
+    files:
+      - AGENTS.md
+      - README.md
+      - docs/00_project_brief.md
+      - docs/01_mvp_scope.md
+      - docs/06_team_working_agreement.md
+      - docs/handoffs/product.md
+      - docs/handoffs/data.md
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+      - ops/lane_state.yaml
+      - ops/task_templates.yaml
+      - backend/app/routes/score.py
+      - backend/app/routes/search.py
+      - backend/app/routes/reports.py
+      - backend/app/routes/keys.py
+      - frontend/src/__tests__/launch-readiness.test.mjs
+      - frontend/src/app/page.tsx
+      - frontend/src/app/api-docs/page.tsx
+      - frontend/src/app/api-access/page.tsx
+      - frontend/src/app/methodology/page.tsx
+      - frontend/src/app/layout.tsx
+      - frontend/src/components/address-autocomplete.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/lib/api.ts
+    dependencies:
+      - app-046
+    acceptance_criteria:
+      - Source-of-truth docs state that the product is multi-city/nationwide-capable, with Chicago as the reference market rather than the boundary.
+      - Backend scoring, export, and suggestion paths no longer reject non-Chicago addresses solely for being outside Chicago.
+      - Public frontend copy describes coverage-aware multi-city scoring and no longer claims Chicago-only scope.
+      - Launch-readiness tests protect against regressing to Chicago-only scope.
+      - Follow-up Data/App work is queued for selecting and exposing validated expansion cities.
+    notes_for_next_agent: Completed on 2026-04-30 at user direction. Chicago-only source-of-truth language was replaced with multi-city/nationwide-capable scope, backend national geocoding was restored, public copy was relaxed to coverage-aware multi-city language, and launch tests now catch stale Chicago-only claims. Next: data-086 adds the coverage registry seed for 50 expansion cities; app-047 can expose that validated registry after Data signs off.
+
+  - id: data-086
+    lane: data
+    type: feature
+    title: Add 50 expansion cities to the coverage registry
+    owner: data
+    status: done
+    priority: high
+    files:
+      - backend/ingest/
+      - data/city_coverage_seed.json
+      - db/schema.sql
+      - db/migrations/add_city_coverage_registry.sql
+      - docs/05_data_sources_chicago.md
+      - docs/handoffs/data.md
+      - ops/TASKS.yaml
+    dependencies:
+      - product-030
+    acceptance_criteria:
+      - Existing non-Chicago ingestion adapters and generated/source data are inventoried.
+      - Fifty expansion cities not already represented by current permit/closure city configs are selected from repo-backed coverage artifacts.
+      - Each selected city has documented source provenance, expected fields, update cadence, coordinate coverage risk, and caveats.
+      - A database migration seeds the selected cities into an explicit city coverage registry.
+      - Any missing data needed before App exposure is recorded as a blocker or follow-up task.
+    notes_for_next_agent: Completed on 2026-04-30. Added city_coverage to db/schema.sql, added idempotent migration db/migrations/add_city_coverage_registry.sql, and mirrored the 50-city seed in data/city_coverage_seed.json. The 50 rows are context_ready/contextual_only, backed by existing crime_trend/neighborhood context loaders and data_flow_simulation evidence, and intentionally do not create synthetic construction project signals. App can now read or expose this registry, but buyer-facing copy must preserve the caveat that address-level disruption confidence remains sparse until permit/closure/project feeds are connected.
+
+  - id: app-047
+    lane: app
+    type: feature
+    title: Expose validated multi-city coverage in API and demo
+    owner: app
+    status: ready
+    priority: high
+    files:
+      - backend/app/routes/score.py
+      - backend/app/routes/search.py
+      - frontend/src/app/page.tsx
+      - frontend/src/app/api-docs/page.tsx
+      - frontend/src/app/api-access/page.tsx
+      - frontend/src/components/address-autocomplete.tsx
+      - frontend/src/lib/api.ts
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies:
+      - data-086
+    acceptance_criteria:
+      - The 50 validated expansion-city registry rows are visible in docs/API/demo copy without implying uniform evidence depth.
+      - Address autocomplete and examples can reference selected registry cities without hiding sparse-source caveats.
+      - `/score` and frontend error states communicate unsupported or sparse-source cases clearly.
+      - Frontend tests and production build pass.
+    notes_for_next_agent: Ready after data-086. Use city_coverage/context_ready rows as coverage metadata, not as active disruption project evidence. Keep Chicago demo fallback examples, but do not reintroduce Chicago-only validation or copy.
 
   - id: data-043
     lane: data

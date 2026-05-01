@@ -37,12 +37,11 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 def _address_not_found_response(address: str) -> dict:
     return {
         "address": address,
         "error": "address_not_found",
-        "message": "We could not locate this address. Try a fuller street address with city and state.",
+        "message": "Address not found. Try a fuller street address with city and state.",
         "livability_score": None,
         "disruption_score": None,
         "confidence": None,
@@ -74,6 +73,13 @@ def _normalize_score_address_for_compare(address: str) -> str:
     normalized = re.sub(r"\b(?:united states|usa)\b", " ", normalized)
     normalized = re.sub(r"\b\d{5}(?:-\d{4})?\b", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _city_label_from_address(address: str) -> str:
+    parts = [part.strip() for part in address.split(",") if part.strip()]
+    if len(parts) >= 2:
+        return parts[-2]
+    return "Local market"
 
 
 def _canonical_row_for_score_address(address: str) -> dict | None:
@@ -148,7 +154,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
       2. Geocode address -> (lat, lon)
       3. Query nearby projects from canonical DB
       4. Apply scoring engine -> ScoreResult
-      5. Query neighborhood quality context (data-040) -- non-fatal if table absent
+      5. Query local context when available -- non-fatal if tables are absent
       6. Enrich top_risk_details with Claude-rewritten titles (data-042, cache-first)
       7. Return as dict matching API contract (includes latitude/longitude)
     """
@@ -189,6 +195,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
             return error_resp
 
         lat, lon = resolved_coords
+
         nearby = get_nearby_projects(lat, lon, conn)
 
         # Neighborhood quality context (data-040, data-083).
@@ -418,25 +425,14 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
 
     result_dict["confidence_reason"] = confidence_reason
 
-    # City baseline comparison.
-    _CITY_BASELINES = {
-        "chicago": 55, "new york": 52, "los angeles": 54, "austin": 60,
-        "seattle": 58, "denver": 57, "portland": 56, "nashville": 57,
-        "phoenix": 56, "dallas": 54, "houston": 53, "philadelphia": 51,
-        "san francisco": 59, "minneapolis": 58, "columbus": 56,
-    }
-    address_lower = result_dict.get("address", "").lower()
-    city_key = "default"
-    for city in _CITY_BASELINES:
-        if city in address_lower:
-            city_key = city
-            break
-    baseline = _CITY_BASELINES.get(city_key, 55)
+    # City baseline is currently a neutral placeholder until city-specific
+    # calibration is available for each supported source set.
+    baseline = 55
     score_val = result_dict.get("livability_score") or result_dict.get("disruption_score", 50)
     diff = score_val - baseline
     result_dict["city_baseline"] = baseline
     result_dict["city_baseline_diff"] = diff
-    result_dict["city_baseline_label"] = city_key.title() if city_key != "default" else "city"
+    result_dict["city_baseline_label"] = _city_label_from_address(address)
 
     _log_score_request(result_dict, int((_time.time() - _start) * 1000))
     return result_dict
@@ -609,7 +605,7 @@ def post_score_batch(
     background_tasks: BackgroundTasks,
 ) -> dict:
     """
-    Score multiple US addresses in a single request.
+    Score multiple addresses in a single request.
 
     Request body:
       {"addresses": ["addr1", "addr2", ...]}   (max 200 addresses)
@@ -781,19 +777,19 @@ async def post_score_batch_csv(
 
 @router.get("/score", dependencies=[Depends(verify_api_key)])
 def get_score(
-    address: str | None = Query(None, description="US address to score"),
+    address: str | None = Query(None, description="Address to score"),
     canonical_id: str | None = Query(None, description="Canonical address identifier from /suggest"),
     lat: float | None = Query(None, description="Latitude override from selected suggestion"),
     lon: float | None = Query(None, description="Longitude override from selected suggestion"),
     background_tasks: BackgroundTasks = None,
 ) -> dict:
     """
-    Return nationwide address-level livability and disruption intelligence.
+    Return address-level livability and disruption intelligence.
 
     Geocodes the address, queries nearby projects from Railway Postgres, and
     returns livability_score as the public headline score plus disruption_score
     as the backward-compatible near-term disruption risk subscore. Coverage and
-    evidence quality vary by city, source, and data type.
+    evidence quality vary by source and address-level data availability.
     """
     from backend.app.routes.dashboard import (
         _address_row_by_canonical_id,
@@ -903,7 +899,7 @@ def _serialize_project_sample(nearby_list) -> list:
 
 @router.get("/debug/score", dependencies=[Depends(require_admin_secret)])
 def debug_score(
-    address: str = Query(..., description="US address to inspect"),
+    address: str = Query(..., description="Address to inspect"),
 ) -> dict:
     """
     Internal operator endpoint -- not part of the public API contract.

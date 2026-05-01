@@ -55,16 +55,8 @@ const nextConfig = {
   // Strict mode catches double-render bugs in development
   reactStrictMode: true,
 
-  // Static asset caching headers
   async headers() {
     return [
-      {
-        // Immutable cache for hashed Next.js static chunks
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
       {
         // Short cache for API-driven pages — score data changes frequently
         source: "/",

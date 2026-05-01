@@ -1,11 +1,12 @@
 # AGENTS.md
 
 ## Repo purpose
-Livability Risk Engine is a Chicago-only MVP for producing a near-term construction disruption risk score for a single address. The MVP output is a JSON API response with `address`, `disruption_score`, `confidence`, `severity`, `top_risks`, and `explanation`. Work in this repo should improve delivery of that MVP only.
+Livability Risk Engine is a multi-city, nationwide-capable MVP for producing a near-term construction disruption risk score for a single address. The MVP output is a JSON API response with `address`, `disruption_score`, `confidence`, `severity`, `top_risks`, and `explanation`. Work in this repo should improve delivery of that MVP only.
 
 ## Scope constraints
-- Do not expand beyond the Chicago MVP.
-- Do not add multi-city support, user accounts, billing, mobile apps, or real-time traffic feeds.
+- Do not describe the product as Chicago-only; Chicago is a reference/deepest-coverage market, not the product boundary.
+- Multi-city support is in scope when each city/source has documented data provenance, normalization behavior, and coverage caveats.
+- Do not add mobile apps or real-time traffic feeds.
 - Do not redesign scoring logic; only implement or document the already-approved rule-based model.
 - Do not change the API contract unless a reviewed cross-lane decision explicitly requires a naming alignment.
 
@@ -67,6 +68,7 @@ Use these ownership defaults unless a task explicitly spans lanes:
   - `docs/handoffs/product.md`
 - **data-owned**
   - `docs/05_data_sources_chicago.md`
+  - `docs/05_data_sources_*.md`
   - `db/`
   - `backend/ingest/`
   - `backend/models/`

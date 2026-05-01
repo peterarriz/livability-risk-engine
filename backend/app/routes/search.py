@@ -99,6 +99,8 @@ def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
             road = address.get("road", "") or address.get("pedestrian", "")
             city = address.get("city") or address.get("town") or address.get("village") or ""
             state = _state_abbrev(address.get("state") or address.get("ISO3166-2-lvl4") or "")
+            lat = float(row.get("lat")) if row.get("lat") is not None else None
+            lon = float(row.get("lon")) if row.get("lon") is not None else None
             if not road:
                 continue
             display = format_display_address(
@@ -116,8 +118,8 @@ def _rows_from_nominatim(query: str, limit: int) -> list[dict]:
             by_norm[norm] = {
                 "canonical_id": None,
                 "display_address": display,
-                "lat": float(row.get("lat")) if row.get("lat") is not None else None,
-                "lon": float(row.get("lon")) if row.get("lon") is not None else None,
+                "lat": lat,
+                "lon": lon,
                 "popularity": 0,
                 **features,
             }
@@ -176,7 +178,7 @@ def search_addresses(
 
 @router.get("/suggest")
 def suggest_addresses(
-    q: str = Query("", description="Partial US address query"),
+    q: str = Query("", description="Partial address query"),
     limit: int = Query(8, ge=1, le=8, description="Maximum results to return"),
     popular: bool = Query(False, description="Return popular addresses when query is short or empty"),
 ) -> dict:

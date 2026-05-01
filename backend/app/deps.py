@@ -17,6 +17,8 @@ Contains:
 
 from __future__ import annotations
 
+import copy
+from datetime import date, timedelta
 import hashlib
 import hmac
 import logging
@@ -220,14 +222,16 @@ DEMO_RESPONSE = {
     },
     "top_risks": [
         "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
-        "Active closure window runs through 2026-03-22",
-        "Traffic is the dominant near-term disruption signal at this address",
+        "Active closure window runs through the next 14 days",
+        "Traffic and curb access are the dominant near-term disruption signals at this address",
     ],
     "explanation": (
         "A nearby 2-lane closure is the main driver, so this address has "
-        "elevated short-term traffic disruption even though noise and dust "
-        "are limited."
+        "elevated short-term traffic and curb access disruption even though "
+        "noise and dust are limited."
     ),
+    "evidence_quality": "moderate",
+    "strong_signal_count": 1,
     "nearby_signals": [
         {
             "lat": 41.8959,
@@ -237,6 +241,7 @@ DEMO_RESPONSE = {
             "distance_m": 120,
             "severity_hint": "HIGH",
             "weight": 30.4,
+            "source": "chicago_closures",
         },
         {
             "lat": 41.8962,
@@ -246,6 +251,7 @@ DEMO_RESPONSE = {
             "distance_m": 210,
             "severity_hint": "MEDIUM",
             "weight": 8.8,
+            "source": "chicago_permits",
         },
         {
             "lat": 41.8948,
@@ -259,6 +265,136 @@ DEMO_RESPONSE = {
     ],
 }
 
+_DEMO_RESPONSE_BY_ADDRESS = {
+    "11900 s morgan st, chicago, il": {
+        "disruption_score": 8,
+        "livability_score": 84,
+        "livability_breakdown": None,
+        "confidence": "LOW",
+        "evidence_quality": "contextual_only",
+        "strong_signal_count": 0,
+        "severity": {"noise": "LOW", "traffic": "LOW", "dust": "LOW"},
+        "top_risks": [
+            "No active street closures or major permits found within 500 meters",
+            "Background permit activity in the area is minor and distant",
+            "Disruption risk is low based on available city data",
+        ],
+        "explanation": (
+            "There is little evidence of meaningful near-term construction disruption "
+            "near this address. Available city permit and closure records show only "
+            "minor background activity, so normal access and livability conditions "
+            "are expected."
+        ),
+        "nearby_signals": [],
+    },
+    "3150 n southport ave, chicago, il": {
+        "disruption_score": 34,
+        "livability_score": 64,
+        "livability_breakdown": None,
+        "confidence": "MEDIUM",
+        "evidence_quality": "moderate",
+        "strong_signal_count": 1,
+        "severity": {"noise": "MEDIUM", "traffic": "LOW", "dust": "LOW"},
+        "top_risks": [
+            "Active building permit for exterior renovation work within roughly 90 meters",
+            "Work window extends through the next 30 days",
+            "Construction noise is the most likely near-term impact at this address",
+        ],
+        "explanation": (
+            "Nearby construction activity is the main driver, so this address has "
+            "moderate short-term noise disruption. The permit covers exterior work "
+            "within close range, but no street or lane closures are confirmed, so "
+            "traffic access remains largely unaffected."
+        ),
+        "nearby_signals": [
+            {
+                "lat": 41.9397,
+                "lon": -87.6639,
+                "impact_type": "construction",
+                "title": "Exterior renovation permit near N Southport Ave",
+                "distance_m": 90,
+                "severity_hint": "MEDIUM",
+                "weight": 12.0,
+            },
+        ],
+    },
+    "1200 w fulton market, chicago, il": {
+        "disruption_score": 81,
+        "livability_score": 29,
+        "livability_breakdown": None,
+        "confidence": "MEDIUM",
+        "evidence_quality": "moderate",
+        "strong_signal_count": 2,
+        "severity": {"noise": "HIGH", "traffic": "HIGH", "dust": "MEDIUM"},
+        "top_risks": [
+            "Multi-lane closure on W Fulton Market within roughly 60 meters, active through next 14 days",
+            "Active large-scale construction permit adjacent to the address generating sustained noise",
+            "Dust and vibration likely given excavation scope of nearby site work",
+        ],
+        "explanation": (
+            "Multiple reinforcing signals make this address severely disrupted in the near term. "
+            "A multi-lane closure and an adjacent active construction site combine to create "
+            "high traffic and curb access friction plus sustained noise disruption within a "
+            "very short distance."
+        ),
+        "nearby_signals": [
+            {
+                "lat": 41.8869,
+                "lon": -87.6574,
+                "impact_type": "closure_multi_lane",
+                "title": "W Fulton Market multi-lane closure",
+                "distance_m": 60,
+                "severity_hint": "HIGH",
+                "weight": 34.0,
+            },
+            {
+                "lat": 41.8865,
+                "lon": -87.6579,
+                "impact_type": "construction",
+                "title": "Large-scale construction permit near W Fulton Market",
+                "distance_m": 75,
+                "severity_hint": "HIGH",
+                "weight": 28.0,
+            },
+        ],
+    },
+}
+
+_DEMO_COORDS_BY_ADDRESS = {
+    "11900 s morgan st, chicago, il": (41.6773, -87.6482),
+    "3150 n southport ave, chicago, il": (41.9395, -87.6637),
+    "1200 w fulton market, chicago, il": (41.8867, -87.6576),
+}
+
+
+def _demo_iso_date(offset_days: int) -> str:
+    return (date.today() + timedelta(days=offset_days)).isoformat()
+
+
+def _apply_relative_demo_dates(key: str, response: dict) -> None:
+    signals = response.get("nearby_signals") or []
+    if key == "3150 n southport ave, chicago, il" and signals:
+        signals[0]["start_date"] = _demo_iso_date(-7)
+        signals[0]["end_date"] = _demo_iso_date(30)
+    elif key == "1600 w chicago ave, chicago, il":
+        if len(signals) > 0:
+            signals[0]["start_date"] = _demo_iso_date(-2)
+            signals[0]["end_date"] = _demo_iso_date(14)
+        if len(signals) > 1:
+            signals[1]["start_date"] = _demo_iso_date(-20)
+            signals[1]["end_date"] = _demo_iso_date(45)
+    elif key == "1200 w fulton market, chicago, il":
+        if len(signals) > 0:
+            signals[0]["start_date"] = _demo_iso_date(-1)
+            signals[0]["end_date"] = _demo_iso_date(14)
+        if len(signals) > 1:
+            signals[1]["start_date"] = _demo_iso_date(-14)
+            signals[1]["end_date"] = _demo_iso_date(60)
+
+
+def _demo_key(address: str) -> str:
+    return " ".join(address.lower().replace(",", " , ").split()).replace(" ,", ",")
+
 
 def _build_demo_response(address: str, fallback_reason: str, lat: float | None = None, lon: float | None = None) -> dict:
     """
@@ -266,8 +402,15 @@ def _build_demo_response(address: str, fallback_reason: str, lat: float | None =
     fallback_reason explains why demo mode is active:
       "db_not_configured" | "geocode_failed" | "scoring_error"
     """
+    key = _demo_key(address)
+    response = copy.deepcopy(DEMO_RESPONSE)
+    if key in _DEMO_RESPONSE_BY_ADDRESS:
+        response.update(copy.deepcopy(_DEMO_RESPONSE_BY_ADDRESS[key]))
+    _apply_relative_demo_dates(key, response)
+    if (lat is None or lon is None) and key in _DEMO_COORDS_BY_ADDRESS:
+        lat, lon = _DEMO_COORDS_BY_ADDRESS[key]
     return {
-        **DEMO_RESPONSE,
+        **response,
         "address": address,
         "mode": "demo",
         "fallback_reason": fallback_reason,

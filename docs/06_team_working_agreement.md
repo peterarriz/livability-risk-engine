@@ -9,7 +9,7 @@
 - Each lane owns its artifacts and must review cross-lane changes that affect shared contracts (for example API schema or DB schema).
 - Any change to `docs/04_api_contracts.md` requires sign-off from Product + App.
 - Any change to canonical schema in the DB must be reviewed by Data + App.
-- Do not change the MVP scope or redesign scoring logic through task generation; generated tasks must stay inside the documented MVP.
+- Do not change the MVP scope or redesign scoring logic through task generation alone; generated tasks must stay inside the documented MVP. Scope changes require source-of-truth docs and lane handoffs to be updated first.
 
 ## Task system: source of truth
 - `ops/TASKS.yaml` is the source of truth for lane work. Every task now includes `id`, `lane`, `type`, `title`, `owner`, `status`, `priority`, `files`, `dependencies`, `acceptance_criteria`, and `notes_for_next_agent`.

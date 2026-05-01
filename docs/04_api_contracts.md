@@ -177,7 +177,7 @@ The following response is the approved canonical example for demo walkthroughs a
   },
   "top_risks": [
     "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
-    "Active closure window runs through 2026-03-22",
+    "Active closure window runs through the next 14 days",
     "Traffic and curb access are the dominant near-term disruption signals at this address"
   ],
   "explanation": "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic and curb access disruption even though noise and dust are limited."

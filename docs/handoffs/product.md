@@ -1,7 +1,7 @@
 # Product Lane Handoff Guide
 
 ## Mission
-Keep Product work focused on scope clarity, scoring guidance, and demo-readiness without expanding the MVP.
+Keep Product work focused on scope clarity, scoring guidance, demo-readiness, and city/source prioritization for the multi-city MVP.
 
 ## Completed in this handoff
 - Added score interpretation bands so the 0–100 output has practical user-facing meaning.
@@ -44,6 +44,12 @@ These are the open questions that must be resolved — or explicitly accepted as
 
 ## Still open
 
+## Scope correction (2026-04-30)
+- Product direction is multi-city/nationwide-capable, not Chicago-only.
+- Chicago remains the reference/deepest-coverage market and the canonical demo-response set, but additional cities are in scope when Data documents source provenance and App preserves coverage/confidence caveats.
+- Do not promise uniform national coverage. Buyer-facing language should say evidence depth varies by city, source, and data type.
+- data-086 added 50 expansion cities as `context_ready` coverage-registry rows. Product language should call these known context-coverage cities, not active construction-feed cities, until permit/closure/project feeds are connected.
+
 ## Next product actions (updated 2026-03-19)
 1. Run the live-output trust review (product-026) once the DB is connected — see `docs/product_qa_checklist.md`.
 2. Confirm the selected design-partner persona and start outbound (product-027, product-028).
@@ -81,6 +87,6 @@ First 25 contacts. Quality over quantity — 25 well-matched targets beats 200 c
 - To **App**: preserve the minimal response shape, but render score/confidence as user-facing trust signals rather than raw technical fields.
 
 ## Review checklist
-- Does the task stay inside the Chicago MVP scope?
+- Does the task stay inside the documented multi-city MVP scope?
 - Does it avoid changing the scoring model beyond documenting Product decisions?
 - Is the next Product task specific enough for a human or AI agent to execute without guessing?

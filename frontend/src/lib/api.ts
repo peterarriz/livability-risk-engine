@@ -264,50 +264,100 @@ function logFrontendFallback(reason: FrontendFallbackReason, message: string) {
   return message;
 }
 
-// Canonical demo payload used in two places:
-// 1. the backend's own demo mode when live scoring is unavailable
-// 2. the frontend's fabricated fallback when it cannot reach the backend at all
-function buildDemoScore(address: string): ScoreResponse {
-  return {
-    address,
+function isKnownDemoAddress(address: string): boolean {
+  return Boolean(DEMO_SCENARIO_KEYS[demoScenarioKey(address)]);
+}
+
+function demoIsoDate(offsetDays: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function withRelativeDemoDates(addressKey: string, signals: NearbySignal[]): NearbySignal[] {
+  const datedSignals = signals.map((signal) => ({ ...signal }));
+  if (addressKey === "3150 n southport ave, chicago, il" && datedSignals[0]) {
+    datedSignals[0].start_date = demoIsoDate(-7);
+    datedSignals[0].end_date = demoIsoDate(30);
+  }
+  if (addressKey === "1600 w chicago ave, chicago, il") {
+    if (datedSignals[0]) {
+      datedSignals[0].start_date = demoIsoDate(-2);
+      datedSignals[0].end_date = demoIsoDate(14);
+    }
+    if (datedSignals[1]) {
+      datedSignals[1].start_date = demoIsoDate(-20);
+      datedSignals[1].end_date = demoIsoDate(45);
+    }
+  }
+  if (addressKey === "1200 w fulton market, chicago, il") {
+    if (datedSignals[0]) {
+      datedSignals[0].start_date = demoIsoDate(-1);
+      datedSignals[0].end_date = demoIsoDate(14);
+    }
+    if (datedSignals[1]) {
+      datedSignals[1].start_date = demoIsoDate(-14);
+      datedSignals[1].end_date = demoIsoDate(60);
+    }
+  }
+  return datedSignals;
+}
+
+const DEMO_SCENARIO_KEYS: Record<string, Partial<ScoreResponse>> = {
+  "11900 s morgan st, chicago, il": {
+    disruption_score: 8,
+    livability_score: 84,
+    confidence: "LOW",
+    evidence_quality: "contextual_only",
+    strong_signal_count: 0,
+    severity: { noise: "LOW", traffic: "LOW", dust: "LOW" },
+    top_risks: [
+      "No active street closures or major permits found within 500 meters",
+      "Background permit activity in the area is minor and distant",
+      "Disruption risk is low based on available city data",
+    ],
+    explanation:
+      "There is little evidence of meaningful near-term construction disruption near this address. Available city permit and closure records show only minor background activity, so normal access and livability conditions are expected.",
+    nearby_signals: [],
+  },
+  "3150 n southport ave, chicago, il": {
+    disruption_score: 34,
+    livability_score: 64,
+    confidence: "MEDIUM",
+    evidence_quality: "moderate",
+    strong_signal_count: 1,
+    severity: { noise: "MEDIUM", traffic: "LOW", dust: "LOW" },
+    top_risks: [
+      "Active building permit for exterior renovation work within roughly 90 meters",
+      "Work window extends through the next 30 days",
+      "Construction noise is the most likely near-term impact at this address",
+    ],
+    explanation:
+      "Nearby construction activity is the main driver, so this address has moderate short-term noise disruption. The permit covers exterior work within close range, but no street or lane closures are confirmed, so traffic access remains largely unaffected.",
+    nearby_signals: [
+      {
+        lat: 41.9397, lon: -87.6639,
+        impact_type: "construction",
+        title: "Exterior renovation permit near N Southport Ave",
+        distance_m: 90, severity_hint: "MEDIUM", weight: 12.0,
+        source: "chicago_permits",
+      },
+    ],
+  },
+  "1600 w chicago ave, chicago, il": {
     disruption_score: 62,
     livability_score: 48,
-    livability_breakdown: {
-      weights: {
-        disruption_risk: 0.35,
-        crime_trend: 0.25,
-        school_rating: 0.2,
-        demographics_stability: 0.1,
-        flood_environmental: 0.1,
-      },
-      components: {
-        disruption_risk: { raw_score: 38, weighted_contribution: 13.3 },
-        crime_trend: { raw_score: 55, weighted_contribution: 13.8 },
-        school_rating: { raw_score: 60, weighted_contribution: 12.0 },
-        demographics_stability: { raw_score: 52, weighted_contribution: 5.2 },
-        flood_environmental: { raw_score: 40, weighted_contribution: 4.0 },
-      },
-    },
     confidence: "MEDIUM",
-    severity: {
-      noise: "LOW",
-      traffic: "HIGH",
-      dust: "LOW",
-    },
+    evidence_quality: "moderate",
+    strong_signal_count: 1,
+    severity: { noise: "LOW", traffic: "HIGH", dust: "LOW" },
     top_risks: [
       "2-lane eastbound closure on W Chicago Ave within roughly 120 meters",
-      "Active closure window runs through 2026-03-22",
-      "Traffic is the dominant near-term disruption signal at this address",
+      "Active closure window runs through the next 14 days",
+      "Traffic and curb access are the dominant near-term disruption signals at this address",
     ],
-    top_risk_details: [],
     explanation:
-      "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic disruption even though noise and dust are limited.",
-    mode: "demo",
-    fallback_reason: null,
-    // Include coordinates for the demo address so the map pin shows immediately.
-    latitude: KNOWN_COORDS[address]?.lat ?? null,
-    longitude: KNOWN_COORDS[address]?.lon ?? null,
-    // Demo heat signals near 1600 W Chicago Ave for map visualisation.
+      "A nearby 2-lane closure is the main driver, so this address has elevated short-term traffic and curb access disruption even though noise and dust are limited.",
     nearby_signals: [
       {
         lat: 41.8959, lon: -87.6594,
@@ -315,8 +365,6 @@ function buildDemoScore(address: string): ScoreResponse {
         title: "W Chicago Ave 2-lane eastbound closure",
         distance_m: 120, severity_hint: "HIGH", weight: 30.4,
         source: "chicago_closures",
-        start_date: "2026-03-15",
-        end_date: "2026-03-31",
       },
       {
         lat: 41.8962, lon: -87.6618,
@@ -324,19 +372,72 @@ function buildDemoScore(address: string): ScoreResponse {
         title: "Active construction permit at 1550 W Chicago Ave",
         distance_m: 210, severity_hint: "MEDIUM", weight: 8.8,
         source: "chicago_permits",
-        start_date: "2026-02-01",
-        end_date: "2026-04-15",
-      },
-      {
-        lat: 41.8948, lon: -87.6602,
-        impact_type: "closure_single_lane",
-        title: "Curb lane closure on S Ashland Ave",
-        distance_m: 380, severity_hint: "MEDIUM", weight: 5.3,
-        source: "chicago_closures",
-        start_date: "2026-03-20",
-        end_date: "2026-03-25",
       },
     ],
+  },
+  "1200 w fulton market, chicago, il": {
+    disruption_score: 81,
+    livability_score: 29,
+    confidence: "MEDIUM",
+    evidence_quality: "moderate",
+    strong_signal_count: 2,
+    severity: { noise: "HIGH", traffic: "HIGH", dust: "MEDIUM" },
+    top_risks: [
+      "Multi-lane closure on W Fulton Market within roughly 60 meters, active through next 14 days",
+      "Active large-scale construction permit adjacent to the address generating sustained noise",
+      "Dust and vibration likely given excavation scope of nearby site work",
+    ],
+    explanation:
+      "Multiple reinforcing signals make this address severely disrupted in the near term. A multi-lane closure and an adjacent active construction site combine to create high traffic and curb access friction plus sustained noise disruption within a very short distance.",
+    nearby_signals: [
+      {
+        lat: 41.8869, lon: -87.6574,
+        impact_type: "closure_multi_lane",
+        title: "W Fulton Market multi-lane closure",
+        distance_m: 60, severity_hint: "HIGH", weight: 34.0,
+        source: "chicago_closures",
+      },
+      {
+        lat: 41.8865, lon: -87.6579,
+        impact_type: "construction",
+        title: "Large-scale construction permit near W Fulton Market",
+        distance_m: 75, severity_hint: "HIGH", weight: 28.0,
+        source: "chicago_permits",
+      },
+    ],
+  },
+};
+
+function demoScenarioKey(address: string): string {
+  return address.toLowerCase().replace(/\s*,\s*/g, ", ").replace(/\s+/g, " ").trim();
+}
+
+// Canonical demo payload used when the backend intentionally returns demo mode
+// or when the frontend cannot reach the backend at all.
+function buildDemoScore(address: string): ScoreResponse {
+  const addressKey = demoScenarioKey(address);
+  const scenario =
+    DEMO_SCENARIO_KEYS[addressKey] ??
+    DEMO_SCENARIO_KEYS["1600 w chicago ave, chicago, il"];
+  const coords = KNOWN_COORDS[address] ?? KNOWN_COORDS["1600 W Chicago Ave, Chicago, IL"];
+  const nearbySignals = withRelativeDemoDates(addressKey, scenario.nearby_signals ?? []);
+  return {
+    address,
+    disruption_score: scenario.disruption_score ?? 62,
+    livability_score: scenario.livability_score,
+    livability_breakdown: undefined,
+    confidence: scenario.confidence ?? "MEDIUM",
+    severity: scenario.severity ?? { noise: "LOW", traffic: "HIGH", dust: "LOW" },
+    top_risks: scenario.top_risks ?? [],
+    top_risk_details: [],
+    explanation: scenario.explanation ?? "",
+    evidence_quality: scenario.evidence_quality ?? null,
+    strong_signal_count: scenario.strong_signal_count ?? 0,
+    mode: "demo",
+    fallback_reason: null,
+    latitude: coords?.lat ?? null,
+    longitude: coords?.lon ?? null,
+    nearby_signals: nearbySignals,
   };
 }
 
@@ -344,6 +445,9 @@ function buildDemoScore(address: string): ScoreResponse {
 // These are used as an instant fallback when Nominatim is unavailable or slow.
 const KNOWN_COORDS: Record<string, { lat: number; lon: number }> = {
   "1600 W Chicago Ave, Chicago, IL": { lat: 41.8956, lon: -87.6606 },
+  "11900 S Morgan St, Chicago, IL": { lat: 41.6773, lon: -87.6482 },
+  "3150 N Southport Ave, Chicago, IL": { lat: 41.9395, lon: -87.6637 },
+  "1200 W Fulton Market, Chicago, IL": { lat: 41.8867, lon: -87.6576 },
   "700 W Grand Ave, Chicago, IL": { lat: 41.8910, lon: -87.6462 },
   "233 S Wacker Dr, Chicago, IL": { lat: 41.8788, lon: -87.6359 },
 };
@@ -366,13 +470,14 @@ export async function geocodeForMap(address: string): Promise<{ lat: number; lon
     url.searchParams.set("limit", "1");
     url.searchParams.set("countrycodes", "us");
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0" },
       cache: "no-store",
     });
     if (resp.ok) {
       const data = (await resp.json()) as Array<{ lat: string; lon: string }>;
       if (data.length) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        const coords = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        return coords;
       }
     }
   } catch { /* fall through */ }
@@ -421,13 +526,6 @@ export async function fetchMapNarration(payload: {
   }
 }
 
-// Illinois bounding box constants shared by both geocoder calls below.
-// Nominatim viewbox: left,top,right,bottom = minLon,maxLat,maxLon,minLat
-const _NOMINATIM_VIEWBOX = "-91.5100,42.5100,-87.0200,36.9700";
-// Photon bbox: minLon,minLat,maxLon,maxLat
-const _PHOTON_BBOX = "-91.5100,36.9700,-87.0200,42.5100";
-const _IL_LAT: [number, number] = [36.9700, 42.5100];
-const _IL_LON: [number, number] = [-91.5100, -87.0200];
 const US_STATE_ABBREVS: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
@@ -529,6 +627,9 @@ function _parseNominatim(items: NominatimItem[], streetFrag?: string | null): st
   const seen = new Set<string>();
   const out: string[] = [];
   for (const r of items) {
+    const lat = Number.parseFloat(r.lat);
+    const lon = Number.parseFloat(r.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     const a = r.address;
     const road = a.road ?? a.pedestrian ?? a.highway ?? "";
     if (!road) continue;
@@ -549,6 +650,7 @@ function _parsePhoton(features: PhotonFeature[], streetFrag?: string | null): st
   const out: string[] = [];
   for (const f of features) {
     if (f.properties.countrycode?.toUpperCase() !== "US") continue;
+    const [lon, lat] = f.geometry.coordinates;
     const street = f.properties.street ?? "";
     if (!street) continue;
     if (streetFrag && !street.toLowerCase().startsWith(streetFrag)) continue;
@@ -642,7 +744,7 @@ export async function fetchSuggestions(query: string): Promise<string[]> {
     url.searchParams.set("countrycodes", "us");
     url.searchParams.set("addressdetails", "1");
     const resp = await fetch(url.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0" },
       cache: "no-store",
     });
     if (resp.ok) {
@@ -696,10 +798,10 @@ export async function fetchAddressSuggestions(
   if (popular && q.length < 3) {
     return [
       "1600 W Chicago Ave, Chicago, IL",
-      "233 S Wacker Dr, Chicago, IL",
-      "700 W Grand Ave, Chicago, IL",
+      "11900 S Morgan St, Chicago, IL",
+      "3150 N Southport Ave, Chicago, IL",
+      "1200 W Fulton Market, Chicago, IL",
       "401 N Michigan Ave, Chicago, IL",
-      "1 E Jackson Blvd, Chicago, IL",
     ].slice(0, limit).map((display_address) => ({
       canonical_id: null,
       display_address,
@@ -812,7 +914,7 @@ export async function fetchAddressSuggestions(
     nomUrl.searchParams.set("countrycodes", "us");
     nomUrl.searchParams.set("addressdetails", "1");
     const nomResp = await fetch(nomUrl.toString(), {
-      headers: { "User-Agent": "LivabilityRiskEngine/1.0 (us-mvp)" },
+      headers: { "User-Agent": "LivabilityRiskEngine/1.0" },
       cache: "no-store",
     });
     if (nomResp.ok) {
@@ -1471,13 +1573,28 @@ export async function fetchScore(
     response = await fetch(url.toString(), { cache: "no-store" });
   } catch (err) {
     logFrontendFallback("frontend_network_error", String(err));
-    throw new ApiError("Backend is temporarily unreachable. Please try again.");
+    if (isKnownDemoAddress(address)) {
+      return {
+        score: buildDemoScore(address),
+        source: "demo",
+        note: "Backend is temporarily unreachable - showing an approved demo scenario.",
+      };
+    }
+    throw new ApiError("Backend is temporarily unreachable. Try again when live scoring is available.");
   }
 
   if (!response.ok) {
     console.warn(`[LRE] backend score request failed: status=${response.status}`);
     if (response.status === 404) {
       throw new ApiError("Address not found. Try including a ZIP code or nearby intersection.");
+    }
+    if (response.status >= 500 && isKnownDemoAddress(address)) {
+      logFrontendFallback("frontend_backend_error", `status=${response.status}`);
+      return {
+        score: buildDemoScore(address),
+        source: "demo",
+        note: "Backend is temporarily unavailable - showing an approved demo scenario.",
+      };
     }
     throw new ApiError(
       response.status >= 500

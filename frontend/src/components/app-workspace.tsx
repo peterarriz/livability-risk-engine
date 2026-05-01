@@ -30,7 +30,7 @@ import { normalizeAddressQuery } from "@/lib/address-utils";
 import type { SelectedAddress } from "@/lib/address-types";
 
 const DEFAULT_ADDRESS = "1600 W Chicago Ave, Chicago, IL";
-const POSITIONING = "Address livability intelligence";
+const POSITIONING = "Address disruption risk";
 const EXPLICIT_DATE_RE = /\b20\d{2}-\d{2}-\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+20\d{2}\b/i;
 
 
@@ -50,8 +50,8 @@ function addressLevelSignalCount(result: ScoreResponse): number {
 
 function stripDistancePhrases(text: string): string {
   return text
-    .replace(/\s+(?:within|about|roughly|approximately|around)\s+[\d,.]+\s*(?:m|meters?|ft|feet)(?:\s+away)?/gi, "")
-    .replace(/\s+[\d,.]+\s*(?:m|meters?|ft|feet)\s+away/gi, "")
+    .replace(/\s+(?:within|about|roughly|approximately|around)\s+(?:about\s+|roughly\s+|approximately\s+|around\s+)?[\d,.]+\s*(?:meters?|metres?|m|feet|foot|ft)(?:\s+away)?/gi, "")
+    .replace(/\s+[\d,.]+\s*(?:meters?|metres?|m|feet|foot|ft)\s+away/gi, "")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
     .trim();
@@ -179,8 +179,13 @@ function debugSearchFlow(stage: string, payload: Record<string, unknown>) {
   console.info(`[DBG:${stage}]`, payload);
 }
 
-export default function HomePage() {
-  const [address, setAddress] = useState("");
+type AppWorkspaceProps = {
+  initialAddress?: string;
+};
+
+export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
+  const normalizedInitialAddress = initialAddress.trim();
+  const [address, setAddress] = useState(normalizedInitialAddress);
   const [result, setResult] = useState<ScoreResponse | null>(null);
   const [scoreSource, setScoreSource] = useState<ScoreSource>("live");
   const [statusNote, setStatusNote] = useState<string | null>(null);
@@ -246,12 +251,12 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const incomingAddress = params.get("address")?.trim();
+    const incomingAddress = normalizedInitialAddress || params.get("address")?.trim();
     if (!incomingAddress) return;
     setAddress(incomingAddress);
     setSelectedAddress(null);
-    void submitAddress(incomingAddress);
-  }, []);
+    void submitAddress(incomingAddress, null, { resolveCanonical: false });
+  }, [normalizedInitialAddress]);
 
   useEffect(() => {
     const reportDropoff = () => {
@@ -738,10 +743,14 @@ export default function HomePage() {
     }
   }
 
-  async function submitAddress(addr: string, selectedOverride?: SelectedAddress | null) {
+  async function submitAddress(
+    addr: string,
+    selectedOverride?: SelectedAddress | null,
+    options: { resolveCanonical?: boolean } = { resolveCanonical: true },
+  ) {
     const trimmedAddress = addr.trim();
     let activeSelectedAddress = selectedOverride ?? selectedAddress;
-    if (!activeSelectedAddress) {
+    if (!activeSelectedAddress && options.resolveCanonical !== false) {
       activeSelectedAddress = await resolveCanonicalSuggestionForScoring(trimmedAddress);
       if (activeSelectedAddress) {
         setSelectedAddress(activeSelectedAddress);
@@ -933,7 +942,6 @@ export default function HomePage() {
 
           <nav className={`topnav${workspaceMode ? " topnav--workspace" : ""}`} aria-label="Primary">
             <a href="/methodology" className="topnav-aux-link">Docs</a>
-            <a href="/pilot-evidence" className="topnav-aux-link">Pilot evidence</a>
             <a href="/api-access" className="topnav-aux-link">API</a>
             <SignedOut>
               <SignInButton mode="modal">
@@ -950,27 +958,27 @@ export default function HomePage() {
           <Card tone="highlighted" className="hero-card">
             {!workspaceMode && (
               <div className="hero-copy">
-                <h1>Know what&rsquo;s happening at any US address before you commit.</h1>
+                <h1>Spot construction disruption before tours and commitments.</h1>
                 <p className="lede">
-                  Address-level livability and disruption intelligence for US properties, combining public permit, closure, neighborhood, school, flood, and market context into one evidence-aware score.
+                  Enter one address and get a near-term disruption score from available public permit and planned closure records.
                 </p>
               </div>
             )}
 
             <form className={`lookup-form ${workspaceMode ? "lookup-form--workspace" : ""}`} onSubmit={handleSubmit}>
               <label htmlFor="address" className="input-label">
-                Search any US address
+                Search an address
               </label>
               <div ref={searchShellRef} className={"search-shell" + (workspaceMode ? " search-shell--workspace" : "")}>
                 <AddressAutocomplete
                   defaultValue={address}
-                  placeholder={workspaceMode ? "Search another property address" : "Enter any US address"}
+                  placeholder={workspaceMode ? "Search another address" : "Enter an address with city and state"}
                   onSelect={(suggestion: AddressSuggestion) => { handleSuggestionSelect(suggestion); }}
                   onChange={(addr: string) => {
                     setSelectedAddress(null);
                     setAddress(addr);
                   }}
-                  ariaLabel="US address"
+                  ariaLabel="Address"
                   dropdownDark={false}
                   inputStyle={{ width: "100%", padding: "18px 20px", border: "1px solid #D1D5DB", borderRadius: "12px", background: "#FFFFFF", color: "#111827", fontSize: "1rem", outline: "none", fontFamily: "Inter, system-ui, sans-serif" }}
                 />
@@ -980,7 +988,7 @@ export default function HomePage() {
               </div>
               {!workspaceMode && (
                 <p style={{ fontSize: "0.75rem", color: "#9CA3AF", margin: "0.5rem 0 0" }}>
-                  Coverage varies by city and data type. Sparse permit or closure feeds rely more on neighborhood context and should be treated as directional.
+                  Coverage varies by address and record availability. Sparse permit or closure records should be treated as directional.
                 </p>
               )}
             </form>
@@ -1085,15 +1093,7 @@ export default function HomePage() {
           eyebrow="Results"
           title={workspaceMode ? "Livability analysis" : ""}
           description={workspaceMode ? "" : undefined}
-          headerAction={workspaceMode && result ? (
-            <a
-              href="/pricing"
-              className="icon-btn"
-              title="Exports are planned for pilot workflows"
-            >
-              ↓ Request export
-            </a>
-          ) : undefined}
+          headerAction={undefined}
         >
           <div id="score-section" className="anchor-target" />
           <div aria-live="polite" aria-atomic="false">
@@ -1143,8 +1143,7 @@ export default function HomePage() {
                 <div className="pro-badge-bar">
                   <span className="pro-badge-icon">⚠</span>
                   <span>
-                    <strong>High-risk address detected.</strong> Pilot partners can request forecast and permit-detail workflows.{" "}
-                    <a href="/pricing" className="pro-badge-link">Request access →</a>
+                    <strong>High-risk address detected.</strong> Validate access windows and loading conditions before scheduling a tour.
                   </span>
                 </div>
               )}
@@ -1217,7 +1216,7 @@ export default function HomePage() {
                     ) : (
                       <div className="risk-no-signals" style={{ marginTop: "10px" }}>
                         <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
-                        <p>This result relies on neighborhood/context data.</p>
+                        <p>This result has limited address-level permit and closure evidence.</p>
                       </div>
                     )}
                   </Card>
@@ -1434,8 +1433,8 @@ export default function HomePage() {
             </section>
           ) : (
             <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9CA3AF" }}>
-              <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Enter any US address to get started</p>
-              <p style={{ fontSize: "0.85rem" }}>You&rsquo;ll see a livability score, risk signals, map, and neighborhood context.</p>
+              <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Enter an address to get started</p>
+              <p style={{ fontSize: "0.85rem" }}>You&rsquo;ll see a livability score, disruption signals, map, and explanation.</p>
             </div>
           )}
           </div>

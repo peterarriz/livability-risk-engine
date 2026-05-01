@@ -1,7 +1,7 @@
 # Data Lane Handoff Guide
 
 ## Mission
-Keep ingestion, normalization, and data-quality work moving while preserving the documented project schema and Chicago-only MVP scope.
+Keep ingestion, normalization, and data-quality work moving while preserving the documented project schema and multi-city MVP scope.
 
 ## How Data maintains task flow
 1. Keep Data tasks in `ops/TASKS.yaml` current, especially status, dependencies, and `notes_for_next_agent`.
@@ -12,6 +12,12 @@ Keep ingestion, normalization, and data-quality work moving while preserving the
 ## What to hand off to other lanes
 - To **Product**: source caveats, missing fields, and any limits that affect confidence or explanation language.
 - To **App**: canonical field names, query constraints, and data freshness expectations needed for the `/score` experience.
+
+## Scope correction (2026-04-30)
+- Multi-city support is now in scope. Chicago-specific checks remain valid for Chicago sources, but they are not global constraints.
+- For each additional city/source, Data should document provenance, endpoint or file location, freshness expectations, required fields, coordinate coverage, and known gaps.
+- data-086 added an explicit `city_coverage` registry and seeded 50 expansion cities from repo-backed context evidence. These rows are `context_ready` / `contextual_only`; they do not create active construction project evidence.
+- App can expose the 50-city registry as known coverage metadata, but copy must preserve the caveat that address-level disruption confidence depends on city-specific permit, closure, or project feeds.
 
 ## Source freshness checks (data-010)
 
@@ -149,7 +155,7 @@ Share the summary block (copy-paste from terminal or redirect to a file) with Ap
 
 ## Review checklist
 - Does the task preserve the canonical schema in `docs/04_api_contracts.md`?
-- Does it avoid introducing new data sources outside the MVP unless explicitly documented as backlog?
+- Does each city/source have documented provenance, normalization behavior, and data-quality caveats?
 - Is the next step deterministic enough that another agent can rerun or review it?
 - Are staging files within freshness thresholds before reviewing scoring output?
 - Does the load summary show zero errors and an acceptable skipped-no-coords rate?
