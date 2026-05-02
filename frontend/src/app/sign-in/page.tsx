@@ -12,8 +12,8 @@ export default function SignInPage() {
           <p className="score-hero-kicker">Account access</p>
           <h1 style={{ margin: "0 0 0.75rem", fontSize: "1.75rem" }}>Sign in for pilot tools</h1>
           <p style={{ margin: "0 auto 1.25rem", maxWidth: "46rem", color: "var(--text-soft)" }}>
-            Public address scoring works without signing in. Use this page only for pilot API keys,
-            saved account workflows, and internal demo access.
+            Public address scoring works without signing in. Use this page for pilot account
+            workflows, Bulk CSV upload access, and internal demo access.
           </p>
 
           <SignedOut>

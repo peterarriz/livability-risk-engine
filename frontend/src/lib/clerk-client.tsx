@@ -31,6 +31,7 @@ export function useAuth() {
       isSignedIn: false,
       userId: null,
       sessionId: null,
+      sessionClaims: null,
       actor: null,
       orgId: null,
       orgRole: null,

@@ -96,7 +96,8 @@ export default function ApiDocsPage() {
   "https://api.livabilityrisks.com/score?address=1600+W+Chicago+Ave,+Chicago,+IL"`}</pre>
           <p className="docs-note">
             API keys are issued by request for design partners and controlled pilots.
-            Usage is currently reviewed operationally for design partners.
+            Usage is currently reviewed operationally for design partners. Website Bulk CSV
+            upload uses signed-in pilot account access rather than browser-entered keys.
           </p>
         </section>
 
@@ -150,10 +151,9 @@ export default function ApiDocsPage() {
         <section id="bulk-csv" className="docs-section">
           <h2>Bulk CSV Scoring</h2>
           <p>
-            Bulk CSV scoring is available for pilot API users. Upload a CSV with an
-            <code> address</code> column, score up to 200 addresses per request, and download
-            a scored CSV with livability_score, disruption_score, confidence, top risks, and
-            row-level errors.
+            Bulk CSV scoring is available in two pilot paths. Technical integrations can call
+            the raw endpoint with an API key. Website users should use the signed-in
+            <a href="/bulk"> Bulk CSV upload page</a>, which does not ask them to enter a key.
           </p>
           <div className="docs-endpoint-block">
             <span className="docs-method">POST</span>
@@ -174,8 +174,9 @@ export default function ApiDocsPage() {
   "https://api.livabilityrisks.com/score/batch/csv" \\
   -o livability_scores.csv`}</pre>
           <p className="docs-note">
-            Prefer the <a href="/bulk">Bulk CSV upload page</a> for pilot users who want
-            to upload a file and download results without writing code.
+            Prefer the <a href="/bulk">Bulk CSV upload page</a> for signed-in pilot users who
+            want to upload a file and download results without writing code. The website route
+            checks account access and keeps server credentials server-side.
           </p>
         </section>
 
@@ -241,7 +242,7 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
               <tr><td>Single-address demo</td><td>Available on the public app</td><td>Coverage varies by city and source.</td></tr>
               <tr><td>API keys</td><td>Issued by request</td><td>Used for pilot integrations and authenticated endpoints.</td></tr>
               <tr><td>Batch scoring</td><td>Available with pilot API key</td><td>Request limits are documented in the endpoint contract.</td></tr>
-              <tr><td>Bulk CSV upload</td><td>Available with pilot API key</td><td><a href="/bulk">Upload CSV</a> and download scored results.</td></tr>
+              <tr><td>Bulk CSV upload</td><td>Available to signed-in pilot accounts</td><td><a href="/bulk">Upload CSV</a> and download scored results without entering a key in the browser.</td></tr>
             </tbody>
           </table>
           <p className="docs-note">

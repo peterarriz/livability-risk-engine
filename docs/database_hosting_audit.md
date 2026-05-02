@@ -56,7 +56,7 @@ The Livability Risk Engine has a complete data pipeline but is currently using a
 
 **Pros:**
 - **Native PostGIS**: ✅ PostGIS enabled by default, excellent spatial support
-- **Cost**: Free tier available, $25/month pro plan
+- **Cost**: No-cost starter plan available, $25/month pro plan
 - **Performance**: Optimized Postgres with connection pooling
 - **Tooling**: Built-in database dashboard, migration tools
 - **Extensions**: Full extension support including PostGIS
@@ -153,7 +153,7 @@ The Livability Risk Engine has a complete data pipeline but is currently using a
 **If database-only hosting preferred:**
 
 1. **Best-in-class Postgres**: Superior database features and performance
-2. **Free tier**: Can start with free tier for initial testing
+2. **Starter plan**: Can start with a no-cost starter plan for initial testing
 3. **Spatial-first**: Excellent PostGIS support and spatial tooling
 4. **Growth path**: Scales well for production usage
 

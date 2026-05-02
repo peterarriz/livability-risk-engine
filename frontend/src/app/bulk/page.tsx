@@ -1,12 +1,10 @@
 "use client";
 
-// Bulk CSV scoring page - /bulk
-// Uploads one CSV file to the protected batch CSV endpoint and downloads the
-// backend-generated scored CSV. API keys are kept only in component state.
-
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { Card, Container } from "@/components/shell";
+import { SignedIn, SignInButton, UserButton, useAuth, useUser } from "@/lib/clerk-client";
+import { getBulkAccessTier } from "@/lib/bulk-access";
 
 type PageState = "idle" | "uploading" | "success" | "error";
 
@@ -19,6 +17,7 @@ type ResultSummary = {
 const MAX_BATCH_ROWS = 200;
 const OUTPUT_FILENAME = "livability_scores.csv";
 const SAMPLE_FILENAME = "livability_sample_addresses.csv";
+const CLERK_CONFIGURED = process.env.NEXT_PUBLIC_CLERK_CONFIGURED === "true";
 const SAMPLE_CSV = [
   "address",
   "\"1600 W Chicago Ave, Chicago, IL\"",
@@ -129,10 +128,10 @@ function summarizeResultsCsv(csvText: string): ResultSummary | null {
   };
 }
 
-function formatBackendDetail(detail: unknown): string {
+function formatRouteDetail(detail: unknown): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
-    return detail.map((item) => formatBackendDetail(item)).filter(Boolean).join("; ");
+    return detail.map((item) => formatRouteDetail(item)).filter(Boolean).join("; ");
   }
   if (detail && typeof detail === "object") {
     return JSON.stringify(detail);
@@ -140,19 +139,23 @@ function formatBackendDetail(detail: unknown): string {
   return "";
 }
 
-async function readBackendError(response: Response): Promise<string> {
-  if (response.status === 401 || response.status === 403) {
-    return "The pilot API key was not accepted. Check the key and try again, or request access if you do not have one.";
-  }
-
+async function readBulkRouteError(response: Response): Promise<string> {
   let detail = "";
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
     const data = await response.json().catch(() => null) as { detail?: unknown; message?: unknown } | null;
-    detail = formatBackendDetail(data?.detail ?? data?.message);
+    detail = formatRouteDetail(data?.detail ?? data?.message);
   } else {
     detail = await response.text().catch(() => "");
+  }
+
+  if (response.status === 401) {
+    return detail || "Sign in to upload CSV.";
+  }
+
+  if (response.status === 403) {
+    return detail || "Bulk CSV scoring is available for pilot users. Request pilot access to upload CSV files.";
   }
 
   if (response.status === 400 || response.status === 422) {
@@ -165,7 +168,11 @@ async function readBackendError(response: Response): Promise<string> {
 }
 
 export default function BulkPage() {
-  const [apiKey, setApiKey] = useState("");
+  const { user, isLoaded, isSignedIn } = useUser();
+  const authState = useAuth();
+  const bulkTier = getBulkAccessTier(authState.sessionClaims, user?.publicMetadata);
+  const hasBulkAccess = bulkTier !== null;
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rowCount, setRowCount] = useState<number | null>(null);
@@ -235,13 +242,6 @@ export default function BulkPage() {
   const handleUpload = useCallback(async () => {
     setFormError(null);
 
-    const trimmedApiKey = apiKey.trim();
-    if (!trimmedApiKey) {
-      setPageState("error");
-      setFormError("Enter your pilot API key before uploading a CSV.");
-      return;
-    }
-
     if (!selectedFile) {
       setPageState("error");
       setFormError("Choose a CSV file before starting bulk scoring.");
@@ -263,17 +263,14 @@ export default function BulkPage() {
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      const response = await fetch("/api/backend/score/batch/csv", {
+      const response = await fetch("/api/bulk/score-csv", {
         method: "POST",
-        headers: {
-          "X-API-Key": trimmedApiKey,
-        },
         body: formData,
         cache: "no-store",
       });
 
       if (!response.ok) {
-        throw new Error(await readBackendError(response));
+        throw new Error(await readBulkRouteError(response));
       }
 
       const csvText = await response.text();
@@ -290,7 +287,7 @@ export default function BulkPage() {
       setPageState("error");
       setFormError(error instanceof Error ? error.message : "Bulk scoring failed. Please try again.");
     }
-  }, [apiKey, csvError, selectedFile]);
+  }, [csvError, selectedFile]);
 
   function handleSampleDownload() {
     downloadCSV(SAMPLE_CSV, SAMPLE_FILENAME);
@@ -302,6 +299,24 @@ export default function BulkPage() {
     }
   }
 
+  function renderSignInAction() {
+    if (CLERK_CONFIGURED) {
+      return (
+        <SignInButton mode="modal">
+          <button type="button" className="gate-btn gate-btn--primary">
+            Sign in to upload CSV
+          </button>
+        </SignInButton>
+      );
+    }
+
+    return (
+      <a href="/sign-in" className="gate-btn gate-btn--primary">
+        Sign in to upload CSV
+      </a>
+    );
+  }
+
   return (
     <main className="bulk-page">
       <Container>
@@ -311,198 +326,249 @@ export default function BulkPage() {
 
         <div className="bulk-page-header">
           <div className="bulk-title-row">
-            <span className="bulk-pro-badge">Pilot API</span>
+            <span className="bulk-pro-badge">Pilot account</span>
             <h1 className="bulk-page-title">Bulk CSV scoring</h1>
           </div>
           <p className="bulk-page-desc">
-            Upload addresses and download scored results. Bulk CSV scoring is available for pilot API users.
+            Upload addresses and download scored results. Bulk CSV scoring is available for signed-in pilot and internal accounts during design-partner pilots.
           </p>
         </div>
 
-        <div className="bulk-layout">
-          <div className="bulk-inputs">
-            <Card className="bulk-input-card">
-              <div className="bulk-input-card__header">
-                <span className="bulk-input-card__label">Workflow</span>
-              </div>
-              <div className="bulk-input-card__body">
-                <ol className="bulk-field-hint" style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>Upload a CSV with an <code className="bulk-code">address</code> column.</li>
-                  <li>We score each address with the batch scoring endpoint.</li>
-                  <li>Download the returned results CSV.</li>
-                </ol>
-                <p className="bulk-field-hint">
-                  Max {MAX_BATCH_ROWS} addresses per request. A pilot API key is required.
-                </p>
-              </div>
-            </Card>
-
-            <Card className="bulk-input-card">
-              <div className="bulk-input-card__header">
-                <span className="bulk-input-card__label">API key</span>
-              </div>
-              <div className="bulk-input-card__body">
-                <input
-                  type="password"
-                  className="bulk-api-input"
-                  placeholder="Paste pilot API key"
-                  value={apiKey}
-                  onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={isUploading}
-                />
-                <p className="bulk-field-hint">
-                  The key is sent as <code className="bulk-code">X-API-Key</code> and is not saved by this page.{" "}
-                  <a href="/api-access" className="bulk-link">Request access</a>
-                </p>
-              </div>
-            </Card>
-
-            <Card className="bulk-input-card">
-              <div className="bulk-input-card__header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                <span className="bulk-input-card__label">CSV file</span>
-                <button type="button" className="bulk-export-btn" onClick={handleSampleDownload}>
-                  Download sample CSV
-                </button>
-              </div>
-              <div className="bulk-input-card__body">
-                <div
-                  className={[
-                    "bulk-drop-zone",
-                    dragOver ? "bulk-drop-zone--active" : "",
-                    isUploading ? "bulk-drop-zone--disabled" : "",
-                  ].filter(Boolean).join(" ")}
-                  onDragOver={(event: DragEvent<HTMLDivElement>) => {
-                    event.preventDefault();
-                    if (!isUploading) setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={isUploading ? undefined : handleDrop}
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-                    if (event.key === "Enter" && !isUploading) {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    style={{ display: "none" }}
-                    onChange={handleFileInputChange}
-                  />
-                  {fileName ? (
-                    <div className="bulk-drop-zone__content">
-                      <span className="bulk-drop-zone__filename">{fileName}</span>
-                      <span className="bulk-drop-zone__count">
-                        {rowCount !== null
-                          ? `${rowCount} address row${rowCount === 1 ? "" : "s"} detected`
-                          : "Checking CSV..."}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="bulk-drop-zone__content">
-                      <span className="bulk-drop-zone__icon" aria-hidden="true">CSV</span>
-                      <span className="bulk-drop-zone__hint">
-                        Drop CSV here or <span className="bulk-link">click to browse</span>
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {csvError && <p className="bulk-parse-error" role="alert">{csvError}</p>}
-
-                <p className="bulk-field-hint">
-                  Accepted input starts with <code className="bulk-code">address</code>. Quoted addresses are safest;
-                  unquoted rows with commas are also supported where possible by the backend parser.
-                </p>
-              </div>
-            </Card>
-
-            <div className="bulk-actions">
-              <button
-                type="button"
-                className="bulk-process-btn"
-                disabled={isUploading}
-                onClick={() => void handleUpload()}
-              >
-                {isUploading
-                  ? "Scoring CSV..."
-                  : hasUsableFile
-                    ? `Score ${rowCount ?? ""} address${rowCount === 1 ? "" : "es"}`
-                    : "Score CSV"}
-              </button>
+        {!isLoaded && (
+          <Card className="bulk-input-card">
+            <div className="bulk-input-card__header">
+              <span className="bulk-input-card__label">Account access</span>
             </div>
+            <div className="bulk-input-card__body">
+              <p className="bulk-field-hint">Checking account access...</p>
+            </div>
+          </Card>
+        )}
 
-            <div className="bulk-format-hint">
-              <p className="bulk-field-hint" style={{ marginBottom: 6 }}>
-                Accepted input example:
+        {isLoaded && !isSignedIn && (
+          <Card className="bulk-input-card">
+            <div className="bulk-input-card__header">
+              <span className="bulk-input-card__label">Account access</span>
+            </div>
+            <div className="bulk-input-card__body">
+              <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Sign in to upload CSV</h2>
+              <p className="bulk-field-hint">
+                Public single-address scoring still works without sign-in. Bulk CSV scoring is reserved for pilot users and internal accounts.
               </p>
-              <pre className="bulk-format-pre">
-{`address
-"1600 W Chicago Ave, Chicago, IL"
-"350 5th Ave, New York, NY"`}
-              </pre>
+              <div className="bulk-actions">
+                {renderSignInAction()}
+                <a href="/app" className="gate-btn gate-btn--secondary">
+                  Open public scoring
+                </a>
+              </div>
             </div>
-          </div>
+          </Card>
+        )}
 
-          <div className="bulk-results-col">
-            {(formError || csvError) && pageState === "error" && (
-              <div className="bulk-parse-error" role="alert">
-                {formError ?? csvError}
+        {isLoaded && isSignedIn && !hasBulkAccess && (
+          <Card className="bulk-input-card">
+            <div className="bulk-input-card__header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <span className="bulk-input-card__label">Pilot access</span>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
+            </div>
+            <div className="bulk-input-card__body">
+              <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Bulk CSV scoring is available for pilot users</h2>
+              <p className="bulk-field-hint">
+                Your signed-in account is not currently enabled for bulk CSV scoring. Request pilot access and we will review the workflow with your team.
+              </p>
+              <div className="bulk-actions">
+                <a href="/api-access#pilot-bulk-access" className="gate-btn gate-btn--primary">
+                  Request pilot access
+                </a>
+                <a href="/app" className="gate-btn gate-btn--secondary">
+                  Open public scoring
+                </a>
               </div>
-            )}
+            </div>
+          </Card>
+        )}
 
-            {isUploading && (
-              <div className="bulk-progress-card" aria-live="polite">
-                <div className="bulk-progress-header">
-                  <span className="bulk-progress-label">
-                    Uploading CSV to the batch scorer...
-                  </span>
-                  <span className="bulk-progress-pct">Working</span>
+        {isLoaded && isSignedIn && hasBulkAccess && (
+          <div className="bulk-layout">
+            <div className="bulk-inputs">
+              <Card className="bulk-input-card">
+                <div className="bulk-input-card__header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <span className="bulk-input-card__label">Account access</span>
+                  <SignedIn>
+                    <UserButton afterSignOutUrl="/" />
+                  </SignedIn>
                 </div>
-                <div className="bulk-progress-track">
-                  <div className="bulk-progress-fill" style={{ width: "70%" }} />
-                </div>
-              </div>
-            )}
-
-            {pageState === "success" && resultCsv && (
-              <Card className="bulk-results-card">
-                <div className="bulk-results-card__header">
-                  <span className="bulk-results-card__title">Results ready</span>
-                  <button type="button" className="bulk-export-btn" onClick={handleResultsDownload}>
-                    Download results CSV
-                  </button>
-                </div>
-                <div style={{ padding: "18px 20px" }}>
-                  <p className="bulk-field-hint" style={{ color: "var(--text-soft)", marginBottom: 10 }}>
-                    {summaryText}
-                  </p>
+                <div className="bulk-input-card__body">
                   <p className="bulk-field-hint">
-                    {downloadedAutomatically
-                      ? `A download named ${OUTPUT_FILENAME} was started automatically.`
-                      : `Use the button above to download ${OUTPUT_FILENAME}.`}
-                    {" "}Rows that cannot be found stay in the CSV with blank score fields and an error value such as <code className="bulk-code">address_not_found</code>.
+                    Bulk upload is enabled for this pilot account. Public single-address scoring remains available without sign-in.
                   </p>
                 </div>
               </Card>
-            )}
 
-            {pageState === "idle" && !resultCsv && (
-              <div className="bulk-idle-hint">
-                <p>Upload a CSV and enter your pilot API key.</p>
-                <p className="bulk-field-hint" style={{ marginTop: 8 }}>
-                  The returned CSV includes livability_score, disruption_score, confidence, severity fields, top risks, and row-level errors.
-                </p>
+              <Card className="bulk-input-card">
+                <div className="bulk-input-card__header">
+                  <span className="bulk-input-card__label">Workflow</span>
+                </div>
+                <div className="bulk-input-card__body">
+                  <ol className="bulk-field-hint" style={{ margin: 0, paddingLeft: 18 }}>
+                    <li>Upload a CSV with an <code className="bulk-code">address</code> column.</li>
+                    <li>We score each address through the pilot bulk scorer.</li>
+                    <li>Download the returned results CSV.</li>
+                  </ol>
+                  <p className="bulk-field-hint">
+                    Max {MAX_BATCH_ROWS} addresses per request. Pilot account access is checked before upload.
+                  </p>
+                </div>
+              </Card>
+
+              <Card className="bulk-input-card">
+                <div className="bulk-input-card__header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <span className="bulk-input-card__label">CSV file</span>
+                  <button type="button" className="bulk-export-btn" onClick={handleSampleDownload}>
+                    Download sample CSV
+                  </button>
+                </div>
+                <div className="bulk-input-card__body">
+                  <div
+                    className={[
+                      "bulk-drop-zone",
+                      dragOver ? "bulk-drop-zone--active" : "",
+                      isUploading ? "bulk-drop-zone--disabled" : "",
+                    ].filter(Boolean).join(" ")}
+                    onDragOver={(event: DragEvent<HTMLDivElement>) => {
+                      event.preventDefault();
+                      if (!isUploading) setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={isUploading ? undefined : handleDrop}
+                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                      if (event.key === "Enter" && !isUploading) {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      style={{ display: "none" }}
+                      onChange={handleFileInputChange}
+                      disabled={isUploading}
+                    />
+                    {fileName ? (
+                      <div className="bulk-drop-zone__content">
+                        <span className="bulk-drop-zone__filename">{fileName}</span>
+                        <span className="bulk-drop-zone__count">
+                          {rowCount !== null
+                            ? `${rowCount} address row${rowCount === 1 ? "" : "s"} detected`
+                            : "Checking CSV..."}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="bulk-drop-zone__content">
+                        <span className="bulk-drop-zone__icon" aria-hidden="true">CSV</span>
+                        <span className="bulk-drop-zone__hint">
+                          Drop CSV here or <span className="bulk-link">click to browse</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {csvError && <p className="bulk-parse-error" role="alert">{csvError}</p>}
+
+                  <p className="bulk-field-hint">
+                    Accepted input starts with <code className="bulk-code">address</code>. Quoted addresses are safest;
+                    unquoted rows with commas are also supported where possible by the backend parser.
+                  </p>
+                </div>
+              </Card>
+
+              <div className="bulk-actions">
+                <button
+                  type="button"
+                  className="bulk-process-btn"
+                  disabled={isUploading}
+                  onClick={() => void handleUpload()}
+                >
+                  {isUploading
+                    ? "Scoring CSV..."
+                    : hasUsableFile
+                      ? `Score ${rowCount ?? ""} address${rowCount === 1 ? "" : "es"}`
+                      : "Score CSV"}
+                </button>
               </div>
-            )}
+
+              <div className="bulk-format-hint">
+                <p className="bulk-field-hint" style={{ marginBottom: 6 }}>
+                  Accepted input example:
+                </p>
+                <pre className="bulk-format-pre">
+{`address
+"1600 W Chicago Ave, Chicago, IL"
+"350 5th Ave, New York, NY"`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="bulk-results-col">
+              {(formError || csvError) && pageState === "error" && (
+                <div className="bulk-parse-error" role="alert">
+                  {formError ?? csvError}
+                </div>
+              )}
+
+              {isUploading && (
+                <div className="bulk-progress-card" aria-live="polite">
+                  <div className="bulk-progress-header">
+                    <span className="bulk-progress-label">
+                      Uploading CSV to the pilot bulk scorer...
+                    </span>
+                    <span className="bulk-progress-pct">Working</span>
+                  </div>
+                  <div className="bulk-progress-track">
+                    <div className="bulk-progress-fill" style={{ width: "70%" }} />
+                  </div>
+                </div>
+              )}
+
+              {pageState === "success" && resultCsv && (
+                <Card className="bulk-results-card">
+                  <div className="bulk-results-card__header">
+                    <span className="bulk-results-card__title">Results ready</span>
+                    <button type="button" className="bulk-export-btn" onClick={handleResultsDownload}>
+                      Download results CSV
+                    </button>
+                  </div>
+                  <div style={{ padding: "18px 20px" }}>
+                    <p className="bulk-field-hint" style={{ color: "var(--text-soft)", marginBottom: 10 }}>
+                      {summaryText}
+                    </p>
+                    <p className="bulk-field-hint">
+                      {downloadedAutomatically
+                        ? `A download named ${OUTPUT_FILENAME} was started automatically.`
+                        : `Use the button above to download ${OUTPUT_FILENAME}.`}
+                      {" "}Rows that cannot be found stay in the CSV with blank score fields and an error value such as <code className="bulk-code">address_not_found</code>.
+                    </p>
+                  </div>
+                </Card>
+              )}
+
+              {pageState === "idle" && !resultCsv && (
+                <div className="bulk-idle-hint">
+                  <p>Upload a CSV to score up to {MAX_BATCH_ROWS} addresses.</p>
+                  <p className="bulk-field-hint" style={{ marginTop: 8 }}>
+                    The returned CSV includes livability_score, disruption_score, confidence, severity fields, top risks, and row-level errors.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </Container>
     </main>
   );

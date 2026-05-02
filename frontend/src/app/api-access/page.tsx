@@ -163,7 +163,7 @@ export default function ApiAccessPage() {
               </span>
             </div>
             <p className="api-auth-copy">
-              {docs?.auth?.method ?? "Pass your API key in the X-API-Key header when key enforcement is enabled."}
+              {docs?.auth?.method ?? "Raw API integrations use an API key in the X-API-Key header when key enforcement is enabled. Website Bulk CSV upload uses signed-in pilot account access instead."}
             </p>
             <div className="api-auth-example">
               <code>X-API-Key: lre_xxxxxxxxxxxxxxxxxxxxxxxx</code>
@@ -199,16 +199,17 @@ export default function ApiAccessPage() {
           </Card>
 
           <Card className="detail-card supporting-card">
+            <span id="pilot-bulk-access" />
             <p className="supporting-kicker">Pilot bulk workflow</p>
             <h2>Bulk CSV scoring</h2>
             <p className="api-auth-copy">
-              Bulk CSV scoring is available for pilot API users. Upload a CSV with an
-              address column, score up to 200 addresses per request, and download a
-              scored CSV with row-level errors.
+              Raw API integrations use API keys. The website Bulk CSV upload page uses
+              signed-in pilot account access, so browser users upload a CSV and download
+              results without entering credentials into the page.
             </p>
             <p className="modal-fine-print">
-              Use the <a href="/bulk">Bulk CSV upload page</a> when a pilot user wants
-              file upload and download without writing code.
+              Use the <a href="/bulk">Bulk CSV upload page</a> for signed-in pilot users.
+              The request limit remains 200 addresses per upload.
             </p>
           </Card>
 

@@ -85,6 +85,6 @@ test("out-of-scope product routes redirect away from launch demo", () => {
   for (const route of ["/pricing", "/pilot-evidence", "/portfolio", "/dashboard"]) {
     assert.ok(middleware.includes(`"${route}(.*)"`), `${route} is not launch-gated`);
   }
-  assert.ok(!middleware.includes('"/bulk(.*)"'), "/bulk should stay reachable for pilot API-key CSV users");
+  assert.ok(!middleware.includes('"/bulk(.*)"'), "/bulk should stay reachable so signed-out users can see the account prompt");
   assert.ok(middleware.includes('url.pathname = "/app"'));
 });
