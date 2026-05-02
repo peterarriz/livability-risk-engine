@@ -28,7 +28,7 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Superseded scope note: this remediation briefly tightened launch surfaces back to a single-city demo. Product corrected scope later on 2026-04-30; multi-city/nationwide-capable language is now the source of truth.
 - Public launch surfaces should describe multi-city coverage with city/source caveats, while continuing to use Chicago as a reference demo market. data-086 now provides 50 `context_ready` expansion-city registry rows that App can expose as known contextual coverage.
 - Out-of-scope product routes such as pricing, portfolio, dashboard, account, sign-in, neighborhood, widget, and pilot evidence now redirect to `/app` during the launch demo.
-- Bulk CSV was reopened on 2026-05-01 for pilot API users. `/bulk` should remain reachable without Clerk sign-in when a user pastes a valid API key.
+- Bulk CSV now uses signed-in pilot/internal account access on `/bulk`; the browser no longer asks users to paste keys. Raw `/score/batch/csv` API integrations still require `X-API-Key`, while the website flow calls the backend through the frontend server route with a server-only key.
 - The score route should not reject non-Chicago addresses solely because they are outside Chicago; coverage/confidence should communicate data depth.
 - Approved demo fallback responses now cover low, moderate, high, and severe Chicago examples so "Try an example" chips show truthful score-band variety even without a live DB.
 - Stale fixed demo dates and launch-inappropriate pilot/pricing CTAs remain scrubbed from public surfaces.

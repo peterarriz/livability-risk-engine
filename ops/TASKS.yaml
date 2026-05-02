@@ -1580,25 +1580,35 @@ tasks:
     priority: high
     files:
       - frontend/src/app/bulk/page.tsx
+      - frontend/src/app/api/bulk/score-csv/route.ts
+      - frontend/src/lib/bulk-access.ts
+      - frontend/src/lib/api.ts
+      - frontend/src/app/globals.css
+      - frontend/src/app/sign-in/page.tsx
       - frontend/src/app/page.tsx
       - frontend/src/app/api-docs/page.tsx
       - frontend/src/app/api-access/page.tsx
       - frontend/src/app/portfolio/page.tsx
       - frontend/src/components/app-workspace.tsx
       - frontend/middleware.ts
+      - frontend/src/__tests__/bulk-user-flow.test.mjs
       - frontend/src/__tests__/launch-readiness.test.mjs
       - frontend/src/__tests__/lookup-quota.test.mjs
+      - .env.example
+      - frontend/.env.example
       - docs/handoffs/app.md
+      - docs/database_hosting_audit.md
       - ops/TASKS.yaml
     dependencies:
       - product-030
     acceptance_criteria:
-      - `/bulk` explains upload-score-download workflow, sample CSV format, 200-address request limit, and pilot API key requirement.
-      - `/bulk` posts the selected CSV to `/api/backend/score/batch/csv` with `X-API-Key` and does not persist or print API keys.
+      - `/bulk` explains upload-score-download workflow, sample CSV format, 200-address request limit, and signed-in pilot account requirement.
+      - `/bulk` posts the selected CSV to the first-party frontend server route without exposing or requesting browser-entered API keys.
+      - The frontend server route requires Clerk auth, checks pilot/internal tiers, and forwards to backend `/score/batch/csv` with a server-only key.
       - Successful uploads download `livability_scores.csv` and leave a clear results-download button plus row summary/error guidance.
       - Landing, workspace, API docs, and API access surfaces expose a visible but secondary Bulk CSV link while public single-address scoring remains primary.
       - Frontend tests, production build, TypeScript check, task review, diff check, and banned-copy scan are run before handoff.
-    notes_for_next_agent: Completed on 2026-05-01. `/bulk` is reopened for pilot API-key users, uses the backend batch CSV endpoint, provides client-side sample CSV download, and leaves row-level failures in the returned CSV instead of trying to re-score rows in the browser. No backend, schema/RLS, pricing, billing, `.codex/`, or `data/raw/` changes were made.
+    notes_for_next_agent: Revised on 2026-05-02. `/bulk` now prompts signed-out users to sign in, allows signed-in pilot/pro/teams/enterprise/founder/admin accounts, blocks ineligible signed-in users with request-access copy, and sends CSV uploads through `/api/bulk/score-csv`. Raw API integrations still use API keys; the website flow uses `LRE_INTERNAL_API_KEY` or `LRE_BULK_API_KEY` only on the frontend server. No backend, schema/RLS, pricing, billing, `.codex/`, or `data/raw/` changes were made.
 
   - id: data-043
     lane: data

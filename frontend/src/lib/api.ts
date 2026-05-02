@@ -1516,28 +1516,6 @@ export async function fetchNeighborhood(slug: string): Promise<NeighborhoodRespo
   }
 }
 
-/**
- * Fetch a score for a single address, forwarding a caller-supplied API key.
- * Used by the /bulk page to score many addresses on behalf of the user.
- * Throws ApiError on any non-200 response so the caller can record a per-row error.
- */
-export async function fetchScoreWithKey(address: string, apiKey: string): Promise<ScoreResponse> {
-  const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) {
-    throw new ApiError("Scoring service is currently unavailable.");
-  }
-  const url = buildApiUrl("/score");
-  url.searchParams.set("address", address);
-  const headers: Record<string, string> = {};
-  if (apiKey) headers["X-API-Key"] = apiKey;
-  const resp = await fetch(url.toString(), { cache: "no-store", headers });
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => ({})) as { detail?: string };
-    throw new ApiError(data.detail ?? "Scoring unavailable. Please try again.");
-  }
-  return (await resp.json()) as ScoreResponse;
-}
-
 export async function fetchScore(
   address: string,
   options?: Omit<ScoreRequestInput, "address">,
