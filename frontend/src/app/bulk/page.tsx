@@ -1,47 +1,41 @@
 "use client";
 
-// Bulk Address Scorer page — /bulk
-// Accepts a CSV with an "address" column, processes each address against
-// /score (with a user-supplied API key), shows live progress, and renders
-// results in a sortable table with CSV export.
-// Feature is gated behind API key auth — pilot users with a key can score.
+// Bulk CSV scoring page - /bulk
+// Uploads one CSV file to the protected batch CSV endpoint and downloads the
+// backend-generated scored CSV. API keys are kept only in component state.
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useUser } from "@/lib/clerk-client";
-import { fetchScoreWithKey, ScoreResponse } from "@/lib/api";
-import { hasUnlimitedLookupAccess } from "@/lib/lookup-quota";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { Card, Container } from "@/components/shell";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type PageState = "idle" | "uploading" | "success" | "error";
 
-type BulkRow = {
-  address: string;
-  disruption_score: number | null;
-  severity_dominant: "LOW" | "MEDIUM" | "HIGH" | null;
-  top_risk: string;
-  confidence: string;
-  mode: string;
-  error?: string;
+type ResultSummary = {
+  totalRows: number;
+  scoredRows: number;
+  errorRows: number;
 };
 
-type SortCol = "address" | "score" | "severity" | "confidence";
-type SortDir = "asc" | "desc";
-type PageState = "idle" | "processing" | "done";
+const MAX_BATCH_ROWS = 200;
+const OUTPUT_FILENAME = "livability_scores.csv";
+const SAMPLE_FILENAME = "livability_sample_addresses.csv";
+const SAMPLE_CSV = [
+  "address",
+  "\"1600 W Chicago Ave, Chicago, IL\"",
+  "\"350 5th Ave, New York, NY\"",
+  "\"1600 Pennsylvania Ave NW, Washington, DC\"",
+].join("\n");
 
-const DEMO_BATCH_LIMIT = 100;
-
-// ── CSV helpers ───────────────────────────────────────────────────────────────
-
-/** RFC 4180-compatible single-line CSV splitter that handles quoted fields. */
 function splitCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuote = false;
+
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      if (inQuote && line[i + 1] === '"') {
-        current += '"';
+    if (ch === "\"") {
+      if (inQuote && line[i + 1] === "\"") {
+        current += "\"";
         i++;
       } else {
         inQuote = !inQuote;
@@ -53,94 +47,17 @@ function splitCSVLine(line: string): string[] {
       current += ch;
     }
   }
+
   result.push(current);
   return result;
 }
 
-function parseCSV(text: string, maxRows: number | null = DEMO_BATCH_LIMIT): { addresses: string[]; error: string | null } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) {
-    return { addresses: [], error: "CSV is empty or missing data rows." };
-  }
-  const headers = splitCSVLine(lines[0]).map((h) =>
-    h.trim().replace(/^["']|["']$/g, "").toLowerCase(),
-  );
-  const addrIdx = headers.findIndex((h) => h === "address");
-  if (addrIdx === -1) {
-    return {
-      addresses: [],
-      error: 'No "address" column found. Ensure the header row contains "address".',
-    };
-  }
-  const addresses: string[] = [];
-  for (const line of lines.slice(1)) {
-    const cols = splitCSVLine(line);
-    const addr = (cols[addrIdx] ?? "").trim().replace(/^["']|["']$/g, "");
-    if (addr) addresses.push(addr);
-  }
-  if (addresses.length === 0) {
-    return { addresses: [], error: "No addresses found in the CSV data rows." };
-  }
-  if (maxRows !== null && addresses.length > maxRows) {
-    return {
-      addresses: [],
-      error: `CSV contains ${addresses.length} addresses — maximum is ${maxRows} per batch.`,
-    };
-  }
-  return { addresses, error: null };
-}
-
-// ── Score helpers ─────────────────────────────────────────────────────────────
-
-const SEV_RANK: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3 };
-
-function dominantSeverity(sev: ScoreResponse["severity"]): "LOW" | "MEDIUM" | "HIGH" {
-  let best: "LOW" | "MEDIUM" | "HIGH" = "LOW";
-  for (const v of [sev.noise, sev.traffic, sev.dust]) {
-    if ((SEV_RANK[v] ?? 0) > (SEV_RANK[best] ?? 0)) {
-      best = v as "LOW" | "MEDIUM" | "HIGH";
-    }
-  }
-  return best;
-}
-
-function scoreColor(score: number | null): string {
-  if (score === null) return "var(--text-muted)";
-  if (score >= 75) return "#ef4444";
-  if (score >= 50) return "#f97316";
-  if (score >= 25) return "#eab308";
-  return "#22c55e";
-}
-
-const SEV_COLOR: Record<string, string> = {
-  HIGH: "#ef4444",
-  MEDIUM: "#f97316",
-  LOW: "#22c55e",
-};
-
-// ── CSV export ────────────────────────────────────────────────────────────────
-
-function rowsToCSV(rows: BulkRow[]): string {
-  const header = ["address", "disruption_score", "severity", "top_risk", "confidence", "mode", "error"];
-  const lines: string[] = [header.join(",")];
-  for (const r of rows) {
-    lines.push(
-      [
-        `"${r.address.replace(/"/g, '""')}"`,
-        r.disruption_score ?? "",
-        r.severity_dominant ?? "",
-        `"${(r.top_risk ?? "").replace(/"/g, '""')}"`,
-        r.confidence,
-        r.mode,
-        `"${(r.error ?? "").replace(/"/g, '""')}"`,
-      ].join(","),
-    );
-  }
-  return lines.join("\n");
+function normalizeCsvCell(cell: string): string {
+  return cell.trim().replace(/^\uFEFF/, "").replace(/^["']|["']$/g, "");
 }
 
 function downloadCSV(content: string, filename: string) {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -151,236 +68,325 @@ function downloadCSV(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function preflightCsv(text: string): { rowCount: number; error: string | null } {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) {
+    return { rowCount: 0, error: "The CSV file is empty." };
+  }
+
+  const header = splitCSVLine(lines[0]).map((cell) => normalizeCsvCell(cell).toLowerCase());
+  if (header[0] !== "address" && !header.includes("address")) {
+    return {
+      rowCount: 0,
+      error: "Invalid CSV: include an address column as the first row.",
+    };
+  }
+
+  const rowCount = Math.max(0, lines.length - 1);
+  if (rowCount === 0) {
+    return { rowCount, error: "Invalid CSV: add at least one address row." };
+  }
+
+  if (rowCount > MAX_BATCH_ROWS) {
+    return {
+      rowCount,
+      error: `This CSV has ${rowCount} address rows. Bulk scoring supports a maximum of ${MAX_BATCH_ROWS} addresses per request.`,
+    };
+  }
+
+  return { rowCount, error: null };
+}
+
+function summarizeResultsCsv(csvText: string): ResultSummary | null {
+  const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length < 2) return null;
+
+  const headers = splitCSVLine(lines[0]).map((cell) => normalizeCsvCell(cell).toLowerCase());
+  const errorIndex = headers.indexOf("error");
+  const scoreIndexes = ["livability_score", "disruption_score"]
+    .map((field) => headers.indexOf(field))
+    .filter((index) => index >= 0);
+
+  let scoredRows = 0;
+  let errorRows = 0;
+
+  for (const line of lines.slice(1)) {
+    const cells = splitCSVLine(line);
+    const rowError = errorIndex >= 0 ? normalizeCsvCell(cells[errorIndex] ?? "") : "";
+    const hasScore = scoreIndexes.some((index) => normalizeCsvCell(cells[index] ?? "") !== "");
+
+    if (rowError) {
+      errorRows++;
+    } else if (hasScore) {
+      scoredRows++;
+    }
+  }
+
+  return {
+    totalRows: lines.length - 1,
+    scoredRows,
+    errorRows,
+  };
+}
+
+function formatBackendDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => formatBackendDetail(item)).filter(Boolean).join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return "";
+}
+
+async function readBackendError(response: Response): Promise<string> {
+  if (response.status === 401 || response.status === 403) {
+    return "The pilot API key was not accepted. Check the key and try again, or request access if you do not have one.";
+  }
+
+  let detail = "";
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const data = await response.json().catch(() => null) as { detail?: unknown; message?: unknown } | null;
+    detail = formatBackendDetail(data?.detail ?? data?.message);
+  } else {
+    detail = await response.text().catch(() => "");
+  }
+
+  if (response.status === 400 || response.status === 422) {
+    return detail || "The CSV could not be processed. Make sure it has an address column and no more than 200 rows.";
+  }
+
+  return detail
+    ? `Bulk scoring failed: ${detail}`
+    : "Bulk scoring is temporarily unavailable. Please try again.";
+}
 
 export default function BulkPage() {
-  const { user } = useUser();
-  const tier = (user?.publicMetadata as Record<string, unknown>)?.subscription_tier;
-  const hasUnlimitedAccess = hasUnlimitedLookupAccess(tier);
-  const batchLimit = hasUnlimitedAccess ? null : DEMO_BATCH_LIMIT;
-
   const [apiKey, setApiKey] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [addresses, setAddresses] = useState<string[]>([]);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [rows, setRows] = useState<BulkRow[]>([]);
+  const [rowCount, setRowCount] = useState<number | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [pageState, setPageState] = useState<PageState>("idle");
-  const [processed, setProcessed] = useState(0);
+  const [resultCsv, setResultCsv] = useState<string | null>(null);
+  const [resultSummary, setResultSummary] = useState<ResultSummary | null>(null);
+  const [downloadedAutomatically, setDownloadedAutomatically] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [sortCol, setSortCol] = useState<SortCol>("score");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef(false);
 
-  // ── File handling ──────────────────────────────────────────────────────────
+  const isUploading = pageState === "uploading";
+  const hasUsableFile = selectedFile !== null && csvError === null;
 
-  const handleFile = useCallback((file: File) => {
-    setParseError(null);
+  const summaryText = useMemo(() => {
+    if (!resultSummary) return "Results CSV is ready.";
+    return `${resultSummary.scoredRows} scored, ${resultSummary.errorRows} with row errors, ${resultSummary.totalRows} rows returned.`;
+  }, [resultSummary]);
+
+  const handleFile = useCallback(async (file: File) => {
+    setSelectedFile(file);
     setFileName(file.name);
-    setAddresses([]);
-    setRows([]);
+    setRowCount(null);
+    setCsvError(null);
+    setFormError(null);
     setPageState("idle");
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = (e.target?.result as string) ?? "";
-      const { addresses: addrs, error } = parseCSV(text, batchLimit);
-      if (error) setParseError(error);
-      else setAddresses(addrs);
-    };
-    reader.readAsText(file);
-  }, [batchLimit]);
+    setResultCsv(null);
+    setResultSummary(null);
+    setDownloadedAutomatically(false);
+
+    try {
+      const text = await file.text();
+      const preflight = preflightCsv(text);
+      setRowCount(preflight.rowCount);
+      setCsvError(preflight.error);
+      if (preflight.error) setPageState("error");
+    } catch {
+      setCsvError("Invalid CSV: the file could not be read. Choose a plain CSV file and try again.");
+      setPageState("error");
+    }
+  }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
       setDragOver(false);
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      const file = event.dataTransfer.files[0];
+      if (file && !isUploading) {
+        void handleFile(file);
+      }
     },
-    [handleFile],
+    [handleFile, isUploading],
   );
 
   const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        void handleFile(file);
+      }
     },
     [handleFile],
   );
 
-  // ── Bulk processing ────────────────────────────────────────────────────────
+  const handleUpload = useCallback(async () => {
+    setFormError(null);
 
-  const handleProcess = useCallback(async () => {
-    if (!addresses.length) return;
-    abortRef.current = false;
-    setPageState("processing");
-    setProcessed(0);
-    setRows([]);
-
-    const results: BulkRow[] = [];
-    for (let i = 0; i < addresses.length; i++) {
-      if (abortRef.current) break;
-      const addr = addresses[i];
-      try {
-        const score = await fetchScoreWithKey(addr, apiKey.trim());
-        results.push({
-          address: addr,
-          disruption_score: score.disruption_score,
-          severity_dominant: dominantSeverity(score.severity),
-          top_risk: score.top_risks[0] ?? "",
-          confidence: score.confidence,
-          mode: score.mode ?? "live",
-        });
-      } catch (err) {
-        results.push({
-          address: addr,
-          disruption_score: null,
-          severity_dominant: null,
-          top_risk: "",
-          confidence: "",
-          mode: "",
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      setProcessed(i + 1);
-      // Update rows progressively so table fills in during processing
-      setRows([...results]);
+    const trimmedApiKey = apiKey.trim();
+    if (!trimmedApiKey) {
+      setPageState("error");
+      setFormError("Enter your pilot API key before uploading a CSV.");
+      return;
     }
-    setPageState("done");
-  }, [addresses, apiKey]);
 
-  const handleStop = useCallback(() => {
-    abortRef.current = true;
-  }, []);
+    if (!selectedFile) {
+      setPageState("error");
+      setFormError("Choose a CSV file before starting bulk scoring.");
+      return;
+    }
 
-  // ── Sorting ────────────────────────────────────────────────────────────────
+    if (csvError) {
+      setPageState("error");
+      setFormError(csvError);
+      return;
+    }
 
-  const sortedRows = useMemo(() => {
-    const copy = [...rows];
-    copy.sort((a, b) => {
-      let cmp = 0;
-      switch (sortCol) {
-        case "address":
-          cmp = a.address.localeCompare(b.address);
-          break;
-        case "score":
-          cmp = (a.disruption_score ?? -1) - (b.disruption_score ?? -1);
-          break;
-        case "severity":
-          cmp =
-            (SEV_RANK[a.severity_dominant ?? ""] ?? 0) -
-            (SEV_RANK[b.severity_dominant ?? ""] ?? 0);
-          break;
-        case "confidence":
-          cmp =
-            (SEV_RANK[a.confidence ?? ""] ?? 0) -
-            (SEV_RANK[b.confidence ?? ""] ?? 0);
-          break;
+    setPageState("uploading");
+    setResultCsv(null);
+    setResultSummary(null);
+    setDownloadedAutomatically(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await fetch("/api/backend/score/batch/csv", {
+        method: "POST",
+        headers: {
+          "X-API-Key": trimmedApiKey,
+        },
+        body: formData,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readBackendError(response));
       }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return copy;
-  }, [rows, sortCol, sortDir]);
 
-  function toggleSort(col: SortCol) {
-    if (sortCol === col) setSortDir((d: SortDir) => (d === "asc" ? "desc" : "asc"));
-    else { setSortCol(col); setSortDir("desc"); }
+      const csvText = await response.text();
+      if (!csvText.trim()) {
+        throw new Error("Bulk scoring finished, but the backend returned an empty CSV.");
+      }
+
+      setResultCsv(csvText);
+      setResultSummary(summarizeResultsCsv(csvText));
+      setPageState("success");
+      downloadCSV(csvText, OUTPUT_FILENAME);
+      setDownloadedAutomatically(true);
+    } catch (error) {
+      setPageState("error");
+      setFormError(error instanceof Error ? error.message : "Bulk scoring failed. Please try again.");
+    }
+  }, [apiKey, csvError, selectedFile]);
+
+  function handleSampleDownload() {
+    downloadCSV(SAMPLE_CSV, SAMPLE_FILENAME);
   }
 
-  function sortArrow(col: SortCol): string {
-    if (sortCol !== col) return " ↕";
-    return sortDir === "asc" ? " ↑" : " ↓";
+  function handleResultsDownload() {
+    if (resultCsv) {
+      downloadCSV(resultCsv, OUTPUT_FILENAME);
+    }
   }
-
-  // ── Derived state ──────────────────────────────────────────────────────────
-
-  const progressPct =
-    addresses.length > 0 ? Math.round((processed / addresses.length) * 100) : 0;
-  const isProcessing = pageState === "processing";
-  const isDone = pageState === "done";
-  const canProcess = addresses.length > 0 && !isProcessing;
-  const successCount = rows.filter((r: BulkRow) => !r.error).length;
-  const addrCount = addresses.length;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <main className="bulk-page">
       <Container>
-        {/* Back link */}
         <div className="bulk-back">
-          <a href="/" className="bulk-back-link">← Back to scorer</a>
+          <a href="/" className="bulk-back-link">&larr; Back to address scoring</a>
         </div>
 
-        {/* Page header */}
         <div className="bulk-page-header">
           <div className="bulk-title-row">
-            <span className="bulk-pro-badge">API KEY</span>
-            <h1 className="bulk-page-title">Bulk Address Scorer</h1>
+            <span className="bulk-pro-badge">Pilot API</span>
+            <h1 className="bulk-page-title">Bulk CSV scoring</h1>
           </div>
           <p className="bulk-page-desc">
-            Upload a CSV with an <code className="bulk-code">address</code> column.{" "}
-            {hasUnlimitedAccess
-              ? "Pilot demo access allows larger files. An API key is required."
-              : `Score up to ${DEMO_BATCH_LIMIT} US addresses at once. An API key is required.`}
+            Upload addresses and download scored results. Bulk CSV scoring is available for pilot API users.
           </p>
         </div>
 
         <div className="bulk-layout">
-          {/* ── Left column: inputs ─────────────────────────────────────── */}
           <div className="bulk-inputs">
-            {/* API key */}
             <Card className="bulk-input-card">
               <div className="bulk-input-card__header">
-                <span className="bulk-input-card__label">API Key</span>
+                <span className="bulk-input-card__label">Workflow</span>
+              </div>
+              <div className="bulk-input-card__body">
+                <ol className="bulk-field-hint" style={{ margin: 0, paddingLeft: 18 }}>
+                  <li>Upload a CSV with an <code className="bulk-code">address</code> column.</li>
+                  <li>We score each address with the batch scoring endpoint.</li>
+                  <li>Download the returned results CSV.</li>
+                </ol>
+                <p className="bulk-field-hint">
+                  Max {MAX_BATCH_ROWS} addresses per request. A pilot API key is required.
+                </p>
+              </div>
+            </Card>
+
+            <Card className="bulk-input-card">
+              <div className="bulk-input-card__header">
+                <span className="bulk-input-card__label">API key</span>
               </div>
               <div className="bulk-input-card__body">
                 <input
                   type="password"
                   className="bulk-api-input"
-                  placeholder="lre_xxxxxxxx…"
+                  placeholder="Paste pilot API key"
                   value={apiKey}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setApiKey(e.target.value)
-                  }
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)}
                   autoComplete="off"
                   spellCheck={false}
-                  disabled={isProcessing}
+                  disabled={isUploading}
                 />
                 <p className="bulk-field-hint">
-                  Don&apos;t have a key?{" "}
-                  <a href="/api-access" className="bulk-link">Request access →</a>
+                  The key is sent as <code className="bulk-code">X-API-Key</code> and is not saved by this page.{" "}
+                  <a href="/api-access" className="bulk-link">Request access</a>
                 </p>
               </div>
             </Card>
 
-            {/* CSV upload */}
             <Card className="bulk-input-card">
-              <div className="bulk-input-card__header">
-                <span className="bulk-input-card__label">CSV File</span>
+              <div className="bulk-input-card__header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                <span className="bulk-input-card__label">CSV file</span>
+                <button type="button" className="bulk-export-btn" onClick={handleSampleDownload}>
+                  Download sample CSV
+                </button>
               </div>
               <div className="bulk-input-card__body">
                 <div
                   className={[
                     "bulk-drop-zone",
                     dragOver ? "bulk-drop-zone--active" : "",
-                    isProcessing ? "bulk-drop-zone--disabled" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onDragOver={(e: React.DragEvent<HTMLDivElement>) => {
-                    e.preventDefault();
-                    if (!isProcessing) setDragOver(true);
+                    isUploading ? "bulk-drop-zone--disabled" : "",
+                  ].filter(Boolean).join(" ")}
+                  onDragOver={(event: DragEvent<HTMLDivElement>) => {
+                    event.preventDefault();
+                    if (!isUploading) setDragOver(true);
                   }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={isProcessing ? undefined : handleDrop}
-                  onClick={() => !isProcessing && fileInputRef.current?.click()}
+                  onDrop={isUploading ? undefined : handleDrop}
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) =>
-                    e.key === "Enter" && !isProcessing && fileInputRef.current?.click()
-                  }
+                  onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                    if (event.key === "Enter" && !isUploading) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                 >
                   <input
                     ref={fileInputRef}
@@ -389,188 +395,109 @@ export default function BulkPage() {
                     style={{ display: "none" }}
                     onChange={handleFileInputChange}
                   />
-                  {fileName && addrCount > 0 ? (
+                  {fileName ? (
                     <div className="bulk-drop-zone__content">
                       <span className="bulk-drop-zone__filename">{fileName}</span>
                       <span className="bulk-drop-zone__count">
-                        {addrCount} address{addrCount !== 1 ? "es" : ""} found
+                        {rowCount !== null
+                          ? `${rowCount} address row${rowCount === 1 ? "" : "s"} detected`
+                          : "Checking CSV..."}
                       </span>
                     </div>
                   ) : (
                     <div className="bulk-drop-zone__content">
-                      <span className="bulk-drop-zone__icon">⬆</span>
+                      <span className="bulk-drop-zone__icon" aria-hidden="true">CSV</span>
                       <span className="bulk-drop-zone__hint">
-                        Drop CSV here or{" "}
-                        <span className="bulk-link">click to browse</span>
+                        Drop CSV here or <span className="bulk-link">click to browse</span>
                       </span>
                     </div>
                   )}
                 </div>
-                {parseError && (
-                  <p className="bulk-parse-error">{parseError}</p>
-                )}
+
+                {csvError && <p className="bulk-parse-error" role="alert">{csvError}</p>}
+
                 <p className="bulk-field-hint">
-                  Required column:{" "}
-                  <code className="bulk-code">address</code>.
-                  {hasUnlimitedAccess ? " Pilot demo access allows larger files." : ` Max ${DEMO_BATCH_LIMIT} rows per batch.`}
+                  Accepted input starts with <code className="bulk-code">address</code>. Quoted addresses are safest;
+                  unquoted rows with commas are also supported where possible by the backend parser.
                 </p>
               </div>
             </Card>
 
-            {/* Action buttons */}
             <div className="bulk-actions">
               <button
+                type="button"
                 className="bulk-process-btn"
-                disabled={!canProcess}
-                onClick={handleProcess}
+                disabled={isUploading}
+                onClick={() => void handleUpload()}
               >
-                {isProcessing
-                  ? `Scoring ${processed} / ${addrCount}…`
-                  : `Score ${addrCount > 0 ? addrCount + " " : ""}Address${addrCount !== 1 ? "es" : ""}`}
+                {isUploading
+                  ? "Scoring CSV..."
+                  : hasUsableFile
+                    ? `Score ${rowCount ?? ""} address${rowCount === 1 ? "" : "es"}`
+                    : "Score CSV"}
               </button>
-              {isProcessing && (
-                <button className="bulk-stop-btn" onClick={handleStop}>
-                  Stop
-                </button>
-              )}
             </div>
 
-            {/* Example format hint */}
-            {pageState === "idle" && addrCount === 0 && !parseError && (
-              <div className="bulk-format-hint">
-                <p className="bulk-field-hint" style={{ marginBottom: 6 }}>
-                  Example CSV:
-                </p>
-                <pre className="bulk-format-pre">
+            <div className="bulk-format-hint">
+              <p className="bulk-field-hint" style={{ marginBottom: 6 }}>
+                Accepted input example:
+              </p>
+              <pre className="bulk-format-pre">
 {`address
-1600 W Chicago Ave, Chicago, IL
-700 W Grand Ave, Chicago, IL
-233 S Wacker Dr, Chicago, IL`}
-                </pre>
-              </div>
-            )}
+"1600 W Chicago Ave, Chicago, IL"
+"350 5th Ave, New York, NY"`}
+              </pre>
+            </div>
           </div>
 
-          {/* ── Right column: progress + results ────────────────────────── */}
           <div className="bulk-results-col">
-            {/* Progress bar */}
-            {(isProcessing || isDone) && rows.length + processed > 0 && (
-              <div className="bulk-progress-card">
+            {(formError || csvError) && pageState === "error" && (
+              <div className="bulk-parse-error" role="alert">
+                {formError ?? csvError}
+              </div>
+            )}
+
+            {isUploading && (
+              <div className="bulk-progress-card" aria-live="polite">
                 <div className="bulk-progress-header">
                   <span className="bulk-progress-label">
-                    {isDone
-                      ? `Complete — ${successCount} of ${rows.length} scored successfully`
-                      : `Processing… ${processed} / ${addrCount}`}
+                    Uploading CSV to the batch scorer...
                   </span>
-                  <span className="bulk-progress-pct">{progressPct}%</span>
+                  <span className="bulk-progress-pct">Working</span>
                 </div>
                 <div className="bulk-progress-track">
-                  <div
-                    className="bulk-progress-fill"
-                    style={{
-                      width: `${progressPct}%`,
-                      background: isDone ? "var(--mint)" : "var(--brand)",
-                    }}
-                  />
+                  <div className="bulk-progress-fill" style={{ width: "70%" }} />
                 </div>
               </div>
             )}
 
-            {/* Results table */}
-            {rows.length > 0 && (
+            {pageState === "success" && resultCsv && (
               <Card className="bulk-results-card">
                 <div className="bulk-results-card__header">
-                  <span className="bulk-results-card__title">
-                    Results{isProcessing ? ` (${rows.length} so far)` : ""}
-                  </span>
-                  {isDone && (
-                    <button
-                      className="bulk-export-btn"
-                      onClick={() => downloadCSV(rowsToCSV(rows), "bulk_scores.csv")}
-                    >
-                      Export CSV
-                    </button>
-                  )}
+                  <span className="bulk-results-card__title">Results ready</span>
+                  <button type="button" className="bulk-export-btn" onClick={handleResultsDownload}>
+                    Download results CSV
+                  </button>
                 </div>
-                <div className="bulk-table-scroll">
-                  <table className="bulk-table">
-                    <thead>
-                      <tr>
-                        <th
-                          className="bulk-th bulk-th--sortable"
-                          onClick={() => toggleSort("address")}
-                        >
-                          Address{sortArrow("address")}
-                        </th>
-                        <th
-                          className="bulk-th bulk-th--sortable bulk-th--num"
-                          onClick={() => toggleSort("score")}
-                        >
-                          Score{sortArrow("score")}
-                        </th>
-                        <th
-                          className="bulk-th bulk-th--sortable"
-                          onClick={() => toggleSort("severity")}
-                        >
-                          Severity{sortArrow("severity")}
-                        </th>
-                        <th className="bulk-th bulk-th--wide">Top Risk</th>
-                        <th
-                          className="bulk-th bulk-th--sortable"
-                          onClick={() => toggleSort("confidence")}
-                        >
-                          Confidence{sortArrow("confidence")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedRows.map((row: BulkRow, idx: number) => (
-                        <tr key={idx} className="bulk-tr">
-                          <td className="bulk-td bulk-td--address">{row.address}</td>
-                          <td
-                            className="bulk-td bulk-td--num"
-                            style={{ color: scoreColor(row.disruption_score) }}
-                          >
-                            {row.error ? (
-                              <span className="bulk-err-badge" title={row.error}>
-                                ERR
-                              </span>
-                            ) : (
-                              <strong>{row.disruption_score}</strong>
-                            )}
-                          </td>
-                          <td
-                            className="bulk-td"
-                            style={{
-                              color:
-                                SEV_COLOR[row.severity_dominant ?? ""] ??
-                                "var(--text-muted)",
-                            }}
-                          >
-                            {row.severity_dominant ?? "—"}
-                          </td>
-                          <td className="bulk-td bulk-td--risk">
-                            {row.error ? (
-                              <span className="bulk-err-text">{row.error}</span>
-                            ) : (
-                              row.top_risk || "—"
-                            )}
-                          </td>
-                          <td className="bulk-td">{row.confidence || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div style={{ padding: "18px 20px" }}>
+                  <p className="bulk-field-hint" style={{ color: "var(--text-soft)", marginBottom: 10 }}>
+                    {summaryText}
+                  </p>
+                  <p className="bulk-field-hint">
+                    {downloadedAutomatically
+                      ? `A download named ${OUTPUT_FILENAME} was started automatically.`
+                      : `Use the button above to download ${OUTPUT_FILENAME}.`}
+                    {" "}Rows that cannot be found stay in the CSV with blank score fields and an error value such as <code className="bulk-code">address_not_found</code>.
+                  </p>
                 </div>
               </Card>
             )}
 
-            {/* Idle placeholder */}
-            {rows.length === 0 && pageState === "idle" && (
+            {pageState === "idle" && !resultCsv && (
               <div className="bulk-idle-hint">
-                <p>Upload a CSV and enter your API key to get started.</p>
+                <p>Upload a CSV and enter your pilot API key.</p>
                 <p className="bulk-field-hint" style={{ marginTop: 8 }}>
-                  Results will appear here as each address is scored.
+                  The returned CSV includes livability_score, disruption_score, confidence, severity fields, top risks, and row-level errors.
                 </p>
               </div>
             )}

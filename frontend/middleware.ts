@@ -7,7 +7,6 @@ const isProtectedRoute = createRouteMatcher([
 
 const isOutOfScopeLaunchRoute = createRouteMatcher([
   "/account(.*)",
-  "/bulk(.*)",
   "/compare(.*)",
   "/dashboard(.*)",
   "/login(.*)",

@@ -55,6 +55,7 @@ function ApiTester() {
 const SECTIONS = [
   { id: "auth", label: "Authentication" },
   { id: "endpoint", label: "Endpoint Reference" },
+  { id: "bulk-csv", label: "Bulk CSV" },
   { id: "response", label: "Response Fields" },
   { id: "examples", label: "Code Examples" },
   { id: "access", label: "Pilot Access" },
@@ -145,6 +146,39 @@ export default function ApiDocsPage() {
 }`}</pre>
         </section>
 
+        {/* ── Bulk CSV ───────────────────────────────────────────── */}
+        <section id="bulk-csv" className="docs-section">
+          <h2>Bulk CSV Scoring</h2>
+          <p>
+            Bulk CSV scoring is available for pilot API users. Upload a CSV with an
+            <code> address</code> column, score up to 200 addresses per request, and download
+            a scored CSV with livability_score, disruption_score, confidence, top risks, and
+            row-level errors.
+          </p>
+          <div className="docs-endpoint-block">
+            <span className="docs-method">POST</span>
+            <code>/score/batch/csv</code>
+          </div>
+          <p>
+            The request is <code>multipart/form-data</code> with the CSV in the
+            <code> file</code> field and the pilot key in <code>X-API-Key</code>.
+            Quoted comma-containing addresses are safest; common unquoted comma-containing
+            address rows are supported where possible by the backend parser.
+          </p>
+          <pre className="docs-code">{`address
+"1600 W Chicago Ave, Chicago, IL"
+"350 5th Ave, New York, NY"`}</pre>
+          <pre className="docs-code">{`curl -s -X POST \\
+  -H "X-API-Key: lre_your_key_here" \\
+  -F "file=@addresses.csv" \\
+  "https://api.livabilityrisks.com/score/batch/csv" \\
+  -o livability_scores.csv`}</pre>
+          <p className="docs-note">
+            Prefer the <a href="/bulk">Bulk CSV upload page</a> for pilot users who want
+            to upload a file and download results without writing code.
+          </p>
+        </section>
+
         {/* ── Response Fields ─────────────────────────────────────── */}
         <section id="response" className="docs-section">
           <h2>Response Fields</h2>
@@ -207,6 +241,7 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
               <tr><td>Single-address demo</td><td>Available on the public app</td><td>Coverage varies by city and source.</td></tr>
               <tr><td>API keys</td><td>Issued by request</td><td>Used for pilot integrations and authenticated endpoints.</td></tr>
               <tr><td>Batch scoring</td><td>Available with pilot API key</td><td>Request limits are documented in the endpoint contract.</td></tr>
+              <tr><td>Bulk CSV upload</td><td>Available with pilot API key</td><td><a href="/bulk">Upload CSV</a> and download scored results.</td></tr>
             </tbody>
           </table>
           <p className="docs-note">

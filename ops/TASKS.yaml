@@ -1571,6 +1571,35 @@ tasks:
       - Frontend tests and production build pass.
     notes_for_next_agent: Ready after data-086. Use city_coverage/context_ready rows as coverage metadata, not as active disruption project evidence. Keep Chicago demo fallback examples, but do not reintroduce Chicago-only validation or copy.
 
+  - id: app-048
+    lane: app
+    type: polish
+    title: Polish Bulk CSV upload and download flow
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/bulk/page.tsx
+      - frontend/src/app/page.tsx
+      - frontend/src/app/api-docs/page.tsx
+      - frontend/src/app/api-access/page.tsx
+      - frontend/src/app/portfolio/page.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/middleware.ts
+      - frontend/src/__tests__/launch-readiness.test.mjs
+      - frontend/src/__tests__/lookup-quota.test.mjs
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies:
+      - product-030
+    acceptance_criteria:
+      - `/bulk` explains upload-score-download workflow, sample CSV format, 200-address request limit, and pilot API key requirement.
+      - `/bulk` posts the selected CSV to `/api/backend/score/batch/csv` with `X-API-Key` and does not persist or print API keys.
+      - Successful uploads download `livability_scores.csv` and leave a clear results-download button plus row summary/error guidance.
+      - Landing, workspace, API docs, and API access surfaces expose a visible but secondary Bulk CSV link while public single-address scoring remains primary.
+      - Frontend tests, production build, TypeScript check, task review, diff check, and banned-copy scan are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-01. `/bulk` is reopened for pilot API-key users, uses the backend batch CSV endpoint, provides client-side sample CSV download, and leaves row-level failures in the returned CSV instead of trying to re-score rows in the browser. No backend, schema/RLS, pricing, billing, `.codex/`, or `data/raw/` changes were made.
+
   - id: data-043
     lane: data
     type: feature
@@ -1584,8 +1613,7 @@ tasks:
       - frontend/src/lib/api.ts
       - frontend/src/components/score-experience.tsx
       - backend/app/main.py
-    dependencies:
-      - data-042
+    dependencies: []
     acceptance_criteria:
       - signal_display table added to schema.sql with display_title, distance, description, why_it_matters columns
       - Claude API called with 4-field prompt; result cached in signal_display keyed on project_id

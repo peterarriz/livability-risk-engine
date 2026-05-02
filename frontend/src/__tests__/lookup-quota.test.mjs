@@ -60,14 +60,14 @@ test("signed-in free demo quota remains limited", () => {
   assert.equal(usage.isUnlimited, false);
 });
 
-test("pilot tiers get unlimited frontend lookup access with case normalization", () => {
+test("pilot tiers bypass the frontend lookup gate with case normalization", () => {
   for (const tier of ["pro", "Teams", " ENTERPRISE ", "Founder", "ADMIN"]) {
     const usage = getLookupUsageFromCount(true, hasUnlimitedLookupAccess(tier), 200);
 
     assert.equal(usage.limit, null, `${tier} should not carry a numeric local limit`);
     assert.equal(usage.remaining, null, `${tier} should not carry a numeric remaining count`);
     assert.equal(usage.isGated, false, `${tier} should not be gated locally`);
-    assert.equal(usage.isUnlimited, true, `${tier} should be treated as unlimited`);
+    assert.equal(usage.isUnlimited, true, `${tier} should bypass the demo lookup gate`);
   }
 });
 
