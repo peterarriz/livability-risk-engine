@@ -19,11 +19,16 @@ const OUTPUT_FILENAME = "livability_scores.csv";
 const SAMPLE_FILENAME = "livability_sample_addresses.csv";
 const CLERK_CONFIGURED = process.env.NEXT_PUBLIC_CLERK_CONFIGURED === "true";
 const SAMPLE_CSV = [
-  "address",
-  "\"1600 W Chicago Ave, Chicago, IL\"",
-  "\"350 5th Ave, New York, NY\"",
-  "\"1600 Pennsylvania Ave NW, Washington, DC\"",
+  "property_id,street_address,city,state,zip",
+  "demo-1,1600 W Chicago Ave,Chicago,IL,60622",
+  "demo-2,350 5th Ave,New York,NY,10118",
+  "demo-3,1600 Pennsylvania Ave NW,Washington,DC,20500",
 ].join("\n");
+
+const ADDRESS_HEADERS = new Set(["address", "addresses", "fulladdress"]);
+const STREET_HEADERS = new Set(["streetaddress", "street", "addressline1", "propertyaddress"]);
+const CITY_HEADERS = new Set(["city"]);
+const STATE_HEADERS = new Set(["state", "statecode"]);
 
 function splitCSVLine(line: string): string[] {
   const result: string[] = [];
@@ -55,6 +60,14 @@ function normalizeCsvCell(cell: string): string {
   return cell.trim().replace(/^\uFEFF/, "").replace(/^["']|["']$/g, "");
 }
 
+function normalizeCsvHeader(cell: string): string {
+  return normalizeCsvCell(cell).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function hasAnyHeader(headers: string[], accepted: Set<string>): boolean {
+  return headers.some((header) => accepted.has(header));
+}
+
 function downloadCSV(content: string, filename: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -73,11 +86,17 @@ function preflightCsv(text: string): { rowCount: number; error: string | null } 
     return { rowCount: 0, error: "The CSV file is empty." };
   }
 
-  const header = splitCSVLine(lines[0]).map((cell) => normalizeCsvCell(cell).toLowerCase());
-  if (header[0] !== "address" && !header.includes("address")) {
+  const header = splitCSVLine(lines[0]).map((cell) => normalizeCsvHeader(cell));
+  const hasAddressColumn = hasAnyHeader(header, ADDRESS_HEADERS);
+  const hasStructuredColumns = (
+    hasAnyHeader(header, STREET_HEADERS)
+    && hasAnyHeader(header, CITY_HEADERS)
+    && hasAnyHeader(header, STATE_HEADERS)
+  );
+  if (!hasAddressColumn && !hasStructuredColumns) {
     return {
       rowCount: 0,
-      error: "Invalid CSV: include an address column as the first row.",
+      error: "Invalid CSV: include street_address, city, state, and optional zip columns, or include an address column.",
     };
   }
 
@@ -413,12 +432,12 @@ export default function BulkPage() {
                 </div>
                 <div className="bulk-input-card__body">
                   <ol className="bulk-field-hint" style={{ margin: 0, paddingLeft: 18 }}>
-                    <li>Upload a CSV with an <code className="bulk-code">address</code> column.</li>
+                    <li>Upload a CSV with <code className="bulk-code">street_address</code>, <code className="bulk-code">city</code>, <code className="bulk-code">state</code>, and optional <code className="bulk-code">zip</code> columns.</li>
                     <li>We score each address through the pilot bulk scorer.</li>
-                    <li>Download the returned results CSV.</li>
+                    <li>Download the returned results CSV with your original columns preserved.</li>
                   </ol>
                   <p className="bulk-field-hint">
-                    Max {MAX_BATCH_ROWS} addresses per request. Pilot account access is checked before upload.
+                    Also accepted: a single <code className="bulk-code">address</code> column. Max {MAX_BATCH_ROWS} rows per request. Pilot account access is checked before upload.
                   </p>
                 </div>
               </Card>
@@ -482,8 +501,8 @@ export default function BulkPage() {
                   {csvError && <p className="bulk-parse-error" role="alert">{csvError}</p>}
 
                   <p className="bulk-field-hint">
-                    Accepted input starts with <code className="bulk-code">address</code>. Quoted addresses are safest;
-                    unquoted rows with commas are also supported where possible by the backend parser.
+                    Recommended columns: <code className="bulk-code">street_address</code>, <code className="bulk-code">city</code>, <code className="bulk-code">state</code>, <code className="bulk-code">zip</code>. ZIP is optional but helpful; state should be a two-letter code where possible.
+                    {" "}Single-column <code className="bulk-code">address</code> CSVs are still accepted.
                   </p>
                 </div>
               </Card>
@@ -508,10 +527,13 @@ export default function BulkPage() {
                   Accepted input example:
                 </p>
                 <pre className="bulk-format-pre">
-{`address
-"1600 W Chicago Ave, Chicago, IL"
-"350 5th Ave, New York, NY"`}
+{`property_id,street_address,city,state,zip
+demo-1,1600 W Chicago Ave,Chicago,IL,60622
+demo-2,350 5th Ave,New York,NY,10118`}
                 </pre>
+                <p className="bulk-field-hint" style={{ marginTop: 8 }}>
+                  Existing one-column files with <code className="bulk-code">address</code> also work. Quoted full addresses are safest, and common unquoted comma-address rows are supported where possible.
+                </p>
               </div>
             </div>
 
@@ -552,7 +574,7 @@ export default function BulkPage() {
                       {downloadedAutomatically
                         ? `A download named ${OUTPUT_FILENAME} was started automatically.`
                         : `Use the button above to download ${OUTPUT_FILENAME}.`}
-                      {" "}Rows that cannot be found stay in the CSV with blank score fields and an error value such as <code className="bulk-code">address_not_found</code>.
+                      {" "}Original columns are preserved where possible. Rows that cannot be found stay in the CSV with blank score fields and an error value such as <code className="bulk-code">address_not_found</code>.
                     </p>
                   </div>
                 </Card>
@@ -562,7 +584,7 @@ export default function BulkPage() {
                 <div className="bulk-idle-hint">
                   <p>Upload a CSV to score up to {MAX_BATCH_ROWS} addresses.</p>
                   <p className="bulk-field-hint" style={{ marginTop: 8 }}>
-                    The returned CSV includes livability_score, disruption_score, confidence, severity fields, top risks, and row-level errors.
+                    The returned CSV includes your original columns, resolved_address, livability_score, disruption_score, confidence, evidence quality, severity fields, top risks, and row-level errors.
                   </p>
                 </div>
               )}

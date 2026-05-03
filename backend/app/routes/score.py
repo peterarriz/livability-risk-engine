@@ -17,7 +17,7 @@ import logging
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -671,11 +671,13 @@ def post_score_batch(
 
 
 # CSV column order for /score/batch/csv output.
-_CSV_FIELDNAMES = [
-    "address",
+_CSV_SCORE_FIELDNAMES = [
+    "resolved_address",
     "livability_score",
     "disruption_score",
     "confidence",
+    "evidence_quality",
+    "recommended_action",
     "severity_noise",
     "severity_traffic",
     "severity_dust",
@@ -685,24 +687,152 @@ _CSV_FIELDNAMES = [
     "error",
 ]
 
+_CSV_ADDRESS_ALIASES = {"address", "addresses", "fulladdress"}
+_CSV_STREET_ALIASES = {
+    "streetaddress",
+    "street",
+    "addressline1",
+    "propertyaddress",
+}
+_CSV_UNIT_ALIASES = {"unit", "addressline2", "suite", "apt", "apartment"}
+_CSV_CITY_ALIASES = {"city"}
+_CSV_STATE_ALIASES = {"state", "statecode"}
+_CSV_ZIP_ALIASES = {"zip", "zipcode", "postalcode"}
+_CSV_HEADER_ALIASES = (
+    _CSV_ADDRESS_ALIASES
+    | _CSV_STREET_ALIASES
+    | _CSV_UNIT_ALIASES
+    | _CSV_CITY_ALIASES
+    | _CSV_STATE_ALIASES
+    | _CSV_ZIP_ALIASES
+)
+
+
+@dataclass(frozen=True)
+class CsvBatchInputRow:
+    """A parsed CSV input row plus the address to score, if one is usable."""
+
+    original: dict[str, str]
+    resolved_address: str
+    error: str | None = None
+
+
+def _normalize_csv_header(cell: str) -> str:
+    """Normalize spreadsheet headers without losing original output labels."""
+    return re.sub(r"[^a-z0-9]+", "", (cell or "").strip().lstrip("\ufeff").lower())
+
+
+def _has_csv_header(row: list[str]) -> bool:
+    normalized = [_normalize_csv_header(cell) for cell in row]
+    return any(cell in _CSV_HEADER_ALIASES for cell in normalized)
+
+
+def _safe_input_field_name(raw: str, index: int, used: set[str]) -> str:
+    base = (raw or "").strip().lstrip("\ufeff") or f"column_{index + 1}"
+    if base in _CSV_SCORE_FIELDNAMES:
+        base = f"input_{base}"
+
+    candidate = base
+    suffix = 2
+    while candidate in used or candidate in _CSV_SCORE_FIELDNAMES:
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+
+    used.add(candidate)
+    return candidate
+
+
+def _csv_output_fieldnames(input_fieldnames: list[str]) -> list[str]:
+    return input_fieldnames + [name for name in _CSV_SCORE_FIELDNAMES if name not in input_fieldnames]
+
 
 def _join_csv_address_cells(cells: list[str]) -> str:
     """Reconstruct a single address from CSV cells split by unquoted commas."""
     return ", ".join(cell.strip() for cell in cells if cell and cell.strip()).strip()
 
 
-def _addresses_from_csv_text(text: str, limit: int = _BATCH_MAX) -> list[str]:
+def _first_csv_value(row: list[str], normalized_header: list[str], aliases: set[str]) -> str:
+    for idx, header in enumerate(normalized_header):
+        if header in aliases and idx < len(row):
+            value = row[idx].strip()
+            if value:
+                return value
+    return ""
+
+
+def _construct_address_from_csv_row(row: list[str], normalized_header: list[str]) -> tuple[str, str | None]:
+    address = _first_csv_value(row, normalized_header, _CSV_ADDRESS_ALIASES)
+    if address:
+        return address, None
+
+    street = _first_csv_value(row, normalized_header, _CSV_STREET_ALIASES)
+    unit = _first_csv_value(row, normalized_header, _CSV_UNIT_ALIASES)
+    city = _first_csv_value(row, normalized_header, _CSV_CITY_ALIASES)
+    state = _first_csv_value(row, normalized_header, _CSV_STATE_ALIASES)
+    zip_code = _first_csv_value(row, normalized_header, _CSV_ZIP_ALIASES)
+
+    if not street or not city or not state:
+        return "", "missing_address"
+
+    street_part = " ".join(part for part in [street, unit] if part)
+    state_part = state.upper() if len(state) == 2 else state
+    state_zip = " ".join(part for part in [state_part, zip_code] if part)
+    return f"{street_part}, {city}, {state_zip}".strip(), None
+
+
+def _header_input_fieldnames(header: list[str]) -> list[str]:
+    used: set[str] = set()
+    return [_safe_input_field_name(cell, idx, used) for idx, cell in enumerate(header)]
+
+
+def _original_values_from_header_row(
+    row: list[str],
+    header: list[str],
+    input_fieldnames: list[str],
+    normalized_header: list[str],
+) -> tuple[dict[str, str], list[str]]:
     """
-    Extract address rows from a CSV upload.
+    Return original row values keyed by output-safe header names.
 
     Properly quoted CSV rows are preserved by csv.reader. For common one-column
     uploads where comma-containing addresses are left unquoted, extra cells are
-    joined back into the address instead of silently truncating at the first cell.
+    joined back into the address instead of being emitted as accidental columns.
     """
+    address_idx = next(
+        (idx for idx, header_name in enumerate(normalized_header) if header_name in _CSV_ADDRESS_ALIASES),
+        None,
+    )
+
+    consumed_to = len(header)
+    if address_idx is not None and (len(header) == 1 or address_idx == len(header) - 1):
+        values = row[:address_idx] + [_join_csv_address_cells(row[address_idx:])]
+        values += [""] * max(0, len(header) - len(values))
+        consumed_to = len(row)
+    else:
+        values = row[:len(header)] + [""] * max(0, len(header) - len(row))
+
+    original = {
+        fieldname: (values[idx].strip() if idx < len(values) else "")
+        for idx, fieldname in enumerate(input_fieldnames)
+    }
+
+    if len(row) > consumed_to:
+        used = set(input_fieldnames)
+        for extra_idx, value in enumerate(row[consumed_to:], start=1):
+            fieldname = _safe_input_field_name(f"extra_column_{extra_idx}", len(header) + extra_idx - 1, used)
+            original[fieldname] = value.strip()
+
+    return original, values
+
+
+def _csv_batch_rows_from_text(text: str, limit: int = _BATCH_MAX) -> tuple[list[CsvBatchInputRow], list[str]]:
+    """Extract row-preserving batch inputs from a CSV upload."""
     reader = csv.reader(io.StringIO(text))
-    addresses: list[str] = []
+    rows: list[CsvBatchInputRow] = []
+    input_fieldnames: list[str] = []
+    seen_input_fieldnames: set[str] = set()
     header: list[str] | None = None
-    address_idx: int | None = None
+    normalized_header: list[str] = []
 
     for raw_row in reader:
         row = [cell.strip() for cell in raw_row]
@@ -710,56 +840,115 @@ def _addresses_from_csv_text(text: str, limit: int = _BATCH_MAX) -> list[str]:
             continue
 
         if header is None:
-            normalized = [cell.lower() for cell in row]
-            if "address" in normalized or "addresses" in normalized:
-                header = normalized
-                address_idx = (
-                    normalized.index("address")
-                    if "address" in normalized
-                    else normalized.index("addresses")
-                )
+            if _has_csv_header(row):
+                header = row
+                normalized_header = [_normalize_csv_header(cell) for cell in header]
+                input_fieldnames = _header_input_fieldnames(header)
+                seen_input_fieldnames.update(input_fieldnames)
                 continue
             header = []
 
-        if address_idx is None:
-            address = _join_csv_address_cells(row)
-        elif len(header or []) == 1:
-            address = _join_csv_address_cells(row)
-        elif address_idx == len(header or []) - 1:
-            address = _join_csv_address_cells(row[address_idx:])
-        elif address_idx < len(row):
-            address = row[address_idx].strip()
+        if header:
+            original, values = _original_values_from_header_row(
+                row,
+                header,
+                input_fieldnames,
+                normalized_header,
+            )
+            for fieldname in original:
+                if fieldname not in seen_input_fieldnames:
+                    input_fieldnames.append(fieldname)
+                    seen_input_fieldnames.add(fieldname)
+            address, error = _construct_address_from_csv_row(values, normalized_header)
         else:
-            address = ""
+            address = _join_csv_address_cells(row)
+            original = {"input_address": address}
+            if "input_address" not in seen_input_fieldnames:
+                input_fieldnames.append("input_address")
+                seen_input_fieldnames.add("input_address")
+            error = None if address else "missing_address"
 
-        if not address:
+        if not any(value.strip() for value in original.values()):
             continue
 
-        addresses.append(address)
-        if len(addresses) >= limit:
-            log.warning("score_batch_csv: input truncated to %d addresses", limit)
+        rows.append(CsvBatchInputRow(original=original, resolved_address=address, error=error))
+        if len(rows) >= limit:
+            log.warning("score_batch_csv: input truncated to %d rows", limit)
             break
 
-    return addresses
+    return rows, input_fieldnames
 
 
-def _result_to_csv_row(r: dict) -> dict:
+def _addresses_from_csv_text(text: str, limit: int = _BATCH_MAX) -> list[str]:
+    """Backward-compatible address extraction helper used by batch parity tests."""
+    rows, _ = _csv_batch_rows_from_text(text, limit=limit)
+    return [row.resolved_address for row in rows if row.resolved_address]
+
+
+def _csv_missing_address_response(row: CsvBatchInputRow) -> dict:
+    return {
+        "address": row.resolved_address,
+        "livability_score": None,
+        "disruption_score": None,
+        "confidence": None,
+        "evidence_quality": None,
+        "recommended_action": None,
+        "severity": None,
+        "top_risks": [],
+        "explanation": None,
+        "mode": None,
+        "error": row.error or "missing_address",
+    }
+
+
+def _score_csv_rows(rows: list[CsvBatchInputRow]) -> list[dict]:
+    results: list[dict] = [{}] * len(rows)
+    score_indexes = [idx for idx, row in enumerate(rows) if row.error is None]
+
+    for idx, row in enumerate(rows):
+        if row.error is not None:
+            results[idx] = _csv_missing_address_response(row)
+
+    if not score_indexes:
+        return results
+
+    with ThreadPoolExecutor(max_workers=min(_BATCH_WORKERS, len(score_indexes))) as pool:
+        futures = {pool.submit(_score_one, rows[idx].resolved_address): idx for idx in score_indexes}
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+
+    return results
+
+
+def _result_to_csv_row(
+    r: dict,
+    original: dict[str, str] | None = None,
+    resolved_address: str | None = None,
+) -> dict:
     """Flatten a single score result into a CSV-ready dict."""
     sev = r.get("severity") or {}
     risks = r.get("top_risks") or []
-    return {
-        "address":          r.get("address", ""),
-        "livability_score": "" if r.get("livability_score") is None else r["livability_score"],
-        "disruption_score": "" if r.get("disruption_score") is None else r["disruption_score"],
-        "confidence":       r.get("confidence") or "",
-        "severity_noise":   sev.get("noise", ""),
-        "severity_traffic": sev.get("traffic", ""),
-        "severity_dust":    sev.get("dust", ""),
-        "top_risk_1":       risks[0] if len(risks) > 0 else "",
-        "top_risk_2":       risks[1] if len(risks) > 1 else "",
-        "top_risk_3":       risks[2] if len(risks) > 2 else "",
-        "error":            r.get("error") or "",
-    }
+    row = dict(original or {})
+    if original is None:
+        row["address"] = r.get("address", "")
+    row.update(
+        {
+            "resolved_address": resolved_address if resolved_address is not None else r.get("address", ""),
+            "livability_score": "" if r.get("livability_score") is None else r["livability_score"],
+            "disruption_score": "" if r.get("disruption_score") is None else r["disruption_score"],
+            "confidence": r.get("confidence") or "",
+            "evidence_quality": r.get("evidence_quality") or "",
+            "recommended_action": r.get("recommended_action") or "",
+            "severity_noise": sev.get("noise", ""),
+            "severity_traffic": sev.get("traffic", ""),
+            "severity_dust": sev.get("dust", ""),
+            "top_risk_1": risks[0] if len(risks) > 0 else "",
+            "top_risk_2": risks[1] if len(risks) > 1 else "",
+            "top_risk_3": risks[2] if len(risks) > 2 else "",
+            "error": r.get("error") or "",
+        }
+    )
+    return row
 
 
 @router.post("/score/batch/csv", dependencies=[Depends(require_api_key)])
@@ -771,13 +960,15 @@ async def post_score_batch_csv(
     Score addresses from a CSV upload and return results as a CSV download.
 
     Input CSV format (UTF-8):
-      - One address per row.
-      - Optional header row: if the first row contains "address" (case-insensitive),
-        it is treated as a header and skipped.
+      - Either an "address" column, or structured street/city/state/zip columns.
+      - If "address" is present and non-empty, it is used.
+      - Otherwise, a full address is built from street/address_line1/property_address,
+        optional unit/address_line2, city, state, and optional zip/postal_code.
       - Maximum 200 addresses (rows beyond 200 are ignored with a warning logged).
 
     Output CSV columns:
-      address, livability_score, disruption_score, confidence,
+      original input columns, resolved_address, livability_score,
+      disruption_score, confidence, evidence_quality, recommended_action,
       severity_noise, severity_traffic, severity_dust,
       top_risk_1, top_risk_2, top_risk_3, error
 
@@ -793,28 +984,34 @@ async def post_score_batch_csv(
     except UnicodeDecodeError:
         text = raw.decode("latin-1")
 
-    addresses = _addresses_from_csv_text(text)
+    rows, input_fieldnames = _csv_batch_rows_from_text(text)
 
-    if not addresses:
+    if not rows:
         raise HTTPException(status_code=422, detail="No addresses found in uploaded CSV.")
 
     batch_id = str(uuid.uuid4())
-    results: list[dict] = [{}] * len(addresses)
-
-    with ThreadPoolExecutor(max_workers=min(_BATCH_WORKERS, len(addresses))) as pool:
-        futures = {pool.submit(_score_one, addr): i for i, addr in enumerate(addresses)}
-        for future in as_completed(futures):
-            results[futures[future]] = future.result()
+    results = _score_csv_rows(rows)
 
     scored = sum(1 for r in results if r.get("error") is None)
-    log.info("score_batch_csv batch_id=%s total=%d scored=%d", batch_id, len(addresses), scored)
+    log.info("score_batch_csv batch_id=%s total=%d scored=%d", batch_id, len(rows), scored)
     background_tasks.add_task(_write_batch_history, results, batch_id)
 
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=_CSV_FIELDNAMES, lineterminator="\n")
+    writer = csv.DictWriter(
+        output,
+        fieldnames=_csv_output_fieldnames(input_fieldnames),
+        lineterminator="\n",
+        extrasaction="ignore",
+    )
     writer.writeheader()
-    for r in results:
-        writer.writerow(_result_to_csv_row(r))
+    for parsed_row, result in zip(rows, results):
+        writer.writerow(
+            _result_to_csv_row(
+                result,
+                original=parsed_row.original,
+                resolved_address=result.get("address") or parsed_row.resolved_address,
+            )
+        )
 
     csv_bytes = output.getvalue().encode("utf-8")
     filename = f"livability_scores_{batch_id[:8]}.csv"

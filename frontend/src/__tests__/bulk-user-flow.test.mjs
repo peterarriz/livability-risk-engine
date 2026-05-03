@@ -34,6 +34,16 @@ test("/bulk signed-out and ineligible copy matches pilot account flow", () => {
   assert.ok(bulkPage.includes("Request pilot access"));
 });
 
+test("/bulk recommends structured CSV columns while preserving address fallback", () => {
+  const bulkPage = read("../app/bulk/page.tsx");
+
+  assert.ok(bulkPage.includes("property_id,street_address,city,state,zip"), "sample CSV should use structured address columns");
+  assert.ok(bulkPage.includes("ZIP is optional but helpful"), "copy should explain optional ZIP");
+  assert.ok(bulkPage.includes("state should be a two-letter code"), "copy should guide state formatting");
+  assert.ok(bulkPage.includes("Single-column <code className=\"bulk-code\">address</code> CSVs are still accepted"), "copy should preserve one-column address support");
+  assert.ok(bulkPage.includes("Original columns are preserved where possible"), "results copy should mention preserved source columns");
+});
+
 test("bulk access tiers allow the approved pilot and internal account tiers", () => {
   const helper = read("../lib/bulk-access.ts");
   const tiers = new Set(allowedTiersFromSource(helper));

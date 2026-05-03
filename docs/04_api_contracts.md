@@ -69,13 +69,25 @@ The overall request returns 200 even when some addresses fail. Check `failed` in
 
 ### Request
 
-Upload a CSV file as the `file` field (multipart). One address per row. An optional header row with value `address` (case-insensitive) is skipped automatically. Excel BOM is handled.
+Upload a CSV file as the `file` field (multipart). Excel BOM is handled.
+
+Recommended structured-address format:
+
+```
+property_id,street_address,city,state,zip
+demo-1,1600 W Chicago Ave,Chicago,IL,60622
+demo-2,350 5th Ave,New York,NY,10118
+```
+
+Also accepted: one full-address column. Quoted comma-containing addresses are safest, and common one-column unquoted comma addresses are reconstructed where possible.
 
 ```
 address
-1600 W Chicago Ave, Chicago, IL
-700 W Grand Ave, Chicago, IL
+"1600 W Chicago Ave, Chicago, IL"
+"350 5th Ave, New York, NY"
 ```
+
+Structured headers are normalized case-insensitively with surrounding whitespace ignored. Accepted street/header variants include `street_address`, `street`, `address_line1`, and `property_address`; state variants include `state` and `state_code`; ZIP variants include `zip`, `zipcode`, and `postal_code`. If an `address` column is present and non-empty, it wins. Otherwise the backend builds a full address from street, optional unit/address line 2, city, state, and optional ZIP. ZIP is optional but helpful; two-letter state codes are preferred.
 
 ### Response
 
@@ -83,17 +95,20 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 
 | Column | Description |
 |---|---|
-| `address` | Input address echoed back |
+| Original input columns | Preserved ahead of scoring columns where feasible, for example `property_id`, `street_address`, `city`, `state`, `zip`, or `address` |
+| `resolved_address` | Full address used for scoring after structured-column assembly or canonical address resolution |
 | `livability_score` | Public headline score, 0-100 where higher means better address livability and lower near-term risk (empty on error) |
 | `disruption_score` | Backward-compatible disruption/risk subscore, 0-100 where higher means more risk (empty on error) |
 | `confidence` | HIGH / MEDIUM / LOW (empty on error) |
+| `evidence_quality` | Evidence quality signal when available: `strong`, `moderate`, `contextual_only`, or `insufficient` |
+| `recommended_action` | Recommended next action when available |
 | `severity_noise` | HIGH / MEDIUM / LOW |
 | `severity_traffic` | HIGH / MEDIUM / LOW |
 | `severity_dust` | HIGH / MEDIUM / LOW |
 | `top_risk_1` | First top-risk string (empty if none) |
 | `top_risk_2` | Second top-risk string (empty if none) |
 | `top_risk_3` | Third top-risk string (empty if none) |
-| `error` | Error message if address failed; empty on success |
+| `error` | Error message if address failed; empty on success. Rows missing required structured address fields return `missing_address` and are not scored. Ungeocodable addresses return `address_not_found`. |
 
 ---
 
