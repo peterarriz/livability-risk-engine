@@ -162,12 +162,19 @@ export default function ApiDocsPage() {
           <p>
             The request is <code>multipart/form-data</code> with the CSV in the
             <code> file</code> field and the pilot key in <code>X-API-Key</code>.
-            Quoted comma-containing addresses are safest; common unquoted comma-containing
-            address rows are supported where possible by the backend parser.
+            Recommended columns are <code>street_address</code>, <code>city</code>,
+            <code> state</code>, and optional <code>zip</code>. A single
+            <code> address</code> column is also accepted. ZIP is optional but helpful,
+            and two-letter state codes work best.
           </p>
-          <pre className="docs-code">{`address
-"1600 W Chicago Ave, Chicago, IL"
-"350 5th Ave, New York, NY"`}</pre>
+          <pre className="docs-code">{`property_id,street_address,city,state,zip
+demo-1,1600 W Chicago Ave,Chicago,IL,60622
+demo-2,350 5th Ave,New York,NY,10118`}</pre>
+          <p>
+            The result CSV preserves original input columns where feasible, then appends
+            <code> resolved_address</code>, score fields, evidence quality, severity,
+            top risks, and row-level errors.
+          </p>
           <pre className="docs-code">{`curl -s -X POST \\
   -H "X-API-Key: lre_your_key_here" \\
   -F "file=@addresses.csv" \\

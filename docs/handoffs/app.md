@@ -29,6 +29,7 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Public launch surfaces should describe multi-city coverage with city/source caveats, while continuing to use Chicago as a reference demo market. data-086 now provides 50 `context_ready` expansion-city registry rows that App can expose as known contextual coverage.
 - Out-of-scope product routes such as pricing, portfolio, dashboard, account, sign-in, neighborhood, widget, and pilot evidence now redirect to `/app` during the launch demo.
 - Bulk CSV now uses signed-in pilot/internal account access on `/bulk`; the browser no longer asks users to paste keys. Raw `/score/batch/csv` API integrations still require `X-API-Key`, while the website flow calls the backend through the frontend server route with a server-only key.
+- Bulk CSV accepts either one full `address` column or structured `street_address`/`city`/`state`/optional `zip` columns. The result CSV preserves original input columns where feasible and appends `resolved_address`, score fields, evidence quality, top risks, and row-level errors.
 - The score route should not reject non-Chicago addresses solely because they are outside Chicago; coverage/confidence should communicate data depth.
 - Approved demo fallback responses now cover low, moderate, high, and severe Chicago examples so "Try an example" chips show truthful score-band variety even without a live DB.
 - Stale fixed demo dates and launch-inappropriate pilot/pricing CTAs remain scrubbed from public surfaces.

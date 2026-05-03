@@ -1610,6 +1610,33 @@ tasks:
       - Frontend tests, production build, TypeScript check, task review, diff check, and banned-copy scan are run before handoff.
     notes_for_next_agent: Revised on 2026-05-02. `/bulk` now prompts signed-out users to sign in, allows signed-in pilot/pro/teams/enterprise/founder/admin accounts, blocks ineligible signed-in users with request-access copy, and sends CSV uploads through `/api/bulk/score-csv`. Raw API integrations still use API keys; the website flow uses `LRE_INTERNAL_API_KEY` or `LRE_BULK_API_KEY` only on the frontend server. No backend, schema/RLS, pricing, billing, `.codex/`, or `data/raw/` changes were made.
 
+  - id: app-049
+    lane: app
+    type: polish
+    title: Support structured Bulk CSV address columns
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/routes/score.py
+      - backend/tests/test_score_batch_parity.py
+      - frontend/src/app/bulk/page.tsx
+      - frontend/src/__tests__/bulk-user-flow.test.mjs
+      - frontend/src/app/api-docs/page.tsx
+      - docs/04_api_contracts.md
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies:
+      - app-048
+    acceptance_criteria:
+      - Backend `/score/batch/csv` accepts either one full `address` column or structured street/city/state/optional zip columns.
+      - Structured address headers are normalized case-insensitively and support common aliases including `street_address`, `street`, `address_line1`, `property_address`, `state_code`, `zipcode`, and `postal_code`.
+      - Rows missing required structured address fields return a row-level `missing_address` error and are not scored.
+      - Result CSV preserves original input columns where feasible and appends `resolved_address`, score fields, evidence quality, severity fields, top risks, and row-level error.
+      - `/bulk` sample and copy recommend `street_address, city, state, zip` while preserving one-column `address` support and the 200-row limit.
+      - Backend and frontend tests, production build, TypeScript check, OpenAPI generation, task review, and diff check are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-02. Backend CSV parsing now keeps row metadata, constructs structured addresses, preserves leading-zero ZIP strings, returns `missing_address` for incomplete structured rows without scoring, and preserves original columns in the result CSV. `/bulk` sample/copy now recommend structured columns and still documents one-column `address` support. No pricing/billing, schema/RLS, public `/score` or `/health` auth, `.codex/`, or `data/raw/` changes were made.
+
   - id: data-043
     lane: data
     type: feature
