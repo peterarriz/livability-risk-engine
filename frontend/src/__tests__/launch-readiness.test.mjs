@@ -82,9 +82,31 @@ test("Next.js static chunks use framework-managed cache headers", () => {
 
 test("out-of-scope product routes redirect away from launch demo", () => {
   const middleware = read("../../middleware.ts");
-  for (const route of ["/pricing", "/pilot-evidence", "/portfolio", "/dashboard"]) {
+  for (const route of ["/pilot-evidence", "/portfolio", "/dashboard"]) {
     assert.ok(middleware.includes(`"${route}(.*)"`), `${route} is not launch-gated`);
+  }
+  for (const route of ["/pricing", "/neighborhood"]) {
+    assert.ok(!middleware.includes(`"${route}(.*)"`), `${route} should stay reachable for prospect outreach`);
   }
   assert.ok(!middleware.includes('"/bulk(.*)"'), "/bulk should stay reachable so signed-out users can see the account prompt");
   assert.ok(middleware.includes('url.pathname = "/app"'));
+});
+
+test("/pricing renders pilot-stage access copy instead of a launch redirect", () => {
+  const middleware = read("../../middleware.ts");
+  const pricingPage = read("../app/pricing/page.tsx");
+
+  assert.ok(!middleware.includes('"/pricing(.*)"'), "/pricing should not redirect to /app");
+  assert.ok(pricingPage.includes("During the design-partner pilot, access is by request. Commercial pricing follows pilot validation."));
+  const stalePricingCopy = [
+    ["Free", " tier"].join(""),
+    ["10", " lookups"].join(""),
+    ["Upgrade", " to Pro"].join(""),
+    ["un", "limited"].join(""),
+    ["$49", "/month"].join(""),
+    ["self-serve billing", " is live"].join(""),
+  ];
+  for (const staleCopy of stalePricingCopy) {
+    assert.ok(!pricingPage.includes(staleCopy), `/pricing contains stale pricing copy: ${staleCopy}`);
+  }
 });

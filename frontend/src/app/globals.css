@@ -2205,6 +2205,52 @@ button:disabled {
   margin-top: 8px;
 }
 
+.pricing-pilot-page {
+  max-width: 680px;
+  margin: 72px auto 0;
+  padding: 36px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #FFFFFF;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+
+.pricing-pilot-page h1 {
+  margin: 0 0 14px;
+  max-width: 560px;
+  color: var(--text);
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.pricing-pilot-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.pricing-pilot-actions .pricing-cta {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.pricing-pilot-actions .pricing-cta--primary {
+  background: rgb(17, 24, 39);
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.pricing-pilot-actions .pricing-cta--secondary {
+  background: #FFFFFF;
+  border: 1px solid var(--border-strong);
+  color: #374151;
+}
+
 .pricing-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2855,21 +2901,11 @@ button:disabled {
 .bulk-page {
   min-height: 100vh;
   padding: 32px 0 80px;
+  background: #FFFFFF;
 }
 
-.bulk-back {
-  margin-bottom: 24px;
-}
-
-.bulk-back-link {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.875rem;
-  transition: color 180ms;
-}
-
-.bulk-back-link:hover {
-  color: var(--text);
+.bulk-topbar {
+  margin-bottom: 30px;
 }
 
 .bulk-page-header {
@@ -2895,9 +2931,9 @@ button:disabled {
   align-items: center;
   padding: 4px 9px;
   border-radius: 999px;
-  background: rgba(124, 58, 237, 0.2);
-  border: 1px solid rgba(124, 58, 237, 0.4);
-  color: #c4b5fd;
+  background: rgba(5, 150, 105, 0.08);
+  border: 1px solid rgba(5, 150, 105, 0.22);
+  color: #047857;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -2913,13 +2949,13 @@ button:disabled {
 }
 
 .bulk-code {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 0.875em;
   font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
-  color: var(--brand);
+  color: #111827;
 }
 
 .bulk-layout {
@@ -2958,7 +2994,7 @@ button:disabled {
 .bulk-api-input {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
+  background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -2980,23 +3016,32 @@ button:disabled {
 }
 
 .bulk-drop-zone {
-  border: 2px dashed rgba(255, 255, 255, 0.18);
-  border-radius: var(--radius-sm);
-  padding: 24px 16px;
+  display: grid;
+  place-items: center;
+  min-height: 176px;
+  border: 2px dashed rgba(17, 24, 39, 0.22);
+  border-radius: 14px;
+  padding: 28px 20px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 180ms, background 180ms;
-  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 180ms, background 180ms, box-shadow 180ms;
+  background: rgba(17, 24, 39, 0.03);
 }
 
 .bulk-drop-zone:hover {
-  border-color: rgba(141, 165, 255, 0.5);
-  background: rgba(95, 124, 255, 0.06);
+  border-color: rgb(5, 150, 105);
+  background: rgba(60, 229, 179, 0.06);
 }
 
 .bulk-drop-zone--active {
-  border-color: var(--brand);
-  background: rgba(95, 124, 255, 0.1);
+  border-color: rgb(5, 150, 105);
+  background: rgba(60, 229, 179, 0.06);
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.08);
+}
+
+.bulk-drop-zone:focus-visible {
+  outline: 3px solid rgba(5, 150, 105, 0.28);
+  outline-offset: 3px;
 }
 
 .bulk-drop-zone--disabled {
@@ -3013,8 +3058,18 @@ button:disabled {
 }
 
 .bulk-drop-zone__icon {
-  font-size: 1.4rem;
-  opacity: 0.45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #FFFFFF;
+  color: #111827;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .bulk-drop-zone__hint {
@@ -3025,7 +3080,7 @@ button:disabled {
 .bulk-drop-zone__filename {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--brand);
+  color: var(--text);
   word-break: break-all;
 }
 
@@ -3053,7 +3108,7 @@ button:disabled {
 }
 
 .bulk-link {
-  color: var(--brand);
+  color: var(--mint);
   text-decoration: none;
 }
 
@@ -3069,7 +3124,7 @@ button:disabled {
 .bulk-process-btn {
   flex: 1;
   padding: 11px 18px;
-  background: linear-gradient(135deg, var(--brand-2), #7c5aed);
+  background: rgb(17, 24, 39);
   border: none;
   border-radius: var(--radius-sm);
   color: #fff;
@@ -3080,7 +3135,7 @@ button:disabled {
 }
 
 .bulk-process-btn:hover:not(:disabled) {
-  opacity: 0.88;
+  background: rgb(5, 150, 105);
   transform: translateY(-1px);
 }
 
@@ -3108,18 +3163,19 @@ button:disabled {
 
 .bulk-format-hint {
   padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #F9FAFB;
 }
 
 .bulk-format-pre {
   margin: 0;
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: #111827;
   line-height: 1.7;
   white-space: pre;
+  overflow-x: auto;
 }
 
 .bulk-results-col {
@@ -3155,7 +3211,7 @@ button:disabled {
 
 .bulk-progress-track {
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(17, 24, 39, 0.08);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -3164,7 +3220,7 @@ button:disabled {
   height: 100%;
   border-radius: 999px;
   transition: width 300ms ease;
-  background: var(--brand);
+  background: var(--mint);
 }
 
 .bulk-results-card {
@@ -3245,12 +3301,12 @@ button:disabled {
 }
 
 .bulk-tr {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
   transition: background 120ms;
 }
 
 .bulk-tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(17, 24, 39, 0.025);
 }
 
 .bulk-td {
@@ -3285,13 +3341,13 @@ button:disabled {
   border-radius: 4px;
   background: rgba(239, 68, 68, 0.14);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  color: var(--danger);
   font-size: 0.7rem;
   font-weight: 700;
 }
 
 .bulk-err-text {
-  color: #fca5a5;
+  color: var(--danger);
   font-size: 0.78rem;
   line-height: 1.4;
 }
@@ -3300,7 +3356,7 @@ button:disabled {
   padding: 40px 32px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.015);
+  background: #F9FAFB;
   text-align: center;
   color: var(--text-muted);
   font-size: 0.875rem;

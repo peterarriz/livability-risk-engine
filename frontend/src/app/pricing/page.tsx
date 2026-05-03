@@ -5,31 +5,35 @@ export default function PricingPage() {
     <main className="page">
       <div className="shell-container landing-shell">
         <header className="topbar landing-topbar">
-          <div className="brand-lockup">
-            <span className="brand-mark" aria-hidden>LR</span>
+          <Link href="/" className="brand-lockup" aria-label="Livability Risk Engine home">
+            <span className="brand-mark" aria-hidden="true">LR</span>
             <div>
               <p className="brand-title">Livability Risk Engine</p>
-              <p className="brand-subtitle">Pilot access</p>
+              <p className="brand-subtitle">Design-partner pilot</p>
             </div>
-          </div>
+          </Link>
           <nav className="topnav" aria-label="Primary">
-            <Link href="/">Home</Link>
-            <Link href="/pilot-evidence">Pilot evidence</Link>
-            <Link href="/app">Open workspace</Link>
+            <Link href="/api-docs">Docs</Link>
+            <Link href="/api-access">API</Link>
+            <Link href="/bulk">Bulk CSV</Link>
+            <Link href="/methodology">Methodology</Link>
           </nav>
         </header>
 
-        <section className="landing-proof-grid" aria-label="Pilot access options">
-          <article className="surface-card landing-proof-card">
-            <p className="eyebrow">Design partner pilot</p>
-            <h2>API access by request</h2>
-            <p className="section-copy">Founder-led pilots include API keys, onboarding, and manually monitored usage.</p>
-          </article>
-          <article className="surface-card landing-proof-card">
-            <p className="eyebrow">Commercial roadmap</p>
-            <h2>Planned self-serve tiers</h2>
-            <p className="section-copy">Usage-based and team plans are planned after pilot validation and billing enforcement.</p>
-          </article>
+        <section className="pricing-pilot-page" aria-labelledby="pricing-title">
+          <p className="eyebrow">Pilot pricing</p>
+          <h1 id="pricing-title">Access is by request during the design-partner pilot.</h1>
+          <p className="section-copy">
+            During the design-partner pilot, access is by request. Commercial pricing follows pilot validation.
+          </p>
+          <div className="pricing-pilot-actions">
+            <Link href="/api-access#pilot-bulk-access" className="pricing-cta pricing-cta--primary">
+              Request pilot access
+            </Link>
+            <Link href="/app" className="pricing-cta pricing-cta--secondary">
+              Try address scoring
+            </Link>
+          </div>
         </section>
       </div>
     </main>

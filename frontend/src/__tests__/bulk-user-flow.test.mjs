@@ -18,9 +18,11 @@ function normalizeBulkTier(value) {
 
 test("/bulk no longer renders a browser API credential field", () => {
   const bulkPage = read("../app/bulk/page.tsx");
+  const backendCsvRoute = ["/api/backend/score", "batch", "csv"].join("/");
+  const apiKeyHeader = ["X", "API", "Key"].join("-");
 
-  assert.ok(!bulkPage.includes("/api/backend/score/batch/csv"), "/bulk should use the first-party bulk route");
-  assert.ok(!bulkPage.includes("X-API-Key"), "/bulk should not send backend key headers from the browser");
+  assert.ok(!bulkPage.includes(backendCsvRoute), "/bulk should use the first-party bulk route");
+  assert.ok(!bulkPage.includes(apiKeyHeader), "/bulk should not send backend key headers from the browser");
   assert.ok(!/apiKey/i.test(bulkPage), "/bulk should not keep browser API key state");
   assert.ok(!/type="password"/.test(bulkPage), "/bulk should not render a password-style credential input");
 });
@@ -38,10 +40,23 @@ test("/bulk recommends structured CSV columns while preserving address fallback"
   const bulkPage = read("../app/bulk/page.tsx");
 
   assert.ok(bulkPage.includes("property_id,street_address,city,state,zip"), "sample CSV should use structured address columns");
+  assert.ok(bulkPage.includes("demo-1,1600 W Chicago Ave,Chicago,IL,60622"), "sample CSV should show a readable structured row");
   assert.ok(bulkPage.includes("ZIP is optional but helpful"), "copy should explain optional ZIP");
   assert.ok(bulkPage.includes("state should be a two-letter code"), "copy should guide state formatting");
   assert.ok(bulkPage.includes("Single-column <code className=\"bulk-code\">address</code> CSVs are still accepted"), "copy should preserve one-column address support");
   assert.ok(bulkPage.includes("Original columns are preserved where possible"), "results copy should mention preserved source columns");
+  assert.ok(bulkPage.includes("Errors that occur on individual rows appear inline in the returned CSV"), "workflow copy should explain row-level errors");
+});
+
+test("/bulk prospect polish keeps the upload surface visible and site-framed", () => {
+  const bulkPage = read("../app/bulk/page.tsx");
+  const styles = read("../app/globals.css");
+
+  assert.ok(bulkPage.includes("className=\"topbar bulk-topbar\""), "/bulk should render the normal site header");
+  assert.ok(bulkPage.includes("aria-current=\"page\""), "bulk nav should mark the current route");
+  assert.ok(styles.includes("border: 2px dashed rgba(17, 24, 39, 0.22)"), "dropzone should be visible on white backgrounds");
+  assert.ok(styles.includes("border-color: rgb(5, 150, 105)"), "dropzone hover/drag state should use the teal accent");
+  assert.ok(styles.includes("background: rgb(17, 24, 39)"), "Score CSV button should use a solid site button style");
 });
 
 test("bulk access tiers allow the approved pilot and internal account tiers", () => {

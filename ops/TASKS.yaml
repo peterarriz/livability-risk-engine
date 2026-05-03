@@ -1637,6 +1637,30 @@ tasks:
       - Backend and frontend tests, production build, TypeScript check, OpenAPI generation, task review, and diff check are run before handoff.
     notes_for_next_agent: Completed on 2026-05-02. Backend CSV parsing now keeps row metadata, constructs structured addresses, preserves leading-zero ZIP strings, returns `missing_address` for incomplete structured rows without scoring, and preserves original columns in the result CSV. `/bulk` sample/copy now recommend structured columns and still documents one-column `address` support. No pricing/billing, schema/RLS, public `/score` or `/health` auth, `.codex/`, or `data/raw/` changes were made.
 
+  - id: app-050
+    lane: app
+    type: polish
+    title: Polish Bulk CSV and pilot pricing outreach routes
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/bulk/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/middleware.ts
+      - frontend/src/app/pricing/page.tsx
+      - frontend/src/__tests__/bulk-user-flow.test.mjs
+      - frontend/src/__tests__/launch-readiness.test.mjs
+      - ops/TASKS.yaml
+    dependencies:
+      - app-049
+    acceptance_criteria:
+      - `/bulk` has normal site navigation, a visible light-page dropzone, a solid site-matching Score CSV button, sample structured CSV preview, and explicit row-level error guidance.
+      - `/pricing` renders pilot-stage by-request access copy instead of redirecting to `/app`.
+      - Neighborhood routes are no longer gated by middleware and existing best-streets fallback remains available.
+      - Frontend tests, production build, TypeScript check, task review, diff check, and banned-copy scan are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-03. Prospect polish was limited to frontend route presentation, middleware route availability, tests, and task metadata. Backend scoring, schema/RLS, billing enforcement, API-key exposure, `.codex/`, and `data/raw/` were not touched.
+
   - id: data-043
     lane: data
     type: feature
