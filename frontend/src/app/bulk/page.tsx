@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { Card, Container } from "@/components/shell";
-import { SignedIn, SignInButton, UserButton, useAuth, useUser } from "@/lib/clerk-client";
+import { Card, Container, Header } from "@/components/shell";
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useUser } from "@/lib/clerk-client";
 import { getBulkAccessTier } from "@/lib/bulk-access";
 
 type PageState = "idle" | "uploading" | "success" | "error";
@@ -339,9 +339,30 @@ export default function BulkPage() {
   return (
     <main className="bulk-page">
       <Container>
-        <div className="bulk-back">
-          <a href="/" className="bulk-back-link">&larr; Back to address scoring</a>
-        </div>
+        <Header className="topbar bulk-topbar">
+          <a href="/" className="brand-lockup" aria-label="Livability Risk Engine home">
+            <span className="brand-mark" aria-hidden="true">LR</span>
+            <div>
+              <p className="brand-title">Livability Risk Engine</p>
+              <p className="brand-subtitle">Bulk CSV scoring</p>
+            </div>
+          </a>
+
+          <nav className="topnav" aria-label="Primary">
+            <a href="/api-docs" className="topnav-aux-link">Docs</a>
+            <a href="/api-access" className="topnav-aux-link">API</a>
+            <a href="/bulk" className="topnav-aux-link" aria-current="page">Bulk CSV</a>
+            <a href="/methodology" className="topnav-aux-link">Methodology</a>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button type="button" className="topnav-sign-in">Sign in</button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+          </nav>
+        </Header>
 
         <div className="bulk-page-header">
           <div className="bulk-title-row">
@@ -439,6 +460,9 @@ export default function BulkPage() {
                   <p className="bulk-field-hint">
                     Also accepted: a single <code className="bulk-code">address</code> column. Max {MAX_BATCH_ROWS} rows per request. Pilot account access is checked before upload.
                   </p>
+                  <p className="bulk-field-hint">
+                    Errors that occur on individual rows appear inline in the returned CSV — your good rows still come back scored.
+                  </p>
                 </div>
               </Card>
 
@@ -524,12 +548,11 @@ export default function BulkPage() {
 
               <div className="bulk-format-hint">
                 <p className="bulk-field-hint" style={{ marginBottom: 6 }}>
-                  Accepted input example:
+                  Sample CSV preview:
                 </p>
                 <pre className="bulk-format-pre">
 {`property_id,street_address,city,state,zip
-demo-1,1600 W Chicago Ave,Chicago,IL,60622
-demo-2,350 5th Ave,New York,NY,10118`}
+demo-1,1600 W Chicago Ave,Chicago,IL,60622`}
                 </pre>
                 <p className="bulk-field-hint" style={{ marginTop: 8 }}>
                   Existing one-column files with <code className="bulk-code">address</code> also work. Quoted full addresses are safest, and common unquoted comma-address rows are supported where possible.
