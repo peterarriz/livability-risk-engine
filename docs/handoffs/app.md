@@ -35,6 +35,12 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Stale fixed demo dates and launch-inappropriate pilot/pricing CTAs remain scrubbed from public surfaces.
 - Verification run on 2026-04-30 before the scope correction: `cmd /c npm test` and `cmd /c npm run build` passed from `frontend/`. Backend Python smoke checks could not be run in this workstation because `python`/`py` are not installed on PATH.
 
+## Sparse contextual-only score polish (2026-05-04)
+- Public single-address score results now surface backend-provided `neighborhood_context` facts in a visible Area/Neighborhood context panel instead of burying them behind opaque sub-scores.
+- For `evidence_quality: contextual_only`, the context panel appears before the sparse/no-signal explanation and the score hero uses limited-coverage/manual-review language instead of green-light or ready-to-proceed copy.
+- Severity chips for noise, traffic, and dust are visible in the main score summary. `signal_summary` and `confidence_reason` are surfaced outside the collapsed full-analysis section.
+- This was frontend-only: no `/score` auth, Bulk CSV auth/API-key behavior, backend schema, RLS, pricing, billing, `.codex/`, or `data/raw/` changes.
+
 ## 30-second broker demo flow (high-risk + low-risk)
 
 Use this exact sequence in live demos, investor calls, and YC-style interviews.

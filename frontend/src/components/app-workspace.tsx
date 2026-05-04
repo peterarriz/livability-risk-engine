@@ -3,10 +3,12 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  AreaContextPanel,
   CommuteChecker,
   ExplanationPanel,
   getConfidenceReasons,
   getMeaningInsights,
+  hasNeighborhoodContextFacts,
   ImpactWindow,
   MobileScoreView,
   NeighborhoodContextCard,
@@ -295,6 +297,8 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
   ];
   const resultMode = result?.mode ?? scoreSource;
   const isDemoResult = resultMode === "demo";
+  const isContextualOnlyResult = result?.evidence_quality === "contextual_only";
+  const hasAreaContext = result ? hasNeighborhoodContextFacts(result) : false;
   const statusHeadline = isDemoResult ? "Limited data coverage" : "Live score";
   const statusBadgeTooltip = isDemoResult
     ? "Live permit data may not be available for this address. Score is estimated from nearby signals."
@@ -331,6 +335,12 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
   const quickExplanation = useMemo(() => {
     if (!result) return "";
     const score = headlineScore(result);
+    if (result.evidence_quality === "contextual_only") {
+      const summary = result.signal_summary
+        ? ` ${result.signal_summary}`
+        : "";
+      return `This address scores ${score}/100 from neighborhood context, but address-level construction and closure signals are unavailable.${summary}`;
+    }
     const band = score >= 70 ? "strong" : score >= 50 ? "average" : score >= 30 ? "below-average" : "weak";
     const hasAddressSignals = addressLevelSignalCount(result) > 0;
     const sentenceOne = `This address has ${band} livability conditions with a score of ${score}/100; higher scores indicate lower near-term risk.`;
@@ -1191,43 +1201,69 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
                     </p>
                   )}
                 </Card>
-                {revealPhase >= 2 ? (
-                  <Card className="detail-card detail-card--summary">
-                    <h2>Quick explanation</h2>
-                    <p className="score-hero-summary">
-                      {quickExplanation || "Nearby disruption signals drive this score for the selected address."}
-                    </p>
-                    {topRiskSummaries.length > 0 ? (
-                      <>
-                        <p className="supporting-kicker" style={{ marginTop: "10px" }}>Top 3 risks</p>
-                        <ul className="supporting-list supporting-list--compact">
-                          {topRiskSummaries.map((risk, idx) => (
-                            <li key={`${risk.risk}-${idx}`}>
-                              <span>{["Rank " + (idx + 1), risk.severityLabel].filter(Boolean).join(" • ")}</span>
-                              <strong>{risk.risk}</strong>
-                              {[risk.distanceLabel, risk.timingLabel].filter(Boolean).length > 0 && (
-                                <small style={{ display: "block", opacity: 0.85 }}>
-                                  {[risk.distanceLabel, risk.timingLabel].filter(Boolean).join(" • ")}
-                                </small>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : (
-                      <div className="risk-no-signals" style={{ marginTop: "10px" }}>
-                        <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
-                        <p>This result has limited address-level permit and closure evidence.</p>
-                      </div>
-                    )}
-                  </Card>
-                ) : (
-                  <Card className="detail-card skeleton-card">
-                    <div className="skeleton skeleton-title" />
-                    <div className="skeleton skeleton-line" />
-                    <div className="skeleton skeleton-line short" />
-                  </Card>
-                )}
+                <div className="workspace-summary-stack">
+                  {revealPhase >= 2 ? (
+                    <>
+                      {hasAreaContext && isContextualOnlyResult && (
+                        <Card className="detail-card area-context-card">
+                          <AreaContextPanel result={result} />
+                        </Card>
+                      )}
+                      <Card className="detail-card detail-card--summary">
+                        <h2>Quick explanation</h2>
+                        <p className="score-hero-summary">
+                          {quickExplanation || "Nearby disruption signals drive this score for the selected address."}
+                        </p>
+                        {topRiskSummaries.length > 0 ? (
+                          <>
+                            {result.signal_summary && (
+                              <div className="signal-summary-inline">
+                                <p className="supporting-kicker">Signal summary</p>
+                                <p>{result.signal_summary}</p>
+                              </div>
+                            )}
+                            <p className="supporting-kicker" style={{ marginTop: "10px" }}>Top 3 risks</p>
+                            <ul className="supporting-list supporting-list--compact">
+                              {topRiskSummaries.map((risk, idx) => (
+                                <li key={`${risk.risk}-${idx}`}>
+                                  <span>{["Rank " + (idx + 1), risk.severityLabel].filter(Boolean).join(" • ")}</span>
+                                  <strong>{risk.risk}</strong>
+                                  {[risk.distanceLabel, risk.timingLabel].filter(Boolean).length > 0 && (
+                                    <small style={{ display: "block", opacity: 0.85 }}>
+                                      {[risk.distanceLabel, risk.timingLabel].filter(Boolean).join(" • ")}
+                                    </small>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <div className="risk-no-signals" style={{ marginTop: "10px" }}>
+                            <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
+                            <p>{result.signal_summary || "This result has limited address-level permit and closure evidence."}</p>
+                            {isContextualOnlyResult && (
+                              <p>We do not have address-level construction or closure signals for this block yet. This score reflects neighborhood context only.</p>
+                            )}
+                            {result.confidence_reason && (
+                              <p className="confidence-reason-inline">{result.confidence_reason}</p>
+                            )}
+                          </div>
+                        )}
+                      </Card>
+                      {hasAreaContext && !isContextualOnlyResult && (
+                        <Card className="detail-card area-context-card">
+                          <AreaContextPanel result={result} />
+                        </Card>
+                      )}
+                    </>
+                  ) : (
+                    <Card className="detail-card skeleton-card">
+                      <div className="skeleton skeleton-title" />
+                      <div className="skeleton skeleton-line" />
+                      <div className="skeleton skeleton-line short" />
+                    </Card>
+                  )}
+                </div>
               </div>
 
               {/* ── Always-visible map ────────────────────────────────────── */}

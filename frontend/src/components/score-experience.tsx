@@ -28,6 +28,11 @@ type SeverityMetersProps = {
   confidenceReasons: string[];
 };
 
+type SeverityChipsProps = {
+  severity: ScoreResponse["severity"];
+  className?: string;
+};
+
 type TopRiskGridProps = {
   result: ScoreResponse;
   hoveredSignalId?: string | null;
@@ -40,6 +45,10 @@ type ExplanationPanelProps = {
 };
 
 type ImpactWindowProps = {
+  result: ScoreResponse;
+};
+
+type AreaContextPanelProps = {
   result: ScoreResponse;
 };
 
@@ -122,6 +131,78 @@ function normalizeSentence(text: string): string {
 
 function toTitleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function toReadableTitle(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function hasContextValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  return false;
+}
+
+function numericContextValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.replace(/[$,%]/g, "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatWholeNumber(value: unknown): string | null {
+  const numeric = numericContextValue(value);
+  if (numeric === null) return null;
+  return Math.round(numeric).toLocaleString("en-US");
+}
+
+function formatDollar(value: unknown): string | null {
+  const numeric = numericContextValue(value);
+  if (numeric === null) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(numeric);
+}
+
+function formatPercent(value: unknown, options: { signed?: boolean } = {}): string | null {
+  const numeric = numericContextValue(value);
+  if (numeric === null) return null;
+  const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+  const absValue = Math.abs(percent);
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: absValue % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: absValue < 10 ? 2 : 1,
+  }).format(absValue);
+  const sign = percent < 0 ? "-" : options.signed && percent > 0 ? "+" : "";
+  return `${sign}${formatted}%`;
+}
+
+function formatYear(value: unknown): string | null {
+  const numeric = numericContextValue(value);
+  if (numeric === null) return null;
+  const year = Math.round(numeric);
+  return year >= 1600 && year <= 2200 ? String(year) : null;
+}
+
+function contextualActionText(recommendedAction: string | null | undefined): string {
+  const fallback = "Review manually — address-level data is limited in this area.";
+  if (!recommendedAction) return fallback;
+  if (/\b(?:ready|green light|clear|safe)\b/i.test(recommendedAction)) return fallback;
+  return recommendedAction;
+}
+
+function contextualOnlySentence(): string {
+  return "We do not have address-level construction or closure signals for this block yet. This score reflects neighborhood context only.";
 }
 
 function metersToFeet(meters: number): number {
@@ -355,10 +436,27 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
 function inferConfidenceReasons(result: ScoreResponse): string[] {
   const reasons: string[] = [];
   const combinedText = [...result.top_risks, result.explanation].join(" ").toLowerCase();
+  const signalCount = getAddressLevelSignals(result).length;
 
-  if (result.top_risks.length >= 3) {
+  if (result.evidence_quality === "contextual_only") {
+    if (result.confidence_reason) {
+      reasons.push(result.confidence_reason);
+    }
+    reasons.push("Neighborhood context is available, but address-specific construction and closure signals are unavailable.");
+    return reasons.slice(0, 3);
+  }
+
+  if (result.evidence_quality === "insufficient") {
+    if (result.confidence_reason) {
+      reasons.push(result.confidence_reason);
+    }
+    reasons.push("Treat this result as directional until better local source coverage is available.");
+    return reasons.slice(0, 3);
+  }
+
+  if (signalCount >= 3) {
     reasons.push("Multiple nearby signals support this broker-facing read.");
-  } else if (result.top_risks.length === 2) {
+  } else if (signalCount === 2) {
     reasons.push("Two independent signals support the score direction.");
   } else {
     reasons.push("The score is currently driven by one primary signal.");
@@ -534,17 +632,139 @@ function getAddressLevelSignals(result: ScoreResponse): NonNullable<ScoreRespons
   });
 }
 
+export function SeverityChips({ severity, className = "" }: SeverityChipsProps) {
+  const rows = [
+    ["Noise", severity.noise],
+    ["Traffic", severity.traffic],
+    ["Dust", severity.dust],
+  ] as const;
+
+  return (
+    <div className={`severity-chip-row${className ? ` ${className}` : ""}`} aria-label="Severity by impact type">
+      {rows.map(([label, level]) => (
+        <span key={label} className={`severity-chip severity-chip--${level.toLowerCase()}`}>
+          <span>{label}:</span>
+          <strong>{level}</strong>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type AreaContextFact = {
+  label: string;
+  value: string;
+};
+
+function buildAreaContextFacts(result: ScoreResponse): AreaContextFact[] {
+  const context = result.neighborhood_context;
+  if (!context) return [];
+  const facts: AreaContextFact[] = [];
+
+  if (hasContextValue(context.fema_flood_zone)) {
+    facts.push({ label: "FEMA flood zone", value: String(context.fema_flood_zone).trim() });
+  }
+
+  if (hasContextValue(context.flood_risk)) {
+    facts.push({ label: "Flood risk", value: toReadableTitle(String(context.flood_risk).trim()) });
+  }
+
+  if (hasContextValue(context.crime_trend) || hasContextValue(context.crime_trend_pct)) {
+    const trend = hasContextValue(context.crime_trend)
+      ? toReadableTitle(String(context.crime_trend).trim())
+      : "Trend";
+    const pct = formatPercent(context.crime_trend_pct, { signed: true });
+    facts.push({ label: "Crime trend", value: pct ? `${trend} (${pct} YoY)` : trend });
+  }
+
+  const crimeCount = formatWholeNumber(context.crime_12mo);
+  if (crimeCount) {
+    facts.push({ label: "Crime incidents (12 mo)", value: crimeCount });
+  }
+
+  const medianIncome = formatDollar(context.median_income);
+  if (medianIncome) {
+    facts.push({ label: "Median income", value: medianIncome });
+  }
+
+  const population = formatWholeNumber(context.population);
+  if (population) {
+    facts.push({ label: "Population", value: population });
+  }
+
+  const vacancy = formatPercent(context.vacancy_rate);
+  if (vacancy) {
+    facts.push({ label: "Vacancy rate", value: vacancy });
+  }
+
+  const housingAge = formatYear(context.housing_age_med);
+  if (housingAge) {
+    facts.push({ label: "Median housing age", value: housingAge });
+  }
+
+  return facts;
+}
+
+export function hasNeighborhoodContextFacts(result: ScoreResponse): boolean {
+  return buildAreaContextFacts(result).length > 0;
+}
+
+export function AreaContextPanel({ result }: AreaContextPanelProps) {
+  const facts = buildAreaContextFacts(result);
+  if (facts.length === 0) return null;
+
+  const isContextualOnly = result.evidence_quality === "contextual_only";
+
+  return (
+    <div className="area-context-panel">
+      <div className="area-context-head">
+        <div>
+          <p className="supporting-kicker">
+            {isContextualOnly ? "Neighborhood context available" : "Area context"}
+          </p>
+          <h2>{isContextualOnly ? "Limited address-level coverage" : "Neighborhood context"}</h2>
+        </div>
+        {isContextualOnly && <span className="area-context-status">Review manually</span>}
+      </div>
+      {isContextualOnly && (
+        <p className="area-context-copy">{contextualOnlySentence()}</p>
+      )}
+      <dl className="area-context-list">
+        {facts.map((fact) => (
+          <div key={fact.label}>
+            <dt>{fact.label}</dt>
+            <dd>{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export function ScoreHero({ result }: ScoreHeroProps) {
   const headlineScore = getHeadlineScore(result);
   const displayScore = useAnimatedScore(headlineScore);
   const highSeverityRisk = hasHighSeverityRisk(result);
-  const scoreMessage = highSeverityRisk && headlineScore >= 70
+  const evidenceQuality = result.evidence_quality ?? null;
+  const isContextualOnly = evidenceQuality === "contextual_only";
+  const isInsufficient = evidenceQuality === "insufficient";
+  const scoreMessage = isContextualOnly
+    ? {
+        label: "Neighborhood context available",
+        summary: "Use this as a screening signal, not a final address-level construction or closure read.",
+      }
+    : highSeverityRisk && headlineScore >= 70
     ? {
         label: "Active signal review",
         summary: "The overall score is strong, but high-severity nearby activity is present. Confirm access and timing before relying on the address.",
       }
     : getScoreMessage(headlineScore);
-  const disruptionFraming = highSeverityRisk && headlineScore >= 70
+  const disruptionFraming = isContextualOnly
+    ? {
+        label: "Limited address-level coverage",
+        explanation: contextualOnlySentence(),
+      }
+    : highSeverityRisk && headlineScore >= 70
     ? {
         label: "Review nearby activity",
         explanation: "High-severity nearby signals are present, so confirm timing and access before treating this as low-risk.",
@@ -553,6 +773,20 @@ export function ScoreHero({ result }: ScoreHeroProps) {
   const timeline = useMemo(() => buildTimelineSummary(result), [result]);
   const action = useMemo(
     () => {
+      if (isContextualOnly) {
+        return {
+          icon: "!",
+          label: "Review manually — limited address-level coverage",
+          tone: "review" as const,
+        };
+      }
+      if (isInsufficient) {
+        return {
+          icon: "!",
+          label: "Review manually — scoring coverage is insufficient",
+          tone: "review" as const,
+        };
+      }
       const base = recommendedAction(headlineScore, result.nearby_signals ?? []);
       if (highSeverityRisk && base.tone === "clear") {
         return {
@@ -563,11 +797,20 @@ export function ScoreHero({ result }: ScoreHeroProps) {
       }
       return base;
     },
-    [headlineScore, highSeverityRisk, result.nearby_signals],
+    [headlineScore, highSeverityRisk, isContextualOnly, isInsufficient, result.nearby_signals],
   );
-  const displayedRecommendation = highSeverityRisk && headlineScore >= 70
+  const displayedRecommendation = isContextualOnly
+    ? contextualActionText(result.recommended_action)
+    : isInsufficient
+    ? contextualActionText(result.recommended_action)
+    : highSeverityRisk && headlineScore >= 70
     ? "Review nearby activity before committing; high-severity signals may affect access or timing."
     : result.recommended_action;
+  const recommendationTone = isContextualOnly || isInsufficient
+    ? "review"
+    : headlineScore <= 50 || highSeverityRisk
+    ? "risk"
+    : "clear";
   const isDemo = result.mode === "demo";
   const modeLabel = isDemo ? "Limited data coverage" : "Live data";
   const modeLabelTooltip = isDemo
@@ -585,9 +828,9 @@ export function ScoreHero({ result }: ScoreHeroProps) {
     return Math.round(Math.min(...distances));
   }, [addressSignals]);
 
-  const evidenceQuality = result.evidence_quality ?? null;
-  const isWeakEvidence = evidenceQuality === "contextual_only" || evidenceQuality === "insufficient";
-  const isInsufficient = evidenceQuality === "insufficient";
+  const benchmarkText = isContextualOnly
+    ? "Neighborhood context is available, but address-level construction and closure coverage is limited."
+    : getBenchmarkText(headlineScore);
 
   return (
     <div className="score-hero">
@@ -603,10 +846,9 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             fontSize: "0.82rem",
             lineHeight: 1.55,
           }}>
-            <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#f59e0b" }}>Limited coverage area</p>
+            <p style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#f59e0b" }}>Limited address-level coverage</p>
             <p style={{ color: "var(--color-text-secondary, #6B7280)" }}>
-              This address has limited direct signal data. The score reflects neighborhood-level context
-              (crime trends, school ratings, flood risk) but lacks address-specific permit and closure data.{" "}
+              {contextualOnlySentence()}{" "}
               <a href="/methodology" style={{ color: "#f59e0b", textDecoration: "underline" }}>Learn more</a>
             </p>
           </div>
@@ -682,7 +924,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <span>100 — Better livability</span>
           </div>
         </div>
-        <p className="score-benchmark">{getBenchmarkText(headlineScore)}</p>
+        <p className="score-benchmark">{benchmarkText}</p>
 
         <p className="score-hero-kicker">Risk summary</p>
         <h2 className="score-hero-title">{disruptionFraming.label}</h2>
@@ -691,26 +933,37 @@ export function ScoreHero({ result }: ScoreHeroProps) {
         <h3 className="score-hero-title">{scoreMessage.label}</h3>
         <p className="score-hero-summary">{scoreMessage.summary}</p>
 
-        {displayedRecommendation && (() => {
-          const isHighRisk = headlineScore <= 50 || highSeverityRisk;
-          return (
-            <div
-              style={{
-                marginTop: "0.75rem",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "6px",
-                background: isHighRisk ? "#FEF2F2" : "#F0FDF4",
-                borderLeft: `3px solid ${isHighRisk ? "#EF4444" : "#22C55E"}`,
-                fontSize: "0.82rem",
-                lineHeight: 1.5,
-                color: isHighRisk ? "#991B1B" : "#166534",
-              }}
-            >
-              <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
-              {displayedRecommendation}
-            </div>
-          );
-        })()}
+        {displayedRecommendation && (
+          <div
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem 0.75rem",
+              borderRadius: "6px",
+              background: recommendationTone === "risk"
+                ? "#FEF2F2"
+                : recommendationTone === "review"
+                ? "#FFFBEB"
+                : "#F0FDF4",
+              borderLeft: `3px solid ${
+                recommendationTone === "risk"
+                  ? "#EF4444"
+                  : recommendationTone === "review"
+                  ? "#F59E0B"
+                  : "#22C55E"
+              }`,
+              fontSize: "0.82rem",
+              lineHeight: 1.5,
+              color: recommendationTone === "risk"
+                ? "#991B1B"
+                : recommendationTone === "review"
+                ? "#92400E"
+                : "#166534",
+            }}
+          >
+            <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
+            {displayedRecommendation}
+          </div>
+        )}
 
         {/* What this score covers — collapsed by default */}
         <details style={{ marginTop: "0.75rem" }}>
@@ -769,6 +1022,12 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             <strong>{signalCount === 0 ? "None found" : signalCount === 1 ? "1 found" : `${signalCount} found`}</strong>
           </div>
         </div>
+        {result.confidence_reason && (
+          <p className="confidence-reason-inline">
+            {sanitizeApiText(result.confidence_reason)}
+          </p>
+        )}
+        <SeverityChips severity={result.severity} className="score-hero-severity-chips" />
         {/* Evidence quality badge */}
         {result.evidence_quality && (
           <p
@@ -2693,7 +2952,14 @@ function _pillColor(impactType: string | null | undefined): string {
 export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
   const _headline = getHeadlineScore(result);
   const highSeverityRisk = hasHighSeverityRisk(result);
-  const band = highSeverityRisk && _headline >= 70
+  const isContextualOnly = result.evidence_quality === "contextual_only";
+  const isInsufficient = result.evidence_quality === "insufficient";
+  const addressSignalCount = getAddressLevelSignals(result).length;
+  const band = isContextualOnly
+    ? { label: "Limited Coverage", color: "#f59e0b" }
+    : isInsufficient
+    ? { label: "Review Manually", color: "#ef4444" }
+    : highSeverityRisk && _headline >= 70
     ? { label: "Review Active Signals", color: "#f59e0b" }
     : _mobileBand(_headline);
 
@@ -2745,6 +3011,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
 
   // ── Signal pills (top 3) ─────────────────────────────────────────────────
   const pills = useMemo(() => {
+    if (addressSignalCount === 0) return [];
     const details = result.top_risk_details ?? [];
     if (details.length > 0) {
       return details.slice(0, 3).map((d) => ({
@@ -2758,9 +3025,11 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
       color: "#f59e0b",
       key: String(i),
     }));
-  }, [result]);
+  }, [addressSignalCount, result]);
 
-  const extraCount = (result.top_risk_details?.length ?? result.top_risks?.length ?? 0) - 3;
+  const extraCount = addressSignalCount === 0
+    ? 0
+    : (result.top_risk_details?.length ?? result.top_risks?.length ?? 0) - 3;
 
   return (
     <div className="msv" aria-label="Mobile score summary">
@@ -2803,20 +3072,27 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
               : "Insufficient data"}
           </span>
         )}
+        <SeverityChips severity={result.severity} className="msv-severity-chips" />
       </div>
 
       {/* ── Recommended action ─────────────────────────────────────────── */}
-      {(highSeverityRisk && _headline >= 70 ? "Review nearby activity before committing; high-severity signals may affect access or timing." : result.recommended_action) && (() => {
-        const recommendation = highSeverityRisk && _headline >= 70
+      {(isContextualOnly || isInsufficient || highSeverityRisk && _headline >= 70 ? "Review nearby activity before committing; high-severity signals may affect access or timing." : result.recommended_action) && (() => {
+        const recommendation = isContextualOnly || isInsufficient
+          ? contextualActionText(result.recommended_action)
+          : highSeverityRisk && _headline >= 70
           ? "Review nearby activity before committing; high-severity signals may affect access or timing."
           : result.recommended_action;
-        const isHighRisk = _headline <= 50 || highSeverityRisk;
+        const recommendationTone = isContextualOnly || isInsufficient
+          ? "review"
+          : _headline <= 50 || highSeverityRisk
+          ? "risk"
+          : "clear";
         return (
           <div style={{
             margin: "0 1rem", padding: "0.4rem 0.6rem", borderRadius: "6px",
-            borderLeft: `3px solid ${isHighRisk ? "#EF4444" : "#22C55E"}`,
-            background: isHighRisk ? "#FEF2F2" : "#F0FDF4",
-            color: isHighRisk ? "#991B1B" : "#166534",
+            borderLeft: `3px solid ${recommendationTone === "risk" ? "#EF4444" : recommendationTone === "review" ? "#F59E0B" : "#22C55E"}`,
+            background: recommendationTone === "risk" ? "#FEF2F2" : recommendationTone === "review" ? "#FFFBEB" : "#F0FDF4",
+            color: recommendationTone === "risk" ? "#991B1B" : recommendationTone === "review" ? "#92400E" : "#166534",
             fontSize: "0.75rem", lineHeight: 1.45,
           }}>
             <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
@@ -2860,6 +3136,12 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
               </button>
             )}
           </div>
+        </div>
+      )}
+      {pills.length === 0 && result.signal_summary && (
+        <div className="msv-empty-signals">
+          <p>No address-level disruption signals found</p>
+          <span>{sanitizeApiText(result.signal_summary)}</span>
         </div>
       )}
 
