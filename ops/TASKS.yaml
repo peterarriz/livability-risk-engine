@@ -1661,6 +1661,32 @@ tasks:
       - Frontend tests, production build, TypeScript check, task review, diff check, and banned-copy scan are run before handoff.
     notes_for_next_agent: Completed on 2026-05-03. Prospect polish was limited to frontend route presentation, middleware route availability, tests, and task metadata. Backend scoring, schema/RLS, billing enforcement, API-key exposure, `.codex/`, and `data/raw/` were not touched.
 
+  - id: app-051
+    lane: app
+    type: polish
+    title: Show neighborhood context for sparse score results
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/lib/api.ts
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/__tests__/sparse-context-score.test.mjs
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies: []
+    acceptance_criteria:
+      - Public score results render backend-provided neighborhood context facts when present.
+      - Contextual-only score results place the context panel before or near the sparse/no-signal explanation.
+      - Contextual-only score results use limited-coverage and manual-review language instead of ready/green-light/safe copy.
+      - Noise, traffic, and dust severity chips are visible in the main score summary.
+      - Signal summary and confidence reason are surfaced outside collapsed full-analysis details.
+      - Zero-signal pages do not show fake ranked risk cards or mobile signal pills.
+      - Frontend tests, production build, TypeScript check, task review, diff check, and launch/readiness copy tests are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-04. Added a frontend Area/Neighborhood context panel for `neighborhood_context` facts, contextual-only manual-review copy, visible severity chips, signal summary/confidence reason placement, and sparse-result tests. No backend auth, schema/RLS, pricing, billing, Bulk CSV access, `.codex/`, or `data/raw/` changes were made.
+
   - id: data-043
     lane: data
     type: feature

@@ -175,6 +175,13 @@ export type ScoreResponse = {
   neighborhood_context?: {
     flood_risk?: string | null;
     fema_flood_zone?: string | null;
+    crime_trend?: string | null;
+    crime_trend_pct?: number | string | null;
+    crime_12mo?: number | string | null;
+    median_income?: number | string | null;
+    population?: number | string | null;
+    vacancy_rate?: number | string | null;
+    housing_age_med?: number | string | null;
     amenities?: Record<string, NearbyAmenity[]> | null;
   } | null;
   // Evidence quality assessment (data-085).
