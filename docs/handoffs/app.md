@@ -41,6 +41,12 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Severity chips for noise, traffic, and dust are visible in the main score summary. `signal_summary` and `confidence_reason` are surfaced outside the collapsed full-analysis section.
 - This was frontend-only: no `/score` auth, Bulk CSV auth/API-key behavior, backend schema, RLS, pricing, billing, `.codex/`, or `data/raw/` changes.
 
+## Backend address trust hardening (2026-05-04)
+- Public `/score`, `/score/batch`, and `/score/batch/csv` now share a pre-score address gate for raw text input. Fake or placeholder addresses return `address_not_found`; partial addresses missing a street number or city/state context return `incomplete_address`; score fields stay null on these row-level failures.
+- Canonical address selections and fully specified valid addresses still score, including Chicago demo aliases and fully qualified non-Chicago addresses when geocoding can resolve them.
+- Backend `recommended_action` is severity-aware: any `HIGH` or `MEDIUM` severity uses review/check/schedule-carefully language, while `contextual_only` or `insufficient` evidence prefers manual-review/limited-coverage wording.
+- No `/score` or `/health` auth changes, no Bulk CSV website auth changes, no schema/RLS changes, no pricing copy changes, and no `.codex/` or `data/raw/` changes.
+
 ## 30-second broker demo flow (high-risk + low-risk)
 
 Use this exact sequence in live demos, investor calls, and YC-style interviews.

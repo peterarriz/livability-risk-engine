@@ -37,6 +37,11 @@ class BatchScoreParityTests(unittest.TestCase):
         score_route._score_live = fake_score_live
         return calls
 
+    def _assert_no_clearance_language(self, text):
+        lowered = text.lower()
+        for phrase in ("green light", "clear", "safe", "no significant disruption"):
+            self.assertNotIn(phrase, lowered)
+
     def test_json_batch_scores_valid_rows_and_rejects_obvious_invalid_address(self):
         calls = self._install_fake_live_scorer()
 
@@ -62,6 +67,84 @@ class BatchScoreParityTests(unittest.TestCase):
         self.assertIsNone(invalid["disruption_score"])
 
         self.assertEqual(calls, [("350 5th Ave, New York, NY", None)])
+
+    def test_json_batch_rejects_fake_and_incomplete_addresses_before_scoring(self):
+        calls = self._install_fake_live_scorer()
+
+        response = score_route.post_score_batch(
+            score_route.BatchScoreRequest(
+                addresses=[
+                    "123 Fake Street, Nowhere, ZZ",
+                    "868 Melrose Drive",
+                    "Melrose Drive Charleston SC",
+                    "1600 Chicago",
+                    "868 Melrose Drive, Charleston, SC",
+                ]
+            ),
+            BackgroundTasks(),
+        )
+
+        self.assertEqual(response["scored"], 1)
+        self.assertEqual(response["failed"], 4)
+        self.assertEqual(
+            [row["error"] for row in response["results"]],
+            [
+                "address_not_found",
+                "incomplete_address",
+                "incomplete_address",
+                "incomplete_address",
+                None,
+            ],
+        )
+        self.assertTrue(
+            all(row["livability_score"] is None for row in response["results"][:4])
+        )
+        self.assertEqual(calls, [("868 Melrose Drive, Charleston, SC", None)])
+
+    def test_single_score_rejects_invalid_text_before_live_scoring(self):
+        calls = self._install_fake_live_scorer()
+
+        for address, expected_error in [
+            ("zzzzzasdfg", "address_not_found"),
+            ("123 Fake Street, Nowhere, ZZ", "address_not_found"),
+            ("Melrose Drive Charleston SC", "incomplete_address"),
+            ("1600 Chicago", "incomplete_address"),
+        ]:
+            with self.subTest(address=address):
+                result = score_route.get_score(
+                    address=address,
+                    canonical_id=None,
+                    lat=None,
+                    lon=None,
+                    background_tasks=BackgroundTasks(),
+                )
+                self.assertEqual(result["error"], expected_error)
+                self.assertIsNone(result["livability_score"])
+                self.assertIsNone(result["disruption_score"])
+
+        self.assertEqual(calls, [])
+
+    def test_valid_demo_addresses_pass_shared_address_gate(self):
+        calls = self._install_fake_live_scorer()
+
+        for address in [
+            "5800 N Northwest Hwy, Chicago, IL",
+            "11900 S Morgan St, Chicago, IL",
+            "868 Melrose Drive, Charleston, SC",
+        ]:
+            with self.subTest(address=address):
+                result = score_route._score_one(address)
+                self.assertIsNone(result["error"])
+                self.assertEqual(result["livability_score"], 91)
+
+        self.assertEqual(
+            calls,
+            [
+                ("5800 N Northwest Hwy, Chicago, IL", None),
+                ("11900 S Morgan St, Chicago, IL", None),
+                ("868 Melrose Drive, Charleston, SC", None),
+            ],
+        )
 
     def test_json_batch_canonical_aliases_resolve_to_same_demo_row(self):
         calls = self._install_fake_live_scorer()
@@ -266,6 +349,83 @@ class BatchScoreParityTests(unittest.TestCase):
         self.assertEqual(row["severity_traffic"], "")
         self.assertEqual(row["severity_dust"], "")
         self.assertEqual(row["error"], "address_not_found")
+
+    def test_csv_batch_invalid_rows_get_row_errors_without_scoring(self):
+        calls = self._install_fake_live_scorer()
+        text = "\n".join(
+            [
+                "address",
+                '"123 Fake Street, Nowhere, ZZ"',
+                '"Melrose Drive Charleston SC"',
+                '"1600 W Chicago Ave, Chicago, IL"',
+            ]
+        )
+
+        rows, _ = score_route._csv_batch_rows_from_text(text)
+        results = score_route._score_csv_rows(rows)
+
+        self.assertEqual(
+            [row["error"] for row in results],
+            ["address_not_found", "incomplete_address", None],
+        )
+        self.assertIsNone(results[0]["livability_score"])
+        self.assertIsNone(results[0]["disruption_score"])
+        self.assertIsNone(results[1]["livability_score"])
+        self.assertIsNone(results[1]["disruption_score"])
+        self.assertEqual(results[2]["livability_score"], 91)
+        self.assertEqual(
+            calls,
+            [("1600 W Chicago Ave, Chicago, IL 60622", (41.8956, -87.6606))],
+        )
+
+    def test_recommended_action_does_not_contradict_high_or_medium_severity(self):
+        high_action = score_route._recommended_action_for_result(
+            {
+                "severity": {"noise": "HIGH", "traffic": "LOW", "dust": "LOW"},
+                "top_risk_details": [{"impact_type": "construction"}],
+                "nearby_signals": [],
+            },
+            "moderate",
+        )
+        medium_action = score_route._recommended_action_for_result(
+            {
+                "severity": {"noise": "LOW", "traffic": "MEDIUM", "dust": "LOW"},
+                "top_risk_details": [{"impact_type": "closure_single_lane"}],
+                "nearby_signals": [],
+            },
+            "strong",
+        )
+
+        self.assertIn("Review", high_action)
+        self.assertIn("Review", medium_action)
+        self._assert_no_clearance_language(high_action)
+        self._assert_no_clearance_language(medium_action)
+
+    def test_recommended_action_prefers_manual_review_for_contextual_only(self):
+        action = score_route._recommended_action_for_result(
+            {
+                "severity": {"noise": "LOW", "traffic": "LOW", "dust": "LOW"},
+                "top_risk_details": [],
+                "nearby_signals": [],
+            },
+            "contextual_only",
+        )
+
+        self.assertIn("Review manually", action)
+        self.assertIn("limited address-level coverage", action)
+        self._assert_no_clearance_language(action)
+
+    def test_recommended_action_only_proceeds_for_low_severity_with_adequate_evidence(self):
+        action = score_route._recommended_action_for_result(
+            {
+                "severity": {"noise": "LOW", "traffic": "LOW", "dust": "LOW"},
+                "top_risk_details": [],
+                "nearby_signals": [],
+            },
+            "strong",
+        )
+
+        self.assertIn("Proceed with normal access planning", action)
 
 
 if __name__ == "__main__":
