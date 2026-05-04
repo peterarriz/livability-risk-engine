@@ -46,11 +46,12 @@
 
 ### Per-address failure handling
 
-When a single address fails (geocode failure, scoring error), it is returned inline with:
+When a single address fails (incomplete address, geocode failure, scoring error), it is returned inline with:
 - `error`: string describing the failure
 - Score and context fields including `livability_score` and `disruption_score`: `null`
 
 The overall request returns 200 even when some addresses fail. Check `failed` in the response envelope.
+Unresolved or fake addresses return `address_not_found`. Partial addresses that are not specific enough to score, such as missing a street number or city/state context, return `incomplete_address`.
 
 ### Notes
 
@@ -108,13 +109,15 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 | `top_risk_1` | First top-risk string (empty if none) |
 | `top_risk_2` | Second top-risk string (empty if none) |
 | `top_risk_3` | Third top-risk string (empty if none) |
-| `error` | Error message if address failed; empty on success. Rows missing required structured address fields return `missing_address` and are not scored. Ungeocodable addresses return `address_not_found`. |
+| `error` | Error message if address failed; empty on success. Rows missing required structured address fields return `missing_address` and are not scored. Ungeocodable or fake addresses return `address_not_found`. Partial free-form addresses return `incomplete_address`. |
 
 ---
 
 ## `/score` endpoint
 - **Method**: `GET`
-- **Query param**: `address` (required, US address string with city/state where possible)
+- **Query param**: `address` (required, US street address string with street number, city, and state)
+
+Incomplete, ambiguous, fake, or unresolved address text is not scored. It returns `error: "incomplete_address"` or `error: "address_not_found"` with `livability_score` and `disruption_score` set to `null` instead of a plausible contextual-only score.
 
 ### Response fields
 - `address`: normalized user input string echoed back in the response.
@@ -128,6 +131,7 @@ Returns a `text/csv` download (`livability_scores_<batch_id_prefix>.csv`) with c
 - `evidence_quality`: `strong` | `moderate` | `contextual_only` | `insufficient` when available. This is the clearest coverage/evidence signal for user-facing copy.
 - `strong_signal_count`: count of nearby address-level signals that materially support the result when available.
 - `confidence_reason`: short explanation of why the confidence level was assigned when available.
+- `recommended_action`: next-step guidance when available. If any severity dimension is `MEDIUM` or `HIGH`, this copy must use review/check/schedule-carefully language rather than clearance language. If `evidence_quality` is `contextual_only` or `insufficient`, it should prefer manual-review or limited-coverage language.
 - `mode`: `"live"` when the score was computed from the live database; `"demo"` when the approved fallback response was used. Added in app-019.
 - `fallback_reason`: `null` when `mode` is `"live"`. A string explaining why demo mode was used when `mode` is `"demo"`. Values: `"db_not_configured"` | `"geocode_failed"` | `"scoring_error"`. Added in app-019.
 

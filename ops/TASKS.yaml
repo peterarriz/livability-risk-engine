@@ -1687,6 +1687,29 @@ tasks:
       - Frontend tests, production build, TypeScript check, task review, diff check, and launch/readiness copy tests are run before handoff.
     notes_for_next_agent: Completed on 2026-05-04. Added a frontend Area/Neighborhood context panel for `neighborhood_context` facts, contextual-only manual-review copy, visible severity chips, signal summary/confidence reason placement, and sparse-result tests. No backend auth, schema/RLS, pricing, billing, Bulk CSV access, `.codex/`, or `data/raw/` changes were made.
 
+  - id: app-052
+    lane: app
+    type: polish
+    title: Tighten backend address validation and recommendations
+    owner: app
+    status: done
+    priority: high
+    files:
+      - backend/app/routes/score.py
+      - backend/tests/test_score_batch_parity.py
+      - docs/04_api_contracts.md
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies:
+      - app-051
+    acceptance_criteria:
+      - Public `/score`, JSON batch, and CSV batch reject fake or placeholder addresses with null score fields instead of plausible contextual-only scores.
+      - Partial free-form addresses missing a street number or city/state context return a clear row-level `incomplete_address` error with null score fields.
+      - Valid fully specified demo addresses and canonical Chicago aliases continue to score.
+      - Backend `recommended_action` never uses clearance language when any severity dimension is MEDIUM or HIGH and prefers manual-review language for contextual-only evidence.
+      - Backend regression tests, task review, and diff check are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-04. Added a shared raw-text address gate for single `/score`, JSON batch, and CSV batch; fake/placeholder inputs now return `address_not_found`, partial inputs return `incomplete_address`, and scores remain null. Recommended action copy is now derived from severity/evidence quality instead of livability-score thresholds. No `/score` or `/health` auth changes, no Bulk CSV website auth changes, no schema/RLS/pricing changes, and no `.codex/` or `data/raw/` changes were made.
+
   - id: data-043
     lane: data
     type: feature

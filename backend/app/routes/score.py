@@ -37,6 +37,82 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC",
+}
+
+_US_STATE_NAME_TO_CODE = {
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
+    "district of columbia": "DC",
+}
+
+_PLACEHOLDER_ADDRESS_TERMS = re.compile(
+    r"\b(?:fake|nowhere|asdf|qwerty|unknown|test address|not real)\b",
+    re.IGNORECASE,
+)
+
+_STREET_SUFFIX_TERMS = {
+    "aly", "alley", "ave", "avenue", "blvd", "boulevard", "cir", "circle",
+    "ct", "court", "dr", "drive", "hwy", "highway", "ln", "lane", "pkwy",
+    "parkway", "pl", "place", "rd", "road", "sq", "square", "st", "street",
+    "ter", "terrace", "trl", "trail", "way",
+}
+
+
 def _address_not_found_response(address: str) -> dict:
     return {
         "address": address,
@@ -48,21 +124,135 @@ def _address_not_found_response(address: str) -> dict:
         "severity": None,
         "top_risks": [],
         "explanation": None,
+        "evidence_quality": None,
+        "recommended_action": None,
     }
 
 
-def _looks_like_complete_street_address(address: str) -> bool:
-    """Reject obvious gibberish before geocoders can resolve it loosely."""
-    compact = address.strip()
+def _incomplete_address_response(address: str) -> dict:
+    return {
+        "address": address,
+        "error": "incomplete_address",
+        "message": (
+            "A complete street address is required. Include a street number, "
+            "street name, city, and two-letter state."
+        ),
+        "livability_score": None,
+        "disruption_score": None,
+        "confidence": None,
+        "severity": None,
+        "top_risks": [],
+        "explanation": None,
+        "evidence_quality": None,
+        "recommended_action": None,
+    }
+
+
+def _address_error_response(address: str, error: str) -> dict:
+    if error == "incomplete_address":
+        return _incomplete_address_response(address)
+    return _address_not_found_response(address)
+
+
+def _extract_state_code_from_address(address: str) -> tuple[str | None, bool]:
+    """
+    Return (state_code, invalid_state_seen).
+
+    The score path needs a conservative pre-geocode gate because broad geocoders
+    can sometimes return plausible coordinates for incomplete or fake strings.
+    """
+    compact = (address or "").strip()
+    if not compact:
+        return None, False
+
+    parts = [part.strip() for part in compact.split(",") if part.strip()]
+    candidates: list[str] = []
+    if len(parts) >= 2:
+        candidates.append(parts[-1])
+    candidates.append(compact)
+
+    for candidate in candidates:
+        cleaned = re.sub(r"\b\d{5}(?:-\d{4})?\b", " ", candidate)
+        tokens = re.findall(r"[A-Za-z]+", cleaned)
+        if not tokens:
+            continue
+
+        last_two = " ".join(tokens[-2:]).lower()
+        if last_two in _US_STATE_NAME_TO_CODE:
+            return _US_STATE_NAME_TO_CODE[last_two], False
+
+        last = tokens[-1]
+        if len(last) == 2:
+            code = last.upper()
+            if code in _US_STATE_CODES:
+                return code, False
+            return None, True
+
+        last_name = last.lower()
+        if last_name in _US_STATE_NAME_TO_CODE:
+            return _US_STATE_NAME_TO_CODE[last_name], False
+
+    return None, False
+
+
+def _has_city_context(address: str, state_code: str | None) -> bool:
+    parts = [part.strip() for part in (address or "").split(",") if part.strip()]
+    if len(parts) >= 3:
+        return bool(re.search(r"[A-Za-z]", parts[-2]))
+
+    if not state_code:
+        return False
+
+    compact = re.sub(r"\b\d{5}(?:-\d{4})?\b", " ", address)
+    compact = re.sub(rf"\b{re.escape(state_code)}\b\s*$", " ", compact, flags=re.IGNORECASE)
+    tokens = [token.lower() for token in re.findall(r"[A-Za-z]+", compact)]
+    if not tokens:
+        return False
+
+    for idx, token in enumerate(tokens):
+        if token in _STREET_SUFFIX_TERMS:
+            return idx < len(tokens) - 1
+
+    return len(tokens) >= 4
+
+
+def _address_validation_error(address: str) -> str | None:
+    """
+    Conservative text gate before geocoding/scoring.
+
+    Incomplete strings should not fall through to contextual-only scoring, and
+    placeholder/fake strings should not be allowed to inherit nearby context.
+    """
+    compact = (address or "").strip()
+    if not compact:
+        return "incomplete_address"
     if len(compact) < 8:
-        return False
-    if not re.search(r"[A-Za-z]", compact) or not re.search(r"\d", compact):
-        return False
+        return "address_not_found"
+    if _PLACEHOLDER_ADDRESS_TERMS.search(compact):
+        return "address_not_found"
+    if not re.search(r"[A-Za-z]", compact):
+        return "address_not_found"
     if not re.search(r"\s", compact):
-        return False
+        return "address_not_found"
+    if not re.search(r"\d", compact):
+        return "incomplete_address"
     if re.fullmatch(r"[A-Za-z0-9]{8,}", compact):
-        return False
-    return True
+        return "address_not_found"
+    if not re.match(r"^\s*\d+[A-Za-z]?(?:-\d+[A-Za-z]?)?\b", compact):
+        return "incomplete_address"
+
+    state_code, invalid_state_seen = _extract_state_code_from_address(compact)
+    if invalid_state_seen:
+        return "address_not_found"
+    if not state_code or not _has_city_context(compact, state_code):
+        return "incomplete_address"
+
+    return None
+
+
+def _looks_like_complete_street_address(address: str) -> bool:
+    """Return whether raw text is complete enough to score without canonical selection."""
+    return _address_validation_error(address) is None
 
 
 def _normalize_score_address_for_compare(address: str) -> str:
@@ -145,6 +335,61 @@ def _log_score_request(result_dict: dict, response_time_ms: int) -> None:
             conn.close()
     except Exception:
         pass  # Never let analytics break scoring
+
+
+def _severity_values(result_dict: dict) -> list[str]:
+    severity = result_dict.get("severity") or {}
+    return [
+        str(severity.get(key, "")).upper()
+        for key in ("noise", "traffic", "dust")
+        if severity.get(key)
+    ]
+
+
+def _recommended_action_for_result(result_dict: dict, evidence_quality: str | None) -> str:
+    """Keep backend action copy aligned with severity and evidence quality."""
+    severity_values = _severity_values(result_dict)
+    has_high = "HIGH" in severity_values
+    has_medium = "MEDIUM" in severity_values
+    top_details = result_dict.get("top_risk_details") or []
+    nearby_signals = result_dict.get("nearby_signals") or []
+    has_closure = any(
+        "closure" in (d.get("impact_type") or "")
+        for d in top_details + nearby_signals
+    )
+    has_construction = any(
+        d.get("impact_type") in ("construction", "road_construction", "demolition")
+        for d in top_details + nearby_signals
+    )
+
+    if evidence_quality in ("insufficient", "contextual_only"):
+        if has_high:
+            return (
+                "Review manually before scheduling — limited address-level "
+                "coverage and high-severity nearby signals need timing validation."
+            )
+        if has_medium:
+            return (
+                "Review manually and check nearby activity timing — "
+                "address-level coverage is limited."
+            )
+        return "Review manually — limited address-level coverage and no direct disruption signals were found."
+
+    if has_high:
+        if has_closure:
+            return "Review access windows and schedule carefully — high traffic or curb-access disruption is indicated nearby."
+        if has_construction:
+            return "Review work timing before visits — high construction disruption is indicated nearby."
+        return "Review before scheduling — high-severity disruption is indicated nearby."
+
+    if has_medium:
+        if has_closure:
+            return "Review nearby closure timing before relying on normal access."
+        if has_construction:
+            return "Review nearby construction activity and set expectations before site visits."
+        return "Review nearby activity and check timing before relying on normal access."
+
+    return "Proceed with normal access planning; continue checking source updates before tours."
 
 
 def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict:
@@ -334,35 +579,7 @@ def _score_live(address: str, coords: tuple[float, float] | None = None) -> dict
                 "based primarily on neighborhood-level data."
             )
 
-    # Recommended next step based on score, evidence, and signal types.
-    score = result_dict.get("livability_score") or result_dict.get("disruption_score", 50)
-    top_details = result_dict.get("top_risk_details") or []
-    has_closure = any("closure" in (d.get("impact_type") or "") for d in top_details)
-    has_construction = any(
-        d.get("impact_type") in ("construction", "road_construction", "demolition")
-        for d in top_details
-    )
-
-    if evidence_quality in ("insufficient", "contextual_only"):
-        action = "Review manually — address-level data is limited in this area."
-    elif score <= 30:
-        if has_closure:
-            action = "Confirm road access and parking before scheduling tours."
-        elif has_construction:
-            action = "Set noise and dust expectations with clients before site visits."
-        else:
-            action = "Defer if possible — multiple active disruptions overlap at this address."
-    elif score <= 50:
-        if has_closure:
-            action = "Check closure timing — access may be affected during active windows."
-        else:
-            action = "Proceed with awareness — moderate disruption is likely during the active window."
-    elif score <= 70:
-        action = "Proceed — minor nearby activity is unlikely to affect the experience."
-    else:
-        action = "Green light — no significant disruption detected in this area."
-
-    result_dict["recommended_action"] = action
+    result_dict["recommended_action"] = _recommended_action_for_result(result_dict, evidence_quality)
 
     # Signal synthesis summary for the timeline section.
     closure_count = sum(1 for s in nearby_signals if "closure" in (s.get("impact_type") or ""))
@@ -547,8 +764,10 @@ def _score_one(address: str) -> dict:
             resolved_address = row.get("display_address") or resolved_address
             if row.get("lat") is not None and row.get("lon") is not None:
                 resolved_coords = (float(row["lat"]), float(row["lon"]))
-        elif not _looks_like_complete_street_address(resolved_address):
-            return _address_not_found_response(resolved_address)
+        else:
+            validation_error = _address_validation_error(resolved_address)
+            if validation_error:
+                return _address_error_response(resolved_address, validation_error)
 
         result = _score_live(resolved_address, coords=resolved_coords)
         result.pop("nearby_signals", None)  # not included in batch output
@@ -1088,8 +1307,10 @@ def get_score(
             raise HTTPException(status_code=422, detail="Canonical score lookup missing display address.")
         raise HTTPException(status_code=422, detail="Provide address or canonical_id for score lookup.")
 
-    if resolution_source == "address_text" and not _looks_like_complete_street_address(resolved_address):
-        return _address_not_found_response(resolved_address)
+    if resolution_source in ("address_text", "lat_lon"):
+        validation_error = _address_validation_error(resolved_address)
+        if validation_error:
+            return _address_error_response(resolved_address, validation_error)
 
     _debug_search_flow(
         "SCORE_REQUEST",
