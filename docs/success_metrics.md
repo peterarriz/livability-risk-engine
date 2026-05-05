@@ -100,4 +100,4 @@ If any of the following are true at the day-30 checkpoint, the team should expli
 - **Zero paying customers at day 30**: Stop outreach and run 5 discovery calls with non-paying prospects to understand if it is a fit, pricing, or awareness problem.
 - **Three or more accuracy complaints in the first 30 days**: Pause new outreach and prioritize a confidence-calibration fix before the next demo.
 - **No design-partner feedback sessions by day 30**: Simplify the pilot ask — offer to score 10 addresses for free in exchange for a 15-minute async Loom review instead of a live call.
-- **High trial signups but zero conversions to paid**: The pricing step is broken — investigate whether the self-serve billing flow works and whether the value at Spot tier is clear enough to justify $0.10/call.
+- **High trial signups but zero conversions to paid**: The pricing step is broken — investigate whether the automated purchase flow works and whether the value at Spot tier is clear enough to justify $0.10/call.

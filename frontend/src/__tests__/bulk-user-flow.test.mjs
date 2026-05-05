@@ -20,9 +20,11 @@ test("/bulk no longer renders a browser API credential field", () => {
   const bulkPage = read("../app/bulk/page.tsx");
   const backendCsvRoute = ["/api/backend/score", "batch", "csv"].join("/");
   const apiKeyHeader = ["X", "API", "Key"].join("-");
+  const queryKey = ["?", "api_key="].join("");
 
   assert.ok(!bulkPage.includes(backendCsvRoute), "/bulk should use the first-party bulk route");
   assert.ok(!bulkPage.includes(apiKeyHeader), "/bulk should not send backend key headers from the browser");
+  assert.ok(!bulkPage.includes(queryKey), "/bulk should not pass API keys in URLs");
   assert.ok(!/apiKey/i.test(bulkPage), "/bulk should not keep browser API key state");
   assert.ok(!/type="password"/.test(bulkPage), "/bulk should not render a password-style credential input");
 });

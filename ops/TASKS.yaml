@@ -1710,6 +1710,38 @@ tasks:
       - Backend regression tests, task review, and diff check are run before handoff.
     notes_for_next_agent: Completed on 2026-05-04. Added a shared raw-text address gate for single `/score`, JSON batch, and CSV batch; fake/placeholder inputs now return `address_not_found`, partial inputs return `incomplete_address`, and scores remain null. Recommended action copy is now derived from severity/evidence quality instead of livability-score thresholds. No `/score` or `/health` auth changes, no Bulk CSV website auth changes, no schema/RLS/pricing changes, and no `.codex/` or `data/raw/` changes were made.
 
+  - id: app-053
+    lane: app
+    type: polish
+    title: Align public copy with pilot-stage positioning
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/app/page.tsx
+      - frontend/src/app/pricing/page.tsx
+      - frontend/src/app/api-docs/page.tsx
+      - frontend/src/app/api-access/page.tsx
+      - frontend/src/app/neighborhood/[slug]/page.tsx
+      - frontend/src/app/globals.css
+      - frontend/src/__tests__/launch-readiness.test.mjs
+      - frontend/src/__tests__/bulk-user-flow.test.mjs
+      - docs/handoffs/app.md
+      - docs/pricing_model.md
+      - docs/success_metrics.md
+      - ops/TASKS.yaml
+    dependencies:
+      - app-050
+      - app-052
+    acceptance_criteria:
+      - Homepage copy presents public address scoring as demo access and API/Bulk CSV as pilot access by request.
+      - `/pricing` presents pilot pricing with public demos, design-partner pilot, and API/data partner access instead of fixed public plan pricing.
+      - `/api-docs` and `/api-access` distinguish public single-address scoring from provisioned technical API workflows that use `X-API-Key`.
+      - Public copy removes stale quota, upgrade, placeholder Railway URL, query-string key, and Chicago-only MVP language.
+      - Bulk CSV website flow remains signed-in pilot/internal and browser users are not asked to enter API credentials.
+      - Frontend tests, production build, TypeScript check, task review, diff check, and stale-copy scan are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-04. Public copy now reflects controlled design-partner pilot positioning: single-address scoring remains public for demos, pricing is by request, API access is by request, and Bulk CSV website upload remains signed-in pilot/internal. Raw technical integrations are documented with `X-API-Key`; no backend auth, Bulk CSV auth, schema/RLS, scoring math, fixed public plan pricing, or public billing flow changes were made. `.codex/` and `data/raw/` were not touched.
+
   - id: data-043
     lane: data
     type: feature
@@ -1735,7 +1767,7 @@ tasks:
       - PermitDetailPanel shows Claude display card (title, distance, description, why_it_matters) at the top
       - Gantt timeline hover tooltip and row label use display_title instead of raw permit title
       - CSV export includes display_title, distance, description, why_it_matters columns
-    notes_for_next_agent: "Completed. signal_display table is new; signal_rewrites (data-042) is kept for migration reads. Option A formatter is _format_option_a() in rewrite.py — mirrors heuristics from frontend buildRiskCards. Frontend uses display_title -> rewritten_title -> inferred chain so existing cached data keeps working. No PDF export endpoint exists yet (Pro plan gate in page.tsx); add display fields there when /export/pdf is implemented. Next: data-044 should add permit summary CSS styles for permit-detail-summary-* classes added to score-experience.tsx."
+    notes_for_next_agent: "Completed. signal_display table is new; signal_rewrites (data-042) is kept for migration reads. Option A formatter is _format_option_a() in rewrite.py — mirrors heuristics from frontend buildRiskCards. Frontend uses display_title -> rewritten_title -> inferred chain so existing cached data keeps working. No PDF export endpoint exists yet (paid export gate in page.tsx); add display fields there when /export/pdf is implemented. Next: data-044 should add permit summary CSS styles for permit-detail-summary-* classes added to score-experience.tsx."
   - id: data-045
     lane: data
     type: feature

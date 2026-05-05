@@ -2,26 +2,12 @@
 
 // data-028: Developer portal page
 // URL: /api-access
-// Fetches live docs from GET /docs/api-access and renders endpoint table,
-// auth instructions, and copy-paste code examples.
+// Renders endpoint table, auth instructions, and copy-paste code examples.
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Card, Container, Section } from "@/components/shell";
 
 type EndpointDoc = { method: string; path: string; description: string };
-
-type ApiAccessDoc = {
-  title: string;
-  version: string;
-  description: string;
-  auth: { required: boolean; method: string; request_access: string };
-  endpoints: EndpointDoc[];
-  rate_limits: string;
-  example: {
-    request: string;
-    response_shape: Record<string, unknown>;
-  };
-};
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "method-get",
@@ -31,59 +17,68 @@ const METHOD_COLORS: Record<string, string> = {
 
 type CodeTab = "curl" | "python" | "javascript";
 
+const PUBLIC_API_BASE = "https://livability-risk-engine-production.up.railway.app";
+
 const CODE_EXAMPLES: Record<CodeTab, string> = {
-  curl: `# Score an address
-curl "https://your-api.railway.app/score?address=1600+W+Chicago+Ave+Chicago+IL" \\
-  -H "X-API-Key: YOUR_API_KEY"
+  curl: `# Public single-address scoring
+curl -sG "${PUBLIC_API_BASE}/score" \\
+  --data-urlencode "address=1600 W Chicago Ave, Chicago, IL"
 
-# Address autocomplete
-curl "https://your-api.railway.app/suggest?q=chicago+ave" \\
-  -H "X-API-Key: YOUR_API_KEY"
+# Provisioned partner batch scoring
+curl -s -X POST "${PUBLIC_API_BASE}/score/batch" \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: lre_your_key_here" \\
+  --data '{"addresses":["1600 W Chicago Ave, Chicago, IL","350 5th Ave, New York, NY"]}'`,
 
-# Score history
-curl "https://your-api.railway.app/history?address=1600+W+Chicago+Ave+Chicago+IL&limit=10" \\
-  -H "X-API-Key: YOUR_API_KEY"`,
+  python: `import os
+import requests
 
-  python: `import requests
+BASE = "${PUBLIC_API_BASE}"
 
-BASE = "https://your-api.railway.app"
-HEADERS = {"X-API-Key": "YOUR_API_KEY"}
-
-# Score an address
+# Public single-address scoring
 resp = requests.get(
     f"{BASE}/score",
-    params={"address": "1600 W Chicago Ave Chicago IL"},
-    headers=HEADERS,
+    params={"address": "1600 W Chicago Ave, Chicago, IL"},
 )
 data = resp.json()
 print(f"Livability Score: {data['livability_score']} / 100")
 print(f"Disruption Score: {data['disruption_score']} / 100")
 print(f"Confidence: {data['confidence']}")
-for risk in data["top_risks"]:
-    print(f"  - {risk}")
 
-# Score history for trend analysis
-history = requests.get(
-    f"{BASE}/history",
-    params={"address": "1600 W Chicago Ave Chicago IL", "limit": 20},
-    headers=HEADERS,
+# Provisioned partner batch scoring
+batch = requests.post(
+    f"{BASE}/score/batch",
+    json={"addresses": ["1600 W Chicago Ave, Chicago, IL", "350 5th Ave, New York, NY"]},
+    headers={"X-API-Key": os.environ["LRE_API_KEY"]},
 ).json()
-scores = [h.get("livability_score", h.get("disruption_score")) for h in history["history"]]
-print(f"Historical scores: {scores}")`,
+print(f"Batch scored: {batch['scored']}")`,
 
-  javascript: `const BASE = "https://your-api.railway.app";
-const KEY = "YOUR_API_KEY";
-const headers = { "X-API-Key": KEY };
+  javascript: `const BASE = "${PUBLIC_API_BASE}";
 
-// Score an address
+// Public single-address scoring
 const score = await fetch(
-  \`\${BASE}/score?address=\${encodeURIComponent("1600 W Chicago Ave Chicago IL")}\`,
-  { headers }
+  \`\${BASE}/score?\${new URLSearchParams({
+    address: "1600 W Chicago Ave, Chicago, IL",
+  })}\`
 ).then(r => r.json());
 
 console.log(\`Livability Score: \${score.livability_score} / 100\`);
 console.log(\`Disruption Score: \${score.disruption_score} / 100\`);
-console.log(\`Top risks:\`, score.top_risks);`,
+console.log(\`Top risks:\`, score.top_risks);
+
+// Server-side partner integrations can call protected batch endpoints.
+const batch = await fetch(\`\${BASE}/score/batch\`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-Key": process.env.LRE_API_KEY ?? "",
+  },
+  body: JSON.stringify({
+    addresses: ["1600 W Chicago Ave, Chicago, IL", "350 5th Ave, New York, NY"],
+  }),
+}).then(r => r.json());
+
+console.log(\`Batch scored: \${batch.scored}\`);`,
 };
 
 const EXAMPLE_RESPONSE = JSON.stringify(
@@ -116,21 +111,9 @@ const EXAMPLE_RESPONSE = JSON.stringify(
 );
 
 export default function ApiAccessPage() {
-  const [docs, setDocs] = useState<ApiAccessDoc | null>(null);
   const [activeTab, setActiveTab] = useState<CodeTab>("curl");
   const [copiedExample, setCopiedExample] = useState(false);
   const [copiedResponse, setCopiedResponse] = useState(false);
-
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
-  const enableLiveDocs = process.env.NEXT_PUBLIC_ENABLE_LIVE_API_DOCS === "1";
-
-  useEffect(() => {
-    if (!enableLiveDocs) return;
-    fetch(`${apiBase}/docs/api-access`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setDocs(data))
-      .catch(() => null);
-  }, [apiBase, enableLiveDocs]);
 
   function copyText(text: string, setter: (v: boolean) => void) {
     navigator.clipboard.writeText(text).then(() => {
@@ -149,26 +132,30 @@ export default function ApiAccessPage() {
         <Section
           eyebrow="Developer"
           title="API Reference"
-          description="Programmatic access to the multi-city disruption score. Query one address and get the headline livability score, backward-compatible disruption subscore, severity dimensions, and evidence context."
+          description="Programmatic access to address-level livability and disruption scoring for U.S. properties. API access is by request during the design-partner pilot."
         >
           {/* Auth box */}
           <Card className="detail-card api-auth-card">
             <div className="api-auth-head">
               <div>
                 <p className="supporting-kicker">Authentication</p>
-                <h2>{docs?.auth?.required ? "API key required" : "Demo access available"}</h2>
+                <h2>Public demo and pilot API</h2>
               </div>
-              <span className={`api-auth-badge ${docs?.auth?.required ? "api-auth-badge--required" : "api-auth-badge--open"}`}>
-                {docs?.auth?.required ? "Key required" : "Demo access"}
+              <span className="api-auth-badge api-auth-badge--open">
+                By request
               </span>
             </div>
             <p className="api-auth-copy">
-              {docs?.auth?.method ?? "Raw API integrations use an API key in the X-API-Key header when key enforcement is enabled. Website Bulk CSV upload uses signed-in pilot account access instead."}
+              Public single-address scoring is available through the website and public
+              <code> /score</code> endpoint for evaluation. Technical API access for
+              higher-volume, batch, export, or partner workflows is provisioned by request.
+              Raw API integrations use an <code>X-API-Key</code> header. Do not put API
+              keys in browser-facing forms or query parameters.
             </p>
             <div className="api-auth-example">
               <code>X-API-Key: lre_xxxxxxxxxxxxxxxxxxxxxxxx</code>
             </div>
-            <p className="modal-fine-print">{docs?.auth?.request_access ?? "Contact the operator to request an API key."}</p>
+            <p className="modal-fine-print">Contact the operator to request API access during the pilot.</p>
           </Card>
 
           {/* Endpoints table */}
@@ -183,7 +170,7 @@ export default function ApiAccessPage() {
                 </tr>
               </thead>
               <tbody>
-                {(docs?.endpoints ?? FALLBACK_ENDPOINTS).map((ep) => (
+                {FALLBACK_ENDPOINTS.map((ep) => (
                   <tr key={ep.path}>
                     <td>
                       <span className={`api-method-badge ${METHOD_COLORS[ep.method] ?? ""}`}>
@@ -203,9 +190,9 @@ export default function ApiAccessPage() {
             <p className="supporting-kicker">Pilot bulk workflow</p>
             <h2>Bulk CSV scoring</h2>
             <p className="api-auth-copy">
-              Raw API integrations use API keys. The website Bulk CSV upload page uses
-              signed-in pilot account access, so browser users upload a CSV and download
-              results without entering credentials into the page.
+              Bulk CSV website upload is available to signed-in pilot and internal accounts.
+              Raw technical CSV integrations use <code>X-API-Key</code>; browser users should
+              upload through the website flow without entering credentials into the page.
             </p>
             <p className="modal-fine-print">
               Use the <a href="/bulk">Bulk CSV upload page</a> for signed-in pilot users.
@@ -264,12 +251,12 @@ export default function ApiAccessPage() {
             <p className="supporting-kicker">Usage notes</p>
             <ul className="supporting-list">
               <li>
-                <span>Rate limits</span>
-                <strong>{docs?.rate_limits ?? "Public demo usage is limited; authenticated use is operator-managed."}</strong>
+                <span>Access and limits</span>
+                <strong>Provisioned case-by-case during the design-partner pilot.</strong>
               </li>
               <li>
                 <span>Coverage</span>
-                <strong>Multi-city, coverage-aware scoring; evidence depth varies by city, source, and record availability.</strong>
+                <strong>Coverage varies by city and data type. Chicago has the deepest permit and closure coverage; other metros may combine permit, closure, crime, flood, census, HPI, and neighborhood context data depending on source availability.</strong>
               </li>
               <li>
                 <span>Data freshness</span>
@@ -288,12 +275,11 @@ export default function ApiAccessPage() {
 }
 
 const FALLBACK_ENDPOINTS: EndpointDoc[] = [
-  { method: "GET", path: "/score", description: "Score one address" },
-  { method: "POST", path: "/score/batch/csv", description: "Upload CSV and download scored results" },
-  { method: "GET", path: "/suggest", description: "Address autocomplete" },
-  { method: "GET", path: "/history", description: "Score history for an address" },
-  { method: "POST", path: "/save", description: "Save a score result and get a shareable link" },
-  { method: "GET", path: "/report/{report_id}", description: "Fetch a previously saved report" },
-  { method: "GET", path: "/export/csv", description: "Download score as CSV" },
-  { method: "GET", path: "/health", description: "Backend readiness check" },
+  { method: "GET", path: "/score", description: "Public single-address score for a full U.S. street address" },
+  { method: "GET", path: "/health", description: "Public liveness check" },
+  { method: "GET", path: "/suggest", description: "Public address autocomplete" },
+  { method: "GET", path: "/history", description: "Recent score history for an address" },
+  { method: "POST", path: "/score/batch", description: "Protected batch scoring for provisioned API partners; requires X-API-Key" },
+  { method: "POST", path: "/score/batch/csv", description: "Protected technical CSV scoring; requires X-API-Key" },
+  { method: "GET", path: "/export/csv", description: "Protected score and signal export; requires X-API-Key" },
 ];

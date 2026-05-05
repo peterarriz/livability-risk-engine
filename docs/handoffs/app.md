@@ -47,6 +47,15 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Backend `recommended_action` is severity-aware: any `HIGH` or `MEDIUM` severity uses review/check/schedule-carefully language, while `contextual_only` or `insufficient` evidence prefers manual-review/limited-coverage wording.
 - No `/score` or `/health` auth changes, no Bulk CSV website auth changes, no schema/RLS changes, no pricing copy changes, and no `.codex/` or `data/raw/` changes.
 
+## Public pilot copy cleanup (2026-05-04)
+- Public copy now reflects controlled design-partner pilot positioning for address-level livability and disruption intelligence across U.S. properties.
+- Homepage copy presents public single-address scoring as demo access, with pilot API and Bulk CSV access available by request.
+- `/pricing` now uses pilot pricing copy: public demos, design-partner pilot, and API/data partner access. Commercial pricing follows pilot validation.
+- `/api-docs` and `/api-access` distinguish public website and `/score` evaluation from provisioned technical API, batch, export, and partner workflows.
+- Raw technical API integrations are documented with `X-API-Key`; public docs do not direct browser/Bulk CSV users to paste API credentials or put keys in URLs.
+- Bulk CSV website upload remains signed-in pilot/internal account access.
+- No fixed public plan pricing, public quota/overage copy, backend behavior, public `/score` or `/health` auth, Bulk CSV auth, schema/RLS, scoring math, `.codex/`, or `data/raw/` changes were made.
+
 ## 30-second broker demo flow (high-risk + low-risk)
 
 Use this exact sequence in live demos, investor calls, and YC-style interviews.

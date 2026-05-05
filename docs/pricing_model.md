@@ -2,7 +2,7 @@
 
 This document defines the proposed pricing concept and go-to-market motion for the Livability Risk Engine. It is a roadmap and sales-planning artifact, not a statement of currently automated billing behavior.
 
-Current stage: design-partner pilots. API keys, batch endpoints, and usage counters exist, but paid subscriptions, monthly quota enforcement, overages, self-serve billing, and plan-specific entitlements are not yet enforced by the backend. Pilot usage should be monitored manually with each partner.
+Current stage: design-partner pilots. API keys, batch endpoints, and usage counters exist, but paid subscriptions, monthly quota enforcement, overages, automated billing, and plan-specific entitlements are not yet enforced by the backend. Pilot usage should be monitored manually with each partner.
 
 ---
 

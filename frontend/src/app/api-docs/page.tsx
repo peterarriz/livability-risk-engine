@@ -88,12 +88,17 @@ export default function ApiDocsPage() {
         <section id="auth" className="docs-section">
           <h2>Authentication</h2>
           <p>
-            Pilot API access uses an API key passed in the <code>X-API-Key</code> header.
-            Batch scoring and authenticated usage endpoints require a valid key. Single-address
-            <code> /score</code> demo access may be available without a key depending on deployment settings.
+            Public single-address scoring is available through the website and public
+            <code> /score</code> endpoint for evaluation. Technical API access for
+            higher-volume, batch, export, or partner workflows is provisioned by request.
+            Raw API integrations authenticate with an <code>X-API-Key</code> header.
+            Do not put API keys in browser-facing forms or query parameters.
           </p>
-          <pre className="docs-code">{`curl -H "X-API-Key: lre_your_key_here" \\
-  "https://api.livabilityrisks.com/score?address=1600+W+Chicago+Ave,+Chicago,+IL"`}</pre>
+          <pre className="docs-code">{`curl -s -X POST \\
+  "https://livability-risk-engine-production.up.railway.app/score/batch" \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: lre_your_key_here" \\
+  --data '{"addresses":["1600 W Chicago Ave, Chicago, IL","350 5th Ave, New York, NY"]}'`}</pre>
           <p className="docs-note">
             API keys are issued by request for design partners and controlled pilots.
             Usage is currently reviewed operationally for design partners. Website Bulk CSV
@@ -108,6 +113,10 @@ export default function ApiDocsPage() {
             <span className="docs-method">GET</span>
             <code>/score?address=&#123;address&#125;</code>
           </div>
+          <p>
+            Public evaluation calls to <code>/score</code> accept a single full U.S. street
+            address with city and state. Coverage and evidence depth vary by city and data type.
+          </p>
           <h3>Parameters</h3>
           <table className="docs-table">
             <thead><tr><th>Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
@@ -178,7 +187,7 @@ demo-2,350 5th Ave,New York,NY,10118`}</pre>
           <pre className="docs-code">{`curl -s -X POST \\
   -H "X-API-Key: lre_your_key_here" \\
   -F "file=@addresses.csv" \\
-  "https://api.livabilityrisks.com/score/batch/csv" \\
+  "https://livability-risk-engine-production.up.railway.app/score/batch/csv" \\
   -o livability_scores.csv`}</pre>
           <p className="docs-note">
             Prefer the <a href="/bulk">Bulk CSV upload page</a> for signed-in pilot users who
@@ -213,31 +222,40 @@ demo-2,350 5th Ave,New York,NY,10118`}</pre>
         <section id="examples" className="docs-section">
           <h2>Code Examples</h2>
 
-          <h3>curl</h3>
-          <pre className="docs-code">{`curl -s -H "X-API-Key: lre_your_key_here" \\
-  "https://api.livabilityrisks.com/score?address=700+W+Grand+Ave,+Chicago,+IL" \\
+          <h3>Public /score evaluation</h3>
+          <pre className="docs-code">{`curl -sG "https://livability-risk-engine-production.up.railway.app/score" \\
+  --data-urlencode "address=700 W Grand Ave, Chicago, IL" \\
   | python3 -m json.tool`}</pre>
 
-          <h3>Python</h3>
-          <pre className="docs-code">{`import requests
+          <h3>Python partner integration</h3>
+          <pre className="docs-code">{`import os
+import requests
 
-resp = requests.get(
-    "https://api.livabilityrisks.com/score",
-    params={"address": "700 W Grand Ave, Chicago, IL"},
-    headers={"X-API-Key": "lre_your_key_here"},
+resp = requests.post(
+    "https://livability-risk-engine-production.up.railway.app/score/batch",
+    json={"addresses": ["700 W Grand Ave, Chicago, IL", "350 5th Ave, New York, NY"]},
+    headers={"X-API-Key": os.environ["LRE_API_KEY"]},
 )
 data = resp.json()
-print(f"Livability: {data['livability_score']}/100")
-print(f"Confidence: {data['confidence']}")`}</pre>
+print(f"Scored: {data['scored']}")
+print(f"Failed: {data['failed']}")`}</pre>
 
-          <h3>JavaScript (fetch)</h3>
+          <h3>Server-side JavaScript partner integration</h3>
           <pre className="docs-code">{`const res = await fetch(
-  "https://api.livabilityrisks.com/score?" +
-    new URLSearchParams({ address: "700 W Grand Ave, Chicago, IL" }),
-  { headers: { "X-API-Key": "lre_your_key_here" } }
+  "https://livability-risk-engine-production.up.railway.app/score/batch",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": process.env.LRE_API_KEY,
+    },
+    body: JSON.stringify({
+      addresses: ["700 W Grand Ave, Chicago, IL", "350 5th Ave, New York, NY"],
+    }),
+  }
 );
 const data = await res.json();
-console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
+console.log(\`Scored: \${data.scored}\`);`}</pre>
         </section>
 
         {/* ── Pilot Access ────────────────────────────────────────── */}
@@ -247,14 +265,15 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
             <thead><tr><th>Capability</th><th>Current status</th><th>Notes</th></tr></thead>
             <tbody>
               <tr><td>Single-address demo</td><td>Available on the public app</td><td>Coverage varies by city and source.</td></tr>
-              <tr><td>API keys</td><td>Issued by request</td><td>Used for pilot integrations and authenticated endpoints.</td></tr>
-              <tr><td>Batch scoring</td><td>Available with pilot API key</td><td>Request limits are documented in the endpoint contract.</td></tr>
+              <tr><td>API / data partner access</td><td>Reviewed by request</td><td>Used for technical integrations and authenticated endpoints.</td></tr>
+              <tr><td>Batch scoring and exports</td><td>Provisioned during pilot onboarding</td><td>Scopes and limits are set case-by-case.</td></tr>
               <tr><td>Bulk CSV upload</td><td>Available to signed-in pilot accounts</td><td><a href="/bulk">Upload CSV</a> and download scored results without entering a key in the browser.</td></tr>
             </tbody>
           </table>
           <p className="docs-note">
-            During the design-partner phase, API usage is reviewed manually with each pilot partner.
-            Automated quota exhaustion responses are not part of the current public contract.
+            During the design-partner pilot, API limits and access scopes are provisioned
+            case-by-case. Contact the operator to request API access for batch scoring,
+            exports, or integration use cases.
           </p>
         </section>
 
@@ -269,8 +288,10 @@ console.log(\`Livability: \${data.livability_score}/100\`);`}</pre>
         <section id="coverage" className="docs-section">
           <h2>Coverage</h2>
           <p>
-            The product is multi-city and coverage-aware. Where permit or closure records are sparse,
-            results should be treated as directional.
+            The product provides address-level livability and disruption intelligence for U.S.
+            properties. Coverage varies by city and data type. Chicago has the deepest permit
+            and closure coverage; other metros may combine permit, closure, crime, flood,
+            census, HPI, and neighborhood context data depending on source availability.
           </p>
           <div className="docs-city-grid">
             {[
