@@ -13,6 +13,10 @@ function read(path) {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
+function phrase(parts) {
+  return parts.join("");
+}
+
 const publicDemoFiles = [
   "../app/page.tsx",
   "../app/bulk/page.tsx",
@@ -23,6 +27,15 @@ const publicDemoFiles = [
   "../components/address-autocomplete.tsx",
   "../components/map-view.tsx",
   "../app/layout.tsx",
+];
+
+const publicCopyFiles = [
+  "../app/page.tsx",
+  "../app/pricing/page.tsx",
+  "../app/api-docs/page.tsx",
+  "../app/api-access/page.tsx",
+  "../app/bulk/page.tsx",
+  "../components/app-workspace.tsx",
 ];
 
 test("public launch surfaces do not regress to Chicago-only scope", () => {
@@ -52,7 +65,7 @@ test("backend launch routes allow multi-city geocoding", () => {
   ];
   for (const file of backendLaunchFiles) {
     const text = read(file);
-    assert.ok(!/Chicago addresses only/i.test(text), `${file} rejects non-Chicago addresses`);
+    assert.ok(!new RegExp(phrase(["Chicago addresses", " only"]), "i").test(text), `${file} rejects non-Chicago addresses`);
     assert.ok(!/launch demo only supports Chicago/i.test(text), `${file} contains stale Chicago-only error copy`);
   }
   const scoreRoute = read("../../../backend/app/routes/score.py");
@@ -97,16 +110,45 @@ test("/pricing renders pilot-stage access copy instead of a launch redirect", ()
   const pricingPage = read("../app/pricing/page.tsx");
 
   assert.ok(!middleware.includes('"/pricing(.*)"'), "/pricing should not redirect to /app");
-  assert.ok(pricingPage.includes("During the design-partner pilot, access is by request. Commercial pricing follows pilot validation."));
+  assert.ok(pricingPage.includes("Access is by request during the design-partner pilot. Commercial pricing follows pilot validation."));
+  assert.ok(pricingPage.includes("Public demos"));
+  assert.ok(pricingPage.includes("Design-partner pilot"));
+  assert.ok(pricingPage.includes("API / data partner access"));
+  assert.ok(pricingPage.includes("Request pilot access"));
+  assert.ok(pricingPage.includes("Try address scoring"));
   const stalePricingCopy = [
-    ["Free", " tier"].join(""),
-    ["10", " lookups"].join(""),
-    ["Upgrade", " to Pro"].join(""),
-    ["un", "limited"].join(""),
-    ["$49", "/month"].join(""),
-    ["self-serve billing", " is live"].join(""),
+    phrase(["Free", " tier"]),
+    phrase(["10", " lookups"]),
+    phrase(["Upgrade", " to Pro"]),
+    phrase(["un", "limited"]),
+    phrase(["$", "49"]),
+    phrase(["self-serve", " billing"]),
   ];
   for (const staleCopy of stalePricingCopy) {
     assert.ok(!pricingPage.includes(staleCopy), `/pricing contains stale pricing copy: ${staleCopy}`);
+  }
+});
+
+test("public copy does not publish stale self-serve pricing or query-key API guidance", () => {
+  const forbidden = [
+    phrase(["Free", " tier"]),
+    phrase(["10", " lookups/month"]),
+    phrase(["10 address", " lookups"]),
+    phrase(["$", "49"]),
+    phrase(["Pro", " plan"]),
+    phrase(["Unlimited", " lookups"]),
+    phrase(["Upgrade your", " plan"]),
+    phrase(["self-serve", " billing"]),
+    phrase(["?", "api_key="]),
+    phrase(["Chicago addresses", " only"]),
+    phrase(["Chicago disruption", " scoring"]),
+    phrase(["your-api", ".railway.app"]),
+  ];
+
+  for (const file of publicCopyFiles) {
+    const text = read(file);
+    for (const staleCopy of forbidden) {
+      assert.ok(!text.includes(staleCopy), `${file} contains stale public copy: ${staleCopy}`);
+    }
   }
 });

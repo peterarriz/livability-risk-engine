@@ -24,9 +24,12 @@ const IMPACT_COLORS: Record<string, string> = {
 };
 
 const STADIA_MAPS_API_KEY = process.env.NEXT_PUBLIC_STADIA_MAPS_API_KEY?.trim();
+const STADIA_MAPS_QUERY = STADIA_MAPS_API_KEY
+  ? new URLSearchParams({ api_key: STADIA_MAPS_API_KEY }).toString()
+  : "";
 const NEIGHBORHOOD_TILE_LAYER = STADIA_MAPS_API_KEY
   ? {
-      url: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${encodeURIComponent(STADIA_MAPS_API_KEY)}`,
+      url: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?${STADIA_MAPS_QUERY}`,
       attribution:
         '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       subdomains: undefined,

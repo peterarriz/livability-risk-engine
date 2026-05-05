@@ -97,7 +97,7 @@ export default function LandingPage() {
           </button>
         </form>
         <p style={{ fontSize: "0.78rem", color: "#9CA3AF", marginTop: "0.75rem" }}>
-          Multi-city scoring is the product direction. Results are directional where city records are sparse.
+          Public address scoring is open for demos. Pilot API and Bulk CSV access are available by request.
         </p>
       </section>
 

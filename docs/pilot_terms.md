@@ -27,7 +27,7 @@ Use this document when agreeing on pilot terms with a design-partner candidate. 
 ## Scope boundaries (what this pilot is not)
 
 - This is not a production deployment. The API is MVP-stage and will have gaps in data coverage and occasional inconsistencies in score calibration.
-- The score is based on Chicago public permit and closure data. It does not include utility outages, CTA disruptions, or real-time traffic. We will state this clearly.
+- The score uses available public data for supported U.S. properties. Chicago has the deepest permit and closure coverage; other metros may rely more on contextual data depending on source availability. The pilot does not include real-time traffic feeds.
 - The pilot does not include any custom data integrations, white-label output, or dedicated SLA guarantees.
 - This is not a legal contract. It is a mutual understanding documented via email confirmation.
 
@@ -48,7 +48,7 @@ Use this document when agreeing on pilot terms with a design-partner candidate. 
 
 ## Conversion offer at pilot end
 
-These are proposed commercial terms for founder-led follow-up. They are not self-serve billing tiers and are not enforced automatically by the current backend.
+These are proposed commercial terms for founder-led follow-up. They are not automated public billing tiers and are not enforced automatically by the current backend.
 
 | Tier | Standard price | Design-partner first-month price |
 | --- | --- | --- |
