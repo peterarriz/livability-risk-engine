@@ -34,8 +34,8 @@ const WORK_TYPE_LABELS = {
 };
 
 const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec",
 ];
 
 function formatIsoDate(iso) {
@@ -113,18 +113,18 @@ test("regression: GenOccupy code replaced with readable label", () => {
   assert.ok(result.includes("lane occupation"), `Expected "lane occupation" in: ${result}`);
 });
 
-test("ISO dates in explanations are formatted as Month Day, Year", () => {
+test("ISO dates in explanations are formatted as short Month Day, Year", () => {
   const raw = "The active window runs through 2024-03-15.";
   const result = sanitizeApiText(raw);
   assert.ok(!result.includes("2024-03-15"), `ISO date leaked: ${result}`);
-  assert.ok(result.includes("March 15, 2024"), `Expected formatted date in: ${result}`);
+  assert.ok(result.includes("Mar 15, 2024"), `Expected formatted date in: ${result}`);
 });
 
 test("ISO dates at end of risk strings are formatted", () => {
   const raw = "Full street closure on Huron; active through 2024-08-31";
   const result = sanitizeApiText(raw);
   assert.ok(!result.includes("2024-08-31"), `ISO date leaked: ${result}`);
-  assert.ok(result.includes("August 31, 2024"), `Expected "August 31, 2024" in: ${result}`);
+  assert.ok(result.includes("Aug 31, 2024"), `Expected "Aug 31, 2024" in: ${result}`);
 });
 
 test("meter distances converted to feet", () => {
@@ -178,6 +178,6 @@ test("full explanation string end-to-end sanitization", () => {
   assert.ok(!result.includes("2024-06-30"), `ISO date leaked`);
   assert.ok(!result.match(/\d+ meters/), `meters leaked`);
   assert.ok(result.includes("general opening"), `Expected readable work type`);
-  assert.ok(result.includes("June 30, 2024"), `Expected formatted date`);
+  assert.ok(result.includes("Jun 30, 2024"), `Expected formatted date`);
   assert.ok(result.includes("ft"), `Expected feet unit`);
 });

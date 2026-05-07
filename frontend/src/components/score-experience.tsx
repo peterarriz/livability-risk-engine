@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, FormEvent } from "react";
 
 import { ApiError, detectNeighborhoodSlug, fetchCommute, fetchNeighborhood, fetchSuggestions, saveReport, subscribeWatch } from "@/lib/api";
+import { formatIsoDatesInText, formatScoreDate, formatScoreMonthYear, isFutureOrTodayScoreDate, parseScoreDate } from "@/lib/date-format";
 import { coverageConfidenceLabel, headlineScore as getHeadlineScore, impactTypeLabel, recommendedAction } from "@/lib/score-utils";
 import { sanitizeApiText, sanitizeNotes } from "@/lib/text-sanitize";
 import type {
@@ -93,8 +94,6 @@ const SCORE_COPY = [
   { max: 70, label: "Low disruption risk", summary: "Minor activity detected. Review any active signals before scheduling." },
   { max: 100, label: "Minimal disruption", summary: "No major disruption signals are visible in the current planning window." },
 ];
-
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Human-readable names for livability breakdown component keys. */
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -214,6 +213,11 @@ function humanizeRiskText(text: string): string {
   // That module handles all work type codes, ISO dates, meter→feet conversion,
   // street range reformatting, and ALLCAPS normalization.
   return sanitizeApiText(text);
+}
+
+function formatDisplayText(text: string | null | undefined): string | null {
+  const formatted = formatIsoDatesInText(text);
+  return formatted || null;
 }
 
 function inferImpact(text: string, index: number): RiskCardModel["impact"] {
@@ -354,8 +358,7 @@ function extractRiskChips(text: string, impact: RiskCardModel["impact"]): string
 }
 
 function hasFutureEndDate(detail?: TopRiskDetail): boolean {
-  const date = detail?.end_date ? parseDateString(detail.end_date) : null;
-  return Boolean(date && date.getTime() >= Date.now());
+  return isFutureOrTodayScoreDate(detail?.end_date);
 }
 
 function hasUsefulRiskMetadata(risk: string, detail?: TopRiskDetail): boolean {
@@ -397,19 +400,20 @@ function buildRiskCards(result: ScoreResponse): RiskCardModel[] {
     // data-043: prefer the richer 4-field display card when available.
     // Falls back through: display_title → rewritten_title → heuristic.
     // top_risk_details is parallel to top_risks (same index order).
-    const displayTitle = detail?.display_title ?? detail?.rewritten_title ?? null;
-    const description = detail?.description ?? detail?.rewritten_description ?? null;
-    const whyItMatters = detail?.why_it_matters ?? null;
-    const distanceLabel = detail?.distance ?? null;
+    const displayTitle = formatDisplayText(detail?.display_title ?? detail?.rewritten_title ?? null);
+    const description = formatDisplayText(detail?.description ?? detail?.rewritten_description ?? null);
+    const whyItMatters = formatDisplayText(detail?.why_it_matters ?? null);
+    const distanceLabel = formatDisplayText(detail?.distance ?? null);
 
     // Signal clustering (data-012): pass through cluster info.
     const clusterCount = detail?.cluster_count ?? 1;
     const children = detail?.children ?? null;
 
     // For clustered cards, use the synthesized title from the backend.
-    const title = clusterCount > 1
+    const titleSource = clusterCount > 1
       ? (detail?.title ?? displayTitle ?? inferDriverTitle(humanized))
       : (displayTitle ?? inferDriverTitle(humanized));
+    const title = formatIsoDatesInText(titleSource);
 
     return {
       id: `${risk}-${index}`,
@@ -509,22 +513,15 @@ function inferMeaning(result: ScoreResponse): string[] {
 }
 
 function parseDateString(value: string): Date | null {
-  const match = value.match(/(20\d{2})-(\d{2})-(\d{2})/);
-  if (!match) {
-    return null;
-  }
-
-  const [, year, month, day] = match;
-  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseScoreDate(value);
 }
 
 function formatDate(date: Date): string {
-  return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+  return formatScoreDate(date) ?? "Unknown";
 }
 
 function formatMonthYear(date: Date): string {
-  return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  return formatScoreMonthYear(date) ?? "Unknown";
 }
 
 function buildTimelineSummary(result: ScoreResponse): TimelineSummary {
@@ -961,7 +958,7 @@ export function ScoreHero({ result }: ScoreHeroProps) {
             }}
           >
             <span style={{ fontWeight: 700, marginRight: "0.35rem" }}>Recommended:</span>
-            {displayedRecommendation}
+            {formatIsoDatesInText(displayedRecommendation)}
           </div>
         )}
 
@@ -1172,7 +1169,7 @@ export function SeverityMeters({ severity, confidence, confidenceReasons }: Seve
         </div>
         <ul className="confidence-reason-list">
           {confidenceReasons.map((reason) => (
-            <li key={reason}>{reason}</li>
+            <li key={reason}>{sanitizeApiText(reason)}</li>
           ))}
         </ul>
       </div>
@@ -1234,10 +1231,7 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
   }, [onClose]);
 
   function formatDate(iso: string | null): string {
-    if (!iso) return "Unknown";
-    const [year, month, day] = iso.split("-");
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return `${months[Number(month) - 1]} ${Number(day)}, ${year}`;
+    return formatScoreDate(iso) ?? "Unknown";
   }
 
   return (
@@ -1251,17 +1245,17 @@ function PermitDetailPanel({ detail, onClose }: { detail: TopRiskDetail; onClose
       {(detail.display_title || detail.description || detail.why_it_matters) && (
         <div className="permit-detail-summary">
           {detail.display_title && (
-            <p className="permit-detail-summary-title">{detail.display_title}</p>
+            <p className="permit-detail-summary-title">{formatIsoDatesInText(detail.display_title)}</p>
           )}
           {detail.distance && (
-            <p className="permit-detail-summary-distance">{detail.distance}</p>
+            <p className="permit-detail-summary-distance">{formatIsoDatesInText(detail.distance)}</p>
           )}
           {detail.description && (
-            <p className="permit-detail-summary-desc">{detail.description}</p>
+            <p className="permit-detail-summary-desc">{formatIsoDatesInText(detail.description)}</p>
           )}
           {detail.why_it_matters && (
             <p className="permit-detail-summary-why">
-              <strong>Why it matters:</strong> {detail.why_it_matters}
+              <strong>Why it matters:</strong> {formatIsoDatesInText(detail.why_it_matters)}
             </p>
           )}
         </div>
@@ -1470,11 +1464,11 @@ export function TopRiskGrid({ result, hoveredSignalId, onHoverSignal }: TopRiskG
                       }}
                     >
                       <p style={{ fontWeight: 600, color: "var(--color-text-primary, #111827)" }}>
-                        {child.display_title ?? child.title}
+                        {formatIsoDatesInText(child.display_title ?? child.title)}
                       </p>
                       {child.distance && (
                         <p style={{ color: "var(--color-text-secondary, #6B7280)", marginTop: "2px" }}>
-                          {child.distance}
+                          {formatIsoDatesInText(child.distance)}
                         </p>
                       )}
                       {hasFutureEndDate(child) && (
@@ -2130,10 +2124,6 @@ const TL_LEGEND = [
   { key: "other",        color: "#6B7280", label: "Other"                       },
 ] as const;
 
-const MONTH_SHORT_TL = [
-  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
-] as const;
-
 type TLRow = {
   id: string;
   detail: TopRiskDetail;
@@ -2159,14 +2149,14 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
   const dated = details.filter((d) => d.start_date || d.end_date);
   if (!dated.length) return null;
 
-  const parseIso = (iso: string) => new Date(iso + "T00:00:00Z");
+  const parseIso = (iso: string) => parseScoreDate(iso) ?? new Date();
 
   const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
 
   // Initial window: 14 days back → 60 days forward
-  let winStart = new Date(today); winStart.setUTCDate(winStart.getUTCDate() - 14);
-  let winEnd   = new Date(today); winEnd.setUTCDate(winEnd.getUTCDate() + 60);
+  let winStart = new Date(today); winStart.setDate(winStart.getDate() - 14);
+  let winEnd   = new Date(today); winEnd.setDate(winEnd.getDate() + 60);
 
   // Expand to fit all signal dates
   for (const d of dated) {
@@ -2175,8 +2165,8 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
   }
 
   // 4-day padding on each side
-  winStart = new Date(winStart); winStart.setUTCDate(winStart.getUTCDate() - 4);
-  winEnd   = new Date(winEnd);   winEnd.setUTCDate(winEnd.getUTCDate() + 4);
+  winStart = new Date(winStart); winStart.setDate(winStart.getDate() - 4);
+  winEnd   = new Date(winEnd);   winEnd.setDate(winEnd.getDate() + 4);
 
   const span  = winEnd.getTime() - winStart.getTime();
   const toPct = (d: Date) =>
@@ -2186,19 +2176,18 @@ function buildTLData(details: TopRiskDetail[]): TLData | null {
 
   // Month-boundary tick marks
   const ticks: TLData["ticks"] = [];
-  let tick = new Date(Date.UTC(winStart.getUTCFullYear(), winStart.getUTCMonth() + 1, 1));
+  let tick = new Date(winStart.getFullYear(), winStart.getMonth() + 1, 1);
   while (tick.getTime() <= winEnd.getTime()) {
     ticks.push({
-      label: `${MONTH_SHORT_TL[tick.getUTCMonth()]} ${tick.getUTCFullYear()}`,
+      label: formatScoreMonthYear(tick) ?? "",
       pct: toPct(tick),
     });
-    tick = new Date(Date.UTC(tick.getUTCFullYear(), tick.getUTCMonth() + 1, 1));
+    tick = new Date(tick.getFullYear(), tick.getMonth() + 1, 1);
   }
 
   const fmtDate = (iso: string | null): string => {
     if (!iso) return "Open";
-    const d = new Date(iso + "T00:00:00Z");
-    return `${MONTH_SHORT_TL[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+    return formatScoreDate(iso) ?? "Open";
   };
 
   const rows: TLRow[] = dated.map((d, i) => {
@@ -2283,12 +2272,12 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
               }} />
               <strong style={{ fontSize: "0.78rem", color: "var(--text-soft, #94a3b8)" }}>
                 {/* data-043: prefer Claude display_title over raw title (sanitized) */}
-                {(hoveredRow.detail.display_title ?? sanitizeApiText(hoveredRow.detail.title ?? "")) || hoveredRow.typeLabel}
+                {formatIsoDatesInText(hoveredRow.detail.display_title ?? sanitizeApiText(hoveredRow.detail.title ?? "")) || hoveredRow.typeLabel}
               </strong>
             </span>
             {hoveredRow.detail.description && (
               <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #64748b)" }}>
-                {hoveredRow.detail.description}
+                {formatIsoDatesInText(hoveredRow.detail.description)}
               </span>
             )}
             <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
@@ -2297,7 +2286,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
             {/* data-043: show pre-formatted distance when available, else compute */}
             {(hoveredRow.detail.distance ?? (hoveredRow.detail.distance_m > 0 ? null : null)) && (
               <span style={{ fontSize: "0.72rem", color: "var(--text-muted, #64748b)" }}>
-                {hoveredRow.detail.distance}
+                {formatIsoDatesInText(hoveredRow.detail.distance)}
               </span>
             )}
             {!hoveredRow.detail.distance && hoveredRow.detail.distance_m > 0 && (
@@ -2398,7 +2387,7 @@ export function SignalTimeline({ details }: SignalTimelineProps) {
                         whiteSpace: "nowrap", maxWidth: `${LABEL_W - 14}px`,
                         marginLeft: "auto",
                       }}>
-                        {row.detail.display_title ?? row.detail.title}
+                        {formatIsoDatesInText(row.detail.display_title ?? row.detail.title)}
                       </div>
                     )}
                   </div>
@@ -2937,7 +2926,10 @@ function _mobileBand(score: number): { label: string; color: string } {
 }
 
 function _pillLabel(impactType: string | null | undefined, title: string | null | undefined): string {
-  if (title) return title.length > 38 ? title.slice(0, 35) + "…" : title;
+  if (title) {
+    const formatted = formatIsoDatesInText(title);
+    return formatted.length > 38 ? formatted.slice(0, 35) + "…" : formatted;
+  }
   return impactTypeLabel(impactType);
 }
 
@@ -3015,7 +3007,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
     const details = result.top_risk_details ?? [];
     if (details.length > 0) {
       return details.slice(0, 3).map((d) => ({
-        label: _pillLabel(d.impact_type, d.rewritten_title ?? d.title),
+        label: _pillLabel(d.impact_type, d.display_title ?? d.rewritten_title ?? d.title),
         color: _pillColor(d.impact_type),
         key: d.project_id,
       }));
@@ -3096,7 +3088,7 @@ export function MobileScoreView({ result, onShowFull }: MobileScoreViewProps) {
             fontSize: "0.75rem", lineHeight: 1.45,
           }}>
             <span style={{ fontWeight: 700, marginRight: "0.25rem" }}>Recommended:</span>
-            {recommendation}
+            {formatIsoDatesInText(recommendation)}
           </div>
         );
       })()}

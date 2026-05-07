@@ -9,6 +9,8 @@
  * the two fields from being rendered inconsistently on the same page.
  */
 
+import { formatScoreDate, parseScoreDate } from "@/lib/date-format";
+
 export type ScoreSource = {
   disruption_score: number;
   livability_score?: number | null;
@@ -163,7 +165,8 @@ function _latestEndDate(signals: SignalLike[]): Date | null {
   let latest: Date | null = null;
   for (const s of signals) {
     if (!s.end_date) continue;
-    const d = new Date(s.end_date);
+    const d = parseScoreDate(s.end_date);
+    if (!d) continue;
     if (isNaN(d.getTime())) continue;
     if (!latest || d > latest) latest = d;
   }
@@ -171,6 +174,5 @@ function _latestEndDate(signals: SignalLike[]): Date | null {
 }
 
 function _formatShortDate(d: Date): string {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return formatScoreDate(d) ?? "";
 }
