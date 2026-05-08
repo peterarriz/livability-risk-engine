@@ -25,6 +25,7 @@ import { track } from "@vercel/analytics";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@/lib/clerk-client";
 import { fetchAddressDashboard, fetchAddressSuggestions, fetchHistory, fetchScore, geocodeForMap, saveReport, ApiError, AddressSuggestion, ScoreHistoryEntry, ScoreResponse, ScoreSource } from "@/lib/api";
 import { coverageConfidenceLabel, headlineScore } from "@/lib/score-utils";
+import { formatIsoDatesInText, formatScoreDate, isFutureOrTodayScoreDate } from "@/lib/date-format";
 import { getLookupUsage, hasUnlimitedLookupAccess, recordLookup, isDemoAddress, type LookupUsage } from "@/lib/lookup-quota";
 import { OnboardingModal, FeatureTour, useOnboardingState } from "@/components/onboarding";
 import AddressAutocomplete from "@/components/address-autocomplete";
@@ -73,18 +74,11 @@ function formatPrimaryPressure(result: ScoreResponse): string | null {
     firstRisk;
   if (!sourceText) return null;
 
-  const subject = stripDistancePhrases(sourceText).replace(/\.$/, "");
+  const subject = stripDistancePhrases(formatIsoDatesInText(sourceText)).replace(/\.$/, "");
   const distance = typeof firstDetail?.distance_m === "number" && Number.isFinite(firstDetail.distance_m)
     ? `, about ${Math.round(firstDetail.distance_m).toLocaleString()} m away`
     : "";
-  const fmtDate = (iso: string | null | undefined) => {
-    if (!iso) return null;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return null;
-    if (date.getTime() < Date.now()) return null;
-    return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
-  };
-  const end = fmtDate(firstDetail?.end_date);
+  const end = isFutureOrTodayScoreDate(firstDetail?.end_date) ? formatScoreDate(firstDetail?.end_date) : null;
   const timing = end && !containsExplicitDate(sourceText) ? `, active through ${end}` : "";
   return `Primary pressure comes from ${subject}${distance}${timing}.`;
 }
@@ -337,7 +331,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
     const score = headlineScore(result);
     if (result.evidence_quality === "contextual_only") {
       const summary = result.signal_summary
-        ? ` ${result.signal_summary}`
+        ? ` ${formatIsoDatesInText(result.signal_summary)}`
         : "";
       return `This address scores ${score}/100 from neighborhood context, but address-level construction and closure signals are unavailable.${summary}`;
     }
@@ -353,15 +347,9 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
     if (!result) return [];
     if (addressLevelSignalCount(result) === 0) return [];
     const details = result.top_risk_details ?? [];
-    const fmtDate = (iso: string | null | undefined) => {
-      if (!iso) return null;
-      const date = new Date(iso);
-      if (Number.isNaN(date.getTime())) return null;
-      if (date.getTime() < Date.now()) return null;
-      return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
-    };
     const timingText = (end: string | null | undefined) => {
-      const endLabel = fmtDate(end);
+      if (!isFutureOrTodayScoreDate(end)) return null;
+      const endLabel = formatScoreDate(end);
       return endLabel ? `Active through ${endLabel}` : null;
     };
     return (result.top_risks ?? []).slice(0, 3).map((risk, idx) => {
@@ -385,7 +373,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
       const timingLabel = containsExplicitDate(risk) ? null : timingText(detail?.end_date);
       if (!severityLabel && !distanceLabel && !timingLabel) return null;
       return {
-        risk,
+        risk: formatIsoDatesInText(risk),
         distanceLabel,
         timingLabel,
         severityLabel,
@@ -1219,7 +1207,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
                             {result.signal_summary && (
                               <div className="signal-summary-inline">
                                 <p className="supporting-kicker">Signal summary</p>
-                                <p>{result.signal_summary}</p>
+                                <p>{formatIsoDatesInText(result.signal_summary)}</p>
                               </div>
                             )}
                             <p className="supporting-kicker" style={{ marginTop: "10px" }}>Top 3 risks</p>
@@ -1240,12 +1228,12 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
                         ) : (
                           <div className="risk-no-signals" style={{ marginTop: "10px" }}>
                             <p className="risk-no-signals-kicker">No address-level disruption signals found</p>
-                            <p>{result.signal_summary || "This result has limited address-level permit and closure evidence."}</p>
+                            <p>{result.signal_summary ? formatIsoDatesInText(result.signal_summary) : "This result has limited address-level permit and closure evidence."}</p>
                             {isContextualOnlyResult && (
                               <p>We do not have address-level construction or closure signals for this block yet. This score reflects neighborhood context only.</p>
                             )}
                             {result.confidence_reason && (
-                              <p className="confidence-reason-inline">{result.confidence_reason}</p>
+                              <p className="confidence-reason-inline">{formatIsoDatesInText(result.confidence_reason)}</p>
                             )}
                           </div>
                         )}
@@ -1335,7 +1323,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
                       >
                         {result.signal_summary && (
                           <p style={{ fontSize: "0.82rem", color: "var(--color-text-secondary, #6B7280)", margin: "0 0 0.75rem" }}>
-                            {result.signal_summary}
+                            {formatIsoDatesInText(result.signal_summary)}
                           </p>
                         )}
                         <Card className="detail-card drivers-card">
@@ -1374,7 +1362,7 @@ export default function HomePage({ initialAddress = "" }: AppWorkspaceProps) {
                                     </strong>
                                     {result?.confidence_reason && (
                                       <span style={{ display: "block", fontSize: "0.72rem", color: "var(--color-text-secondary, #6B7280)", marginTop: "2px", lineHeight: 1.4 }}>
-                                        {result.confidence_reason}
+                                        {formatIsoDatesInText(result.confidence_reason)}
                                       </span>
                                     )}
                                   </>

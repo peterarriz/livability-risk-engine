@@ -1742,6 +1742,36 @@ tasks:
       - Frontend tests, production build, TypeScript check, task review, diff check, and stale-copy scan are run before handoff.
     notes_for_next_agent: Completed on 2026-05-04. Public copy now reflects controlled design-partner pilot positioning: single-address scoring remains public for demos, pricing is by request, API access is by request, and Bulk CSV website upload remains signed-in pilot/internal. Raw technical integrations are documented with `X-API-Key`; no backend auth, Bulk CSV auth, schema/RLS, scoring math, fixed public plan pricing, or public billing flow changes were made. `.codex/` and `data/raw/` were not touched.
 
+  - id: app-054
+    lane: app
+    type: polish
+    title: Fix score map popup alignment, basemap readability, and date display
+    owner: app
+    status: done
+    priority: high
+    files:
+      - frontend/src/components/map-view.tsx
+      - frontend/src/components/app-workspace.tsx
+      - frontend/src/components/score-experience.tsx
+      - frontend/src/lib/date-format.ts
+      - frontend/src/lib/text-sanitize.ts
+      - frontend/src/lib/score-utils.ts
+      - frontend/src/app/globals.css
+      - frontend/src/__tests__/score-date-format.test.mjs
+      - frontend/src/__tests__/map-polish.test.mjs
+      - frontend/src/__tests__/text-sanitize.test.mjs
+      - docs/handoffs/app.md
+      - ops/TASKS.yaml
+    dependencies:
+      - app-053
+    acceptance_criteria:
+      - The searched-address map label is anchored to the property pin and no longer appears detached far to the left.
+      - The score map uses a readable unauthenticated light basemap with visible attribution, distance rings, signal circles, heatmap blobs, and marker layers.
+      - User-facing score dates render consistently in short US format, for example `Feb 29, 2028`, without date-only timezone shifts.
+      - Signal summary, quick explanation, top-risk snippets/cards, expanded signal details, timeline labels, mobile score summaries, recommendations, and map signal popups avoid raw ISO date display.
+      - Frontend tests, production build, TypeScript check, task review, diff check, and raw ISO source scan are run before handoff.
+    notes_for_next_agent: Completed on 2026-05-07. Added shared frontend date formatting, routed score UI date strings through it, switched the map to CARTO light tiles, replaced the searched-address popup with a marker-anchored Leaflet tooltip, and added source-level map/date regression tests. No backend scoring, public `/score` or `/health` auth, Bulk CSV auth, schema/RLS, pricing/billing, `.codex/`, `data/raw/`, or `demo_assets/` changes were made. Browser manual QA should still verify the five requested addresses against the deployed or local app.
+
   - id: data-043
     lane: data
     type: feature

@@ -56,6 +56,13 @@ Ship the smallest usable API and demo frontend that matches the documented contr
 - Bulk CSV website upload remains signed-in pilot/internal account access.
 - No fixed public plan pricing, public quota/overage copy, backend behavior, public `/score` or `/health` auth, Bulk CSV auth, schema/RLS, scoring math, `.codex/`, or `data/raw/` changes were made.
 
+## Score map and date display polish (2026-05-07)
+- Score maps now use CARTO light tiles instead of the dark basemap so roads, parks, water, distance rings, and nearby signals are easier to read in demos.
+- The searched address label is a permanent Leaflet tooltip with explicit marker, icon, and tooltip anchors. This replaces the open address popup that could visually drift away from the property pin.
+- Frontend score UI date rendering now uses a shared formatter that displays user-facing dates as `Feb 29, 2028` and treats `YYYY-MM-DD` values as local date-only values.
+- Signal summaries, quick explanations, top-risk snippets/cards, expanded signal details, permit detail panels, timeline labels, mobile score summaries, recommendations, and map signal popups are routed through the date formatter or sanitization layer.
+- This was frontend-only: no backend scoring logic, `/score` or `/health` auth, Bulk CSV auth, schema/RLS, pricing, billing, `.codex/`, `data/raw/`, or `demo_assets/` changes.
+
 ## 30-second broker demo flow (high-risk + low-risk)
 
 Use this exact sequence in live demos, investor calls, and YC-style interviews.

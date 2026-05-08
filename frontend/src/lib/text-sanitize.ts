@@ -12,6 +12,8 @@
  * Keep WORK_TYPE_LABELS in sync with backend/scoring/sanitize.py.
  */
 
+import { formatIsoDatesInText } from "@/lib/date-format";
+
 // ---------------------------------------------------------------------------
 // Chicago CDOT street closure work_type code → human-readable label
 // ---------------------------------------------------------------------------
@@ -98,28 +100,8 @@ function replaceParenCodes(text: string): string {
 
 // ---------------------------------------------------------------------------
 // ISO date replacement
-// "2024-03-15" → "March 15, 2024"
+// "2024-03-15" -> "Mar 15, 2024"
 // ---------------------------------------------------------------------------
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function formatIsoDate(iso: string): string {
-  const parts = iso.slice(0, 10).split("-");
-  if (parts.length !== 3) return iso;
-  const [year, month, day] = parts;
-  const monthIndex = parseInt(month, 10) - 1;
-  if (monthIndex < 0 || monthIndex > 11) return iso;
-  return `${MONTHS[monthIndex]} ${parseInt(day, 10)}, ${year}`;
-}
-
-const ISO_DATE_RE = /\b(\d{4}-\d{2}-\d{2})\b/g;
-
-function replaceIsoDates(text: string): string {
-  return text.replace(ISO_DATE_RE, (_, iso) => formatIsoDate(iso));
-}
 
 // ---------------------------------------------------------------------------
 // Meter distance → feet
@@ -182,7 +164,7 @@ function maybeDowncase(text: string): string {
 export function sanitizeApiText(text: string | null | undefined): string {
   if (!text) return text ?? "";
   let result = replaceParenCodes(text);
-  result = replaceIsoDates(result);
+  result = formatIsoDatesInText(result);
   result = replaceMeters(result);
   result = replaceRanges(result);
   result = maybeDowncase(result);
@@ -211,6 +193,6 @@ export function sanitizeNotes(text: string | null | undefined): string {
   if (!text) return text ?? "";
   let result = replaceParenCodes(text);
   result = replaceBareWordCodes(result);
-  result = replaceIsoDates(result);
+  result = formatIsoDatesInText(result);
   return result.trim();
 }

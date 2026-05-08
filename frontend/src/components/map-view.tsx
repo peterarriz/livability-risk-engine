@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchMapNarration, type NearbyAmenity, type NearbySchool, type NearbySignal, type TopRiskDetail } from "@/lib/api";
+import { formatScoreDateRange, parseScoreDate } from "@/lib/date-format";
 import { impactTypeLabel } from "@/lib/score-utils";
+import { sanitizeApiText } from "@/lib/text-sanitize";
 
 type MapMode = "signals" | "heatmap";
 type NarrationInteraction = "default_load" | "signal_click" | "map_pan";
@@ -160,16 +162,19 @@ function metersToFeet(m: number): number {
   return Math.round(m * 3.28084);
 }
 
-function formatDateRange(start?: string | null, end?: string | null): string {
-  if (!start && !end) return "Dates unknown";
-  const fmt = (iso: string) => {
-    const [y, m, d] = iso.split("-");
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return `${months[Number(m) - 1]} ${Number(d)}, ${y}`;
-  };
-  if (start && end) return `${fmt(start)} \u2013 ${fmt(end)}`;
-  if (start) return `From ${fmt(start)}`;
-  return `Until ${fmt(end!)}`;
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function startOfLocalDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
 }
 
 const TEMPORAL_PILL: Record<string, { label: string; bg: string; color: string }> = {
@@ -183,9 +188,9 @@ const TEMPORAL_PILL: Record<string, { label: string; bg: string; color: string }
 function buildSignalPopup(s: NearbySignal): string {
   const color = impactColor(s.impact_type);
   const typeLabel = impactLabel(s.impact_type);
-  const title = s.title.replace(/\s*\([^)]*\)/g, "").trim();
+  const title = sanitizeApiText(s.title).replace(/\s*\([^)]*\)/g, "").trim();
   const dist = `~${Math.round(s.distance_m)}m away`;
-  const dates = formatDateRange(s.start_date, s.end_date);
+  const dates = formatScoreDateRange(s.start_date, s.end_date);
   const src = s.source ? sourceLabel(s.source) : "Public records";
 
   const ts = s.temporal_status && TEMPORAL_PILL[s.temporal_status];
@@ -194,21 +199,23 @@ function buildSignalPopup(s: NearbySignal): string {
     : "";
 
   return `<div style="font-family:system-ui,sans-serif;min-width:200px;max-width:280px;padding:2px 0">
-    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${color};margin-bottom:4px">${typeLabel}</div>
-    <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:6px;color:#f1f5f9">${title}</div>
-    <div style="font-size:0.72rem;color:#94a3b8;display:flex;flex-direction:column;gap:2px">
-      <div><span style="color:#cbd5e1">Distance</span> &nbsp;${dist}</div>
-      <div><span style="color:#cbd5e1">Active</span> &nbsp;${dates}</div>
-      <div><span style="color:#cbd5e1">Source</span> &nbsp;${src}</div>
+    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${color};margin-bottom:4px">${escapeHtml(typeLabel)}</div>
+    <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:6px;color:#0f172a">${escapeHtml(title)}</div>
+    <div style="font-size:0.72rem;color:#475569;display:flex;flex-direction:column;gap:2px">
+      <div><span style="color:#334155">Distance</span> &nbsp;${escapeHtml(dist)}</div>
+      <div><span style="color:#334155">Active</span> &nbsp;${escapeHtml(dates)}</div>
+      <div><span style="color:#334155">Source</span> &nbsp;${escapeHtml(src)}</div>
     </div>
     ${pill}
   </div>`;
 }
 
 function isSignalActiveOnDay(signal: NearbySignal, forecastDate: Date): boolean {
-  const parse = (iso: string) => new Date(iso + "T00:00:00Z");
-  if (signal.start_date && parse(signal.start_date) > forecastDate) return false;
-  if (signal.end_date && parse(signal.end_date) < forecastDate) return false;
+  const forecastDay = startOfLocalDay(forecastDate);
+  const start = signal.start_date ? parseScoreDate(signal.start_date) : null;
+  const end = signal.end_date ? parseScoreDate(signal.end_date) : null;
+  if (start && startOfLocalDay(start) > forecastDay) return false;
+  if (end && startOfLocalDay(end) < forecastDay) return false;
   return true;
 }
 
@@ -344,21 +351,50 @@ export function MapView({
         });
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxZoom: 20,
         subdomains: "abcd",
       }).addTo(map);
 
-      L.marker([latitude, longitude]).addTo(map).bindPopup(address).openPopup();
+      const propertyIcon = new L.Icon({
+        iconUrl:       `${iconBase}marker-icon.png`,
+        iconRetinaUrl: `${iconBase}marker-icon-2x.png`,
+        shadowUrl:     `${iconBase}marker-shadow.png`,
+        iconSize:      [25, 41],
+        iconAnchor:    [12, 41],
+        popupAnchor:   [1, -34],
+        tooltipAnchor: [0, -36],
+        shadowSize:    [41, 41],
+        shadowAnchor:  [12, 41],
+      });
+
+      const propertyMarker = L.marker([latitude, longitude], {
+        icon: propertyIcon,
+        zIndexOffset: 1000,
+      }).addTo(map);
+      propertyMarker.bindTooltip(escapeHtml(address), {
+        permanent: true,
+        direction: "top",
+        offset: L.point(0, -8),
+        opacity: 1,
+        className: "lre-address-tooltip",
+        interactive: false,
+      });
+
+      setTimeout(() => {
+        if (mapRef.current !== map) return;
+        map.invalidateSize();
+        propertyMarker.openTooltip();
+      }, 0);
 
       // Distance rings (250 m inner + 500 m scoring boundary)
       const ringGroup = L.layerGroup();
       for (const ring of DISTANCE_RINGS) {
         L.circle([latitude, longitude], {
           radius: ring.radius,
-          color: "rgba(148,163,184,0.4)",
-          weight: 1,
+          color: "rgba(30,41,59,0.5)",
+          weight: 1.25,
           dashArray: "5 6",
           fillOpacity: 0,
         }).bindTooltip(ring.label, { sticky: true, direction: "top" })
@@ -507,7 +543,7 @@ export function MapView({
           }
           const defaultCircleStyle = {
             radius,
-            color: isCrimeTrend ? color : "#ffffff",
+            color: isCrimeTrend ? color : "rgba(15,23,42,0.68)",
             weight: isCrimeTrend ? 2 : 1,
             dashArray: isCrimeTrend ? "4 3" : undefined,
             fillColor: color,
@@ -617,10 +653,10 @@ export function MapView({
       const popup = `
         <div style="font-family:system-ui,sans-serif;min-width:180px;max-width:220px;padding:2px 0">
           <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${hex};margin-bottom:5px">School</div>
-          <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${school.name}</div>
-          <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
-            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Rating</td><td>${rating}</td></tr>
-            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
+          <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#0f172a">${escapeHtml(school.name)}</div>
+          <table style="font-size:0.72rem;color:#475569;border-collapse:collapse;width:100%">
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#334155">Rating</td><td>${escapeHtml(rating)}</td></tr>
+            <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#334155">Distance</td><td>~${escapeHtml(distFt.toLocaleString())} ft away</td></tr>
           </table>
         </div>`;
 
@@ -691,7 +727,7 @@ export function MapView({
     const popup = `
       <div style="font-family:system-ui,sans-serif;min-width:180px;padding:2px 0">
         <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">Flood risk</div>
-        <div style="font-size:0.85rem;font-weight:600;color:#f1f5f9">${risk}${zoneLabel}</div>
+        <div style="font-size:0.85rem;font-weight:600;color:#0f172a">${escapeHtml(risk)}${escapeHtml(zoneLabel)}</div>
       </div>`;
 
     L.circle([latitude, longitude], {
@@ -722,10 +758,10 @@ export function MapView({
         const distFt = metersToFeet(poi.distance_m);
         const popup = `
           <div style="font-family:system-ui,sans-serif;min-width:180px;max-width:220px;padding:2px 0">
-            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">${catLabel}</div>
-            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#f1f5f9">${poi.name}</div>
-            <table style="font-size:0.72rem;color:#94a3b8;border-collapse:collapse;width:100%">
-              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#cbd5e1">Distance</td><td>~${distFt.toLocaleString()} ft away</td></tr>
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${color};margin-bottom:5px">${escapeHtml(catLabel)}</div>
+            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:8px;color:#0f172a">${escapeHtml(poi.name)}</div>
+            <table style="font-size:0.72rem;color:#475569;border-collapse:collapse;width:100%">
+              <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:#334155">Distance</td><td>~${escapeHtml(distFt.toLocaleString())} ft away</td></tr>
             </table>
           </div>`;
 
